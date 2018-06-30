@@ -42,8 +42,8 @@ class Chunk(object):
  
         activations = dict()
         for f in self.microfeatures:
-            dim = type(f)
-            w_dim, n_val = self.top_down_weights[dim], self._val_counts[dim]
+            w_dim = self.top_down_weights[f.dim()] 
+            n_val = self._val_counts[f.dim()]
             activations[f] = strength * w_dim / n_val
         return activations
 
@@ -58,12 +58,11 @@ class Chunk(object):
 
         dim_activations = dict()
         for f in self.microfeatures:
-            dim = type(f)
             try:
-                if dim_activations[dim] < activations[f]:
-                    dim_activations[dim] = activations[f]
+                if dim_activations[f.dim()] < activations[f]:
+                    dim_activations[f.dim()] = activations[f]
             except KeyError:
-                dim_activations[dim] = activations[f]
+                dim_activations[f.dim()] = activations[f]
         
         strength = 0.
         for dim in dim_activations:
@@ -91,7 +90,7 @@ class Chunk(object):
         if top_down_weights is None:
             top_down_weights = dict()
             for f in self.microfeatures:
-                top_down_weights[type(f)] = 1.
+                top_down_weights[f.dim()] = 1.
         return top_down_weights
 
     @staticmethod
@@ -105,7 +104,7 @@ class Chunk(object):
         counts = dict()
         for f in microfeatures:
             try:
-                counts[type(f)] += 1
+                counts[f.dim()] += 1
             except KeyError:
-                counts[type(f)] = 1
+                counts[f.dim()] = 1
         return counts

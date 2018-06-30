@@ -19,6 +19,12 @@ class Feature(enum.Enum):
     """
     pass
 
+    def dim(self) -> enum.EnumMeta:
+        """Return dimension associated with self.
+        """
+
+        return type(self)
+
 # Some useful types
 Dim2Float = T.Dict[enum.EnumMeta, float]
 FeatureSet = T.Set[Feature]

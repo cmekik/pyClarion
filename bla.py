@@ -36,7 +36,8 @@ class BLA(object):
         self.timestamps = []
 
     def update(self) -> None:
-        """Add current time to list of timestamps.
+        """Record current time as an instance of use and/or activation for 
+        associated construct.
         """
 
         self.timestamps.append(self.clock.get_time())
