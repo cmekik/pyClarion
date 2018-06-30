@@ -5,7 +5,8 @@ import typing as T
 class Feature(enum.Enum):
     """An abstract Clarion (micro)feature.
 
-    In Clarion, (micro)features are represented as dimension-value pairs:
+    In Clarion, (micro)features are implicit, connectionist representations. 
+    They are represented as dimension-value pairs:
         e.g. (Color: White), (Shape: Star)
     In this implementation, dimensions are represented by subclasses of the 
     Feature class, which is itself an enumeration class. Members of Feature 
@@ -25,7 +26,7 @@ class Feature(enum.Enum):
 
         return type(self)
 
-# Some useful types
-Dim2Float = T.Dict[enum.EnumMeta, float]
+# Types
+Dim2Float = T.Mapping[enum.EnumMeta, float]
 FeatureSet = T.Set[Feature]
-Feature2Float = T.Dict[Feature, float]
+Feature2Float = T.Mapping[Feature, float]
