@@ -42,6 +42,13 @@ class Chunk(object):
         if label is not None:
             self.label = label
 
+    def __repr__(self):
+
+        header = self.__class__.__name__ + ": "
+        if self.label is not None:
+            header += self.label.join(["'","'"]) + " "
+        return (header + self.microfeatures.__repr__()).join(["<", ">"])
+
     def initialize_weights(
         self, 
         dim2weight: T.Optional[Dim2Float]

@@ -165,7 +165,7 @@ class Rule(Activation):
                 strength += chunk2strength[chunk] * self.chunk2weight[chunk]
             except KeyError:
                 continue
-        return {self.conclusion_chunk, strength}
+        return {self.conclusion_chunk: strength}
 
 class Implicit(Activation):
     pass

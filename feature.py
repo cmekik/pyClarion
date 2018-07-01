@@ -20,6 +20,9 @@ class Feature(enum.Enum):
     """
     pass
 
+    def __repr__(self):
+        return (self.__class__.__name__ + ": " + self.name).join(["(",")"])
+
     def dim(self) -> enum.EnumMeta:
         """Return dimension associated with self.
         """

@@ -20,7 +20,7 @@ For simplicity, this example only uses row-wise reasoning.
 
 from feature import Feature
 from chunk import Chunk
-from rule import Rule
+from activation import TopDown, BottomUp, Rule
 
 ####### (MICRO)FEATURES #######
 
@@ -123,6 +123,11 @@ chunks = {
     altseq3
 }
 
+####### TOP-DOWN & BOTTOM-UP LINKS #######
+
+top_downs = {TopDown(chunk) for chunk in chunks}
+bottom_ups = {BottomUp(chunk) for chunk in chunks}
+
 ####### RULES #######
 
 mat2alt1 = Rule(
@@ -157,114 +162,97 @@ rules = {
 
 ####### PROCESSING EXAMPLE #######
 
-# Step 1: Set the strength of one of the alternative rows to maximum.
+# Step 1: Activate an alternative sequence chunk.
 
-chunk2strength = {
-    altseq1 : 1.
-}
+chunk2strength = {altseq1 : 1.}
 
-# Step 2: Use SBR to activate any similar chunks.
+# Step 2: Use SBR. 
+    # Activate any similar chunks.
 
 ## Step 2.1: Top-Down Activation
-    # Note: For simplicity, I assume that all other chunk activations are 
-    # 0. or that they are suppressed by MCS. Normally, top-down activation 
-    # would affect all active chunks. In this case, the only active chunk is
-    # altseq1.
+    # Note: Top-down activation affects all active chunks that are not 
+    # suppressed by MCS. In this case, the only active chunk is altseq1.
 
-top_down = altseq1.top_down(chunk2strength[altseq1])
+top_down = dict()
+for td in top_downs:
+    top_down.update(td(chunk2strength))
 
 ## Step 2.2: Bottom-Up Activation
     # The resulting activations from the top-down step are now used for 
-    # bottom up activation. Note that normally activations would spread 
-    # throughout the top and bottom levels. In this case, there are no rules 
+    # bottom up activation. Normally, activations would spread throughout the 
+    # top and bottom levels before this step. In this case, there are no rules 
     # connecting alternative sequences to other sequences, and no implicit 
     # connections. Thus this step is essentially skipped. 
 
 bottom_up = dict()
-for chunk in chunks:
-    bottom_up[chunk] = chunk.bottom_up(top_down)
+for bu in bottom_ups:
+    bottom_up.update(bu(top_down))
 
 # The result of this operation is a chunk2strength mapping denoting 
 # activation due to similarity.
 
 # Step 3: Filter Setup
-    # Note that chunk alt1 will be activated at this step due to the shared 
-    # microfeature Alternative.A<x> between altseq<x> and alt<x>. This is 
-    # important because it allows the subject to isolate which alternative 
-    # it cares about during this particular reasoning episode. The next 
-    # step will, without intervention, activate all chunks representing 
-    # matrix alternatives. There is no way to attribute the results of the 
-    # current episode to the correct alternative without taking into account 
-    # alternative chunk activations at this step. This is something that 
-    # can be handled by the MCS; for simplicity, I do it manually.
+    # Chunk alt1 will be activated at this step due to the shared microfeature 
+    # Alternative.A1 between altseq1 and alt1. This is important because it 
+    # allows the subject to isolate which alternative it cares about during this 
+    # particular reasoning episode. The next step will, without intervention 
+    # from MCS, activate all chunks representing matrix alternatives. There is 
+    # no way to attribute the results of the current episode to the correct 
+    # alternative without taking into account alternative chunk activations at 
+    # this step. This is something that can be handled by the MCS in a more 
+    # detailed simulation; here, I do it manually.
 
 # By 'relevant' I mean relevant to the current reasoning episode.
 relevant_chunks = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
 
 # Step 4: Rule Application
-    # Note: This step normally would pick the strength with maximal 
-    # activation. However, since no two rules have the same activation 
-    # chunk, this selection process has been omitted.
+    # Note: This step normally would pick, for each chunk, the maximal resulting 
+    # strength. However, since no two rules have the same conclusion chunk, 
+    # this selection process has been omitted.
 
 conc2strength = dict()
 for rule in rules:
-    conc2strength[rule.conclusion_chunk] = rule.apply(bottom_up)
+    conc2strength.update(rule(bottom_up))
 
 # Step 5: Filtering
-    # See notes in Step 3 about isolating the correct alternative. In 
-    # this step, the correct alternative is isolated according to the 
-    # considerations discussed in that section. 
+    # See notes in Step 3 about isolating the correct alternative. In this 
+    # step, the correct alternative is isolated, according to the considerations 
+    # discussed in that section, by filtering out all chunks except those found 
+    # to be relevant to the present episode. 
 
-result = dict()
+result1 = dict()
 for chunk in relevant_chunks:
     try:
-        result[chunk] = conc2strength[chunk]
+        result1[chunk] = conc2strength[chunk]
     except KeyError:
         continue
 
-# The result thus obtainde should just be the activation value of alt<x>, 
-# the alternative related to the original alternative sequence under 
-# consideration. This result can now be stored in WM or episodic memory for 
-# action selection once the other alternatives have been selected.
+# The result of filtering should just be the activation value of alt1, the 
+# alternative that generates the initial alternative sequence when plugged into 
+# the blank. This result can now be stored in WM or episodic memory for action 
+# selection once the other alternatives have been processed.
 
 ####### PROCESSING OF OTHER ALTERNATIVES #######
-    # I have wrapped the above in a simple static method, so that we can 
-    # skip repetition.
+    # I have wrapped the above in a function, so that we can skip repetition.
 
-def process_alternative_sequence(altseq, chunks, rules):
-
-    # Step 1: Set the strength of one of the alternative rows to maximum.
-
-    chunk2strength = {
-        altseq : 1.
-    }
-
-    # Step 2: Use SBR to activate any similar chunks.
-
-    ## Step 2.1: Top-Down Activation
-
-    top_down = altseq.top_down(chunk2strength[altseq])
-
-    ## Step 2.2: Bottom-Up Activation
-
+def process_alternative_sequence(altseq, chunks, top_downs, bottom_ups, rules):
+    
+    chunk2strength = {altseq : 1.}
+    
+    top_down = dict()
+    for td in top_downs:
+        top_down.update(td(chunk2strength))
+    
     bottom_up = dict()
-    for chunk in chunks:
-        bottom_up[chunk] = chunk.bottom_up(top_down)
+    for bu in bottom_ups:
+        bottom_up.update(bu(top_down))
 
-    # Step 3: Filter Setup
-
-    relevant_chunks = {
-        chunk for chunk in bottom_up if bottom_up[chunk] > 0.
-    } 
-
-    # Step 4: Rule Application
+    relevant_chunks = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
 
     conc2strength = dict()
     for rule in rules:
-        conc2strength[rule.conclusion_chunk] = rule.apply(bottom_up)
+        conc2strength.update(rule(bottom_up)) 
 
-    # Step 5: Filtering
-    
     result = dict()
     for chunk in relevant_chunks:
         try:
@@ -274,12 +262,20 @@ def process_alternative_sequence(altseq, chunks, rules):
 
     return result
 
-result2 = process_alternative_sequence(altseq2, chunks, rules)
-result3 = process_alternative_sequence(altseq3, chunks, rules)
+result2 = process_alternative_sequence(
+    altseq2, chunks, top_downs, bottom_ups, rules
+)
+result3 = process_alternative_sequence(
+    altseq3, chunks, top_downs, bottom_ups, rules
+)
 
 ####### ALTERNATIVE SELECTION #######
+    # At the end of all this reasoning, we choose an alternative, here using a 
+    # naive selection method (pick the first chunk attaining maximal 
+    # activation). Given the setup of the scenario, this chunk should be chunk 
+    # alt1 (the correct response).
 
-results = {**result, **result2, **result3} 
+results = {**result1, **result2, **result3} 
 
 choice = None
 for chunk in results:
@@ -287,9 +283,6 @@ for chunk in results:
         if results[chunk] > results[choice]:
             choice = chunk
     except KeyError:
-        choice = chunk 
+        choice = chunk
 
-# At the end of all this reasoning, we choose an alternative, here using a 
-# naive selection method (pick the first chunk attaining maximal 
-# activation). Given the setup of the scenario, this chunk should be chunk 
-# alt1 (the correct response).
+correct = choice == alt1 
