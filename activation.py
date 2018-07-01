@@ -26,8 +26,7 @@ class TopDown(Activation):
 
     def __call__(
         self, 
-        chunk2strength : Chunk2Float, 
-        microfeatures : FeatureSet
+        chunk2strength : Chunk2Float
     ) -> Feature2Float:
         """Compute bottom-level activations given current chunk strength.
 
@@ -35,8 +34,6 @@ class TopDown(Activation):
 
         Args:
             chunk2strength : A mapping from chunks to their current strengths.
-            microfeatures : A set of microfeatures for which top-down 
-                activations may be computed.
         """
 
         try:
@@ -46,10 +43,9 @@ class TopDown(Activation):
         else:        
             activations = dict()
             for f in self.chunk.microfeatures:
-                if f in microfeatures:
-                    w_dim = self.chunk.dim2weight[f.dim()] 
-                    n_val = self.val_counts[f.dim()]
-                    activations[f] = strength * w_dim / n_val
+                w_dim = self.chunk.dim2weight[f.dim()] 
+                n_val = self.val_counts[f.dim()]
+                activations[f] = strength * w_dim / n_val
             return activations
 
     @staticmethod
@@ -85,7 +81,6 @@ class BottomUp(Activation):
     def __call__(
         self, 
         feature2activation : Feature2Float, 
-        chunks : ChunkSet
     ) -> Chunk2Float:
         """Compute chunk strength given current bottom-level activations.
 
@@ -93,38 +88,33 @@ class BottomUp(Activation):
 
         Args:
             feature2activation : Current activations at the botom level.
-            chunks : A set of chunks for which bottom-up activations may be 
-                computed.
         """
 
-        if self.chunk in chunks:
-            # For each dimension, pick the maximum available activation of the 
-            # target chunk microfeatures in that dimension. 
-            dim2activation = dict()
-            for f in self.chunk.microfeatures:
-                try:
-                    if dim2activation[f.dim()] < feature2activation[f]:
-                        dim2activation[f.dim()] = feature2activation[f]
+        # For each dimension, pick the maximum available activation of the 
+        # target chunk microfeatures in that dimension. 
+        dim2activation = dict()
+        for f in self.chunk.microfeatures:
+            try:
+                if dim2activation[f.dim()] < feature2activation[f]:
+                    dim2activation[f.dim()] = feature2activation[f]
+            except KeyError:
+                # A KeyError may arise either because f.dim() is not in 
+                # dim2activation, or because f is not in feature2activation. 
+                # If the former is the case, add f.dim() to dim2activation, 
+                # otherwise move on to the next microfeature.
+                try: 
+                    dim2activation[f.dim()] = feature2activation[f]
                 except KeyError:
-                    # A KeyError may arise either because f.dim() is not in 
-                    # dim2activation, or because f is not in feature2activation. 
-                    # If the former is the case, add f.dim() to dim2activation, 
-                    # otherwise move on to the next microfeature.
-                    try: 
-                        dim2activation[f.dim()] = feature2activation[f]
-                    except KeyError:
-                        continue
-            # Compute chunk strength based on dimensional activations.
-            strength = 0.
-            for dim in dim2activation:
-                strength += self.chunk.dim2weight[dim] * dim2activation[dim]
-            else:
-                # What is the purpose of superlinearity? 
-                # Is it just to ensure that bottom-up activation is < 1?
-                strength /= sum(self.chunk.dim2weight.values()) ** 1.1
-            return {self.chunk: strength}
+                    continue
+        # Compute chunk strength based on dimensional activations.
+        strength = 0.
+        for dim in dim2activation:
+            strength += self.chunk.dim2weight[dim] * dim2activation[dim]
         else:
-            return dict()
+            # What is the purpose of superlinearity? 
+            # Is it just to ensure that bottom-up activation is < 1?
+            strength /= sum(self.chunk.dim2weight.values()) ** 1.1
+        return {self.chunk: strength}
 
 class Rule(Activation):
     """A basic Clarion associative rule.
@@ -161,26 +151,21 @@ class Rule(Activation):
         self.chunk2weight = chunk2weight
         self.conclusion_chunk = conclusion_chunk
     
-    def __call__(self, chunk2strength : Chunk2Float, chunks) -> Chunk2Float:
+    def __call__(self, chunk2strength : Chunk2Float) -> Chunk2Float:
         """Return strength of conclusion chunk resulting from an application of 
         current associative rule.
 
         kwargs:
             chunk2strength : A mapping from chunks to their current strengths.
-            chunks : A set of chunks for which rule activations may be 
-                computed.
         """
         
-        if self.conclusion_chunk in chunks:
-            strength = 0. 
-            for chunk in self.chunk2weight:
-                try:
-                    strength += chunk2strength[chunk] * self.chunk2weight[chunk]
-                except KeyError:
-                    continue
-            return {self.conclusion_chunk, strength}
-        else:
-            return dict()
+        strength = 0. 
+        for chunk in self.chunk2weight:
+            try:
+                strength += chunk2strength[chunk] * self.chunk2weight[chunk]
+            except KeyError:
+                continue
+        return {self.conclusion_chunk, strength}
 
 class Implicit(Activation):
     pass
