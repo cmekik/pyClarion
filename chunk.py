@@ -43,6 +43,11 @@ class Chunk(object):
             self.label = label
 
     def __repr__(self):
+        """Return a string representation of self.
+
+        Should look like this:
+            <Chunk: 'chunk-label' {(Dim1, Val1), (Dim2, Val2), ...}>
+        """
 
         header = self.__class__.__name__ + ": "
         if self.label is not None:

@@ -17,7 +17,6 @@ class ChunkTestCase(unittest.TestCase):
 
         self.white_square = Chunk(
             microfeatures = {self.Color.WHITE, self.Shape.SQUARE},
-            top_down_weights = {self.Color: 1., self.Shape: 1.},
             label="white square" 
         )
 
@@ -29,66 +28,17 @@ class ChunkTestCase(unittest.TestCase):
             }, 
         )
 
-        self.sensory_input_1 = {
-            self.Color.BLACK : 1.,
-            self.Color.WHITE : 0.,
-            self.Shape.SQUARE : 1.,
-            self.Shape.CIRCLE : 0.
-        }
+    def test_repr(self):
 
-        self.sensory_input_2 = {
-            self.Color.BLACK : 0.,
-            self.Color.WHITE : 1.,
-            self.Shape.SQUARE : 1.,
-            self.Shape.CIRCLE : 0.
-        }
+        enclosing_str = ["<Chunk: 'white square' ", ">"]
+        self.assertEqual(
+            self.white_square.__repr__(),
+            str(self.white_square.microfeatures).join(enclosing_str)
+        )
 
-        self.sensory_input_3 = {
-            self.Color.BLACK : 1.,
-            self.Color.WHITE : 0.,
-            self.Shape.SQUARE : 0.,
-            self.Shape.CIRCLE : 1.
-        }
-
-    def test_top_down(self):
+    def test_initialize_weights(self):
         
-        with self.subTest(msg="white-square"):
-            result = self.white_square.top_down(1.)
-            expected = {self.Color.WHITE: 1., self.Shape.SQUARE: 1.}
-            self.assertEqual(result, expected)
-
-        with self.subTest(msg="white-square-partial"):
-            result = self.white_square.top_down(.5)
-            expected = {self.Color.WHITE: .5, self.Shape.SQUARE: .5}
-            self.assertEqual(result, expected)
-
-        with self.subTest(msg="black-or-white-square"):
-            result = self.black_or_white_square.top_down(1.)
-            expected = {
-                self.Color.WHITE: .5, 
-                self.Color.BLACK: .5, 
-                self.Shape.SQUARE: 1.
-            }
-            self.assertEqual(result, expected)
-
-    def test_bottom_up(self):
-
-        with self.subTest(msg="si_1-white-square"):
-            result = self.white_square.bottom_up(self.sensory_input_1)
-            expected = 1./(2.**1.1)
-            self.assertAlmostEqual(result, expected)
-
-        with self.subTest(msg="si_2-white-square"):
-            result = self.white_square.bottom_up(self.sensory_input_2)
-            expected = 2./(2.**1.1)
-            self.assertAlmostEqual(result, expected)
-
-        with self.subTest(msg="si_1-black-or-white-square"):
-            result = self.black_or_white_square.bottom_up(self.sensory_input_1)
-            expected = 2./(2.**1.1)
-            self.assertAlmostEqual(result, expected)
-
-        with self.subTest(msg="si_1-black-or-white-square"):
-            result = self.black_or_white_square.bottom_up(self.sensory_input_3)
-            expected = 1./(2.**1.1)
-            self.assertAlmostEqual(result, expected)
+        self.assertEqual(
+            self.white_square.dim2weight,
+            {self.Color : 1., self.Shape : 1.}
+        )
