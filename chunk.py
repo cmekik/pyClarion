@@ -74,11 +74,17 @@ class Chunk(object):
                 if dim_activations[f.dim()] < activations[f]:
                     dim_activations[f.dim()] = activations[f]
             except KeyError:
-                dim_activations[f.dim()] = activations[f]
+                try: 
+                    dim_activations[f.dim()] = activations[f]
+                except KeyError:
+                    continue
         
         strength = 0.
         for dim in dim_activations:
-            strength += self.top_down_weights[dim] * dim_activations[dim]
+            try:
+                strength += self.top_down_weights[dim] * dim_activations[dim]
+            except KeyError:
+                continue
         else:
             # What is the purpose of superlinearity? 
             # Is it just to ensure that bottom-up activation is < 1?
