@@ -284,9 +284,9 @@ results = {**result, **result2, **result3}
 choice = None
 for chunk in results:
     try:
-        if results[chunk] > choice:
+        if results[chunk] > results[choice]:
             choice = chunk
-    except TypeError:
+    except KeyError:
         choice = chunk 
 
 # At the end of all this reasoning, we choose an alternative, here using a 
