@@ -76,3 +76,4 @@ class Chunk(object):
 # Types
 ChunkSet = T.Set[Chunk]
 Chunk2Float = T.Mapping[Chunk, float]
+Chunk2Callable = T.Mapping[Chunk, T.Callable]
