@@ -6,8 +6,8 @@ These two steps are handled separately by the ChunkSelector and ActionHandler
 classes, respectively.
 
 For basic details on action selection, see Chapter 3.1.2.3 of Sun (2016). See
-also Section 3.4.2 on memory retrieval and Section 4.3.2 for possible 
-metacognitive actions.
+also Section 3.4.2 on memory retrieval actions, Section 4.2.3 for possible 
+goal-setting actions and Section 4.3.2 for other possible metacognitive actions.
 
 References:
     Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
