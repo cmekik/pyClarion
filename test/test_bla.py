@@ -1,22 +1,18 @@
 import unittest
-import unittest.mock
-from clock import Clock
 from bla import BLA
 
 class TestBLA(unittest.TestCase):
     
     def setUp(self):
 
-        self.mock_clock = unittest.mock.Mock(spec=Clock)
-        self.bla = BLA(clock=self.mock_clock)
+        self.bla = BLA()
 
         # Initialize BLA at time = 0
-        self.mock_clock.get_time.return_value = 0.
-        self.bla.update()
+        self.bla.update(0.)
 
     def test_update(self):
 
-        self.assertEqual(self.bla.timestamps[0], self.mock_clock.get_time())
+        self.assertEqual(self.bla.timestamps[0], 0.)
 
     def test_compute_bla(self):
 
@@ -28,10 +24,9 @@ class TestBLA(unittest.TestCase):
         ]
 
         for i, (t, e) in enumerate(zip(test_times, expected)):
-            self.mock_clock.get_time.return_value = t
             with self.subTest(i=i):
-                self.assertAlmostEqual(self.bla.compute_bla(), e)
-            self.bla.update()
+                self.assertAlmostEqual(self.bla.compute_bla(t), e)
+            self.bla.update(t)
 
     def test_below_density(self):
 
@@ -41,6 +36,5 @@ class TestBLA(unittest.TestCase):
         expected = [False, False, True, True]
 
         for i, (t, e) in enumerate(zip(test_times, expected)):
-            self.mock_clock.get_time.return_value = t
             with self.subTest(i=i):
-                self.assertEqual(self.bla.below_density(), e)
+                self.assertEqual(self.bla.below_density(t), e)

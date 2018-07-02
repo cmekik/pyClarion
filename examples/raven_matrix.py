@@ -1,9 +1,8 @@
 """A very simple example of NACS-style operation on an item in the style of 
-Raven's Progressive Matrices. This example uses only the basic constructs of 
-Feature, Chunk, and Rule. It is meant to demonstrate how these components can 
-be combined to give rise to the kinds of processes that are normally controlled 
-by various subsystems such as ACS, NACS, MS, and MCS. Learning is not treated 
-in this example.
+Raven's Progressive Matrices. This example uses only the basic constructs. It 
+is meant to demonstrate how these components can be combined to give rise to 
+the kinds of processes that are normally controlled by various subsystems such 
+as ACS, NACS, MS, and MCS. Learning is not treated in this example.
 
 The item matrix has the following structure:
 
@@ -18,9 +17,9 @@ The goal is to choose the alternative that best completes the matrix.
 For simplicity, this example only uses row-wise reasoning.
 """
 
-from feature import Feature
-from chunk import Chunk
-from activation import TopDown, BottomUp, Rule
+from nodes import Feature, Chunk
+from activation import TopDown, BottomUp, Rule, ActivationFilter, MaxJunction
+from action import BoltzmannSelector, ActionHandler
 
 ####### (MICRO)FEATURES #######
 
@@ -123,12 +122,17 @@ chunks = {
     altseq3
 }
 
-####### TOP-DOWN & BOTTOM-UP LINKS #######
+####### ACTIVATION CHANNELS #######
+
+# TOP-DOWN LINKS
 
 top_downs = {TopDown(chunk) for chunk in chunks}
+
+# BOTTOM-UP LINKS
+
 bottom_ups = {BottomUp(chunk) for chunk in chunks}
 
-####### RULES #######
+# RULES
 
 mat2alt1 = Rule(
     chunk2weight = {
@@ -159,6 +163,76 @@ rules = {
     mat2alt2,
     mat2alt3
 }
+
+# FILTERS
+
+reasoning_filter = ActivationFilter({})
+
+# JUNCTIONS
+
+max_junction = MaxJunction()
+
+####### ACTION HANDLING #######
+
+class ResponseTracker(object):
+    """A simple object for tracking trial outcomes.
+    """
+
+    def __init__(self, correct):
+        """Initialize response tracker.
+
+        kwargs:
+            correct : The chunk representing the correct response.
+        """
+
+        self.response = None
+        self.correct = correct
+
+    def record(self, response):
+        """Record the subject's response.
+
+        kwargs:
+            response : The subject's response.
+        """
+
+        self.response = response
+
+    def evaluate_outcome(self):
+        """Return an evaluation of the subject's response.
+        """
+
+        if self.response:
+            if self.response == self.correct:
+                return "Response was correct."
+            else:
+                return "Response was incorrect."
+        else:
+            return "No response yet."
+
+# INITIALIZE RESPONSE TRACKER
+
+response_tracker = ResponseTracker(correct=alt1)
+
+# DEFINE ACTION CHUNKS
+
+action_chunks = {
+    alt1, alt2, alt3
+}
+
+# MAP ACTION CHUNKS TO CALLBACKS
+action_callbacks = {
+    alt1 : lambda: response_tracker.record(alt1),
+    alt2 : lambda: response_tracker.record(alt2),
+    alt3 : lambda: response_tracker.record(alt3),
+}
+
+# ACTION SELECTOR
+
+boltzmann_selector = BoltzmannSelector(action_chunks, temperature=0.1)
+
+# ACTION HANDLER
+
+execute_action = ActionHandler(action_callbacks)
 
 ####### PROCESSING EXAMPLE #######
 
@@ -202,8 +276,7 @@ for bu in bottom_ups:
     # this step. This is something that can be handled by the MCS in a more 
     # detailed simulation; here, I do it manually.
 
-# By 'relevant' I mean relevant to the current reasoning episode.
-relevant_chunks = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
+reasoning_filter.nodes = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
 
 # Step 4: Rule Application
     # Note: This step normally would pick, for each chunk, the maximal resulting 
@@ -220,12 +293,7 @@ for rule in rules:
     # discussed in that section, by filtering out all chunks except those found 
     # to be relevant to the present episode. 
 
-result1 = dict()
-for chunk in relevant_chunks:
-    try:
-        result1[chunk] = conc2strength[chunk]
-    except KeyError:
-        continue
+result1 = reasoning_filter(conc2strength)
 
 # The result of filtering should just be the activation value of alt1, the 
 # alternative that generates the initial alternative sequence when plugged into 
@@ -235,7 +303,9 @@ for chunk in relevant_chunks:
 ####### PROCESSING OF OTHER ALTERNATIVES #######
     # I have wrapped the above in a function, so that we can skip repetition.
 
-def process_alternative_sequence(altseq, chunks, top_downs, bottom_ups, rules):
+def process_alternative_sequence(
+    altseq, chunks, top_downs, bottom_ups, rules, reasoning_filter
+):
     
     chunk2strength = {altseq : 1.}
     
@@ -247,42 +317,35 @@ def process_alternative_sequence(altseq, chunks, top_downs, bottom_ups, rules):
     for bu in bottom_ups:
         bottom_up.update(bu(top_down))
 
-    relevant_chunks = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
+    reasoning_filter.nodes = {
+        chunk for chunk in bottom_up if bottom_up[chunk] > 0.
+    }
 
     conc2strength = dict()
     for rule in rules:
         conc2strength.update(rule(bottom_up)) 
 
-    result = dict()
-    for chunk in relevant_chunks:
-        try:
-            result[chunk] = conc2strength[chunk]
-        except KeyError:
-            continue
-
+    result = reasoning_filter(conc2strength)
+    
     return result
 
 result2 = process_alternative_sequence(
-    altseq2, chunks, top_downs, bottom_ups, rules
+    altseq2, chunks, top_downs, bottom_ups, rules, reasoning_filter
 )
 result3 = process_alternative_sequence(
-    altseq3, chunks, top_downs, bottom_ups, rules
+    altseq3, chunks, top_downs, bottom_ups, rules, reasoning_filter
 )
 
 ####### ALTERNATIVE SELECTION #######
     # At the end of all this reasoning, we choose an alternative, here using a 
-    # naive selection method (pick the first chunk attaining maximal 
-    # activation). Given the setup of the scenario, this chunk should be chunk 
-    # alt1 (the correct response).
+    # boltzmann distribution. Given the setup of the scenario and model, this 
+    # chunk should likely be chunk alt1 (the correct response). A correct 
+    # response is not guaranteed due to the random nature of response selection.
 
-results = {**result1, **result2, **result3} 
+results = max_junction(result1, result2, result3) 
+choice = boltzmann_selector(results)
+execute_action(choice)
 
-choice = None
-for chunk in results:
-    try:
-        if results[chunk] > results[choice]:
-            choice = chunk
-    except KeyError:
-        choice = chunk
+# Now we can check if the response was correct using response_tracker.
 
-correct = choice == alt1 
+correct = response_tracker.evaluate_outcome() 

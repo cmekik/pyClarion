@@ -1,8 +1,7 @@
 import unittest
 import unittest.mock
 from enum import auto
-from feature import Feature
-from chunk import Chunk
+from nodes import Feature, Chunk
 from activation import TopDown, BottomUp, Rule
 
 class TestTopDown(unittest.TestCase):

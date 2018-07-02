@@ -1,22 +1,65 @@
-import abc
-import typing as T
-from chunk import Chunk, ChunkSet, Chunk2Float
-from feature import Feature, Dim2Float, FeatureSet
+"""This module provides tools for computing and handling node activations. In 
+Clarion, activations may flow from chunks to chunks (rules), chunks to features 
+(top-down activation), features to chunks (bottom-up activation), features to 
+chunks or features (implicit activation). Activations may also be filtered at 
+various stages based on input from the meta-cognitive subsystem or other 
+sources. Furthermore, activations from several different sources may need to be 
+combined. For example, activations from the top and bottom levels of the 
+action-centered subsystem (ACS) need to be combined in order to complete an 
+action-decision making cycle. 
 
-Node = T.Union[Chunk, Feature]
-NodeSet = T.Set[Node]
-Node2Float = T.Mapping[Node, float]
+Here, the various processes described above are captured by means of two 
+abstractions: activation channels and junctions. Activation channels implement 
+mappings from node activations to node activations. They may be used to 
+represent, among others, filtering, top-down activation, bottom-up activation, 
+rule-based activation, and implicit activation processes. Activation junctions 
+implement routines for combining inputs from various sources. They may be used, 
+for example, for combining activations from the top and botom levels of the ACS 
+for action decision-making.
+
+References:
+    Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
+"""
+
+
+import abc
+import nodes
+
+
+####### ABSTRACTIONS #######
 
 class ActivationChannel(abc.ABC):
     """An abstract class for capturing activation flows.
+
+    This class provides a uniform interface for handling activation flows. It 
+    is assumed that activations will be represented as mappings from nodes to 
+    activation values. Thus, activation channels expect such mappings as input, 
+    and return such mappings as output. Output mappings are allowed to be empty 
+    when such behavior is sensible (see e.g., TopDown).
+    
+    It is assumed that an activation channel will pay attention only to the 
+    activations that are relevant to the computation it implements. For 
+    instance, if an activation class implementing a bottom-up connection is 
+    passed a bunch of chunk activations, it should simply ignore these and look 
+    for matching (micro)features. 
+    
+    Likewise if an activation channel is handed an input that does not contain 
+    a complete activation mapping for expected nodes (e.g., due to filtering), 
+    it should not fail. Instead, it should have a well-defined default behavior
+    for such cases. 
+    
+    In general, it may be assumed that when an expected node is missing in the 
+    input, its activation is equal to 0. ActivationChannel subclasses in this 
+    module have been written according to this assumption.
     """
     
-    def __call__(
-        self, 
-        input_map : Node2Float
-    ) -> Node2Float:
+    @abc.abstractmethod
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
         """Compute and return activations resulting from an input to this 
         channel.
+
+        Note: Assumptions about missing expected nodes in the input map should 
+        be explicitly documented, along with behavior for handling such cases. 
 
         kwargs:
             input_map : A mapping from nodes (Chunks and/or Features) to 
@@ -34,25 +77,39 @@ class ActivationJunction(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(
-        self, 
-        *input_maps: Node2Float
-    ) -> Node2Float:
+    def __call__(self, *input_maps: nodes.Node2Float) -> nodes.Node2Float:
         """Return a combined mapping from chunks and/or (micro)features to 
         activations.
 
         kwargs:
-            activation_maps : A set of mappings from chunks and/or 
-            (micro)features to activations.
+            input_maps : A set of mappings from chunks and/or (micro)features 
+            to activations.
         """
 
         pass
+
+    def get_nodes(self, *input_maps: nodes.Node2Float) -> nodes.NodeSet:
+        """Return a set containing all nodes appearing in at least one 
+        mapping from chunks and/or (micro)features to activations.
+
+        kwargs:
+            input_maps : A set of mappings from chunks and/or (micro)features 
+            to activations.
+        """
+
+        node_set = set()
+        for input_map in input_maps:
+            node_set.update(input_map.keys())
+        return node_set
+
+
+####### STANDARD ACTIVATION CHANNELS #######
 
 class ActivationFilter(ActivationChannel):
     """Filters activation maps against a set of nodes.
     """
 
-    def __init__(self, nodes : NodeSet):
+    def __init__(self, nodes : nodes.NodeSet):
         """Initialize an activation filter.
 
         kwargs:
@@ -61,20 +118,25 @@ class ActivationFilter(ActivationChannel):
 
         self.nodes = nodes
 
-    def __call__(self, input_map : Node2Float) -> Node2Float:
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
         """Return a filtered activation map.
 
         kwargs:
             input_map : An activation map to be filtered.
         """
 
-        return {k:v for (k,v) in input_map if k in self.nodes}
+        return {k:v for (k,v) in input_map.items() if k in self.nodes}
 
 class TopDown(ActivationChannel):
     """A top-down (from a chunk to its microfeatures) activation channel.
+
+    For details, see Section 3.2.2.3 para 2 of Sun (2016).
+
+    References:
+        Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
 
-    def __init__(self, chunk : Chunk):
+    def __init__(self, chunk : nodes.Chunk):
         """Set up the top-down activation flow from chunk to its microfeatures.
 
         kwargs:
@@ -84,13 +146,11 @@ class TopDown(ActivationChannel):
         self.chunk = chunk
         self.val_counts = self.count_values(self.chunk.microfeatures)
 
-    def __call__(
-        self, 
-        input_map : Node2Float
-    ) -> Node2Float:
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
         """Compute bottom-level activations given current chunk strength.
 
-        For details, see Section 3.2.2.3 para 2 of Sun (2016).
+        Note: If the expected chunk is missing from the input, this channel 
+        outputs an empty mapping.
 
         kwargs:
             input_map : A mapping from nodes (Chunks and/or Features) to 
@@ -110,10 +170,10 @@ class TopDown(ActivationChannel):
             return activations
 
     @staticmethod
-    def count_values(microfeatures: FeatureSet) -> Dim2Float:
+    def count_values(microfeatures: nodes.FeatureSet) -> nodes.Dim2Float:
         """Count the number of features in each dimension
         
-        Args:
+        kwargs:
             microfeatures : A set of dv-pairs.
         """
         
@@ -128,9 +188,14 @@ class TopDown(ActivationChannel):
 class BottomUp(ActivationChannel):
     """A top-down (from microfeatures to a chunk to its microfeatures) 
     activation channel.
+
+    For details, see Section 3.2.2.3 para 3 of Sun (2016).
+
+    References:
+        Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
 
-    def __init__(self, chunk : Chunk):
+    def __init__(self, chunk : nodes.Chunk):
         """Set up the bottom-up activation flow to chunk from its microfeatures.
 
         kwargs:
@@ -139,13 +204,11 @@ class BottomUp(ActivationChannel):
         
         self.chunk = chunk
 
-    def __call__(
-        self, 
-        input_map : Node2Float, 
-    ) -> Node2Float:
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
         """Compute chunk strength given current bottom-level activations.
 
-        For details, see Section 3.2.2.3 para 3 of Sun (2016).
+        Note: If an expected (micro)feature is missing from the input, its 
+        activation is assumed to be 0.
 
         kwargs:
             input_map : A mapping from nodes (Chunks and/or Features) to 
@@ -161,7 +224,7 @@ class BottomUp(ActivationChannel):
                     dim2activation[f.dim()] = input_map[f]
             except KeyError:
                 # A KeyError may arise either because f.dim() is not in 
-                # dim2activation, or because f is not in feature2activation. 
+                # dim2activation, or because f is not in input_map. 
                 # If the former is the case, add f.dim() to dim2activation, 
                 # otherwise move on to the next microfeature.
                 try: 
@@ -173,8 +236,6 @@ class BottomUp(ActivationChannel):
         for dim in dim2activation:
             strength += self.chunk.dim2weight[dim] * dim2activation[dim]
         else:
-            # What is the purpose of superlinearity? 
-            # Is it just to ensure that bottom-up activation is < 1?
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
         return {self.chunk: strength}
 
@@ -188,10 +249,6 @@ class Rule(ActivationChannel):
     chunk resulting from rule application is a weighted sum of the strengths 
     of the condition chunks.
 
-    Only essential features of Clarion rules are represented in this class. 
-    More advanced or specialized features may be added using specialized Mixin 
-    classes (see, e.g., bla.BLAMixin).
-
     This implementation is based on Chapter 3 of Sun (2016). 
 
     References:
@@ -200,8 +257,8 @@ class Rule(ActivationChannel):
 
     def __init__(
         self,
-        chunk2weight : Chunk2Float,
-        conclusion_chunk : Chunk
+        chunk2weight : nodes.Chunk2Float,
+        conclusion_chunk : nodes.Chunk
     ) -> None:
         """Initialize a Clarion associative rule.
 
@@ -213,9 +270,12 @@ class Rule(ActivationChannel):
         self.chunk2weight = chunk2weight
         self.conclusion_chunk = conclusion_chunk
     
-    def __call__(self, input_map : Node2Float) -> Node2Float:
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
         """Return strength of conclusion chunk resulting from an application of 
         current associative rule.
+
+        Note: If an expected chunk is missing from the input, its activation is 
+        assumed to be 0.
 
         kwargs:
             input_map : A mapping from nodes (Chunks and/or Features) to 
@@ -231,4 +291,45 @@ class Rule(ActivationChannel):
         return {self.conclusion_chunk: strength}
 
 class Implicit(ActivationChannel):
+    """An implicit activation channel.
+
+    This is an abstract interface for various possible implementations of 
+    implicit activation channels. These may include multi-layer perceptrons for 
+    action decision-making, autoassociative networks for implicit reasoning, and 
+    others. 
+    """
     pass
+
+
+####### STANDARD ACTIVATION JUNCTIONS #######
+
+class MaxJunction(ActivationJunction):
+    """An activation junction returning max activations for all input nodes.
+    """
+
+    def __call__(self, *input_maps):
+        """Return the maximum activation value for each input node.
+
+        kwargs:
+            input_maps : A set of mappings from chunks and/or (micro)features 
+            to activations.
+        """
+
+        node_set = self.get_nodes(*input_maps)
+
+        activations = dict()
+        for node in node_set:
+            for input_map in input_maps:
+                try:
+                    if activations[node] < input_map[node]:
+                        activations[node] = input_map[node]
+                except KeyError:
+                    # Two cases: either node not in activations or node not in 
+                    # input_map. Assume node not in activations, but in input 
+                    # map, if this fails continue.
+                    try:
+                        activations[node] = input_map[node]
+                    except KeyError:
+                        continue
+
+        return activations
