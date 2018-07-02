@@ -1,11 +1,13 @@
-"""This module provides tools for computing and handling node activations. In 
-Clarion, activations may flow from chunks to chunks (rules), chunks to features 
-(top-down activation), features to chunks (bottom-up activation), features to 
-chunks or features (implicit activation). Activations may also be filtered at 
-various stages based on input from the meta-cognitive subsystem or other 
+"""This module provides tools for computing and handling node activations in the 
+Clarion cognitive architecture. 
+
+Activations may flow from chunks to chunks (rules), chunks to features 
+(top-down activation), features to chunks (bottom-up activation), and features 
+to chunks or features (implicit activation). Activations may also be filtered at 
+various stages based on input from the meta-cognitive subsystem (MCS) or other 
 sources. Furthermore, activations from several different sources may need to be 
 combined. For example, activations from the top and bottom levels of the 
-action-centered subsystem (ACS) need to be combined in order to complete an 
+action-centered subsystem (ACS) may need to be combined in order to complete an 
 action-decision making cycle. 
 
 Here, the various processes described above are captured by means of two 
@@ -16,6 +18,9 @@ rule-based activation, and implicit activation processes. Activation junctions
 implement routines for combining inputs from various sources. They may be used, 
 for example, for combining activations from the top and botom levels of the ACS 
 for action decision-making.
+
+For details of activation flows, see Chapter 3 of Sun (2016). Also, see Chapter 
+4 for a discussion of filtering capabilities of MCS.
 
 References:
     Sun, R. (2016). Anatomy of the Mind. Oxford University Press.

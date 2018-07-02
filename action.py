@@ -1,6 +1,9 @@
-"""This module provides tools for handling actions. There are two steps to 
-action handling: action selection and action execution. These two steps are 
-handled separately by the ChunkSelector and ActionHandler classes, respectively.
+"""This module provides tools for handling actions in the Clarion cognitive 
+architecture. 
+
+There are two steps to action handling: action selection and action execution. 
+These two steps are handled separately by the ChunkSelector and ActionHandler 
+classes, respectively.
 """
 
 
@@ -37,10 +40,10 @@ class ChunkSelector(abc.ABC):
         pass
 
 class ActionHandler(object):
-    """Handles chunk-driven action execution.
+    """Generic class for handling chunk-driven action execution.
 
-    Use this class to link action chunks to callbacks implementing relevant 
-    actions.
+    Can be used out of the box to link action chunks to callbacks implementing 
+    relevant actions.
     """
 
     def __init__(self, chunk2action : nodes.Chunk2Callable) -> None:
