@@ -1,5 +1,5 @@
 import unittest
-from bla import BLA
+from stat import BLA
 
 class TestBLA(unittest.TestCase):
     

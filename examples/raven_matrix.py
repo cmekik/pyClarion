@@ -243,20 +243,20 @@ chunk2strength = {altseq1 : 1.}
 # Step 2: Use SBR. 
     # Activate any similar chunks.
 
-## Step 2.1: Top-Down Activation
-    # Note: Top-down activation affects all active chunks that are not 
-    # suppressed by MCS. In this case, the only active chunk is altseq1.
+    ## Step 2.1: Top-Down Activation
+        # Note: Top-down activation affects all active chunks that are not 
+        # suppressed by MCS. In this case, the only active chunk is altseq1.
 
 top_down = dict()
 for td in top_downs:
     top_down.update(td(chunk2strength))
 
-## Step 2.2: Bottom-Up Activation
-    # The resulting activations from the top-down step are now used for 
-    # bottom up activation. Normally, activations would spread throughout the 
-    # top and bottom levels before this step. In this case, there are no rules 
-    # connecting alternative sequences to other sequences, and no implicit 
-    # connections. Thus this step is essentially skipped. 
+    ## Step 2.2: Bottom-Up Activation
+        # The resulting activations from the top-down step are now used for 
+        # bottom up activation. Normally, activations would spread throughout 
+        # the top and bottom levels before this step. In this case, there are 
+        # no rules connecting alternative sequences to other sequences, and no 
+        # implicit connections. Thus this step is essentially skipped. 
 
 bottom_up = dict()
 for bu in bottom_ups:
@@ -348,4 +348,4 @@ execute_action(choice)
 
 # Now we can check if the response was correct using response_tracker.
 
-correct = response_tracker.evaluate_outcome() 
+outcome = response_tracker.evaluate_outcome() 
