@@ -66,6 +66,19 @@ Dim2Float = T.Mapping[enum.EnumMeta, float]
 FeatureSet = T.Set[Feature]
 Feature2Float = T.Mapping[Feature, float]
 
+# (Micro)Feature-Related Functions
+
+def get_all_microfeatures() -> FeatureSet:
+    """Return all defined microfeatures.
+
+    Note: Searches all direct subclasses of Feature for dimension-value pairs.
+    """
+
+    microfeatures = set()
+    for subclass in Feature.__subclasses__():
+        microfeatures.update(list(subclass))
+    return microfeatures
+
 
 ####### CHUNKS #######
 
