@@ -42,7 +42,7 @@ to transfer data between Clarion constructs and the wild.
 whenever possible. Code should not be optimized at the expense of clarity.
 5. Have Minimal Dependencies: The code should rely on standard or major 
 libraries whenever possible.
-6. Compositionality: The code architecture should allow for components to be 
+6. Be Compositional: The code architecture should allow for components to be 
 swapped in and out easily. So, if only a subset of functionality is desired 
 (e.g., for prototyping/experimentation), it should be possible to implement 
 that subset with minimal effort.
