@@ -17,6 +17,7 @@ The goal is to choose the alternative that best completes the matrix.
 For simplicity, this example only uses row-wise reasoning.
 """
 
+from enum import auto
 from nodes import Feature, Chunk
 from activation import TopDown, BottomUp, Rule, ActivationFilter, MaxJunction
 from action import BoltzmannSelector, ActionHandler
@@ -24,25 +25,25 @@ from action import BoltzmannSelector, ActionHandler
 ####### (MICRO)FEATURES #######
 
 class SequenceType(Feature):
-    MATRIX = 0
-    ALTERNATIVE = 1
+    MATRIX = auto()
+    ALTERNATIVE = auto()
 
 class SequenceNum(Feature):
-    S1 = 1
-    S2 = 2
+    S1 = auto()
+    S2 = auto()
 
 class Axis(Feature):
-    ROW = 0
-    COL = 1
+    ROW = auto()
+    COL = auto()
 
 class Alternative(Feature):
-    A1 = 1
-    A2 = 2
-    A3 = 3
+    A1 = auto()
+    A2 = auto()
+    A3 = auto()
 
 class ShapeDistribution(Feature):
-    ABSENT = 0
-    PRESENT = 1
+    ABSENT = auto()
+    PRESENT = auto()
 
 ####### CHUNKS #######
 
