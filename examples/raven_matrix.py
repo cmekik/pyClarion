@@ -18,9 +18,13 @@ For simplicity, this example only uses row-wise reasoning.
 """
 
 from enum import auto
-from nodes import Feature, Chunk
-from activation import TopDown, BottomUp, Rule, ActivationFilter, MaxJunction
+from nodes import Feature, Chunk, all_chunks
+from activation import (
+    TopDown, BottomUp, Rule, ActivationFilter, MaxJunction, with_channels, 
+    with_filter
+)
 from action import BoltzmannSelector, ActionHandler
+
 
 ####### (MICRO)FEATURES #######
 
@@ -44,6 +48,7 @@ class Alternative(Feature):
 class ShapeDistribution(Feature):
     ABSENT = auto()
     PRESENT = auto()
+
 
 ####### CHUNKS #######
 
@@ -123,6 +128,7 @@ chunks = {
     altseq3
 }
 
+
 ####### ACTIVATION CHANNELS #######
 
 # TOP-DOWN LINKS
@@ -136,26 +142,17 @@ bottom_ups = {BottomUp(chunk) for chunk in chunks}
 # RULES
 
 mat2alt1 = Rule(
-    chunk2weight = {
-        matseq1 : .5,
-        matseq2 : .5
-    },
+    chunk2weight = {altseq1 : 1.,},
     conclusion_chunk = alt1
 )
 
 mat2alt2 = Rule(
-    chunk2weight = {
-        matseq1 : .5,
-        matseq2 : .5
-    },
+    chunk2weight = {altseq2 : 1.},
     conclusion_chunk = alt2
 )
 
 mat2alt3 = Rule(
-    chunk2weight = {
-        matseq1 : .5,
-        matseq2 : .5
-    },
+    chunk2weight = {altseq3 : 1.,},
     conclusion_chunk = alt3
 )
 
@@ -165,13 +162,14 @@ rules = {
     mat2alt3
 }
 
-# FILTERS
+# FILTER
 
-reasoning_filter = ActivationFilter({})
+activation_filter = ActivationFilter()
 
-# JUNCTIONS
+# JUNCTION
 
 max_junction = MaxJunction()
+
 
 ####### ACTION HANDLING #######
 
@@ -235,107 +233,35 @@ boltzmann_selector = BoltzmannSelector(action_chunks, temperature=0.1)
 
 execute_action = ActionHandler(action_callbacks)
 
+
 ####### PROCESSING EXAMPLE #######
 
-# Step 1: Activate an alternative sequence chunk.
+# Step 1: Activate matrix sequence chunks.
 
-chunk2strength = {altseq1 : 1.}
+initial = {matseq1 : 1., matseq2 : 1.}
 
 # Step 2: Use SBR. 
     # Activate any similar chunks.
 
     ## Step 2.1: Top-Down Activation
-        # Note: Top-down activation affects all active chunks that are not 
-        # suppressed by MCS. In this case, the only active chunk is altseq1.
 
-top_down = dict()
-for td in top_downs:
-    top_down.update(td(chunk2strength))
+top_down = with_channels(initial, top_downs, max_junction)
 
     ## Step 2.2: Bottom-Up Activation
         # The resulting activations from the top-down step are now used for 
         # bottom up activation. Normally, activations would spread throughout 
         # the top and bottom levels before this step. In this case, there are 
-        # no rules connecting alternative sequences to other sequences, and no 
+        # no rules connecting matrix sequences to other sequences, and no 
         # implicit connections. Thus this step is essentially skipped. 
 
-bottom_up = dict()
-for bu in bottom_ups:
-    bottom_up.update(bu(top_down))
+bottom_up = with_channels(top_down, bottom_ups, max_junction)
 
 # The result of this operation is a chunk2strength mapping denoting 
 # activation due to similarity.
 
-# Step 3: Filter Setup
-    # Chunk alt1 will be activated at this step due to the shared microfeature 
-    # Alternative.A1 between altseq1 and alt1. This is important because it 
-    # allows the subject to isolate which alternative it cares about during this 
-    # particular reasoning episode. The next step will, without intervention 
-    # from MCS, activate all chunks representing matrix alternatives. There is 
-    # no way to attribute the results of the current episode to the correct 
-    # alternative without taking into account alternative chunk activations at 
-    # this step. This is something that can be handled by the MCS in a more 
-    # detailed simulation; here, I do it manually.
+# Step 3: Rule Application
 
-reasoning_filter.nodes = {chunk for chunk in bottom_up if bottom_up[chunk] > 0.} 
-
-# Step 4: Rule Application
-    # Note: This step normally would pick, for each chunk, the maximal resulting 
-    # strength. However, since no two rules have the same conclusion chunk, 
-    # this selection process has been omitted.
-
-conc2strength = dict()
-for rule in rules:
-    conc2strength.update(rule(bottom_up))
-
-# Step 5: Filtering
-    # See notes in Step 3 about isolating the correct alternative. In this 
-    # step, the correct alternative is isolated, according to the considerations 
-    # discussed in that section, by filtering out all chunks except those found 
-    # to be relevant to the present episode. 
-
-result1 = reasoning_filter(conc2strength)
-
-# The result of filtering should just be the activation value of alt1, the 
-# alternative that generates the initial alternative sequence when plugged into 
-# the blank. This result can now be stored in WM or episodic memory for action 
-# selection once the other alternatives have been processed.
-
-####### PROCESSING OF OTHER ALTERNATIVES #######
-    # I have wrapped the above in a function, so that we can skip repetition.
-
-def process_alternative_sequence(
-    altseq, chunks, top_downs, bottom_ups, rules, reasoning_filter
-):
-    
-    chunk2strength = {altseq : 1.}
-    
-    top_down = dict()
-    for td in top_downs:
-        top_down.update(td(chunk2strength))
-    
-    bottom_up = dict()
-    for bu in bottom_ups:
-        bottom_up.update(bu(top_down))
-
-    reasoning_filter.nodes = {
-        chunk for chunk in bottom_up if bottom_up[chunk] > 0.
-    }
-
-    conc2strength = dict()
-    for rule in rules:
-        conc2strength.update(rule(bottom_up)) 
-
-    result = reasoning_filter(conc2strength)
-    
-    return result
-
-result2 = process_alternative_sequence(
-    altseq2, chunks, top_downs, bottom_ups, rules, reasoning_filter
-)
-result3 = process_alternative_sequence(
-    altseq3, chunks, top_downs, bottom_ups, rules, reasoning_filter
-)
+results = with_channels(bottom_up, rules, max_junction)
 
 ####### ALTERNATIVE SELECTION #######
     # At the end of all this reasoning, we choose an alternative, here using a 
@@ -343,7 +269,6 @@ result3 = process_alternative_sequence(
     # chunk should likely be chunk alt1 (the correct response). A correct 
     # response is not guaranteed due to the random nature of response selection.
 
-results = max_junction(result1, result2, result3) 
 choice = boltzmann_selector(results)
 execute_action(choice)
 
