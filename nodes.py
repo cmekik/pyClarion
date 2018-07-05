@@ -23,6 +23,7 @@ References:
 
 import typing as T
 import enum
+import weakref
 
 
 ####### (MICRO)FEATURES #######
@@ -60,24 +61,22 @@ class Feature(enum.Enum):
 
         return type(self)
 
-# (Micro)Feature-Related Types
+def all_features() -> T.Set[Feature]:
+    """Return a set containing all existing microfeatures.
 
-Dim2Float = T.Mapping[enum.EnumMeta, float]
-FeatureSet = T.Set[Feature]
-Feature2Float = T.Mapping[Feature, float]
-
-# (Micro)Feature-Related Functions
-
-def get_all_microfeatures() -> FeatureSet:
-    """Return all defined microfeatures.
-
-    Note: Searches all direct subclasses of Feature for dimension-value pairs.
+    Note: Searches all direct subclasses of Feature for microfeatures.
     """
 
     microfeatures = set()
     for subclass in Feature.__subclasses__():
         microfeatures.update(list(subclass))
     return microfeatures
+
+# (Micro)Feature-Related Types
+
+Dim2Float = T.Mapping[enum.EnumMeta, float]
+FeatureSet = T.Set[Feature]
+Feature2Float = T.Mapping[Feature, float]
 
 
 ####### CHUNKS #######
@@ -96,6 +95,8 @@ class Chunk(object):
     References:
     Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
+
+    _instances = weakref.WeakSet()
 
     def __init__(
         self, 
@@ -116,8 +117,10 @@ class Chunk(object):
         
         self.microfeatures = microfeatures
         self.dim2weight = self.initialize_weights(dim2weight)
-        if label is not None:
-            self.label = label
+        self.label = label
+
+        # Add self to global chunk instance collection.
+        self._instances.add(self)
 
     def __repr__(self):
         """Return a string representation of self.
@@ -150,6 +153,12 @@ class Chunk(object):
                 dim2weight[f.dim()] = 1.
         return dim2weight
 
+def all_chunks() -> T.Set[Chunk]:
+    """Return a set containing all existing chunks.
+    """
+
+    return set(Chunk._instances)
+
 # Chunk-Related Types
 
 ChunkSet = T.Set[Chunk]
@@ -167,3 +176,25 @@ Node = T.Union[Chunk, Feature]
 
 NodeSet = T.Set[Node]
 Node2Float = T.Mapping[Node, float]
+
+# Node-Related Functions
+
+def all_nodes() -> NodeSet:
+    """Return a set containing all existing nodes.
+    """
+
+    return all_features() + all_chunks()
+
+def get_nodes(*node_maps: T.Iterable[Node]) -> NodeSet:
+    """Return a set containing all nodes appearing in at least once in the 
+    input mappings.
+
+    kwargs:
+        node_maps : A sequence of mappings whose keys are nodes.
+    """
+
+    node_set = set()
+    for node_iterable in node_maps:
+        for node in node_iterable:
+            node_set.add(node)
+    return node_set

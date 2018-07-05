@@ -28,6 +28,7 @@ References:
 
 
 import abc
+import typing as T
 import nodes
 
 
@@ -93,44 +94,8 @@ class ActivationJunction(abc.ABC):
 
         pass
 
-    def get_nodes(self, *input_maps: nodes.Node2Float) -> nodes.NodeSet:
-        """Return a set containing all nodes appearing in at least one 
-        mapping from chunks and/or (micro)features to activations.
-
-        kwargs:
-            input_maps : A set of mappings from chunks and/or (micro)features 
-            to activations.
-        """
-
-        node_set = set()
-        for input_map in input_maps:
-            node_set.update(input_map.keys())
-        return node_set
-
 
 ####### STANDARD ACTIVATION CHANNELS #######
-
-class ActivationFilter(ActivationChannel):
-    """Filters activation maps against a set of nodes.
-    """
-
-    def __init__(self, nodes : nodes.NodeSet):
-        """Initialize an activation filter.
-
-        kwargs:
-            nodes : A set of nodes whose activations may pass the filter.
-        """
-
-        self.nodes = nodes
-
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
-        """Return a filtered activation map.
-
-        kwargs:
-            input_map : An activation map to be filtered.
-        """
-
-        return {k:v for (k,v) in input_map.items() if k in self.nodes}
 
 class TopDown(ActivationChannel):
     """A top-down (from a chunk to its microfeatures) activation channel.
@@ -320,7 +285,7 @@ class MaxJunction(ActivationJunction):
             to activations.
         """
 
-        node_set = self.get_nodes(*input_maps)
+        node_set = nodes.get_nodes(*input_maps)
 
         activations = dict()
         for node in node_set:
@@ -338,3 +303,64 @@ class MaxJunction(ActivationJunction):
                         continue
 
         return activations
+
+
+####### FILTERING #######
+
+class ActivationFilter(ActivationChannel):
+    """Class for filtering inputs of an activation channel.
+    """
+
+    def __init__(self, node_set : nodes.NodeSet = None):
+        """Initialize an activation filter.
+
+        kwargs:
+            node_set : A set of nodes to be filtered out.
+        """
+
+        if node_set is None:
+            node_set = set()
+
+        self.filter_nodes = node_set
+
+    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
+        """Return a filtered activation map.
+
+        kwargs:
+            input_map : An activation map to be filtered.
+        """
+
+        filtered = {
+            k:v for (k,v) in input_map.items() if k not in self.filter_nodes
+        }
+        return filtered
+
+
+####### FUNCTIONS #######
+
+def with_channels(input_map, channels, junction):
+
+    return junction(*[channel(input_map) for channel in channels])
+
+def _with_filter(activation_filter, input_map):
+    """Helper function for with_filter.
+    """
+
+    if activation_filter is None:
+        return input_map
+    else:
+        return activation_filter(input_map)
+
+def with_filter(
+    channel : ActivationChannel, 
+    input_map : nodes.Node2Float, 
+    input_filter : ActivationFilter = None, 
+    output_filter : ActivationFilter = None
+) -> nodes.Node2Float:
+    """Passes input through channel with given input and output filters.
+    """
+
+    filtered_input = _with_filter(input_filter, input_map)
+    raw_output = channel(filtered_input)
+    filtered_output = _with_filter(output_filter, raw_output)
+    return filtered_output
