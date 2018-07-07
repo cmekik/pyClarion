@@ -15,9 +15,21 @@ References:
 """
 
 
+import abc
+
+
+####### ABSTRACTION #######
+
+class Stat(abc.ABC):
+
+    @abc.abstractmethod
+    def update(self, *args, **kwargs):
+        pass
+
+
 ####### BASE-LEVEL ACTIVATIONS #######
 
-class BLA(object):
+class BLA(Stat):
     """Keeps track of base-level activations (BLAs).
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.2.1.3 (p. 62)
@@ -82,7 +94,7 @@ class BLA(object):
 
 ####### MATCH STATISTICS #######
 
-class MatchStatistics(object):
+class MatchStatistics(Stat):
     """Tracks positive and negative match statistics.
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.3.2.1 (p. 90).
@@ -121,3 +133,15 @@ class MatchStatistics(object):
         
         self.positive_matches *= multiplier
         self.negative_matches *= multiplier
+
+
+####### GENERIC FUNCTIONS #######
+
+def initialize_stat_map(stat, *constructs):
+    """
+    """
+
+    stats =  {
+        construct : stat() for construct in constructs  
+    }
+    return stats

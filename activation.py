@@ -53,10 +53,6 @@ class ActivationChannel(abc.ABC):
     a complete activation mapping for expected nodes (e.g., due to filtering), 
     it should not fail. Instead, it should have a well-defined default behavior
     for such cases. 
-    
-    In general, it may be assumed that when an expected node is missing in the 
-    input, its activation is equal to 0. ActivationChannel subclasses in this 
-    module have been written according to this assumption.
     """
     
     @abc.abstractmethod
@@ -93,6 +89,66 @@ class ActivationJunction(abc.ABC):
         """
 
         pass
+
+
+####### GENERIC FUNCTIONS #######
+
+def propagate(
+    input_map : nodes.Node2Float, 
+    channels : T.Set[ActivationChannel], 
+    junction : ActivationJunction
+) -> nodes.Node2Float:
+    """Propagate inputs through a set of channels, combine their outputs and 
+    return the result.
+
+    kwargs:
+        input_map : A mapping from nodes to their current activations.
+        channels : A set of activation channels.
+        junction : An activation junction.
+    """
+
+    return junction(*[channel(input_map) for channel in channels])
+
+def filter_call(
+    input_map : nodes.Node2Float,
+    channel : ActivationChannel,
+    node_map_filter : nodes.NodeMapFilter,  
+    input_keys : T.Iterable = None, 
+    output_keys : T.Iterable = None
+) -> nodes.Node2Float:
+    """Passes input through channel with given input and output filters.
+    """
+
+    filtered_input = node_map_filter(input_map, input_keys)
+    raw_output = channel(filtered_input)
+    filtered_output = node_map_filter(raw_output, output_keys)
+    return filtered_output
+
+def filter_propagate(
+    input_map : nodes.Node2Float,
+    channels : T.Iterable[ActivationChannel],
+    node_map_filter : nodes.NodeMapFilter,
+    junction : ActivationJunction,
+    input_key_map : T.Mapping[ActivationChannel, T.Any] = None,
+    output_key_map : T.Mapping[ActivationChannel, T.Any] = None
+) -> nodes.Node2Float:
+    """
+    """
+
+    if input_key_map is None:
+        input_key_map = dict()
+    if output_key_map is None:
+        output_key_map = dict()
+
+    channel_outputs = []
+    for channel in channels:
+        input_keys = input_key_map.get(channel)
+        output_keys = output_key_map.get(channel)
+        channel_output = filter_call(
+            input_map, channel, node_map_filter, input_keys, output_keys
+        )
+        channel_outputs.append(channel_output) 
+    return junction(*channel_outputs)
 
 
 ####### STANDARD ACTIVATION CHANNELS #######
@@ -303,64 +359,3 @@ class MaxJunction(ActivationJunction):
                         continue
 
         return activations
-
-
-####### FILTERING #######
-
-class ActivationFilter(ActivationChannel):
-    """Class for filtering inputs of an activation channel.
-    """
-
-    def __init__(self, node_set : nodes.NodeSet = None):
-        """Initialize an activation filter.
-
-        kwargs:
-            node_set : A set of nodes to be filtered out.
-        """
-
-        if node_set is None:
-            node_set = set()
-
-        self.filter_nodes = node_set
-
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
-        """Return a filtered activation map.
-
-        kwargs:
-            input_map : An activation map to be filtered.
-        """
-
-        filtered = {
-            k:v for (k,v) in input_map.items() if k not in self.filter_nodes
-        }
-        return filtered
-
-
-####### FUNCTIONS #######
-
-def with_channels(input_map, channels, junction):
-
-    return junction(*[channel(input_map) for channel in channels])
-
-def _with_filter(activation_filter, input_map):
-    """Helper function for with_filter.
-    """
-
-    if activation_filter is None:
-        return input_map
-    else:
-        return activation_filter(input_map)
-
-def with_filter(
-    channel : ActivationChannel, 
-    input_map : nodes.Node2Float, 
-    input_filter : ActivationFilter = None, 
-    output_filter : ActivationFilter = None
-) -> nodes.Node2Float:
-    """Passes input through channel with given input and output filters.
-    """
-
-    filtered_input = _with_filter(input_filter, input_map)
-    raw_output = channel(filtered_input)
-    filtered_output = _with_filter(output_filter, raw_output)
-    return filtered_output

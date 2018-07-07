@@ -2,7 +2,7 @@
 cognitive architecture.
 
 Overall, the most basic representational construct in Clarion is a connectionist 
-node: an individual unit that may be connected to other units whose 
+node: an individual unit that may be connected to other units and whose 
 activation depends on the activation of other units in its network and the 
 strength of incoming connections. 
 
@@ -174,8 +174,65 @@ Node = T.Union[Chunk, Feature]
 
 # Node-Related Types
 
+NodeIterable = T.Iterable[Node]
 NodeSet = T.Set[Node]
+Node2Any = T.Mapping[Node,T.Any]
 Node2Float = T.Mapping[Node, float]
+
+Any2NodeSet = T.Mapping[T.Any, NodeSet]
+
+# Node-Related Classes
+
+class NodeMapFilter(object):
+    """Filters mappings from nodes to values.
+
+    This filter can be used for input/output filtering, assuming that 
+    downstream activation channels have well-defined default behavior for 
+    coping with missing expected inputs.
+    """
+
+    def __init__(
+        self, filter_map : Any2NodeSet = None
+    ):
+        """Initialize an activation filter.
+
+        kwargs:
+            filter_map : A mapping from filter keys to node sets to be filtered. 
+                There is no particular restriction on the type of filter keys.
+        """
+
+        if filter_map is None:
+            filter_map = dict()
+
+        self.map = filter_map
+
+    def __call__(
+        self, input_map : Node2Any, filter_keys : T.Iterable = None
+    ) -> Node2Any:
+        """Return a filtered mapping from nodes to values.
+
+        Suppresses nodes designated by the filter keys.
+        
+        Warnings: 
+            - Removes nodes to be filtered when encountered in the input map.
+            - If a filter key is not in the filter map, the key is ignored. 
+
+        kwargs:
+            input_map : An activation map to be filtered.
+            filter_key : An iterable collection of keys for selecting nodes to 
+                be filtered.
+        """
+
+        if filter_keys is not None:
+            filter_nodes = set().union(
+                *[self.map.get(key, set()) for key in filter_keys]
+            )
+            filtered = {
+                k:v for (k,v) in input_map.items() if k not in filter_nodes
+            }
+        else:
+            filtered = input_map
+        return filtered
 
 # Node-Related Functions
 
@@ -185,16 +242,16 @@ def all_nodes() -> NodeSet:
 
     return all_features() + all_chunks()
 
-def get_nodes(*node_maps: T.Iterable[Node]) -> NodeSet:
+def get_nodes(*node_iterables: NodeIterable) -> NodeSet:
     """Return a set containing all nodes appearing in at least once in the 
     input mappings.
 
     kwargs:
-        node_maps : A sequence of mappings whose keys are nodes.
+        node_iterables : A sequence iterables containing nodes.
     """
 
     node_set = set()
-    for node_iterable in node_maps:
+    for node_iterable in node_iterables:
         for node in node_iterable:
             node_set.add(node)
     return node_set

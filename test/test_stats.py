@@ -1,11 +1,11 @@
 import unittest
-from stat import BLA
+import stats
 
 class TestBLA(unittest.TestCase):
     
     def setUp(self):
 
-        self.bla = BLA()
+        self.bla = stats.BLA()
 
         # Initialize BLA at time = 0
         self.bla.update(0.)
