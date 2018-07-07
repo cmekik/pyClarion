@@ -2,7 +2,7 @@
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
 date: 2018-07-02
-version : 0.2
+version : 0.3
 ---
 
 # pyClarion Readme
@@ -11,14 +11,14 @@ This is a python implementation of the Clarion cognitive architecture.
 
 To grasp the architecture of this codebase, the recommended reading order is:
     
-1. `nodes.py`
-2. `activation.py`
-3. `action.py`
+1. `pyClarion.base.nodes.py`
+2. `pyClarion.base.activation.py`
+3. `pyClarion.base.action.py`
 
-Other modules may then be read at one's own discretion. Note that
-`examples/raven_matrix.py` combines many of the basic objects defined in the 
-above files in order to demonstrate how they may be used to create simulations 
-in the Clarion framework. 
+Many common Clarion constructs are implemented in their default forms in 
+`pyClarion.default.common.py`. These constructs are combined in 
+`examples/raven_matrix.py`  in order to demonstrate how they may be used to 
+create simulations in the Clarion framework. 
 
 Implementation of larger constructs, such as individual subsystems are 
 forthcoming. 

@@ -17,10 +17,14 @@ The goal is to choose the alternative that best completes the matrix.
 For simplicity, this example only uses row-wise reasoning.
 """
 
+
+from pyClarion.base.nodes import Feature, Chunk, all_chunks
+from pyClarion.base.activation import propagate
+from pyClarion.base.action import ActionHandler 
+from pyClarion.default.common import (
+    TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
+)
 from enum import auto
-from nodes import Feature, Chunk, all_chunks
-from activation import TopDown, BottomUp, Rule, MaxJunction, propagate 
-from action import BoltzmannSelector, ActionHandler
 
 
 ####### (MICRO)FEATURES #######

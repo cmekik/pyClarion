@@ -15,11 +15,8 @@ References:
 
 
 import abc
-import nodes
-import numpy as np
+from . import nodes
 
-
-####### ABSTRACTIONS #######
 
 class ChunkSelector(abc.ABC):
     """An abstract class defining the interface for selection of actionable 
@@ -74,51 +71,3 @@ class ActionHandler(object):
                 self.chunk2action[chunk].__call__()
             except KeyError:
                 continue
-
-
-####### STANDARD CHUNK SELECTORS #######
-
-class BoltzmannSelector(ChunkSelector):
-    """Select a chunk according to a Boltzmann distribution.
-    """
-
-    def __init__(self, chunks: nodes.ChunkSet, temperature: float) -> None:
-        """Initialize a BoltzmannSelector.
-
-        kwargs:
-            chunks : A set of (potentially) actionable chunks.
-            temperature : Temperature of the Boltzmann distribution.
-        """
-
-        super().__init__(chunks)
-        self.temperature = temperature
-
-    def __call__(self, chunk2strength: nodes.Chunk2Float) -> nodes.ChunkSet:
-        """Identify chunks that are currently actionable based on their 
-        strengths according to a Boltzmann distribution.
-
-        Note: If an expected input chunk is missing, it is assumed to have 
-        activation 0.
-
-        kwargs:
-            chunk2strength : A mapping from chunks to their strengths.
-        """
-
-        terms = dict()
-        divisor = 0.
-        for chunk in self.chunks:
-            try:
-                terms[chunk] = np.exp(
-                    chunk2strength[chunk] / self.temperature
-                )
-            except KeyError:
-                # By assumption, chunk2strength[chunk] == 0. and exp(0. / t) 
-                # is 1.0.
-                terms[chunk] = 1.0
-            divisor += terms[chunk]
-
-        chunk_list = list(self.chunks)
-        probabilities = [terms[chunk] / divisor for chunk in chunk_list]
-        choice = np.random.choice(chunk_list, p=probabilities)
-
-        return {choice}

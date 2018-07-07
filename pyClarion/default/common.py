@@ -1,159 +1,18 @@
-"""This module provides tools for computing and handling node activations in the 
-Clarion cognitive architecture. 
+"""This module defines commonly used constructs in the default implementation 
+of Clarion.
 
-Activations may flow from chunks to chunks (rules), chunks to features 
-(top-down activation), features to chunks (bottom-up activation), and features 
-to chunks or features (implicit activation). Activations may also be filtered at 
-various stages based on input from the meta-cognitive subsystem (MCS) or other 
-sources. Furthermore, activations from several different sources may need to be 
-combined. For example, activations from the top and bottom levels of the 
-action-centered subsystem (ACS) may need to be combined in order to complete an 
-action-decision making cycle. 
-
-Here, the various processes described above are captured by means of two 
-abstractions: activation channels and junctions. Activation channels implement 
-mappings from node activations to node activations. They may be used to 
-represent, among others, filtering, top-down activation, bottom-up activation, 
-rule-based activation, and implicit activation processes. Activation junctions 
-implement routines for combining inputs from various sources. They may be used, 
-for example, for combining activations from the top and botom levels of the ACS 
-for action decision-making.
-
-For details of activation flows, see Chapter 3 of Sun (2016). Also, see Chapter 
-4 for a discussion of filtering capabilities of MCS.
-
-References:
-    Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
+Classes/functions defined here are used by at least two subsystems.
 """
 
+from ..base import nodes
+from ..base import activation
+from ..base import action
+from ..base import stats
 
-import abc
-import typing as T
-import nodes
-
-
-####### ABSTRACTIONS #######
-
-class ActivationChannel(abc.ABC):
-    """An abstract class for capturing activation flows.
-
-    This class provides a uniform interface for handling activation flows. It 
-    is assumed that activations will be represented as mappings from nodes to 
-    activation values. Thus, activation channels expect such mappings as input, 
-    and return such mappings as output. Output mappings are allowed to be empty 
-    when such behavior is sensible (see e.g., TopDown).
-    
-    It is assumed that an activation channel will pay attention only to the 
-    activations that are relevant to the computation it implements. For 
-    instance, if an activation class implementing a bottom-up connection is 
-    passed a bunch of chunk activations, it should simply ignore these and look 
-    for matching (micro)features. 
-    
-    Likewise if an activation channel is handed an input that does not contain 
-    a complete activation mapping for expected nodes (e.g., due to filtering), 
-    it should not fail. Instead, it should have a well-defined default behavior
-    for such cases. 
-    """
-    
-    @abc.abstractmethod
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
-        """Compute and return activations resulting from an input to this 
-        channel.
-
-        Note: Assumptions about missing expected nodes in the input map should 
-        be explicitly documented, along with behavior for handling such cases. 
-
-        kwargs:
-            input_map : A mapping from nodes (Chunks and/or Features) to 
-            input activations.
-        """
-
-        pass
-
-class ActivationJunction(abc.ABC):
-    """An abstract class for handling the combination of chunk and/or 
-    (micro)feature activations from multiple sources.
-
-    For instance, this class may be used to combine chunk strengths from 
-    multiple sources for action decision making. 
-    """
-
-    @abc.abstractmethod
-    def __call__(self, *input_maps: nodes.Node2Float) -> nodes.Node2Float:
-        """Return a combined mapping from chunks and/or (micro)features to 
-        activations.
-
-        kwargs:
-            input_maps : A set of mappings from chunks and/or (micro)features 
-            to activations.
-        """
-
-        pass
+import numpy as np
 
 
-####### GENERIC FUNCTIONS #######
-
-def propagate(
-    input_map : nodes.Node2Float, 
-    channels : T.Set[ActivationChannel], 
-    junction : ActivationJunction
-) -> nodes.Node2Float:
-    """Propagate inputs through a set of channels, combine their outputs and 
-    return the result.
-
-    kwargs:
-        input_map : A mapping from nodes to their current activations.
-        channels : A set of activation channels.
-        junction : An activation junction.
-    """
-
-    return junction(*[channel(input_map) for channel in channels])
-
-def filter_call(
-    input_map : nodes.Node2Float,
-    channel : ActivationChannel,
-    node_map_filter : nodes.NodeMapFilter,  
-    input_keys : T.Iterable = None, 
-    output_keys : T.Iterable = None
-) -> nodes.Node2Float:
-    """Passes input through channel with given input and output filters.
-    """
-
-    filtered_input = node_map_filter(input_map, input_keys)
-    raw_output = channel(filtered_input)
-    filtered_output = node_map_filter(raw_output, output_keys)
-    return filtered_output
-
-def filter_propagate(
-    input_map : nodes.Node2Float,
-    channels : T.Iterable[ActivationChannel],
-    node_map_filter : nodes.NodeMapFilter,
-    junction : ActivationJunction,
-    input_key_map : T.Mapping[ActivationChannel, T.Any] = None,
-    output_key_map : T.Mapping[ActivationChannel, T.Any] = None
-) -> nodes.Node2Float:
-    """
-    """
-
-    if input_key_map is None:
-        input_key_map = dict()
-    if output_key_map is None:
-        output_key_map = dict()
-
-    channel_outputs = []
-    for channel in channels:
-        input_keys = input_key_map.get(channel)
-        output_keys = output_key_map.get(channel)
-        channel_output = filter_call(
-            input_map, channel, node_map_filter, input_keys, output_keys
-        )
-        channel_outputs.append(channel_output) 
-    return junction(*channel_outputs)
-
-
-####### STANDARD ACTIVATION CHANNELS #######
-
-class TopDown(ActivationChannel):
+class TopDown(activation.TopDown):
     """A top-down (from a chunk to its microfeatures) activation channel.
 
     For details, see Section 3.2.2.3 para 2 of Sun (2016).
@@ -211,7 +70,7 @@ class TopDown(ActivationChannel):
                 counts[f.dim()] = 1
         return counts
 
-class BottomUp(ActivationChannel):
+class BottomUp(activation.BottomUp):
     """A top-down (from microfeatures to a chunk to its microfeatures) 
     activation channel.
 
@@ -265,8 +124,8 @@ class BottomUp(ActivationChannel):
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
         return {self.chunk: strength}
 
-class Rule(ActivationChannel):
-    """A basic Clarion associative rule.
+class Rule(activation.Rule):
+    """An basic Clarion associative rule.
 
     Rules have the form:
         chunk_1 chunk_2 chunk_3 -> chunk_4
@@ -316,20 +175,7 @@ class Rule(ActivationChannel):
                 continue
         return {self.conclusion_chunk: strength}
 
-class Implicit(ActivationChannel):
-    """An implicit activation channel.
-
-    This is an abstract interface for various possible implementations of 
-    implicit activation channels. These may include multi-layer perceptrons for 
-    action decision-making, autoassociative networks for implicit reasoning, and 
-    others. 
-    """
-    pass
-
-
-####### STANDARD ACTIVATION JUNCTIONS #######
-
-class MaxJunction(ActivationJunction):
+class MaxJunction(activation.ActivationJunction):
     """An activation junction returning max activations for all input nodes.
     """
 
@@ -359,3 +205,150 @@ class MaxJunction(ActivationJunction):
                         continue
 
         return activations
+
+class BoltzmannSelector(action.ChunkSelector):
+    """Select a chunk according to a Boltzmann distribution.
+    """
+
+    def __init__(self, chunks: nodes.ChunkSet, temperature: float) -> None:
+        """Initialize a BoltzmannSelector.
+
+        kwargs:
+            chunks : A set of (potentially) actionable chunks.
+            temperature : Temperature of the Boltzmann distribution.
+        """
+
+        super().__init__(chunks)
+        self.temperature = temperature
+
+    def __call__(self, chunk2strength: nodes.Chunk2Float) -> nodes.ChunkSet:
+        """Identify chunks that are currently actionable based on their 
+        strengths according to a Boltzmann distribution.
+
+        Note: If an expected input chunk is missing, it is assumed to have 
+        activation 0.
+
+        kwargs:
+            chunk2strength : A mapping from chunks to their strengths.
+        """
+
+        terms = dict()
+        divisor = 0.
+        for chunk in self.chunks:
+            try:
+                terms[chunk] = np.exp(
+                    chunk2strength[chunk] / self.temperature
+                )
+            except KeyError:
+                # By assumption, chunk2strength[chunk] == 0. and exp(0. / t) 
+                # is 1.0.
+                terms[chunk] = 1.0
+            divisor += terms[chunk]
+
+        chunk_list = list(self.chunks)
+        probabilities = [terms[chunk] / divisor for chunk in chunk_list]
+        choice = np.random.choice(chunk_list, p=probabilities)
+
+        return {choice}
+
+class BLA(stats.Stat):
+    """Keeps track of base-level activations (BLAs).
+
+    Implemented according to Sun (2016) Chapter 3. See Section 3.2.1.3 (p. 62)
+    and also Section 3.2.2.2 (p. 77).
+
+    Warning: This class has no knowledge of the chunks, rules and other 
+    constructs associated with the statistics it tracks.
+
+    References:
+        Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
+    """
+
+    def __init__(
+        self,  
+        initial_activation : float = 0., 
+        amplitude : float = 2., 
+        decay_rate : float = .5, 
+        density: float = 0.
+    ) -> None:
+        """Initialize a BLA instance.
+
+        Warning: By default, a timestamp is not added at initialization. If a 
+        timestamp is required at creation time, call self.add_timestamp.
+        """
+        
+        self.initial_activation = initial_activation
+        self.amplitude = amplitude
+        self.decay_rate = decay_rate
+        self.density = density
+
+        self.timestamps = []
+
+    def update(self, current_time : float) -> None:
+        """Record current time as an instance of use and/or activation for 
+        associated construct.
+        """
+
+        self.timestamps.append(current_time)
+
+    def compute_bla(self, current_time : float) -> float:
+        """Compute the current BLA.
+
+        Warning: Will result in division by zero if called immediately after 
+        update.
+        """
+
+        summation_terms = [
+            (current_time - t) ** (- self.decay_rate) 
+            for t in self.timestamps
+        ]
+        bla = (
+            self.initial_activation + (self.amplitude  *  sum(summation_terms))
+        )
+        return bla
+
+    def below_density(self, current_time : float) -> bool:
+        """Return true if BLA is below density.
+        """
+
+        return self.compute_bla(current_time) < self.density
+
+class MatchStatistics(stats.Stat):
+    """Tracks positive and negative match statistics.
+
+    Implemented according to Sun (2016) Chapter 3. See Section 3.3.2.1 (p. 90).
+
+    Warning: This class is not responsible for testing positive or negative 
+    match criteria, and has no knowledge of the chunks and actions associated 
+    with the statistics it tracks.  
+
+    References:
+        Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
+    """
+
+    def __init__(self) -> None:
+        """Initialize tracking for a set of match statistics.
+        """
+
+        self.positive_matches = 0.
+        self.negative_matches = 0.
+
+    def update(self, positive_match : bool) -> None:
+        """Update current match statistics.
+
+        kwargs:
+            positive_match : True if the positivity criterion is satisfied, 
+            false otherwise.
+        """
+
+        if positive_match:
+            self.positive_matches += 1.
+        else: 
+            self.negative_matches += 1.
+
+    def discount(self, multiplier : float) -> None:
+        """Discount match statistics.
+        """
+        
+        self.positive_matches *= multiplier
+        self.negative_matches *= multiplier
