@@ -11,9 +11,9 @@ This is a python implementation of the Clarion cognitive architecture.
 
 To grasp the architecture of this codebase, the recommended reading order is:
     
-1. `pyClarion.base.nodes.py`
-2. `pyClarion.base.activation.py`
-3. `pyClarion.base.action.py`
+1. `pyClarion.base.nodes`
+2. `pyClarion.base.activation`
+3. `pyClarion.base.action`
 
 Many common Clarion constructs are implemented in their default forms in 
 `pyClarion.default.common.py`. These constructs are combined in 
