@@ -1,7 +1,7 @@
 import unittest
 import unittest.mock
 from enum import auto
-from pyClarion.base.nodes import Feature, Chunk
+from pyClarion.base.node import Feature, Chunk
 from pyClarion.default.common import TopDown, BottomUp, Rule, BLA
 
 class TestTopDown(unittest.TestCase):

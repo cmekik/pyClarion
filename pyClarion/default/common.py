@@ -4,12 +4,13 @@ of Clarion.
 Classes/functions defined here are used by at least two subsystems.
 """
 
-from ..base import nodes
+from ..base import node
 from ..base import activation
 from ..base import action
 from ..base import stats
 
 import numpy as np
+import typing as T
 
 
 class TopDown(activation.TopDown):
@@ -21,7 +22,7 @@ class TopDown(activation.TopDown):
         Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
 
-    def __init__(self, chunk : nodes.Chunk):
+    def __init__(self, chunk : node.Chunk) -> None:
         """Set up the top-down activation flow from chunk to its microfeatures.
 
         kwargs:
@@ -31,7 +32,7 @@ class TopDown(activation.TopDown):
         self.chunk = chunk
         self.val_counts = self.count_values(self.chunk.microfeatures)
 
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
         """Compute bottom-level activations given current chunk strength.
 
         Note: If the expected chunk is missing from the input, this channel 
@@ -47,7 +48,7 @@ class TopDown(activation.TopDown):
         except KeyError:
             return dict()
         else:        
-            activations = dict()
+            activations : node.Node2Float = dict()
             for f in self.chunk.microfeatures:
                 w_dim = self.chunk.dim2weight[f.dim()] 
                 n_val = self.val_counts[f.dim()]
@@ -55,14 +56,14 @@ class TopDown(activation.TopDown):
             return activations
 
     @staticmethod
-    def count_values(microfeatures: nodes.FeatureSet) -> nodes.Dim2Float:
+    def count_values(microfeatures: node.FeatureSet) -> node.Dim2Float:
         """Count the number of features in each dimension
         
         kwargs:
             microfeatures : A set of dv-pairs.
         """
         
-        counts = dict()
+        counts : T.Dict = dict()
         for f in microfeatures:
             try:
                 counts[f.dim()] += 1
@@ -80,7 +81,7 @@ class BottomUp(activation.BottomUp):
         Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
 
-    def __init__(self, chunk : nodes.Chunk):
+    def __init__(self, chunk : node.Chunk) -> None:
         """Set up the bottom-up activation flow to chunk from its microfeatures.
 
         kwargs:
@@ -89,7 +90,7 @@ class BottomUp(activation.BottomUp):
         
         self.chunk = chunk
 
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
         """Compute chunk strength given current bottom-level activations.
 
         Note: If an expected (micro)feature is missing from the input, its 
@@ -102,7 +103,7 @@ class BottomUp(activation.BottomUp):
 
         # For each dimension, pick the maximum available activation of the 
         # target chunk microfeatures in that dimension. 
-        dim2activation = dict()
+        dim2activation : T.Dict = dict()
         for f in self.chunk.microfeatures:
             try:
                 if dim2activation[f.dim()] < input_map[f]:
@@ -142,8 +143,8 @@ class Rule(activation.Rule):
 
     def __init__(
         self,
-        chunk2weight : nodes.Chunk2Float,
-        conclusion_chunk : nodes.Chunk
+        chunk2weight : node.Chunk2Float,
+        conclusion_chunk : node.Chunk
     ) -> None:
         """Initialize a Clarion associative rule.
 
@@ -154,8 +155,8 @@ class Rule(activation.Rule):
         
         self.chunk2weight = chunk2weight
         self.conclusion_chunk = conclusion_chunk
-    
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
+
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
         """Return strength of conclusion chunk resulting from an application of 
         current associative rule.
 
@@ -175,7 +176,7 @@ class Rule(activation.Rule):
                 continue
         return {self.conclusion_chunk: strength}
 
-class MaxJunction(activation.ActivationJunction):
+class MaxJunction(activation.Junction):
     """An activation junction returning max activations for all input nodes.
     """
 
@@ -187,30 +188,30 @@ class MaxJunction(activation.ActivationJunction):
             to activations.
         """
 
-        node_set = nodes.get_nodes(*input_maps)
+        node_set = node.get_nodes(*input_maps)
 
         activations = dict()
-        for node in node_set:
+        for n in node_set:
             for input_map in input_maps:
                 try:
-                    if activations[node] < input_map[node]:
-                        activations[node] = input_map[node]
+                    if activations[n] < input_map[n]:
+                        activations[n] = input_map[n]
                 except KeyError:
                     # Two cases: either node not in activations or node not in 
                     # input_map. Assume node not in activations, but in input 
                     # map, if this fails continue.
                     try:
-                        activations[node] = input_map[node]
+                        activations[n] = input_map[n]
                     except KeyError:
                         continue
 
         return activations
 
-class BoltzmannSelector(action.ChunkSelector):
+class BoltzmannSelector(action.Selector):
     """Select a chunk according to a Boltzmann distribution.
     """
 
-    def __init__(self, chunks: nodes.ChunkSet, temperature: float) -> None:
+    def __init__(self, chunks: node.ChunkSet, temperature: float) -> None:
         """Initialize a BoltzmannSelector.
 
         kwargs:
@@ -221,7 +222,7 @@ class BoltzmannSelector(action.ChunkSelector):
         super().__init__(chunks)
         self.temperature = temperature
 
-    def __call__(self, chunk2strength: nodes.Chunk2Float) -> nodes.ChunkSet:
+    def __call__(self, chunk2strength: node.Chunk2Float) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths according to a Boltzmann distribution.
 
@@ -251,7 +252,7 @@ class BoltzmannSelector(action.ChunkSelector):
 
         return {choice}
 
-class BLA(stats.Stat):
+class BLA(stats.Statistic):
     """Keeps track of base-level activations (BLAs).
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.2.1.3 (p. 62)
@@ -282,7 +283,7 @@ class BLA(stats.Stat):
         self.decay_rate = decay_rate
         self.density = density
 
-        self.timestamps = []
+        self.timestamps : T.List = []
 
     def update(self, current_time : float) -> None:
         """Record current time as an instance of use and/or activation for 
@@ -313,7 +314,7 @@ class BLA(stats.Stat):
 
         return self.compute_bla(current_time) < self.density
 
-class MatchStatistics(stats.Stat):
+class MatchStatistics(stats.Statistic):
     """Tracks positive and negative match statistics.
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.3.2.1 (p. 90).

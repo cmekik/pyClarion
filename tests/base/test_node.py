@@ -1,5 +1,5 @@
 import unittest
-from pyClarion.base.nodes import Feature, Chunk
+from pyClarion.base.node import Feature, Chunk
 from enum import auto
 
 class ChunkTestCase(unittest.TestCase):

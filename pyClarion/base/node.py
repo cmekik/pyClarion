@@ -22,6 +22,7 @@ References:
 
 
 import typing as T
+import abc
 import enum
 import weakref
 
@@ -55,7 +56,7 @@ class Feature(enum.Enum):
         """
         return (self.__class__.__name__ + ": " + self.name).join(["(",")"])
 
-    def dim(self) -> enum.EnumMeta:
+    def dim(self) -> T.Type:
         """Return dimension associated with self.
         """
 
@@ -74,9 +75,9 @@ def all_features() -> T.Set[Feature]:
 
 # (Micro)Feature-Related Types
 
-Dim2Float = T.Mapping[enum.EnumMeta, float]
+Dim2Float = T.Dict[enum.EnumMeta, float]
 FeatureSet = T.Set[Feature]
-Feature2Float = T.Mapping[Feature, float]
+Feature2Float = T.Dict[Feature, float]
 
 
 ####### CHUNKS #######
@@ -96,7 +97,7 @@ class Chunk(object):
     Sun, R. (2016). Anatomy of the Mind. Oxford University Press.
     """
 
-    _instances = weakref.WeakSet()
+    _instances : weakref.WeakSet = weakref.WeakSet()
 
     def __init__(
         self, 
@@ -162,8 +163,8 @@ def all_chunks() -> T.Set[Chunk]:
 # Chunk-Related Types
 
 ChunkSet = T.Set[Chunk]
-Chunk2Float = T.Mapping[Chunk, float]
-Chunk2Callable = T.Mapping[Chunk, T.Callable]
+Chunk2Float = T.Dict[Chunk, float]
+Chunk2Callable = T.Dict[Chunk, T.Callable]
 
 
 ####### NODES #######
@@ -176,14 +177,14 @@ Node = T.Union[Chunk, Feature]
 
 NodeIterable = T.Iterable[Node]
 NodeSet = T.Set[Node]
-Node2Any = T.Mapping[Node,T.Any]
-Node2Float = T.Mapping[Node, float]
+Node2Any = T.Dict[Node,T.Any]
+Node2Float = T.Dict[Node, float]
 
-Any2NodeSet = T.Mapping[T.Any, NodeSet]
+Any2NodeSet = T.Dict[T.Any, NodeSet]
 
 # Node-Related Classes
 
-class NodeMapFilter(object):
+class Node2ValueFilter(object):
     """Filters mappings from nodes to values.
 
     This filter can be used for input/output filtering, assuming that 
@@ -193,7 +194,7 @@ class NodeMapFilter(object):
 
     def __init__(
         self, filter_map : Any2NodeSet = None
-    ):
+    ) -> None:
         """Initialize an activation filter.
 
         kwargs:
@@ -224,7 +225,7 @@ class NodeMapFilter(object):
         """
 
         if filter_keys is not None:
-            filter_nodes = set().union(
+            filter_nodes : NodeSet = set.union(
                 *[self.map.get(key, set()) for key in filter_keys]
             )
             filtered = {
@@ -240,7 +241,10 @@ def all_nodes() -> NodeSet:
     """Return a set containing all existing nodes.
     """
 
-    return all_features() + all_chunks()
+    microfeatures : NodeSet = T.cast(NodeSet, all_features())
+    chunks : NodeSet = T.cast(NodeSet, all_chunks())
+
+    return set.union(microfeatures, chunks)
 
 def get_nodes(*node_iterables: NodeIterable) -> NodeSet:
     """Return a set containing all nodes appearing in at least once in the 

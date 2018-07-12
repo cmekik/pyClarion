@@ -18,9 +18,9 @@ For simplicity, this example only uses row-wise reasoning.
 """
 
 
-from pyClarion.base.nodes import Feature, Chunk, all_chunks
+from pyClarion.base.node import Feature, Chunk, all_chunks
 from pyClarion.base.activation import propagate
-from pyClarion.base.action import ActionHandler 
+from pyClarion.base.action import Handler 
 from pyClarion.default.common import (
     TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
 )
@@ -228,7 +228,7 @@ boltzmann_selector = BoltzmannSelector(action_chunks, temperature=0.1)
 
 # ACTION HANDLER
 
-execute_action = ActionHandler(action_callbacks)
+execute_action = Handler(action_callbacks)
 
 
 ####### PROCESSING EXAMPLE #######

@@ -4,11 +4,11 @@ managing important statistics for the Clarion cognitive architecture.
 
 
 import abc
-
+import typing as T
 
 ####### ABSTRACTION #######
 
-class Stat(abc.ABC):
+class Statistic(abc.ABC):
     """Tracks a statistic.
 
     Instances are meant to be used as containers and updaters for the relevant 
@@ -17,17 +17,5 @@ class Stat(abc.ABC):
     """
 
     @abc.abstractmethod
-    def update(self, *args, **kwargs):
+    def update(self, *args : T.Any, **kwargs : T.Any) -> None:
         pass
-
-
-####### GENERIC FUNCTIONS #######
-
-def initialize_stat_map(stat, *constructs):
-    """
-    """
-
-    stats =  {
-        construct : stat() for construct in constructs  
-    }
-    return stats

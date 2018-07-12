@@ -29,12 +29,12 @@ References:
 
 import abc
 import typing as T
-from . import nodes
+from . import node
 
 
 ####### ABSTRACTIONS #######
 
-class ActivationChannel(abc.ABC):
+class Channel(abc.ABC):
     """An abstract class for capturing activation flows.
 
     This class provides a uniform interface for handling activation flows. It 
@@ -56,7 +56,7 @@ class ActivationChannel(abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(self, input_map : nodes.Node2Float) -> nodes.Node2Float:
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
         """Compute and return activations resulting from an input to this 
         channel.
 
@@ -70,7 +70,10 @@ class ActivationChannel(abc.ABC):
 
         pass
 
-class ActivationJunction(abc.ABC):
+ChannelSet = T.Set[Channel]
+ChannelTypeSet = T.Set[T.Type[Channel]]
+
+class Junction(abc.ABC):
     """An abstract class for handling the combination of chunk and/or 
     (micro)feature activations from multiple sources.
 
@@ -79,7 +82,7 @@ class ActivationJunction(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(self, *input_maps: nodes.Node2Float) -> nodes.Node2Float:
+    def __call__(self, *input_maps: node.Node2Float) -> node.Node2Float:
         """Return a combined mapping from chunks and/or (micro)features to 
         activations.
 
@@ -93,11 +96,27 @@ class ActivationJunction(abc.ABC):
 
 ####### GENERIC FUNCTIONS #######
 
+def select_channels_by_type(
+    channels : ChannelSet, 
+    channel_types : ChannelTypeSet
+) -> ChannelSet:
+    """
+    """
+
+    selected : T.Set[Channel] = set()
+    for channel in channels:
+        for channel_type in channel_types:
+            if isinstance(channel, channel_type):
+                selected.add(channel)
+            else:
+                continue
+    return selected
+
 def propagate(
-    input_map : nodes.Node2Float, 
-    channels : T.Set[ActivationChannel], 
-    junction : ActivationJunction
-) -> nodes.Node2Float:
+    input_map : node.Node2Float, 
+    channels : ChannelSet, 
+    junction : Junction
+) -> node.Node2Float:
     """Propagate inputs through a set of channels, combine their outputs and 
     return the result.
 
@@ -110,12 +129,12 @@ def propagate(
     return junction(*[channel(input_map) for channel in channels])
 
 def filter_call(
-    input_map : nodes.Node2Float,
-    channel : ActivationChannel,
-    node_map_filter : nodes.NodeMapFilter,  
+    input_map : node.Node2Float,
+    channel : Channel,
+    node_map_filter : node.Node2ValueFilter,  
     input_keys : T.Iterable = None, 
     output_keys : T.Iterable = None
-) -> nodes.Node2Float:
+) -> node.Node2Float:
     """Passes input through channel with given input and output filters.
     """
 
@@ -125,13 +144,13 @@ def filter_call(
     return filtered_output
 
 def filter_propagate(
-    input_map : nodes.Node2Float,
-    channels : T.Iterable[ActivationChannel],
-    node_map_filter : nodes.NodeMapFilter,
-    junction : ActivationJunction,
-    input_key_map : T.Mapping[ActivationChannel, T.Any] = None,
-    output_key_map : T.Mapping[ActivationChannel, T.Any] = None
-) -> nodes.Node2Float:
+    input_map : node.Node2Float,
+    channels : ChannelSet,
+    node_map_filter : node.Node2ValueFilter,
+    junction : Junction,
+    input_key_map : T.Dict[Channel, T.Iterable] = None,
+    output_key_map : T.Dict[Channel, T.Iterable] = None
+) -> node.Node2Float:
     """
     """
 
@@ -153,7 +172,7 @@ def filter_propagate(
 
 ####### BASE ACTIVATION CHANNELS #######
 
-class TopDown(ActivationChannel):
+class TopDown(Channel):
     """A base class for top-down activation channels.
 
     This is an abstract interface for various possible implementations of 
@@ -162,7 +181,7 @@ class TopDown(ActivationChannel):
 
     pass
 
-class BottomUp(ActivationChannel):
+class BottomUp(Channel):
     """A base class for bottom-up activation channels.
 
     This is an abstract interface for various possible implementations of 
@@ -171,7 +190,7 @@ class BottomUp(ActivationChannel):
 
     pass
 
-class Rule(ActivationChannel):
+class Rule(Channel):
     """A base class for rule activation channels.
 
     This is an abstract interface for various possible implementations of 
@@ -180,7 +199,7 @@ class Rule(ActivationChannel):
 
     pass
 
-class Implicit(ActivationChannel):
+class Implicit(Channel):
     """A base class for implicit activation channels.
 
     This is an abstract interface for various possible implementations of 

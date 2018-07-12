@@ -15,15 +15,15 @@ References:
 
 
 import abc
-from . import nodes
+from . import node
 
 
-class ChunkSelector(abc.ABC):
+class Selector(abc.ABC):
     """An abstract class defining the interface for selection of actionable 
     chunks based on chunk strengths.
     """
 
-    def __init__(self, chunks: nodes.ChunkSet) -> None:
+    def __init__(self, chunks: node.ChunkSet) -> None:
         """Initialize a chunk selector.
 
         kwargs:
@@ -33,7 +33,7 @@ class ChunkSelector(abc.ABC):
         self.chunks = chunks
 
     @abc.abstractmethod
-    def __call__(self, chunk2strength: nodes.Chunk2Float) -> nodes.ChunkSet:
+    def __call__(self, chunk2strength: node.Chunk2Float) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths.
 
@@ -43,14 +43,14 @@ class ChunkSelector(abc.ABC):
 
         pass
 
-class ActionHandler(object):
+class Handler(object):
     """Generic class for handling chunk-driven action execution.
 
     Can be used out of the box to link action chunks to callbacks implementing 
     relevant actions.
     """
 
-    def __init__(self, chunk2action : nodes.Chunk2Callable) -> None:
+    def __init__(self, chunk2action : node.Chunk2Callable) -> None:
         """Initialize an action handler.
 
         kwargs:
@@ -59,7 +59,7 @@ class ActionHandler(object):
 
         self.chunk2action = chunk2action
     
-    def __call__(self, chunks : nodes.ChunkSet) -> None:
+    def __call__(self, chunks : node.ChunkSet) -> None:
         """Execute selected actions.
 
         kwargs:
@@ -68,6 +68,7 @@ class ActionHandler(object):
         
         for chunk in chunks:
             try:
-                self.chunk2action[chunk].__call__()
+                # Try executing action attached to chunk
+                self.chunk2action[chunk]()
             except KeyError:
                 continue

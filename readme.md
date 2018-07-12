@@ -2,7 +2,7 @@
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
 date: 2018-07-11
-version : 0.4.1
+version : 0.5.0
 ---
 
 # pyClarion Readme
@@ -11,9 +11,12 @@ This is a python implementation of the Clarion cognitive architecture.
 
 To grasp the architecture of this codebase, the recommended reading order is:
     
-1. `pyClarion.base.nodes`
+1. `pyClarion.base.node`
 2. `pyClarion.base.activation`
 3. `pyClarion.base.action`
+4. `pyClarion.base.filter`
+5. `pyClarion.base.subsystem`
+6. `pyClarion.base.subject`
 
 Many common Clarion constructs are implemented in their default forms in 
 `pyClarion.default.common.py`. These constructs are combined in 

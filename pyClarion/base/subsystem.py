@@ -1,42 +1,35 @@
 import abc
 import typing as T
 import enum
-from . import nodes
+from . import node
 from . import activation
 from . import action
 
-class SubsystemMode(enum.Flag):
-    pass
 
 class Subsystem(abc.ABC):
 
-    @abc.abstractproperty
-    junction_type : type
-
-    @abc.abstractproperty
-    selector_type : type
-
-    @abc.abstractproperty
-    action_handler_type : type
+    junction_type : T.Type[activation.Junction]
+    selector_type : T.Type[action.Selector]
+    filter_type : T.Type[node.Node2ValueFilter] = node.Node2ValueFilter
+    action_handler_type : T.Type[action.Handler] = action.Handler
 
     def __init__(
-        self, 
-        nodes : nodes.NodeSet, 
-        channels : T.Set[activation.ActivationChannel],  
-        action_map : T.Mapping[nodes.Chunk, T.Callable]
+        self,  
+        channels : T.Set[activation.Channel],  
+        action_map : node.Chunk2Callable
     ) -> None:
 
-        self.nodes = nodes
         self.channels = channels
         self.junction =  self.junction_type()
-        self.selector = self.selector_type(set(action_map.keys()), .1)
+        self.selector = self.selector_type(set(action_map.keys()))
+        self.filter = self.filter_type()
         self.action_handler = self.action_handler_type(action_map)
 
-    # Be more specific about output type.
     @abc.abstractmethod
     def __call__(
         self, 
-        input_map : nodes.Node2Float, 
-        mode : SubsystemMode
-    ) -> T.Any:
+        input_map : node.Node2Float
+    ) -> node.Node2Float:
         pass
+
+SubsystemSet = T.Set[Subsystem]
