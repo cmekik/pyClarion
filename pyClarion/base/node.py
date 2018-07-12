@@ -56,7 +56,7 @@ class Feature(enum.Enum):
         """
         return (self.__class__.__name__ + ": " + self.name).join(["(",")"])
 
-    def dim(self) -> T.Type:
+    def dim(self) -> T.Type[enum.Enum]:
         """Return dimension associated with self.
         """
 
