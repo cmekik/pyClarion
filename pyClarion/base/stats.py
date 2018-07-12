@@ -15,7 +15,4 @@ class Statistic(abc.ABC):
     statistics. They do not store additional information about related 
     constructs, such as references to the objects of the statistics they store.
     """
-
-    @abc.abstractmethod
-    def update(self, *args : T.Any, **kwargs : T.Any) -> None:
-        pass
+    pass
