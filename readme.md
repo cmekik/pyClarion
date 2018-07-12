@@ -14,7 +14,6 @@ To grasp the architecture of this codebase, the recommended reading order is:
 1. `pyClarion.base.node`
 2. `pyClarion.base.activation`
 3. `pyClarion.base.action`
-4. `pyClarion.base.filter`
 5. `pyClarion.base.subsystem`
 6. `pyClarion.base.subject`
 
