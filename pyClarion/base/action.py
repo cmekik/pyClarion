@@ -2,8 +2,7 @@
 architecture. 
 
 There are two steps to action handling: action selection and action execution. 
-These two steps are handled separately by the ChunkSelector and ActionHandler 
-classes, respectively.
+These two steps are respectively handled by the Selector and Handler classes.
 
 For basic details on action selection, see Chapter 3.1.2.3 of Sun (2016). See
 also Section 3.4.2 on memory retrieval actions, Section 4.2.3 for possible 
@@ -15,6 +14,7 @@ References:
 
 
 import abc
+import typing as T
 from . import node
 
 
@@ -33,12 +33,13 @@ class Selector(abc.ABC):
         self.chunks = chunks
 
     @abc.abstractmethod
-    def __call__(self, chunk2strength: node.Chunk2Float) -> node.ChunkSet:
+    def __call__(self, input_map: node.Node2Float) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths.
 
         kwargs:
-            chunk2strength : A mapping from chunks to their strengths.
+            input_map : A dict mapping nodes (Chunks and/or Features) to 
+            activations.
         """
 
         pass
@@ -72,3 +73,9 @@ class Handler(object):
                 self.chunk2action[chunk]()
             except KeyError:
                 continue
+
+
+####### TYPE ALIASES #######
+
+SelectorType = T.Type[Selector]
+HandlerType = T.Type[Handler]

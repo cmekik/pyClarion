@@ -1,27 +1,24 @@
 import unittest
 import unittest.mock
 from enum import auto
-from pyClarion.base.node import Feature, Chunk
-from pyClarion.default.common import TopDown, BottomUp, Rule, BLA
+from pyClarion.base.node import Microfeature
+from pyClarion.default.common import Chunk, TopDown, BottomUp, Rule, BLA
 
 class TestTopDown(unittest.TestCase):
 
     def test_call(self):
-        
-        class Color(Feature):
-            WHITE = auto()
-            BLACK = auto()
 
-        class Shape(Feature):
-            SQUARE = auto()
-            CIRCLE = auto()
+        white = Microfeature("Color", "White")
+        black = Microfeature("Color", "Black")
+        square = Microfeature("Shape", "Square")
+        circle = Microfeature("Shape", "Circle")
 
         chunk1 = Chunk(
-            microfeatures = {Color.WHITE, Shape.SQUARE},
+            microfeatures = {white, square},
         )
 
         chunk2 = Chunk(
-            microfeatures = {Color.BLACK, Color.WHITE, Shape.SQUARE}, 
+            microfeatures = {black, white, square}, 
         )
 
         td1 = TopDown(chunk1)
@@ -29,20 +26,20 @@ class TestTopDown(unittest.TestCase):
 
         with self.subTest(msg="white-square"):
             result = td1({chunk1 : 1.})
-            expected = {Color.WHITE: 1., Shape.SQUARE: 1.}
+            expected = {white : 1., square : 1.}
             self.assertEqual(result, expected)
 
         with self.subTest(msg="white-square-partial"):
             result = td1({chunk1 : .5})
-            expected = {Color.WHITE: .5, Shape.SQUARE: .5}
+            expected = {white : .5, square : .5}
             self.assertEqual(result, expected)
 
         with self.subTest(msg="black-or-white-square"):
             result = td2({chunk2 : 1.})
             expected = {
-                Color.WHITE: .5, 
-                Color.BLACK: .5, 
-                Shape.SQUARE: 1.
+                white : .5, 
+                black : .5, 
+                square : 1.
             }
             self.assertEqual(result, expected)
 
@@ -50,44 +47,41 @@ class TestBottomUp(unittest.TestCase):
 
     def test_bottom_up(self):
 
-        class Color(Feature):
-            WHITE = auto()
-            BLACK = auto()
-
-        class Shape(Feature):
-            SQUARE = auto()
-            CIRCLE = auto()
+        white = Microfeature("Color", "White")
+        black = Microfeature("Color", "Black")
+        square = Microfeature("Shape", "Square")
+        circle = Microfeature("Shape", "Circle")
 
         chunk1 = Chunk(
-            microfeatures = {Color.WHITE, Shape.SQUARE},
+            microfeatures = {white, square},
         )
 
         chunk2 = Chunk(
-            microfeatures = {Color.BLACK, Color.WHITE, Shape.SQUARE}, 
+            microfeatures = {black, white, square}, 
         )
 
         bu1 = BottomUp(chunk1)
         bu2 = BottomUp(chunk2)
 
         sensory_input_1 = {
-            Color.BLACK : 1.,
-            Color.WHITE : 0.,
-            Shape.SQUARE : 1.,
-            Shape.CIRCLE : 0.
+            black : 1.,
+            white : 0.,
+            square : 1.,
+            circle : 0.
         }
 
         sensory_input_2 = {
-            Color.BLACK : 0.,
-            Color.WHITE : 1.,
-            Shape.SQUARE : 1.,
-            Shape.CIRCLE : 0.
+            black : 0.,
+            white : 1.,
+            square : 1.,
+            circle : 0.
         }
 
         sensory_input_3 = {
-            Color.BLACK : 1.,
-            Color.WHITE : 0.,
-            Shape.SQUARE : 0.,
-            Shape.CIRCLE : 1.
+            black : 1.,
+            white : 0.,
+            square : 0.,
+            circle : 1.
         }
 
         with self.subTest(msg="si_1-white-square"):

@@ -13,6 +13,42 @@ import numpy as np
 import typing as T
 
 
+class Chunk(node.Chunk):
+    """A default Clarion chunk.
+
+    Weights are initialized to 1 by default.
+    """
+
+    def __init__(
+        self,
+        microfeatures: node.FeatureSet,
+        dim2weight: node.Dim2Float = None,
+        label: str = None
+    ) -> None:
+        """Initialize a default Clarion chunk.
+        """
+
+        if dim2weight is None:
+            dim2weight = self.initialize_weights(microfeatures)
+        super().__init__(
+            microfeatures, T.cast(node.Dim2Float, dim2weight), label
+        )
+
+    @staticmethod
+    def initialize_weights(microfeatures : node.FeatureSet) -> node.Dim2Float:
+        """Initialize top-down weights.
+        If input is None, weights are initialized to 1.0.
+        Args:
+            dim2weight: A mapping from each chunk dimension to its top-down 
+                weight.
+        """
+        
+        dim2weight = dict()
+        for f in microfeatures:
+            dim2weight[f.dim] = 1.
+        return dim2weight
+
+
 class TopDown(activation.TopDown):
     """A top-down (from a chunk to its microfeatures) activation channel.
 
@@ -50,8 +86,8 @@ class TopDown(activation.TopDown):
         else:        
             activations : node.Node2Float = dict()
             for f in self.chunk.microfeatures:
-                w_dim = self.chunk.dim2weight[f.dim()] 
-                n_val = self.val_counts[f.dim()]
+                w_dim = self.chunk.dim2weight[f.dim] 
+                n_val = self.val_counts[f.dim]
                 activations[f] = strength * w_dim / n_val
             return activations
 
@@ -66,9 +102,9 @@ class TopDown(activation.TopDown):
         counts : T.Dict = dict()
         for f in microfeatures:
             try:
-                counts[f.dim()] += 1
+                counts[f.dim] += 1
             except KeyError:
-                counts[f.dim()] = 1
+                counts[f.dim] = 1
         return counts
 
 class BottomUp(activation.BottomUp):
@@ -106,15 +142,15 @@ class BottomUp(activation.BottomUp):
         dim2activation : T.Dict = dict()
         for f in self.chunk.microfeatures:
             try:
-                if dim2activation[f.dim()] < input_map[f]:
-                    dim2activation[f.dim()] = input_map[f]
+                if dim2activation[f.dim] < input_map[f]:
+                    dim2activation[f.dim] = input_map[f]
             except KeyError:
                 # A KeyError may arise either because f.dim() is not in 
                 # dim2activation, or because f is not in input_map. 
                 # If the former is the case, add f.dim() to dim2activation, 
                 # otherwise move on to the next microfeature.
                 try: 
-                    dim2activation[f.dim()] = input_map[f]
+                    dim2activation[f.dim] = input_map[f]
                 except KeyError:
                     continue
         # Compute chunk strength based on dimensional activations.
@@ -125,7 +161,7 @@ class BottomUp(activation.BottomUp):
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
         return {self.chunk: strength}
 
-class Rule(activation.Rule):
+class Rule(activation.TopLevel):
     """An basic Clarion associative rule.
 
     Rules have the form:
@@ -222,7 +258,7 @@ class BoltzmannSelector(action.Selector):
         super().__init__(chunks)
         self.temperature = temperature
 
-    def __call__(self, chunk2strength: node.Chunk2Float) -> node.ChunkSet:
+    def __call__(self, input_map: node.Node2Float) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths according to a Boltzmann distribution.
 
@@ -238,7 +274,7 @@ class BoltzmannSelector(action.Selector):
         for chunk in self.chunks:
             try:
                 terms[chunk] = np.exp(
-                    chunk2strength[chunk] / self.temperature
+                    input_map[chunk] / self.temperature
                 )
             except KeyError:
                 # By assumption, chunk2strength[chunk] == 0. and exp(0. / t) 

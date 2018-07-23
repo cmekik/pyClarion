@@ -1,30 +1,29 @@
 import unittest
-from pyClarion.base.node import Feature, Chunk
+from pyClarion.base.node import Microfeature, Chunk
 from enum import auto
 
 class ChunkTestCase(unittest.TestCase):
 
-    class Color(Feature):
-        WHITE = auto()
-        BLACK = auto()
-
-    class Shape(Feature):
-        SQUARE = auto()
-        CIRCLE = auto()
-
     def setUp(self):
 
+        self.white = Microfeature("Color", "White")
+        self.black = Microfeature("Color", "Black")
+        self.square = Microfeature("Shape", "Square")
+        self.circle = Microfeature("Shape", "Circle")
+
         self.white_square = Chunk(
-            microfeatures = {self.Color.WHITE, self.Shape.SQUARE},
+            microfeatures = {self.white, self.square},
+            dim2weight = {"Color" : 1, "Shape" : 1},
             label="white square" 
         )
 
         self.black_or_white_square = Chunk(
             microfeatures = {
-                self.Color.BLACK, 
-                self.Color.WHITE, 
-                self.Shape.SQUARE
+                self.black, 
+                self.white, 
+                self.square
             }, 
+            dim2weight = {"Color" : 1, "Shape" : 1}
         )
 
     def test_repr(self):
@@ -33,11 +32,4 @@ class ChunkTestCase(unittest.TestCase):
         self.assertEqual(
             self.white_square.__repr__(),
             str(self.white_square.microfeatures).join(enclosing_str)
-        )
-
-    def test_initialize_weights(self):
-        
-        self.assertEqual(
-            self.white_square.dim2weight,
-            {self.Color : 1., self.Shape : 1.}
         )

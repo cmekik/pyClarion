@@ -18,110 +18,104 @@ For simplicity, this example only uses row-wise reasoning.
 """
 
 
-from pyClarion.base.node import Feature, Chunk, all_chunks
+from pyClarion.base.node import Microfeature
 from pyClarion.base.activation import propagate
 from pyClarion.base.action import Handler 
 from pyClarion.default.common import (
-    TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
+    Chunk, TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
 )
 from enum import auto
 
 
 ####### (MICRO)FEATURES #######
 
-class SequenceType(Feature):
-    MATRIX = auto()
-    ALTERNATIVE = auto()
+matseq = Microfeature("Sequence Type", "mat")
+altseq = Microfeature("Sequence Type", "alt")
 
-class SequenceNum(Feature):
-    S1 = auto()
-    S2 = auto()
+seq_1 = Microfeature("Sequence Number", "1")
+seq_2 = Microfeature("Sequence Number", "2")
 
-class Axis(Feature):
-    ROW = auto()
-    COL = auto()
+ax_row = Microfeature("Axis", "row")
+ax_col = Microfeature("Axis", "col") 
 
-class Alternative(Feature):
-    A1 = auto()
-    A2 = auto()
-    A3 = auto()
+alt_1 = Microfeature("Alternative", "1")
+alt_2 = Microfeature("Alternative", "2")
+alt_3 = Microfeature("Alternative", "3")
 
-class ShapeDistribution(Feature):
-    ABSENT = auto()
-    PRESENT = auto()
+shp = Microfeature("Shape Distribution", "present")
 
 
 ####### CHUNKS #######
 
-alt1 = Chunk(
-    microfeatures = {Alternative.A1},
+ch_alt1 = Chunk(
+    microfeatures = {alt_1},
     label = "Alternative 1"
 )
 
-alt2 = Chunk(
-    microfeatures = {Alternative.A2},
+ch_alt2 = Chunk(
+    microfeatures = {alt_2},
     label = "Alternative 2"
 )
 
-alt3 = Chunk(
-    microfeatures = {Alternative.A3},
+ch_alt3 = Chunk(
+    microfeatures = {alt_3},
     label = "Alternative 3"
 )
 
 matseq1 = Chunk(
     microfeatures = {
-        SequenceType.MATRIX,
-        Axis.ROW,
-        SequenceNum.S1,
-        ShapeDistribution.PRESENT
+        matseq,
+        ax_row,
+        seq_1,
+        shp
     },
     label = "Matrix Sequence 1"
 )
 
 matseq2 = Chunk(
     microfeatures = {
-        SequenceType.MATRIX,
-        Axis.ROW,
-        SequenceNum.S2,
-        ShapeDistribution.PRESENT
+        matseq,
+        ax_row,
+        seq_2,
+        shp
     },
     label = "Matrix Sequence 2"
 )
 
 altseq1 = Chunk(
     microfeatures = {
-        SequenceType.ALTERNATIVE,
-        Axis.ROW,
-        Alternative.A1,
-        ShapeDistribution.PRESENT
+        altseq,
+        ax_row,
+        alt_1,
+        shp
     },
     label = "Alternative Sequence 1"
 )
 
 altseq2 = Chunk(
     microfeatures = {
-        SequenceType.ALTERNATIVE,
-        Axis.ROW,
-        Alternative.A2,
-        ShapeDistribution.ABSENT
+        altseq,
+        ax_row,
+        alt_2,
+        shp
     },
     label = "Alternative Sequence 2"
 )
 
 altseq3 = Chunk(
     microfeatures = {
-        SequenceType.ALTERNATIVE,
-        Axis.ROW,
-        Alternative.A3,
-        ShapeDistribution.ABSENT
+        altseq,
+        ax_row,
+        alt_3,
+        shp
     },
-    label = "Alternative Sequence 3"
+    label = "Alternative Sequence 2"
 )
 
 chunks = {
-    alt1,
-    alt2,
-    alt3,
+    ch_alt1,
+    ch_alt2,
+    ch_alt3,
     matseq1,
     matseq2,
     altseq1,
@@ -144,17 +138,17 @@ bottom_ups = {BottomUp(chunk) for chunk in chunks}
 
 mat2alt1 = Rule(
     chunk2weight = {altseq1 : 1.,},
-    conclusion_chunk = alt1
+    conclusion_chunk = ch_alt1
 )
 
 mat2alt2 = Rule(
     chunk2weight = {altseq2 : 1.},
-    conclusion_chunk = alt2
+    conclusion_chunk = ch_alt2
 )
 
 mat2alt3 = Rule(
     chunk2weight = {altseq3 : 1.,},
-    conclusion_chunk = alt3
+    conclusion_chunk = ch_alt3
 )
 
 rules = {
@@ -207,19 +201,19 @@ class ResponseTracker(object):
 
 # INITIALIZE RESPONSE TRACKER
 
-response_tracker = ResponseTracker(correct=alt1)
+response_tracker = ResponseTracker(correct=ch_alt1)
 
 # DEFINE ACTION CHUNKS
 
 action_chunks = {
-    alt1, alt2, alt3
+    ch_alt1, ch_alt2, ch_alt3
 }
 
 # MAP ACTION CHUNKS TO CALLBACKS
 action_callbacks = {
-    alt1 : lambda: response_tracker.record(alt1),
-    alt2 : lambda: response_tracker.record(alt2),
-    alt3 : lambda: response_tracker.record(alt3),
+    ch_alt1 : lambda: response_tracker.record(ch_alt1),
+    ch_alt2 : lambda: response_tracker.record(ch_alt2),
+    ch_alt3 : lambda: response_tracker.record(ch_alt3),
 }
 
 # ACTION SELECTOR

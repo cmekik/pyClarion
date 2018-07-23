@@ -6,23 +6,23 @@ from . import activation
 from . import action
 
 
+####### CLASS DEFINITIONS #######
+
 class Subsystem(abc.ABC):
 
-    junction_type : T.Type[activation.Junction]
-    selector_type : T.Type[action.Selector]
-    filter_type : T.Type[node.Node2ValueFilter] = node.Node2ValueFilter
-    action_handler_type : T.Type[action.Handler] = action.Handler
+    junction_type : activation.JunctionType
+    selector_type : action.SelectorType
+    action_handler_type : action.HandlerType = action.Handler
 
     def __init__(
-        self,  
-        channels : T.Set[activation.Channel],  
+        self,
+        channels : activation.ChannelType,  
         action_map : node.Chunk2Callable
     ) -> None:
 
         self.channels = channels
         self.junction =  self.junction_type()
         self.selector = self.selector_type(set(action_map.keys()))
-        self.filter = self.filter_type()
         self.action_handler = self.action_handler_type(action_map)
 
     @abc.abstractmethod
@@ -31,5 +31,8 @@ class Subsystem(abc.ABC):
         input_map : node.Node2Float
     ) -> node.Node2Float:
         pass
+
+
+####### TYPE ALIASES #######
 
 SubsystemSet = T.Set[Subsystem]
