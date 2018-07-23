@@ -42,7 +42,8 @@ alt_1 = Microfeature("Alternative", "1")
 alt_2 = Microfeature("Alternative", "2")
 alt_3 = Microfeature("Alternative", "3")
 
-shp = Microfeature("Shape Distribution", "present")
+shp_dist = Microfeature("Shape Distribution", "present")
+shp_cte = Microfeature("Shape Distribution", "absent")
 
 
 ####### CHUNKS #######
@@ -67,7 +68,7 @@ matseq1 = Chunk(
         matseq,
         ax_row,
         seq_1,
-        shp
+        shp_dist
     },
     label = "Matrix Sequence 1"
 )
@@ -77,7 +78,7 @@ matseq2 = Chunk(
         matseq,
         ax_row,
         seq_2,
-        shp
+        shp_dist
     },
     label = "Matrix Sequence 2"
 )
@@ -87,7 +88,7 @@ altseq1 = Chunk(
         altseq,
         ax_row,
         alt_1,
-        shp
+        shp_dist
     },
     label = "Alternative Sequence 1"
 )
@@ -97,7 +98,7 @@ altseq2 = Chunk(
         altseq,
         ax_row,
         alt_2,
-        shp
+        shp_cte
     },
     label = "Alternative Sequence 2"
 )
@@ -107,9 +108,9 @@ altseq3 = Chunk(
         altseq,
         ax_row,
         alt_3,
-        shp
+        shp_cte
     },
-    label = "Alternative Sequence 2"
+    label = "Alternative Sequence 3"
 )
 
 chunks = {
