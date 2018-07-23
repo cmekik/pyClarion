@@ -71,9 +71,7 @@ class Chunk(object):
     ) -> None:
         """Initialize a Clarion Chunk.
 
-        By default, top-down weights are set to 1.0 if no weights are provided.
-
-        Args:
+        kwargs:
             microfeatures : Set of dv-pairs.
             dim2weight : A mapping from each chunk dimension to its top-down 
                 weight.
