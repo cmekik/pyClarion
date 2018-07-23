@@ -17,14 +17,15 @@ The goal is to choose the alternative that best completes the matrix.
 For simplicity, this example only uses row-wise reasoning.
 """
 
-
-from pyClarion.base.node import Microfeature
-from pyClarion.base.activation import propagate
+import typing as T
+from pyClarion.base.node import (
+    Microfeature, ChunkSet, Chunk2Callable, Node2Float
+)
+from pyClarion.base.activation import propagate, ChannelSet
 from pyClarion.base.action import Handler 
 from pyClarion.default.common import (
     Chunk, TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
 )
-from enum import auto
 
 
 ####### (MICRO)FEATURES #######
@@ -129,11 +130,11 @@ chunks = {
 
 # TOP-DOWN LINKS
 
-top_downs = {TopDown(chunk) for chunk in chunks}
+top_downs : ChannelSet = {TopDown(chunk) for chunk in chunks}
 
 # BOTTOM-UP LINKS
 
-bottom_ups = {BottomUp(chunk) for chunk in chunks}
+bottom_ups : ChannelSet = {BottomUp(chunk) for chunk in chunks}
 
 # RULES
 
@@ -152,7 +153,7 @@ mat2alt3 = Rule(
     conclusion_chunk = ch_alt3
 )
 
-rules = {
+rules : ChannelSet = {
     mat2alt1,
     mat2alt2,
     mat2alt3
@@ -206,12 +207,12 @@ response_tracker = ResponseTracker(correct=ch_alt1)
 
 # DEFINE ACTION CHUNKS
 
-action_chunks = {
+action_chunks : ChunkSet = {
     ch_alt1, ch_alt2, ch_alt3
 }
 
 # MAP ACTION CHUNKS TO CALLBACKS
-action_callbacks = {
+action_callbacks : Chunk2Callable= {
     ch_alt1 : lambda: response_tracker.record(ch_alt1),
     ch_alt2 : lambda: response_tracker.record(ch_alt2),
     ch_alt3 : lambda: response_tracker.record(ch_alt3),
@@ -230,7 +231,7 @@ execute_action = Handler(action_callbacks)
 
 # Step 1: Activate matrix sequence chunks.
 
-initial = {matseq1 : 1., matseq2 : 1.}
+initial : Node2Float = {matseq1 : 1., matseq2 : 1.}
 
 # Step 2: Use SBR. 
     # Activate any similar alternative sequence chunks.
