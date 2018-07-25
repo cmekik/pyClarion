@@ -6,8 +6,7 @@ Classes/functions defined here are used by at least two subsystems.
 
 from ..base import node
 from ..base import activation
-from ..base import action
-from ..base import stats
+from ..base import subject
 
 import numpy as np
 import typing as T
@@ -49,8 +48,26 @@ class Chunk(node.Chunk):
         return dim2weight
 
 
-class TopDown(activation.TopDown):
-    """A top-down (from a chunk to its microfeatures) activation channel.
+class DefaultActivationHandler(activation.ActivationHandler):
+    """A mixin defining constants for default Clarion channels.
+    """
+
+    @property
+    def default_activation(self):
+        """In default Clarion, the default activation is 0.
+        """ 
+        return 0.
+
+
+class DefaultFilter(activation.Filter, DefaultActivationHandler):
+    """An activation filter for default Clarion.
+    """
+    pass
+
+
+class TopDown(activation.TopDown, DefaultActivationHandler):
+    """A default Clarion top-down (from a chunk to its microfeatures) 
+    activation channel.
 
     For details, see Section 3.2.2.3 para 2 of Sun (2016).
 
@@ -82,14 +99,15 @@ class TopDown(activation.TopDown):
         try:
             strength = input_map[self.chunk]
         except KeyError:
-            return dict()
-        else:        
-            activations : node.Node2Float = dict()
-            for f in self.chunk.microfeatures:
-                w_dim = self.chunk.dim2weight[f.dim] 
-                n_val = self.val_counts[f.dim]
-                activations[f] = strength * w_dim / n_val
-            return activations
+            strength = self.default_activation
+
+        activations : node.Node2Float = dict()
+        for f in self.chunk.microfeatures:
+            w_dim = self.chunk.dim2weight[f.dim] 
+            n_val = self.val_counts[f.dim]
+            activations[f] = strength * w_dim / n_val        
+
+        return activations
 
     @staticmethod
     def count_values(microfeatures: node.FeatureSet) -> node.Dim2Float:
@@ -107,9 +125,10 @@ class TopDown(activation.TopDown):
                 counts[f.dim] = 1
         return counts
 
-class BottomUp(activation.BottomUp):
-    """A top-down (from microfeatures to a chunk to its microfeatures) 
-    activation channel.
+
+class BottomUp(activation.BottomUp, DefaultActivationHandler):
+    """A default Clario bottom-up (from microfeatures to a chunk) activation 
+    channel.
 
     For details, see Section 3.2.2.3 para 3 of Sun (2016).
 
@@ -145,14 +164,14 @@ class BottomUp(activation.BottomUp):
                 if dim2activation[f.dim] < input_map[f]:
                     dim2activation[f.dim] = input_map[f]
             except KeyError:
-                # A KeyError may arise either because f.dim() is not in 
+                # A KeyError may arise either because f.dim is not in 
                 # dim2activation, or because f is not in input_map. 
-                # If the former is the case, add f.dim() to dim2activation, 
-                # otherwise move on to the next microfeature.
+                # If the former is the case, add f.dim to dim2activation, 
+                # otherwise set dim activation to default value.
                 try: 
                     dim2activation[f.dim] = input_map[f]
                 except KeyError:
-                    continue
+                    dim2activation[f.dim] = self.default_activation
         # Compute chunk strength based on dimensional activations.
         strength = 0.
         for dim in dim2activation:
@@ -161,7 +180,8 @@ class BottomUp(activation.BottomUp):
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
         return {self.chunk: strength}
 
-class Rule(activation.TopLevel):
+
+class Rule(activation.TopLevel, DefaultActivationHandler):
     """An basic Clarion associative rule.
 
     Rules have the form:
@@ -179,17 +199,17 @@ class Rule(activation.TopLevel):
 
     def __init__(
         self,
-        chunk2weight : node.Chunk2Float,
+        condition2weight : node.Chunk2Float,
         conclusion_chunk : node.Chunk
     ) -> None:
         """Initialize a Clarion associative rule.
 
         kwargs:
-            chunk2weight : A mapping from condition chunks to their weights.
+            condition2weight : A mapping from condition chunks to their weights.
             conclusion_chunk : The conclusion chunk of the rule.
         """
         
-        self.chunk2weight = chunk2weight
+        self.condition2weight = condition2weight
         self.conclusion_chunk = conclusion_chunk
 
     def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
@@ -204,15 +224,19 @@ class Rule(activation.TopLevel):
             input activations.
         """
         
-        strength = 0. 
-        for chunk in self.chunk2weight:
+        conclusion_strength = 0. 
+        for condition in self.condition2weight:
             try:
-                strength += input_map[chunk] * self.chunk2weight[chunk]
+                condition_strength = input_map[condition]
             except KeyError:
-                continue
-        return {self.conclusion_chunk: strength}
+                condition_strength = self.default_activation
+            conclusion_strength += (
+                condition_strength * self.condition2weight[condition]
+            )
+        return {self.conclusion_chunk: conclusion_strength}
 
-class MaxJunction(activation.Junction):
+
+class MaxJunction(activation.Junction, DefaultActivationHandler):
     """An activation junction returning max activations for all input nodes.
     """
 
@@ -243,11 +267,12 @@ class MaxJunction(activation.Junction):
 
         return activations
 
-class BoltzmannSelector(action.Selector):
+
+class BoltzmannSelector(activation.Selector, DefaultActivationHandler):
     """Select a chunk according to a Boltzmann distribution.
     """
 
-    def __init__(self, chunks: node.ChunkSet, temperature: float) -> None:
+    def __init__(self, temperature: float) -> None:
         """Initialize a BoltzmannSelector.
 
         kwargs:
@@ -255,10 +280,12 @@ class BoltzmannSelector(action.Selector):
             temperature : Temperature of the Boltzmann distribution.
         """
 
-        super().__init__(chunks)
+        super().__init__()
         self.temperature = temperature
 
-    def __call__(self, input_map: node.Node2Float) -> node.ChunkSet:
+    def __call__(
+        self, input_map: node.Node2Float, actionable_chunks: node.ChunkSet
+    ) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths according to a Boltzmann distribution.
 
@@ -271,24 +298,22 @@ class BoltzmannSelector(action.Selector):
 
         terms = dict()
         divisor = 0.
-        for chunk in self.chunks:
+        for chunk in actionable_chunks:
             try:
-                terms[chunk] = np.exp(
-                    input_map[chunk] / self.temperature
-                )
+                terms[chunk] = np.exp(input_map[chunk] / self.temperature)
             except KeyError:
-                # By assumption, chunk2strength[chunk] == 0. and exp(0. / t) 
-                # is 1.0.
-                terms[chunk] = 1.0
+                terms[chunk] = np.exp(
+                    self.default_activation / self.temperature
+                )
             divisor += terms[chunk]
-
-        chunk_list = list(self.chunks)
+        chunk_list = list(actionable_chunks)
         probabilities = [terms[chunk] / divisor for chunk in chunk_list]
         choice = np.random.choice(chunk_list, p=probabilities)
 
         return {choice}
 
-class BLA(stats.Statistic):
+
+class BLA(subject.Statistic):
     """Keeps track of base-level activations (BLAs).
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.2.1.3 (p. 62)
@@ -350,7 +375,8 @@ class BLA(stats.Statistic):
 
         return self.compute_bla(current_time) < self.density
 
-class MatchStatistics(stats.Statistic):
+
+class MatchStatistics(subject.Statistic):
     """Tracks positive and negative match statistics.
 
     Implemented according to Sun (2016) Chapter 3. See Section 3.3.2.1 (p. 90).

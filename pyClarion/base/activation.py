@@ -21,12 +21,24 @@ References:
 
 import abc
 import typing as T
+
 from . import node
 
 
 ####### ABSTRACTIONS #######
 
-class Channel(abc.ABC):
+class ActivationHandler(abc.ABC):
+    """An abstract class for objects that handle node activations. 
+    """
+
+    @property
+    @abc.abstractmethod
+    def default_activation(self) -> float:
+        """The assumed default value for activations. 
+        """
+        pass
+
+class Channel(ActivationHandler):
     """An abstract class for capturing activation flows.
 
     This class provides a uniform interface for handling activation flows. It 
@@ -63,7 +75,7 @@ class Channel(abc.ABC):
 
         pass
 
-class Junction(abc.ABC):
+class Junction(ActivationHandler):
     """An abstract class for handling the combination of chunk and/or 
     (micro)feature activations from multiple sources.
     """
@@ -80,6 +92,25 @@ class Junction(abc.ABC):
 
         pass
 
+class Selector(ActivationHandler):
+    """An abstract class defining the interface for selection of actionable 
+    chunks based on chunk strengths.
+    """
+
+    @abc.abstractmethod
+    def __call__(
+        self, input_map: node.Node2Float, actionable_chunks: node.ChunkSet
+    ) -> node.ChunkSet:
+        """Identify chunks that are currently actionable based on their 
+        strengths.
+
+        kwargs:
+            input_map : A dict mapping nodes (Chunks and/or Features) to 
+            activations.
+        """
+
+        pass
+
 # Type Aliases
 
 ChannelSet = T.Set[Channel]
@@ -88,6 +119,70 @@ ChannelType = T.Type[Channel]
 ChannelTypeSet = T.Set[ChannelType]
 
 JunctionType = T.Type[Junction]
+SelectorType = T.Type[Selector]
+
+
+####### FILTERING #######
+
+class Filter(Channel):
+    """An activation filter.
+    """
+
+    def __init__(self):
+
+        self.nodes : node.NodeSet = set()
+
+    def __call__(
+        self,
+        activation_map : node.Node2Float
+        ) -> node.Node2Float:
+        """Filter given activation map.
+
+        Sets any nodes matching the filter to have the default activation value.
+
+        kwargs:
+            activation_map : A dict mapping nodes (Chunks and/or Features) to 
+            activations.
+            default_activation : Assumed default activation value for nodes.
+        """
+
+        filtered = dict()
+        for node, activation in activation_map.items():
+            if node in self.nodes:
+                filtered[node] = self.default_activation
+            else:
+                filtered[node] = activation
+        return filtered
+
+class InputFilterer(Channel):
+    """A mixin for enabling channel input filtering.
+    """
+
+    @property
+    @abc.abstractmethod
+    def input_filter(self) -> Filter:
+        pass
+
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+        
+        filtered_input = self.input_filter(input_map)
+        output = super().__call__(filtered_input)
+        return output
+
+class OutputFilterer(Channel):
+    """A mixin for enabling channel output filtering.
+    """
+
+    @property
+    @abc.abstractmethod
+    def output_filter(self) -> Filter:
+        pass
+
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+        
+        raw_output = super().__call__(input_map)
+        output = self.output_filter(raw_output)
+        return output
 
 
 ####### BASIC CHANNEL TYPES #######

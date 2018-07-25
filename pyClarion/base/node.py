@@ -18,9 +18,8 @@ References:
 """
 
 
-import typing as T
 import abc
-import collections
+import typing as T
 
 
 ####### MICROFEATURES ########

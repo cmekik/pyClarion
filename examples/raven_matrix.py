@@ -1,10 +1,9 @@
-"""A very simple example of NACS-style operation on an item in the style of 
-Raven's Progressive Matrices. This example uses only the basic constructs. It 
-is meant to demonstrate how these components can be combined to give rise to 
-the kinds of processes that are normally controlled by various subsystems such 
-as ACS, NACS, MS, and MCS. Learning is not treated in this example.
+"""An example of non-action-centered processing on a problem in the style of 
+Raven's Progressive Matrices. This example demonstrates how basic pyClarion 
+components can be combined to capture cognitive processing. Learning 
+is not treated in this example.
 
-The item matrix has the following structure:
+Consider the following matrix:
 
     triangle  square    circle
     circle    triangle  square
@@ -22,7 +21,7 @@ from pyClarion.base.node import (
     Microfeature, ChunkSet, Chunk2Callable, Node2Float
 )
 from pyClarion.base.activation import propagate, ChannelSet
-from pyClarion.base.action import Handler 
+from pyClarion.base.subject import execute_actions
 from pyClarion.default.common import (
     Chunk, TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
 )
@@ -139,17 +138,17 @@ bottom_ups : ChannelSet = {BottomUp(chunk) for chunk in chunks}
 # RULES
 
 mat2alt1 = Rule(
-    chunk2weight = {altseq1 : 1.,},
+    condition2weight = {altseq1 : 1.},
     conclusion_chunk = ch_alt1
 )
 
 mat2alt2 = Rule(
-    chunk2weight = {altseq2 : 1.},
+    condition2weight = {altseq2 : 1.},
     conclusion_chunk = ch_alt2
 )
 
 mat2alt3 = Rule(
-    chunk2weight = {altseq3 : 1.,},
+    condition2weight = {altseq3 : 1.},
     conclusion_chunk = ch_alt3
 )
 
@@ -212,6 +211,7 @@ action_chunks : ChunkSet = {
 }
 
 # MAP ACTION CHUNKS TO CALLBACKS
+
 action_callbacks : Chunk2Callable= {
     ch_alt1 : lambda: response_tracker.record(ch_alt1),
     ch_alt2 : lambda: response_tracker.record(ch_alt2),
@@ -220,11 +220,7 @@ action_callbacks : Chunk2Callable= {
 
 # ACTION SELECTOR
 
-boltzmann_selector = BoltzmannSelector(action_chunks, temperature=0.1)
-
-# ACTION HANDLER
-
-execute_action = Handler(action_callbacks)
+boltzmann_selector = BoltzmannSelector(temperature=0.1)
 
 
 ####### PROCESSING EXAMPLE #######
@@ -269,8 +265,8 @@ results = propagate(bottom_up, rules, max_junction)
     # likely be chunk alt1 (the correct response). A correct response is not
     # guaranteed due to the random nature of response selection.
 
-choice = boltzmann_selector(results)
-execute_action(choice)
+choice = boltzmann_selector(results, action_chunks)
+execute_actions(choice, action_callbacks)
 
 # Now we can check if the response was correct using response_tracker.
 

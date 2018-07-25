@@ -1,8 +1,8 @@
 ---
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
-date: 2018-07-23
-version : 0.6.0
+date: 2018-07-25
+version : 0.7.0
 ---
 
 # pyClarion Readme
@@ -13,9 +13,7 @@ To grasp the architecture of this codebase, the recommended reading order is:
     
 1. `pyClarion.base.node`
 2. `pyClarion.base.activation`
-3. `pyClarion.base.action`
-5. `pyClarion.base.subsystem`
-6. `pyClarion.base.subject`
+3. `pyClarion.base.subject`
 
 Many common Clarion constructs are implemented in their default forms in 
 `pyClarion.default.common.py`. These constructs are combined in 
