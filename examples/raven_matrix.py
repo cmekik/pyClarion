@@ -29,38 +29,38 @@ from pyClarion.default.common import (
 
 ####### (MICRO)FEATURES #######
 
-matseq = Microfeature("Sequence Type", "mat")
-altseq = Microfeature("Sequence Type", "alt")
+matseq = Microfeature("sequence type", "matrix")
+altseq = Microfeature("sequence type", "alternative")
 
-seq_1 = Microfeature("Sequence Number", "1")
-seq_2 = Microfeature("Sequence Number", "2")
+seq_1 = Microfeature("sequence number", "1")
+seq_2 = Microfeature("sequence number", "2")
 
-ax_row = Microfeature("Axis", "row")
-ax_col = Microfeature("Axis", "col") 
+ax_row = Microfeature("axis", "row")
+ax_col = Microfeature("axis", "column") 
 
-alt_1 = Microfeature("Alternative", "1")
-alt_2 = Microfeature("Alternative", "2")
-alt_3 = Microfeature("Alternative", "3")
+alt_1 = Microfeature("alternative", "triangle")
+alt_2 = Microfeature("alternative", "circle")
+alt_3 = Microfeature("alternative", "square")
 
-shp_dist = Microfeature("Shape Distribution", "present")
-shp_cte = Microfeature("Shape Distribution", "absent")
+shp_dist = Microfeature("shape distribution", "present")
+shp_cte = Microfeature("shape distribution", "absent")
 
 
 ####### CHUNKS #######
 
 ch_alt1 = Chunk(
     microfeatures = {alt_1},
-    label = "Alternative 1"
+    label = "triangle"
 )
 
 ch_alt2 = Chunk(
     microfeatures = {alt_2},
-    label = "Alternative 2"
+    label = "circle"
 )
 
 ch_alt3 = Chunk(
     microfeatures = {alt_3},
-    label = "Alternative 3"
+    label = "square"
 )
 
 matseq1 = Chunk(
@@ -70,7 +70,7 @@ matseq1 = Chunk(
         seq_1,
         shp_dist
     },
-    label = "Matrix Sequence 1"
+    label = "triangle square circle"
 )
 
 matseq2 = Chunk(
@@ -80,7 +80,7 @@ matseq2 = Chunk(
         seq_2,
         shp_dist
     },
-    label = "Matrix Sequence 2"
+    label = "circle triangle square"
 )
 
 altseq1 = Chunk(
@@ -90,7 +90,7 @@ altseq1 = Chunk(
         alt_1,
         shp_dist
     },
-    label = "Alternative Sequence 1"
+    label = "square circle triangle"
 )
 
 altseq2 = Chunk(
@@ -100,7 +100,7 @@ altseq2 = Chunk(
         alt_2,
         shp_cte
     },
-    label = "Alternative Sequence 2"
+    label = "square circle circle"
 )
 
 altseq3 = Chunk(
@@ -110,7 +110,7 @@ altseq3 = Chunk(
         alt_3,
         shp_cte
     },
-    label = "Alternative Sequence 3"
+    label = "square circle square"
 )
 
 chunks = {
@@ -129,33 +129,33 @@ chunks = {
 
 # TOP-DOWN LINKS
 
-top_downs : ChannelSet = {TopDown(chunk) for chunk in chunks}
+top_down_channels : ChannelSet = {TopDown(chunk) for chunk in chunks}
 
 # BOTTOM-UP LINKS
 
-bottom_ups : ChannelSet = {BottomUp(chunk) for chunk in chunks}
+bottom_up_channels : ChannelSet = {BottomUp(chunk) for chunk in chunks}
 
 # RULES
 
-mat2alt1 = Rule(
+altseq1_2_alt1 = Rule(
     condition2weight = {altseq1 : 1.},
     conclusion_chunk = ch_alt1
 )
 
-mat2alt2 = Rule(
+altseq2_2_alt2 = Rule(
     condition2weight = {altseq2 : 1.},
     conclusion_chunk = ch_alt2
 )
 
-mat2alt3 = Rule(
+altseq3_2_alt3 = Rule(
     condition2weight = {altseq3 : 1.},
     conclusion_chunk = ch_alt3
 )
 
-rules : ChannelSet = {
-    mat2alt1,
-    mat2alt2,
-    mat2alt3
+top_level_channels : ChannelSet = {
+    altseq1_2_alt1,
+    altseq2_2_alt2,
+    altseq3_2_alt3
 }
 
 # JUNCTION
@@ -227,7 +227,7 @@ boltzmann_selector = BoltzmannSelector(temperature=0.1)
 
 # Step 1: Activate matrix sequence chunks.
 
-initial : Node2Float = {matseq1 : 1., matseq2 : 1.}
+initial_activations : Node2Float = {matseq1 : 1., matseq2 : 1.}
 
 # Step 2: Use SBR. 
     # Activate any similar alternative sequence chunks.
@@ -239,7 +239,9 @@ initial : Node2Float = {matseq1 : 1., matseq2 : 1.}
         # case, a max-junction is used. The junction effectively combines the 
         # activations coming from these two sources.
 
-top_down = propagate(initial, top_downs, max_junction)
+top_down_activations = propagate(
+    initial_activations, top_down_channels, max_junction
+)
 
     ## Step 2.2: Bottom-Up Activation
         # The resulting activations from the top-down step are now used for 
@@ -248,7 +250,9 @@ top_down = propagate(initial, top_downs, max_junction)
         # no rules connecting matrix sequences to other sequences, and no 
         # implicit connections. Thus this step is essentially skipped. 
 
-bottom_up = propagate(top_down, bottom_ups, max_junction)
+bottom_up_activations = propagate(
+    top_down_activations, bottom_up_channels, max_junction
+)
 
 # The result of SBR is a chunk to strength mapping denoting alternative sequence 
 # activation due to similarity.
@@ -257,7 +261,9 @@ bottom_up = propagate(top_down, bottom_ups, max_junction)
     # Activate alternative chunks based on activation of corresponding 
     # alternative sequence chunks.
 
-results = propagate(bottom_up, rules, max_junction)
+top_level_activations = propagate(
+    bottom_up_activations, top_level_channels, max_junction
+)
 
 ####### ALTERNATIVE SELECTION #######
     # At the end of reasoning, we choose an alternative, here using a boltzmann 
@@ -265,7 +271,7 @@ results = propagate(bottom_up, rules, max_junction)
     # likely be chunk alt1 (the correct response). A correct response is not
     # guaranteed due to the random nature of response selection.
 
-choice = boltzmann_selector(results, action_chunks)
+choice = boltzmann_selector(top_level_activations, action_chunks)
 execute_actions(choice, action_callbacks)
 
 # Now we can check if the response was correct using response_tracker.

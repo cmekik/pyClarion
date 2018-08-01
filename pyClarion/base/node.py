@@ -5,8 +5,8 @@ The most basic representational construct in Clarion is a connectionist node:
 an individual unit that may receive activation from and propagate activation to 
 other units. 
 
-Clarion has a dual representational architecture. There are two kinds of node: 
-microfeatures and chunks. These two types of node are represented by the 
+Clarion has a dual representational architecture. There are two kinds of nodes: 
+microfeatures and chunks. These two types of nodes are represented by the 
 Microfeature and Chunk classes respectively. A number of types related to these 
 two classes are also provided for facilitating type hints in collaborator 
 classes.

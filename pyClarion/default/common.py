@@ -65,6 +65,34 @@ class DefaultFilter(activation.Filter, DefaultActivationHandler):
     pass
 
 
+class DefaultSplit(activation.NodeTypeSplit, DefaultActivationHandler):
+    pass
+
+
+class WeightingChannel(activation.Channel, DefaultActivationHandler):
+    """A channel that applies a set weight to input activations.
+    """
+
+    def __init__(self, weight : float) -> None:
+
+        self._weight = weight
+
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+        
+        output : node.Node2Float = {
+            n : self.weight * s for n, s in input_map.items() 
+        }
+        return output
+
+    @property
+    def weight(self) -> float:
+        return self._weight
+
+    @weight.setter
+    def weight(self, value : float) -> None:
+        self._weight = value
+
+
 class TopDown(activation.TopDown, DefaultActivationHandler):
     """A default Clarion top-down (from a chunk to its microfeatures) 
     activation channel.

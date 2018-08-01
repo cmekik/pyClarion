@@ -92,6 +92,24 @@ class Junction(ActivationHandler):
 
         pass
 
+class Split(ActivationHandler):
+    """An abstract class for handling the splitting of chunk and/or 
+    (micro)feature activations into multiple streams.
+    """
+
+    @abc.abstractmethod
+    def __call__(
+        self, input_map: node.Node2Float
+    ) -> T.Iterable[node.Node2Float]:
+        """Split a mapping from chunks and/or microfeatures to activations.
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
+        pass
+
 class Selector(ActivationHandler):
     """An abstract class defining the interface for selection of actionable 
     chunks based on chunk strengths.
@@ -122,6 +140,26 @@ JunctionType = T.Type[Junction]
 SelectorType = T.Type[Selector]
 
 
+####### SPLITTING #######
+
+class NodeTypeSplit(Split):
+
+    def __call__(
+        self, input_map : node.Node2Float
+    ) -> T.Iterable[node.Node2Float]:
+
+        microfeature_activations : node.Node2Float = dict()
+        chunk_activations : node.Node2Float = dict()
+
+        for node_, strength in input_map.items():
+            if isinstance(node_, node.Microfeature):
+                microfeature_activations[node_] = strength 
+            elif isinstance(node_, node.Chunk):
+                chunk_activations[node_] = strength
+
+        return microfeature_activations, chunk_activations
+
+
 ####### FILTERING #######
 
 class Filter(Channel):
@@ -130,32 +168,35 @@ class Filter(Channel):
 
     def __init__(self):
 
-        self.nodes : node.NodeSet = set()
+        self._nodes : node.NodeSet = set()
 
-    def __call__(
-        self,
-        activation_map : node.Node2Float
-        ) -> node.Node2Float:
+    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
         """Filter given activation map.
-
+        
         Sets any nodes matching the filter to have the default activation value.
-
+        
         kwargs:
             activation_map : A dict mapping nodes (Chunks and/or Features) to 
             activations.
-            default_activation : Assumed default activation value for nodes.
         """
+        
+        output = activations_2_default(
+            input_map, self.nodes, self.default_activation
+        ) 
+        return output
 
-        filtered = dict()
-        for node, activation in activation_map.items():
-            if node in self.nodes:
-                filtered[node] = self.default_activation
-            else:
-                filtered[node] = activation
-        return filtered
+    @property
+    def nodes(self) -> node.NodeSet:
+        """The set of nodes caught by this filter
+        """
+        return self._nodes
+
+    @nodes.setter
+    def nodes(self, value : node.NodeSet) -> None:
+        self._nodes = value
 
 class InputFilterer(Channel):
-    """A mixin for enabling channel input filtering.
+    """A mixin for binding an input filter to a channel.
     """
 
     @property
@@ -170,7 +211,7 @@ class InputFilterer(Channel):
         return output
 
 class OutputFilterer(Channel):
-    """A mixin for enabling channel output filtering.
+    """A mixin for binding an output filter to a channel.
     """
 
     @property
@@ -261,3 +302,82 @@ def propagate(
     """
 
     return junction(*[channel(input_map) for channel in channels])
+
+def propagate_channel_types(
+    input_map : node.Node2Float,
+    channels : ChannelSet,
+    channel_types : ChannelTypeSet,
+    junction : Junction
+) -> node.Node2Float:
+    """Propagate inputs only through channels of selected type.
+
+
+    kwargs:
+        input_map : A mapping from nodes to their current activations.
+        channels : A set of activation channels.
+        channel_types : A set of channel types to be matched.
+        junction : An activation junction.
+    """
+
+    selected_channels = select_channels_by_type(
+        channels = channels,
+        channel_types = channel_types 
+    )
+    output = propagate(
+        input_map = input_map,
+        channels = selected_channels,
+        junction = junction
+    )
+    return output
+
+def activations_2_default(
+    activation_map : node.Node2Float,
+    target_nodes : node.NodeSet,
+    default_activation : float
+) -> node.Node2Float:
+    """Sets activations of target nodes to default value.
+    
+    Leaves other activations unchanged.
+
+    kwargs:
+        activation_map : A dict mapping nodes to activations.
+        target_nodes : Nodes to be matched.
+        default_activation : Assumed default vaule.
+    """
+        
+    filtered = dict()
+    for node, activation in activation_map.items():
+        if node in target_nodes:
+            filtered[node] = default_activation
+        else:
+            filtered[node] = activation
+    return filtered
+
+def keep_microfeatures(
+    activation_map : node.Node2Float
+) -> node.Node2Float:
+    """Return an activation map with all but microfeatures removed.
+
+    kwargs:
+        activation_map : A dict mapping nodes to activations.
+    """
+    
+    output : node.Node2Float = {
+        n : s for n, s in activation_map.items() 
+        if isinstance(n, node.Microfeature)
+    }
+    return output
+
+def keep_chunks(
+    activation_map : node.Node2Float
+) -> node.Node2Float:
+    """Return an activation map with all but chunks removed.
+
+    kwargs:
+        activation_map : A dict mapping nodes to activations.
+    """
+    
+    output : node.Node2Float = {
+        n : s for n, s in activation_map.items() if isinstance(n, node.Chunk)
+    }
+    return output
