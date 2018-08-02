@@ -38,6 +38,7 @@ class Microfeature(T.NamedTuple):
     Sun, R. (2016). Anatomy of the Mind. Oxford University Press. 
     """
     
+    # Microfeatures have two named fields, defined below.
     dim : T.Hashable
     val : T.Hashable
 
