@@ -1,8 +1,8 @@
 ---
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
-date: 2018-07-25
-version : 0.7.0
+date: 2018-08-01
+version : 0.7.2
 ---
 
 # pyClarion Readme
@@ -51,6 +51,23 @@ alternative implementations.
 8. Be Maintainable: Every object should have a singular, well-defined, 
 documented role. Type hints should be included. Assumptions, exceptions, 
 failure cases should be documented whenever possible. There should be thorough 
-unit tests for all methods and functions. 
+unit tests for all methods and functions. Python properties should be used 
+whenever possible as they abstract property implementation from the return data 
+type.
 
 These goals are roughly in order from most to least specific. 
+
+## Installation
+
+After downloading the repo, use `pip` with `setup.py`. In a command line, 
+navigate to the pyClarion folder, then:
+
+- To install in developer mode (recommended), run
+```pip install -e .```
+- To install as a regular library, run
+```pip install .```
+
+Developer mode is recommended due to the experimental status of this library. 
+Installing in this mode means that changes made to the pyClarion folder will be 
+reflected in the pyClarion package, enabling fast prototyping and 
+experimentation.
