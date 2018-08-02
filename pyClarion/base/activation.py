@@ -6,10 +6,17 @@ top-down (chunks to microfeatures), bottom-up (microfeatures to chunks), and
 within the bottom-level (microfeatures to chunks or features; implicit 
 activation). Activations from different sources may also be combined. 
 
-The processes described above are captured by means of two abstractions: 
+The processes described above are captured by means of two main abstractions: 
 activation channels (Channel class) and junctions (Junction class). Channels 
 implement mappings from node activations to node activations. Junctions 
 implement routines for combining inputs from multiple channels.
+
+Other useful activations include splits (Split class), which are meant to 
+handle splitting activations into multiple streams, and selectors (Selector 
+class), which choose actionable chunks on the basis of chunk activations.
+
+In addition to defining the above, this module provides severeal utilities 
+(classes and functions) for defining, filtering, and handling activation flows.
 
 For details of activation flows, see Chapter 3 of Sun (2016). Also, see Chapter 
 4 for a discussion of filtering capabilities of MCS.
@@ -28,7 +35,11 @@ from . import node
 ####### ABSTRACTIONS #######
 
 class ActivationHandler(abc.ABC):
-    """An abstract class for objects that handle node activations. 
+    """An abstract class for objects that handle node activations.
+
+    This class is meant to abstract routines and properties common to all 
+    activation handlers, such as defining global default activation values and 
+    other parameters. 
     """
 
     @property
@@ -41,11 +52,11 @@ class ActivationHandler(abc.ABC):
 class Channel(ActivationHandler):
     """An abstract class for capturing activation flows.
 
-    This class provides a uniform interface for handling activation flows. It 
-    is assumed that activations will be represented as dicts mapping nodes to 
-    activation values. Thus, activation channels expect such mappings as input, 
-    and return such mappings as output. Output mappings are allowed to be empty 
-    when such behavior is sensible.
+    This class provides a uniform interface for handling simple activation 
+    flows. It is assumed that activations will be represented as dicts mapping 
+    nodes to activation values. Thus, activation channels expect such mappings 
+    as input, and return such mappings as output. Output mappings are allowed 
+    to be empty when such behavior is sensible.
     
     It is assumed that an activation channel will pay attention only to the 
     activations that are relevant to the computation it implements. For 
