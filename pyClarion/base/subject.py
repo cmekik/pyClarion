@@ -1,10 +1,7 @@
 """This module provides abstractions for constructing Clarion subjects.
 
-Subsystems house and manage functionally distinct collections of activation 
-channels. They control activation cycles and learning.
-
 WARNING:
-    At this point in time, the classes defined here are very experimental. The 
+    At this point in time, most classes defined here are very experimental. The 
     abstractions may change drastically. 
 """
 
