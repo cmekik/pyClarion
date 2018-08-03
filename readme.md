@@ -67,6 +67,8 @@ navigate to the pyClarion folder, then:
 - To install as a regular library, run
 ```pip install .```
 
+WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your installation may fail.
+
 Developer mode is recommended due to the experimental status of this library. 
 Installing in this mode means that changes made to the pyClarion folder will be 
 reflected in the pyClarion package, enabling fast prototyping and 
