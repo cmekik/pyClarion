@@ -1,17 +1,16 @@
 """This module provides tools for computing and handling node activations in the 
 Clarion cognitive architecture. 
 
-Activations may propagate within the top level (chunks to chunks; rules), 
-top-down (chunks to microfeatures), bottom-up (microfeatures to chunks), and 
-within the bottom-level (microfeatures to chunks or features; implicit 
-activation). Activations from different sources may also be combined. 
+Activations may propagate within the top level (from chunks to chunks), top-down 
+(chunks to microfeatures), bottom-up (microfeatures to chunks), and within the 
+bottom-level (microfeatures to microfeatures). Activations from different 
+sources may also be combined. 
 
 The processes described above are captured by means of two main abstractions: 
 activation channels (Channel class) and junctions (Junction class). Channels 
 implement mappings from node activations to node activations. Junctions 
-implement routines for combining inputs from multiple channels.
-
-Other useful activations include splits (Split class), which are meant to 
+implement routines for combining inputs from multiple channels.Other useful 
+activation handlers include splits (Split class), which are meant to 
 handle splitting activations into multiple streams, and selectors (Selector 
 class), which choose actionable chunks on the basis of chunk activations.
 
@@ -34,44 +33,49 @@ from . import node
 
 ####### ABSTRACTIONS #######
 
+class ActivationDict(node.Node2Float):
+    """A dict representing node activations.
+
+    Keys are nodes and values are node activations.
+    """
+    pass
+
 class ActivationHandler(abc.ABC):
     """An abstract class for objects that handle node activations.
 
-    This class is meant to abstract routines and properties common to all 
-    activation handlers, such as defining global default activation values and 
-    other parameters. 
+    This class abstracts routines and properties common to all activation 
+    handlers, such as defining global default activation values and other 
+    parameters. 
     """
 
     @property
     @abc.abstractmethod
     def default_activation(self) -> float:
-        """The assumed default value for activations. 
+        """The assumed default value for node activations. 
         """
         pass
 
 class Channel(ActivationHandler):
     """An abstract class for capturing activation flows.
 
-    This class provides a uniform interface for handling simple activation 
-    flows. It is assumed that activations will be represented as dicts mapping 
-    nodes to activation values. Thus, activation channels expect such mappings 
-    as input, and return such mappings as output. Output mappings are allowed 
+    This is a callable class that provides an interface for handling basic 
+    activation flows. Activation channels expect activation dictionaries as 
+    input, and return activation dictionaries as output. Outputs are allowed 
     to be empty when such behavior is sensible.
     
     It is assumed that an activation channel will pay attention only to the 
-    activations that are relevant to the computation it implements. For 
-    instance, if an activation class implementing a bottom-up connection is 
-    passed a bunch of chunk activations, it should simply ignore these and look 
-    for matching microfeatures. 
+    activations relevant to the computation it implements. For instance, if an 
+    activation class implementing a bottom-up connection is passed a bunch of 
+    chunk activations, it should simply ignore these and look for matching
+    microfeatures. 
     
-    Likewise if an activation channel is handed an input that does not contain 
-    a complete activation mapping for expected nodes (e.g., due to filtering), 
-    it should not fail. Instead, it should have a well-defined default behavior
-    for such cases. 
+    If an activation channel is handed an input that does not contain a complete 
+    activation dictionary for expected nodes, it should not fail. Instead, it 
+    should have a well-defined default behavior for such cases. 
     """
     
     @abc.abstractmethod
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+    def __call__(self, input_map : ActivationDict) -> ActivationDict:
         """Compute and return activations resulting from an input to this 
         channel.
 
@@ -80,8 +84,8 @@ class Channel(ActivationHandler):
         such cases. 
 
         kwargs:
-            input_map : A mapping from nodes (Chunks and/or Features) to 
-            input activations.
+            input_map : A dict mapping nodes (Chunks and/or Features) to input
+            activations.
         """
 
         pass
@@ -92,13 +96,13 @@ class Junction(ActivationHandler):
     """
 
     @abc.abstractmethod
-    def __call__(self, *input_maps: node.Node2Float) -> node.Node2Float:
+    def __call__(self, *input_maps: ActivationDict) -> ActivationDict:
         """Return a combined mapping from chunks and/or microfeatures to 
         activations.
 
         kwargs:
-            input_maps : A set of mappings from chunks and/or microfeatures 
-            to activations.
+            input_maps : Dicts mapping from chunks and/or microfeatures 
+            to input activations.
         """
 
         pass
@@ -110,32 +114,32 @@ class Split(ActivationHandler):
 
     @abc.abstractmethod
     def __call__(
-        self, input_map: node.Node2Float
-    ) -> T.Iterable[node.Node2Float]:
-        """Split a mapping from chunks and/or microfeatures to activations.
+        self, input_map: ActivationDict
+    ) -> T.Iterable[ActivationDict]:
+        """Split an activation dict into multiple streams.
 
         kwargs:
-            input_map : A mapping from nodes (Chunks and/or Features) to 
-            input activations.
+            input_map : A dict mapping nodes (Chunks and/or Features) input 
+            activations.
         """
 
         pass
 
 class Selector(ActivationHandler):
-    """An abstract class defining the interface for selection of actionable 
+    """An abstract class defining an interface for selection of actionable 
     chunks based on chunk strengths.
     """
 
     @abc.abstractmethod
     def __call__(
-        self, input_map: node.Node2Float, actionable_chunks: node.ChunkSet
+        self, input_map: ActivationDict, actionable_chunks: node.ChunkSet
     ) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths.
 
         kwargs:
             input_map : A dict mapping nodes (Chunks and/or Features) to 
-            activations.
+            input activations.
         """
 
         pass
@@ -156,11 +160,11 @@ SelectorType = T.Type[Selector]
 class NodeTypeSplit(Split):
 
     def __call__(
-        self, input_map : node.Node2Float
-    ) -> T.Iterable[node.Node2Float]:
+        self, input_map : ActivationDict
+    ) -> T.Iterable[ActivationDict]:
 
-        microfeature_activations : node.Node2Float = dict()
-        chunk_activations : node.Node2Float = dict()
+        microfeature_activations = ActivationDict()
+        chunk_activations = ActivationDict()
 
         for node_, strength in input_map.items():
             if isinstance(node_, node.Microfeature):
@@ -181,14 +185,14 @@ class Filter(Channel):
 
         self._nodes : node.NodeSet = set()
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
-        """Filter given activation map.
+    def __call__(self, input_map : ActivationDict) -> ActivationDict:
+        """Filter given activation dict.
         
         Sets any nodes matching the filter to have the default activation value.
         
         kwargs:
-            activation_map : A dict mapping nodes (Chunks and/or Features) to 
-            activations.
+            input_map : A dict mapping nodes (Chunks and/or Microfeatures) to 
+            input activations.
         """
         
         output = activations_2_default(
@@ -215,8 +219,15 @@ class InputFilterer(Channel):
     def input_filter(self) -> Filter:
         pass
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
-        
+    def __call__(self, input_map : ActivationDict) -> ActivationDict:
+        """Compute and return activations that result from a filtered input to 
+        this channel.
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
         filtered_input = self.input_filter(input_map)
         output = super().__call__(filtered_input)
         return output
@@ -230,11 +241,50 @@ class OutputFilterer(Channel):
     def output_filter(self) -> Filter:
         pass
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
-        
+    def __call__(self, input_map : ActivationDict) -> ActivationDict:
+        """Compute, filter, and return activations that result from an input to 
+        this channel.
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
         raw_output = super().__call__(input_map)
         output = self.output_filter(raw_output)
         return output
+
+
+####### BASIC ACTIVATION DICT TYPES #######
+
+class TopDownActivationDict(ActivationDict):
+    """An activation dictionary resulting from a top-down activation flow.
+    """
+    pass
+
+class BottomUpActivationDict(ActivationDict):
+    """An activation dictionary resulting from a bottom-up activation flow.
+    """
+    pass
+
+class TopLevelActivationDict(ActivationDict):
+    """An activation dictionary resulting from a top-level activation flow.
+    """
+    pass
+
+class BottomLevelActivationDict(ActivationDict):
+    """An activation dictionary resulting from a bottom-level activation flow.
+    """
+    pass
+
+# Type Aliases
+
+InterLevelActivationDict = T.Union[
+    TopDownActivationDict, BottomUpActivationDict
+]
+IntraLevelActivationDict = T.Union[
+    TopLevelActivationDict, BottomLevelActivationDict
+]
 
 
 ####### BASIC CHANNEL TYPES #######
@@ -246,7 +296,16 @@ class TopDown(Channel):
     top-down activation channels. 
     """
 
-    pass
+    @abc.abstractmethod
+    def __call__(self, input_map : ActivationDict) -> TopDownActivationDict:
+        """Compute and return a set of top-down activations.
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
+        pass
 
 class BottomUp(Channel):
     """A base class for bottom-up activation channels.
@@ -255,7 +314,21 @@ class BottomUp(Channel):
     bottom-up activation channels. 
     """
 
-    pass
+    @abc.abstractmethod
+    def __call__(self, input_map : ActivationDict) -> BottomUpActivationDict:
+        """Compute and return activations resulting from an input to this 
+        channel.
+
+        Note: Assumptions about missing expected nodes in the input map should 
+        be explicitly specified/documented, along with behavior for handling 
+        such cases. 
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
+        pass
 
 class TopLevel(Channel):
     """A base class for top-level (i.e., explicit) activation channels.
@@ -264,7 +337,21 @@ class TopLevel(Channel):
     top-level activation channels. 
     """
 
-    pass
+    @abc.abstractmethod
+    def __call__(self, input_map : ActivationDict) -> TopLevelActivationDict:
+        """Compute and return activations resulting from an input to this 
+        channel.
+
+        Note: Assumptions about missing expected nodes in the input map should 
+        be explicitly specified/documented, along with behavior for handling 
+        such cases. 
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
+        pass
 
 class BottomLevel(Channel):
     """A base class for bottom-level (i.e., implicit) activation channels.
@@ -273,7 +360,21 @@ class BottomLevel(Channel):
     bottom-level activation channels.
     """
 
-    pass
+    @abc.abstractmethod
+    def __call__(self, input_map : ActivationDict) -> BottomLevelActivationDict:
+        """Compute and return activations resulting from an input to this 
+        channel.
+
+        Note: Assumptions about missing expected nodes in the input map should 
+        be explicitly specified/documented, along with behavior for handling 
+        such cases. 
+
+        kwargs:
+            input_map : A mapping from nodes (Chunks and/or Features) to 
+            input activations.
+        """
+
+        pass
 
 
 ####### FUNCTIONS #######
@@ -299,10 +400,10 @@ def select_channels_by_type(
     return selected
 
 def propagate(
-    input_map : node.Node2Float, 
+    input_map : ActivationDict, 
     channels : ChannelSet, 
     junction : Junction
-) -> node.Node2Float:
+) -> ActivationDict:
     """Propagate inputs through a set of channels, combine their outputs and 
     return the result.
 
@@ -315,11 +416,11 @@ def propagate(
     return junction(*[channel(input_map) for channel in channels])
 
 def propagate_channel_types(
-    input_map : node.Node2Float,
+    input_map : ActivationDict,
     channels : ChannelSet,
     channel_types : ChannelTypeSet,
     junction : Junction
-) -> node.Node2Float:
+) -> ActivationDict:
     """Propagate inputs only through channels of selected type.
 
 
@@ -342,10 +443,10 @@ def propagate_channel_types(
     return output
 
 def activations_2_default(
-    activation_map : node.Node2Float,
+    activation_map : ActivationDict,
     target_nodes : node.NodeSet,
     default_activation : float
-) -> node.Node2Float:
+) -> ActivationDict:
     """Sets activations of target nodes to default value.
     
     Leaves other activations unchanged.
@@ -356,7 +457,7 @@ def activations_2_default(
         default_activation : Assumed default vaule.
     """
         
-    filtered = dict()
+    filtered = ActivationDict()
     for node, activation in activation_map.items():
         if node in target_nodes:
             filtered[node] = default_activation
@@ -365,30 +466,35 @@ def activations_2_default(
     return filtered
 
 def keep_microfeatures(
-    activation_map : node.Node2Float
-) -> node.Node2Float:
+    activation_map : ActivationDict
+) -> ActivationDict:
     """Return an activation map with all but microfeatures removed.
 
     kwargs:
         activation_map : A dict mapping nodes to activations.
     """
     
-    output : node.Node2Float = {
-        n : s for n, s in activation_map.items() 
-        if isinstance(n, node.Microfeature)
-    }
+    output = ActivationDict(
+        [
+            (n, s) for n, s in activation_map.items() 
+            if isinstance(n, node.Microfeature)
+        ]
+    )
     return output
 
 def keep_chunks(
-    activation_map : node.Node2Float
-) -> node.Node2Float:
+    activation_map : ActivationDict
+) -> ActivationDict:
     """Return an activation map with all but chunks removed.
 
     kwargs:
         activation_map : A dict mapping nodes to activations.
     """
     
-    output : node.Node2Float = {
-        n : s for n, s in activation_map.items() if isinstance(n, node.Chunk)
-    }
+    output = ActivationDict(
+        [
+            (n, s) for n, s in activation_map.items() 
+            if isinstance(n, node.Chunk)
+        ]
+    )
     return output

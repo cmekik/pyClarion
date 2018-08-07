@@ -69,30 +69,6 @@ class DefaultSplit(activation.NodeTypeSplit, DefaultActivationHandler):
     pass
 
 
-class WeightingChannel(activation.Channel, DefaultActivationHandler):
-    """A channel that applies a set weight to input activations.
-    """
-
-    def __init__(self, weight : float) -> None:
-
-        self._weight = weight
-
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
-        
-        output : node.Node2Float = {
-            n : self.weight * s for n, s in input_map.items() 
-        }
-        return output
-
-    @property
-    def weight(self) -> float:
-        return self._weight
-
-    @weight.setter
-    def weight(self, value : float) -> None:
-        self._weight = value
-
-
 class TopDown(activation.TopDown, DefaultActivationHandler):
     """A default Clarion top-down (from a chunk to its microfeatures) 
     activation channel.
@@ -113,7 +89,9 @@ class TopDown(activation.TopDown, DefaultActivationHandler):
         self.chunk = chunk
         self.val_counts = self.count_values(self.chunk.microfeatures)
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+    def __call__(
+        self, input_map : activation.ActivationDict
+    ) -> activation.TopDownActivationDict:
         """Compute bottom-level activations given current chunk strength.
 
         Note: If the expected chunk is missing from the input, this channel 
@@ -129,7 +107,7 @@ class TopDown(activation.TopDown, DefaultActivationHandler):
         except KeyError:
             strength = self.default_activation
 
-        activations : node.Node2Float = dict()
+        activations = activation.TopDownActivationDict()
         for f in self.chunk.microfeatures:
             w_dim = self.chunk.dim2weight[f.dim] 
             n_val = self.val_counts[f.dim]
@@ -173,7 +151,9 @@ class BottomUp(activation.BottomUp, DefaultActivationHandler):
         
         self.chunk = chunk
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+    def __call__(
+        self, input_map : activation.ActivationDict
+    ) -> activation.BottomUpActivationDict:
         """Compute chunk strength given current bottom-level activations.
 
         Note: If an expected (micro)feature is missing from the input, its 
@@ -206,7 +186,7 @@ class BottomUp(activation.BottomUp, DefaultActivationHandler):
             strength += self.chunk.dim2weight[dim] * dim2activation[dim]
         else:
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
-        return {self.chunk: strength}
+        return activation.BottomUpActivationDict({self.chunk: strength})
 
 
 class Rule(activation.TopLevel, DefaultActivationHandler):
@@ -240,7 +220,9 @@ class Rule(activation.TopLevel, DefaultActivationHandler):
         self.condition2weight = condition2weight
         self.conclusion_chunk = conclusion_chunk
 
-    def __call__(self, input_map : node.Node2Float) -> node.Node2Float:
+    def __call__(
+        self, input_map : activation.ActivationDict
+    ) -> activation.TopLevelActivationDict:
         """Return strength of conclusion chunk resulting from an application of 
         current associative rule.
 
@@ -261,7 +243,9 @@ class Rule(activation.TopLevel, DefaultActivationHandler):
             conclusion_strength += (
                 condition_strength * self.condition2weight[condition]
             )
-        return {self.conclusion_chunk: conclusion_strength}
+        return activation.TopLevelActivationDict(
+            {self.conclusion_chunk: conclusion_strength}
+        )
 
 
 class MaxJunction(activation.Junction, DefaultActivationHandler):
