@@ -13,6 +13,8 @@ from . import node
 from . import activation
 
 
+####### ABSTRACTIONS #######
+
 class Statistic(abc.ABC):
     """Tracks a statistic.
 
@@ -22,6 +24,18 @@ class Statistic(abc.ABC):
     """
     pass
 
+class ActionHandler(abc.ABC):
+    """An abstraction for linking actionable chunks to appropriate behavior.
+    """
+
+    @abc.abstractmethod
+    def __call__(self, actionable_chunks : node.ChunkSet) -> None:
+        """Execute actions associated with given actionable chunks.
+
+        kwargs:
+            actionable_chunks: A set of chunks selected for action execution.
+        """
+        pass
 
 class Component(abc.ABC):
     """An abstraction for managing some class of activation channels associated 
@@ -32,7 +46,6 @@ class Component(abc.ABC):
     and modify its members (channels and/or parameters).
     """
     pass
-
 
 class Subsystem(abc.ABC):
     """A Clarion subsystem.
@@ -70,7 +83,6 @@ class Subsystem(abc.ABC):
         """
         pass
 
-
 class Subject(object):
     """An abstraction for representing Clarion agents.
 
@@ -92,6 +104,24 @@ class Subject(object):
         """
         pass
 
+
+####### FUNCTIONS #######
+
+def max_strength(
+    selected : node.ChunkSet, activations : node.Node2Float
+) -> float:
+    """Returns maximum strength among selected chunks.
+
+    If no chunks are selected, returns 0.
+
+    kwargs:
+        selected : Selected chunks.
+        activations : Chunk activations.
+    """
+    try:
+        return max([activations[chunk] for chunk in selected])
+    except ValueError:
+        return 0. 
 
 def execute_actions(
     actionable_chunks : node.ChunkSet, action_map : node.Chunk2Callable
