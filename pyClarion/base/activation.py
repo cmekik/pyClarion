@@ -38,9 +38,10 @@ from . import node
 class ActivationMap(T.MutableMapping[node.Node, node.NumTypeVar]):
     """A mapping representing node activations.
 
-    Keys are nodes and values are node activations.
+    This class wraps a collections.defaultdict object. Keys are nodes and values 
+    are node activations.
 
-    Note: Nodes are assumed to be at a default activation level unless explictly 
+    Nodes are assumed to be at a default activation level unless explictly 
     specified otherwise. The implementation relies on collections.defaultdict, 
     which results in some potentially counterintuitive behavior:
         If a node is not contained in an ActivationMap object, but getitem is 
@@ -91,6 +92,12 @@ class ActivationMap(T.MutableMapping[node.Node, node.NumTypeVar]):
     def __delitem__(self, key):
 
         self._dict.__delitem__(key)
+
+    def copy(self) -> ActivationMap:
+        """Return a shallow copy of self.
+        """
+
+        return self.__class__(self._dict.copy())
 
     @staticmethod
     @abc.abstractmethod
@@ -193,7 +200,8 @@ class Selector(abc.ABC):
 ChannelSet = T.Set[Channel]
 Channel2Iterable = T.Dict[Channel, T.Iterable]
 ChannelType = T.Type[Channel]
-ChannelTypeSet = T.Set[ChannelType]
+ChannelTypeVar = T.TypeVar("ChannelTypeVar", bound=ChannelType)
+ChannelTypeSet = T.Set[ChannelTypeVar]
 
 JunctionType = T.Type[Junction]
 SelectorType = T.Type[Selector]

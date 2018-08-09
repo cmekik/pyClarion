@@ -105,10 +105,11 @@ Chunk2Callable = T.Dict[Chunk, T.Callable]
 # Type Aliases
 
 Node = T.Union[Microfeature, Chunk]
-NodeIterable = T.Iterable[Node]
-NodeSet = T.Set[Node]
-Node2Any = T.Dict[Node,T.Any]
-Node2Num = T.Dict[Node, NumTypeVar]
+NodeTypeVar = T.TypeVar("NodeTypeVar", bound=Node)
+NodeIterable = T.Iterable[NodeTypeVar]
+NodeSet = T.Set[NodeTypeVar]
+Node2Any = T.Dict[NodeTypeVar,T.Any]
+Node2Num = T.Dict[NodeTypeVar, NumTypeVar]
 Any2NodeSet = T.Dict[T.Any, NodeSet]
 
 # Functions
