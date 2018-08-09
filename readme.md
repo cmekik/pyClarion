@@ -2,7 +2,7 @@
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
 date: 2018-08-09
-version : 0.8.0
+version : 0.8.1
 ---
 
 # pyClarion Readme
