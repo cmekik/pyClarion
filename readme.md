@@ -1,8 +1,8 @@
 ---
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
-date: 2018-08-01
-version : 0.7.3
+date: 2018-08-09
+version : 0.8.0
 ---
 
 # pyClarion Readme
@@ -16,7 +16,7 @@ To grasp the architecture of this codebase, the recommended reading order is:
 3. `pyClarion.base.subject`
 
 Many common Clarion constructs are implemented in their default forms in 
-`pyClarion.default.common.py`. These constructs are combined in 
+`pyClarion.default.common`. These constructs are combined in 
 `examples/raven_matrix.py`  in order to demonstrate how they may be used to 
 create simulations in the Clarion framework. 
 

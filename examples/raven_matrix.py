@@ -17,13 +17,12 @@ For simplicity, this example only uses row-wise reasoning.
 """
 
 import typing as T
-from pyClarion.base.node import (
-    Microfeature, ChunkSet, Chunk2Callable, Node2Float
-)
-from pyClarion.base.activation import propagate, ChannelSet, ActivationDict
+from pyClarion.base.node import Microfeature, ChunkSet, Chunk2Callable
+from pyClarion.base.activation import propagate, ChannelSet
 from pyClarion.base.subject import execute_actions
 from pyClarion.default.common import (
-    Chunk, TopDown, BottomUp, Rule, MaxJunction, BoltzmannSelector
+    Chunk, ActivationMap, TopDown, BottomUp, Rule, MaxJunction, 
+    BoltzmannSelector
 )
 
 
@@ -227,7 +226,7 @@ boltzmann_selector = BoltzmannSelector(temperature=0.1)
 
 # Step 1: Activate matrix sequence chunks.
 
-initial_activations = ActivationDict(matseq1=1., matseq2=1.) 
+initial_activations = ActivationMap({matseq1:1., matseq2:1.}) 
 
 # Step 2: Use SBR. 
     # Activate any similar alternative sequence chunks.

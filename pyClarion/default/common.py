@@ -10,6 +10,8 @@ from ..base import subject
 
 import numpy as np
 import typing as T
+import numbers as nums
+import collections
 
 
 class Chunk(node.Chunk):
@@ -21,7 +23,7 @@ class Chunk(node.Chunk):
     def __init__(
         self,
         microfeatures: node.FeatureSet,
-        dim2weight: node.Dim2Float = None,
+        dim2weight: node.Dim2Num = None,
         label: str = None
     ) -> None:
         """Initialize a default Clarion chunk.
@@ -29,12 +31,10 @@ class Chunk(node.Chunk):
 
         if dim2weight is None:
             dim2weight = self.initialize_weights(microfeatures)
-        super().__init__(
-            microfeatures, T.cast(node.Dim2Float, dim2weight), label
-        )
+        super().__init__(microfeatures, dim2weight, label)
 
     @staticmethod
-    def initialize_weights(microfeatures : node.FeatureSet) -> node.Dim2Float:
+    def initialize_weights(microfeatures : node.FeatureSet) -> node.Dim2Num:
         """Initialize top-down weights.
         If input is None, weights are initialized to 1.0.
         Args:
@@ -42,34 +42,51 @@ class Chunk(node.Chunk):
                 weight.
         """
         
-        dim2weight = dict()
+        dim2weight : node.Dim2Num = dict()
         for f in microfeatures:
             dim2weight[f.dim] = 1.
         return dim2weight
 
 
-class DefaultActivationHandler(activation.ActivationHandler):
-    """A mixin defining constants for default Clarion channels.
+class ActivationMap(activation.ActivationMap):
+    """Default Clarion Activation Dict.
     """
 
-    @property
-    def default_activation(self):
-        """In default Clarion, the default activation is 0.
-        """ 
+    @staticmethod
+    def default_activation() -> float:
+        """Default activation is 0.
+        """
+
         return 0.
 
 
-class DefaultFilter(activation.Filter, DefaultActivationHandler):
-    """An activation filter for default Clarion.
+class TopDownActivationMap(ActivationMap, activation.TopDownActivationMap):
+    """Represents result of a top-down activation flow.
     """
     pass
 
 
-class DefaultSplit(activation.NodeTypeSplit, DefaultActivationHandler):
+class BottomUpActivationMap(ActivationMap, activation.BottomUpActivationMap):
+    """Represents result of a bottom-up activation flow.
+    """
     pass
 
 
-class TopDown(activation.TopDown, DefaultActivationHandler):
+class TopLevelActivationMap(ActivationMap, activation.TopLevelActivationMap):
+    """Represents result of a top-level activation flow.
+    """
+    pass
+
+
+class BottomLevelActivationMap(
+    ActivationMap, activation.BottomLevelActivationMap
+):
+    """Represents result of a bottom-level activation flow.
+    """
+    pass
+
+
+class TopDown(activation.TopDown):
     """A default Clarion top-down (from a chunk to its microfeatures) 
     activation channel.
 
@@ -90,8 +107,8 @@ class TopDown(activation.TopDown, DefaultActivationHandler):
         self.val_counts = self.count_values(self.chunk.microfeatures)
 
     def __call__(
-        self, input_map : activation.ActivationDict
-    ) -> activation.TopDownActivationDict:
+        self, input_map : activation.ActivationMap
+    ) -> activation.TopDownActivationMap:
         """Compute bottom-level activations given current chunk strength.
 
         Note: If the expected chunk is missing from the input, this channel 
@@ -102,12 +119,10 @@ class TopDown(activation.TopDown, DefaultActivationHandler):
             input activations.
         """
 
-        try:
-            strength = input_map[self.chunk]
-        except KeyError:
-            strength = self.default_activation
 
-        activations = activation.TopDownActivationDict()
+        strength = input_map[self.chunk]
+        activations = TopDownActivationMap()
+
         for f in self.chunk.microfeatures:
             w_dim = self.chunk.dim2weight[f.dim] 
             n_val = self.val_counts[f.dim]
@@ -116,23 +131,22 @@ class TopDown(activation.TopDown, DefaultActivationHandler):
         return activations
 
     @staticmethod
-    def count_values(microfeatures: node.FeatureSet) -> node.Dim2Float:
+    def count_values(microfeatures: node.FeatureSet) -> node.Dim2Num:
         """Count the number of features in each dimension
         
         kwargs:
             microfeatures : A set of dv-pairs.
         """
         
-        counts : T.Dict = dict()
+        counts : T.DefaultDict[T.Hashable, int] = collections.defaultdict(
+            lambda: 0
+        )
         for f in microfeatures:
-            try:
-                counts[f.dim] += 1
-            except KeyError:
-                counts[f.dim] = 1
+            counts[f.dim] += 1
         return counts
 
 
-class BottomUp(activation.BottomUp, DefaultActivationHandler):
+class BottomUp(activation.BottomUp):
     """A default Clario bottom-up (from microfeatures to a chunk) activation 
     channel.
 
@@ -152,8 +166,8 @@ class BottomUp(activation.BottomUp, DefaultActivationHandler):
         self.chunk = chunk
 
     def __call__(
-        self, input_map : activation.ActivationDict
-    ) -> activation.BottomUpActivationDict:
+        self, input_map : activation.ActivationMap
+    ) -> activation.BottomUpActivationMap:
         """Compute chunk strength given current bottom-level activations.
 
         Note: If an expected (micro)feature is missing from the input, its 
@@ -166,30 +180,23 @@ class BottomUp(activation.BottomUp, DefaultActivationHandler):
 
         # For each dimension, pick the maximum available activation of the 
         # target chunk microfeatures in that dimension. 
-        dim2activation : T.Dict = dict()
+        dim2activation : node.Dim2Num = collections.defaultdict(
+            ActivationMap.default_activation
+        )
         for f in self.chunk.microfeatures:
-            try:
-                if dim2activation[f.dim] < input_map[f]:
-                    dim2activation[f.dim] = input_map[f]
-            except KeyError:
-                # A KeyError may arise either because f.dim is not in 
-                # dim2activation, or because f is not in input_map. 
-                # If the former is the case, add f.dim to dim2activation, 
-                # otherwise set dim activation to default value.
-                try: 
-                    dim2activation[f.dim] = input_map[f]
-                except KeyError:
-                    dim2activation[f.dim] = self.default_activation
+            if dim2activation[f.dim] < input_map[f]:
+                dim2activation[f.dim] = input_map[f]
+
         # Compute chunk strength based on dimensional activations.
         strength = 0.
         for dim in dim2activation:
             strength += self.chunk.dim2weight[dim] * dim2activation[dim]
         else:
             strength /= sum(self.chunk.dim2weight.values()) ** 1.1
-        return activation.BottomUpActivationDict({self.chunk: strength})
+        return BottomUpActivationMap({self.chunk: strength})
 
 
-class Rule(activation.TopLevel, DefaultActivationHandler):
+class Rule(activation.TopLevel):
     """An basic Clarion associative rule.
 
     Rules have the form:
@@ -207,7 +214,7 @@ class Rule(activation.TopLevel, DefaultActivationHandler):
 
     def __init__(
         self,
-        condition2weight : node.Chunk2Float,
+        condition2weight : node.Chunk2Num,
         conclusion_chunk : node.Chunk
     ) -> None:
         """Initialize a Clarion associative rule.
@@ -221,8 +228,8 @@ class Rule(activation.TopLevel, DefaultActivationHandler):
         self.conclusion_chunk = conclusion_chunk
 
     def __call__(
-        self, input_map : activation.ActivationDict
-    ) -> activation.TopLevelActivationDict:
+        self, input_map : activation.ActivationMap
+    ) -> activation.TopLevelActivationMap:
         """Return strength of conclusion chunk resulting from an application of 
         current associative rule.
 
@@ -236,23 +243,22 @@ class Rule(activation.TopLevel, DefaultActivationHandler):
         
         conclusion_strength = 0. 
         for condition in self.condition2weight:
-            try:
-                condition_strength = input_map[condition]
-            except KeyError:
-                condition_strength = self.default_activation
+            condition_strength = input_map[condition]
             conclusion_strength += (
                 condition_strength * self.condition2weight[condition]
             )
-        return activation.TopLevelActivationDict(
+        return TopLevelActivationMap(
             {self.conclusion_chunk: conclusion_strength}
         )
 
 
-class MaxJunction(activation.Junction, DefaultActivationHandler):
+class MaxJunction(activation.Junction):
     """An activation junction returning max activations for all input nodes.
     """
 
-    def __call__(self, *input_maps):
+    def __call__(
+        self, *input_maps : activation.ActivationMap
+    ) -> activation.ActivationMap:
         """Return the maximum activation value for each input node.
 
         kwargs:
@@ -262,25 +268,15 @@ class MaxJunction(activation.Junction, DefaultActivationHandler):
 
         node_set = node.get_nodes(*input_maps)
 
-        activations = dict()
+        activations = ActivationMap()
         for n in node_set:
             for input_map in input_maps:
-                try:
-                    if activations[n] < input_map[n]:
-                        activations[n] = input_map[n]
-                except KeyError:
-                    # Two cases: either node not in activations or node not in 
-                    # input_map. Assume node not in activations, but in input 
-                    # map, if this fails continue.
-                    try:
-                        activations[n] = input_map[n]
-                    except KeyError:
-                        continue
-
+                if activations[n] < input_map[n]:
+                    activations[n] = input_map[n]
         return activations
 
 
-class BoltzmannSelector(activation.Selector, DefaultActivationHandler):
+class BoltzmannSelector(activation.Selector):
     """Select a chunk according to a Boltzmann distribution.
     """
 
@@ -296,7 +292,9 @@ class BoltzmannSelector(activation.Selector, DefaultActivationHandler):
         self.temperature = temperature
 
     def __call__(
-        self, input_map: node.Node2Float, actionable_chunks: node.ChunkSet
+        self, 
+        input_map: activation.ActivationMap, 
+        actionable_chunks: node.ChunkSet
     ) -> node.ChunkSet:
         """Identify chunks that are currently actionable based on their 
         strengths according to a Boltzmann distribution.
@@ -311,12 +309,7 @@ class BoltzmannSelector(activation.Selector, DefaultActivationHandler):
         terms = dict()
         divisor = 0.
         for chunk in actionable_chunks:
-            try:
-                terms[chunk] = np.exp(input_map[chunk] / self.temperature)
-            except KeyError:
-                terms[chunk] = np.exp(
-                    self.default_activation / self.temperature
-                )
+            terms[chunk] = np.exp(input_map[chunk] / self.temperature)
             divisor += terms[chunk]
         chunk_list = list(actionable_chunks)
         probabilities = [terms[chunk] / divisor for chunk in chunk_list]

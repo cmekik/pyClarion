@@ -77,7 +77,7 @@ class Subsystem(abc.ABC):
     @abc.abstractmethod
     def __call__(
         self, 
-        input_map : node.Node2Float
+        input_map : activation.ActivationMap
     ) -> None:
         """Run through one processing cycle of self.
         """
@@ -99,7 +99,7 @@ class Subject(object):
     """
 
     @abc.abstractmethod
-    def __call__(self, input_map : node.Node2Float) -> None:
+    def __call__(self, input_map : activation.ActivationMap) -> None:
         """Receive and process a new set of sensory/world information.
         """
         pass
@@ -108,7 +108,7 @@ class Subject(object):
 ####### FUNCTIONS #######
 
 def max_strength(
-    selected : node.ChunkSet, activations : node.Node2Float
+    selected : node.ChunkSet, activations : activation.ActivationMap
 ) -> float:
     """Returns maximum strength among selected chunks.
 

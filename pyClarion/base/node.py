@@ -20,7 +20,9 @@ References:
 
 import abc
 import typing as T
+import numbers
 
+NumTypeVar = T.TypeVar("NumTypeVar", bound=numbers.Number)
 
 ####### MICROFEATURES ########
 
@@ -45,8 +47,8 @@ class Microfeature(T.NamedTuple):
 # Type Aliases
 
 FeatureSet = T.Set[Microfeature]
-Feature2Float = T.Dict[Microfeature, float]
-Dim2Float = T.Dict[T.Hashable, float]
+Feature2Num = T.Dict[Microfeature, NumTypeVar]
+Dim2Num = T.Dict[T.Hashable, NumTypeVar]
 
 
 ####### CHUNKS #######
@@ -66,7 +68,7 @@ class Chunk(object):
     def __init__(
         self, 
         microfeatures: FeatureSet,
-        dim2weight: T.Dict[T.Any, float],
+        dim2weight: Dim2Num,
         label: str = None
     ) -> None:
         """Initialize a Clarion Chunk.
@@ -94,7 +96,7 @@ class Chunk(object):
 # Type Aliases
 
 ChunkSet = T.Set[Chunk]
-Chunk2Float = T.Dict[Chunk, float]
+Chunk2Num = T.Dict[Chunk, NumTypeVar]
 Chunk2Callable = T.Dict[Chunk, T.Callable]
 
 
@@ -106,7 +108,7 @@ Node = T.Union[Microfeature, Chunk]
 NodeIterable = T.Iterable[Node]
 NodeSet = T.Set[Node]
 Node2Any = T.Dict[Node,T.Any]
-Node2Float = T.Dict[Node, float]
+Node2Num = T.Dict[Node, NumTypeVar]
 Any2NodeSet = T.Dict[T.Any, NodeSet]
 
 # Functions

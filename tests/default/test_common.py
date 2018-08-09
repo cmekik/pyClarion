@@ -2,7 +2,10 @@ import unittest
 import unittest.mock
 from enum import auto
 from pyClarion.base.node import Microfeature
-from pyClarion.default.common import Chunk, TopDown, BottomUp, Rule, BLA
+from pyClarion.default.common import (
+    Chunk, TopDownActivationMap, BottomUpActivationMap, TopDown, BottomUp, Rule, 
+    BLA
+)
 
 class TestTopDown(unittest.TestCase):
 
@@ -26,21 +29,21 @@ class TestTopDown(unittest.TestCase):
 
         with self.subTest(msg="white-square"):
             result = td1({chunk1 : 1.})
-            expected = {white : 1., square : 1.}
+            expected = TopDownActivationMap({white : 1., square : 1.})
             self.assertEqual(result, expected)
 
         with self.subTest(msg="white-square-partial"):
             result = td1({chunk1 : .5})
-            expected = {white : .5, square : .5}
+            expected = TopDownActivationMap({white : .5, square : .5})
             self.assertEqual(result, expected)
 
         with self.subTest(msg="black-or-white-square"):
             result = td2({chunk2 : 1.})
-            expected = {
+            expected = TopDownActivationMap({
                 white : .5, 
                 black : .5, 
                 square : 1.
-            }
+            })
             self.assertEqual(result, expected)
 
 class TestBottomUp(unittest.TestCase):
