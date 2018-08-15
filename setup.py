@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="pyClarion",
-    version="0.8.1",
+    version="0.9.0",
     author="Can Serif Mekik",
     author_email="can.mekik@gmail.com",
     description="A Python Implementation of the Clarion Cognitive Architecture",
@@ -18,6 +18,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ),
+    python_requires='>=3.7',
     install_requires=[
             'numpy',
         ]
