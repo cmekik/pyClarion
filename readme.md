@@ -13,15 +13,12 @@ To grasp the architecture of this codebase, the recommended reading order is:
     
 1. `pyClarion.base.node`
 2. `pyClarion.base.activation`
-3. `pyClarion.base.subject`
-
-Many common Clarion constructs are implemented in their default forms in 
-`pyClarion.default.common`. These constructs are combined in 
-`examples/raven_matrix.py`  in order to demonstrate how they may be used to 
-create simulations in the Clarion framework. 
+3. `pyClarion.base.agent`
 
 Implementation of larger constructs, such as individual subsystems are 
 forthcoming. 
+
+Online documentation https://pyclarion.readthedocs.io/en/latest/index.html
 
 ## Implementation Goals
 
