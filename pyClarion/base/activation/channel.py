@@ -1,5 +1,5 @@
 '''
-Provides abstractions for capturing direct activation flows.
+This module provides constructs for modeling activation flows in pyClarion.
 
 Usage
 =====
@@ -7,6 +7,15 @@ Usage
 The main export of this module is the ``Channel`` class. A pyClarion ``Channel`` 
 is a callable object that receives a single ``ActivationPacket`` instance as 
 input and outputs a single ``ActivationPacket`` instance in response.
+
+``Channel`` objects may be used to capture activation flows in many ways, at 
+multiple levels of granualarity. The role of the ``Channel`` class is to provide 
+implementations of various activation flows with a uniform interface while 
+leaving authors free to determine as many implementation details as possible.
+
+An important point to note is that ``Channel`` objects are responsible only for 
+implementing an activation flow. They are not responsible for implementing or 
+handling learning. Learning is the responsibility of other constructs.
 
 Instantiation
 -------------
@@ -27,7 +36,7 @@ an appropriate signature.
 ... 
 >>> class MyChannel(Channel):
 ...     """An activation channel that outputs an empty MyPacket instance."""
-...     def __call__(self, input_map):
+...     def __call__(self, input_map : ActivationPacket) -> MyPacket:
 ...         return MyPacket() 
 ... 
 >>> MyChannel()
@@ -50,9 +59,9 @@ restricted so as to reflect the type of processing that occurred.
 ...         return MyTopDownPacket() 
 ... 
 
-To this effect, several abstract base ``Channel`` types are defined in this 
-module. These should facilitate definition and identification of ``Channel`` 
-types fulfilling various roles within Clarion theory.
+Several abstract base ``Channel`` types are defined in this module in order to 
+facilitate definition and identification of ``Channel`` types fulfilling 
+various roles within Clarion theory.
 
 Use Cases
 ---------
@@ -90,10 +99,17 @@ processing of the input activation packet.
 ... 
 >>> class MyAssociativeNetwork(TopLevel):
 ... 
-...     def __init__(self, association_matrix):
+...     def __init__(
+...         self, association_matrix : T.Dict[Node, T.Dict[Node, float]]
+...     ) -> None:
+...         """Initialize an associative network.
+... 
+...         :param association_matrix: A dict that maps conclusion chunks to 
+...         dicts mapping their condition chunks to their respective weights.
+...         """
 ...         self.assoc = association_matrix
 ... 
-...     def __call__(self, input_map):
+...     def __call__(self, input_map : ActivationPacket) -> MyTopLevelPacket:
 ...         output = MyTopLevelPacket()
 ...         for conclusion_chunk in self.assoc:
 ...             output[conclusion_chunk] = 0.0
@@ -117,39 +133,143 @@ processing of the input activation packet.
 True
 
 ``Channel`` instances can be used to wrap efficient implementations of various 
-knowledge components.
+components.
 
->>> class MyAmazingDQNPacket(BottomLevelPacket, MyPacket):
-...     pass
-... 
->>> class MyAmazingDQN(BottomLevel):
-...     """A wrapper for an AmazingDQN implementation."""
-... 
-...     def __call__(self, input_map : ActivationPacket) -> MyAmazingDQNPacket:
-...         output = self.amazing_dqn(input_map)
-...         return MyAmazingDQNPacket(output)
-... 
-...     def amazing_dqn(self, input_map):
+>>> class AmazingDQN(object):
+...     def __call__(self, input_map):
 ...         """This should be truly amazing; but it's just a placeholder."""
-... 
+...
 ...         output = dict()
 ...         for k, v in input_map.items():
 ...              if isinstance(k, Microfeature):
 ...                  output[k] = v
 ...         return output
-...  
->>> channel = MyAmazingDQN()
+... 
+>>> class MyAmazingDQNPacket(BottomLevelPacket, MyPacket):
+...     pass
+... 
+...
+>>> class MyAmazingDQNChannel(BottomLevel):
+...     """A wrapper for an AmazingDQN implementation."""
+...
+...     def __init__(self, amazing_dqn):
+...         self.amazing_dqn = amazing_dqn
+... 
+...     def __call__(self, input_map : ActivationPacket) -> MyAmazingDQNPacket:
+...         output = self.amazing_dqn(input_map)
+...         return MyAmazingDQNPacket(output)
+... 
+...     def call_amazing_dqn(self, input_map):
+...         return self.amazing_dqn.__call__(input_map)
+... 
+>>> amazing_dqn = AmazingDQN()
+>>> channel = MyAmazingDQNChannel(amazing_dqn)
 >>> channel(input_map) == {mf1 : 0.3, mf2 : 0.2}
 True
 
-The role of the ``Channel`` class is to provide implementations of various 
-knowledge stores with a uniform interface while simultaneously leaving authors 
-free to determine implementation details themselves.
+Granularity
+-----------
+
+There is no a priori restriction on the granularity of a ``Channel`` object. The 
+examples above are rather coarse, often capturing and handling all of the 
+knowledge of some component (e.g., an entire associative network). Such an 
+architecture may be well-suited for certain use cases, but others may call for 
+a more fine-grained implementation such as the one below.
+
+>>> class FineGrainedTopDown(TopDown):
+...     """Represents a top-down link between two individual nodes."""
+... 
+...     def __init__(self, chunk, microfeature, weight):
+...         self.chunk = chunk
+...         self.microfeature = microfeature
+...         self.weight = weight
+...
+...     def __call__(self, input_map):
+...         output = MyTopDownPacket({
+...             self.microfeature : input_map[self.chunk] * self.weight
+...         })
+...         return output
+... 
+
+The ``FineGrainedTopDown`` class above defines a top-down link between a single 
+chunk and microfeature. Such a fine-grained channel implementation may be useful 
+for constructing a massively parallel Clarion agent architecture. Below is just 
+a sketch of how such a system may be set up.
+
+>>> class ActivationTracker(object):
+...     """Tracks the activation associated with an individual node or edge."""
+...     
+...     def __init__(self, callback):
+...         self.callback = callback
+...         self.listeners = set()
+...         self.buffer = MyPacket()
+...
+...     def update(self, packet):
+...         self.buffer.update(packet)
+...     
+...     def subscribe(self, tracker):
+...         tracker.register(self) 
+...     
+...     def register(self, listener):
+...         self.listeners.add(listener)
+... 
+...     def notify_listeners(self):
+...         output = self.callback(self.buffer)
+...         for listener in self.listeners:
+...             listener.update(output)
+...     
+...     def trigger_condition(self):
+...         """This is just a place holder for an actual condition."""
+...         return True
+... 
+...     def step(self):
+...         if self.trigger_condition():
+...             self.notify_listeners()
+... 
+
+This simple ``ActivationTracker`` will help parallelize activation flow control.
+Now we can set up a network using the constructs defined so far. Here is an 
+example of a top-down activation flow about apples.
+
+>>> ch = Chunk("APPLE")
+>>> mf1 = Microfeature("color", "red")
+>>> mf2 = Microfeature("tasty", True)
+>>> edge1 = FineGrainedTopDown(ch, mf1, 1.0)
+>>> edge2 = FineGrainedTopDown(ch, mf2, 1.0)
+>>> trackers = {
+...     # Trackers associated with nodes should simply pass on their activation.
+...     ch : ActivationTracker(lambda x: x),
+...     mf1 : ActivationTracker(lambda x: x),
+...     mf2 : ActivationTracker(lambda x: x),
+...     edge1 : ActivationTracker(edge1),
+...     edge2 : ActivationTracker(edge2)
+... }
+... 
+>>> # We still need to connect everything up.
+>>> trackers[mf1].subscribe(trackers[edge1])
+>>> trackers[mf2].subscribe(trackers[edge2])
+>>> trackers[edge1].subscribe(trackers[ch])
+>>> trackers[edge2].subscribe(trackers[ch])
+>>> # Set initial chunk activation.
+>>> trackers[ch].update(MyPacket({ch : 1.0}))
+>>> # Propagate activations
+>>> for tracked in trackers:
+...     trackers[tracked].step()
+... 
+>>> # Check that propagation worked
+>>> trackers[mf1].buffer == MyPacket({mf1 : 1.0})
+True
+>>> trackers[mf2].buffer == MyPacket({mf2 : 1.0})
+True
+
+In the example above, the concept APPLE is activated, which leads to the 
+activation, in the bottom level, of microfeatures corresponding to the color 
+red and tastiness.
 '''
 
 import abc
 import typing as T
-from .packet import (
+from pyClarion.base.activation.packet import (
     ActivationPacket, TopDownPacket, BottomUpPacket, TopLevelPacket, 
     BottomLevelPacket
 )

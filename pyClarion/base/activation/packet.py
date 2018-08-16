@@ -1,10 +1,17 @@
 '''
-This module provides tools for recording and manipulating node activations.
+This module provides tools for representing activation patterns in pyClarion.
 
 Usage
 =====
 
-The main construct exported by this module is the ``ActivationPacket`` class.
+The main construct exported by this module is the ``ActivationPacket`` class, 
+which represents a collection of node activations.
+
+This module provides base classes for major activation flow types that can be 
+found within Clarion models. These basic types are meant to promote precise 
+definitions of higher-level constructs (i.e., allow for more specific signature 
+declarations), reduce coupling between pyClarion objects, and facilitate 
+conditional processing of activations.
 
 Instantiation
 -------------
@@ -29,7 +36,7 @@ MyPacket({})
 Basic Behavior
 --------------
 
-An ``ActivationPacket`` instance behaves mostly like a like a ``dict`` object.
+An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
 
 >>> n1, n2 = Node(), Node()
 >>> p = MyPacket({n1 : 0.3})
@@ -42,7 +49,7 @@ An ``ActivationPacket`` instance behaves mostly like a like a ``dict`` object.
 >>> p[n2]
 0.2
 
-In fact, all methods available to ``dict`` are also available to 
+In fact, almost all methods available to ``dict`` are also available to 
 ``ActivationPacket``.
 
 Default Behavior
@@ -87,9 +94,9 @@ False
 Packet Types
 ------------
 
-The type of an ```ActivationPacket``` is meaningful. Different activation 
-sources may output packets of different types. For instance, a top-down 
-activation cycle should output an instance of ``TopDownPacket``.
+The precise type of an ```ActivationPacket``` is meaningful. Different 
+activation sources may output packets of different types. For instance, a 
+top-down activation cycle should output an instance of ``TopDownPacket``.
 
 >>> class MyTopDownPacket(TopDownPacket, MyPacket):
 ...     """Represents the output of a top-down activation cycle.
@@ -101,18 +108,12 @@ activation cycle should output an instance of ``TopDownPacket``.
 True
 >>> isinstance(p, MyTopDownPacket)
 True
-
-This module provides generic types for major activation flow types that can be 
-found within Clarion. These basic types are meant to promote more precise 
-definition of higher-level constructs (i.e., allow for more specific signature 
-declarations), reduce coupling between pyClarion objects, and facilitate 
-conditional processing of activations.
 '''
 
 from abc import abstractmethod
 from typing import MutableMapping, TypeVar
 from collections import UserDict
-from ..node import Node
+from pyClarion.base.node import Node
 
 
 ###############

@@ -25,6 +25,10 @@ Base Classes
 Type Aliases
 ~~~~~~~~~~~~
 
+.. data:: ChannelSet
+
+Type alias for set containing ``Channel`` objects.
+
 Functions
 ~~~~~~~~~
 
