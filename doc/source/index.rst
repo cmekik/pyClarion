@@ -9,9 +9,7 @@ pyClarion Documentation
 .. toctree::
    :maxdepth: 1
 
-   pyClarion/base/node
-   pyClarion/base/activation/packet
-   pyClarion/base/activation/channel
+   pyClarion/base/base.rst
 
 Indices and tables
 ------------------

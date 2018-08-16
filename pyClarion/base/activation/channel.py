@@ -253,8 +253,8 @@ example of a top-down activation flow about apples.
 >>> # Set initial chunk activation.
 >>> trackers[ch].update(MyPacket({ch : 1.0}))
 >>> # Propagate activations
->>> for tracked in trackers:
-...     trackers[tracked].step()
+>>> for tracker in trackers.values():
+...     tracker.step()
 ... 
 >>> # Check that propagation worked
 >>> trackers[mf1].buffer == MyPacket({mf1 : 1.0})
