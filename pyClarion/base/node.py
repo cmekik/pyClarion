@@ -5,25 +5,42 @@ an individual unit in a network that may receive activation from and propagate
 activation to other units. In Clarion, there are two essential kinds of node: 
 microfeatures and chunks. 
 
-This module provides the Microfeature and Chunk classes, implemented as frozen 
-dataclasses, for representing microfeatures and chunks respectively.
+This module provides the ``Microfeature`` and ``Chunk`` classes, implemented as 
+frozen dataclasses, for representing microfeatures and chunks respectively, 
+along with other related utilities.
 
 Usage
 =====
 
-Create Microfeature and Chunk instances to represent nodes known to a 
-Clarion agent. Below, a microfeature node representing the dimension-value pair
-``('color', 'red')`` and a chunk node with id ``1234`` are defined:
+You may create ``Microfeature`` and ``Chunk`` instances to represent nodes known
+to a Clarion agent. Below, a microfeature node representing the dimension-value 
+pair ``('color', 'red')`` and a chunk node with id ``1234`` are defined:
 
 >>> mf = Microfeature(dim='color', val='red')
 >>> ch = Chunk(id=1234)
 
-The Microfeature and Chunk classes are subclasses of the Node class. 
+The ``Microfeature`` and ``Chunk`` classes are subclasses of the Node class. 
 
 >>> isinstance(mf, Node)
 True
 >>> isinstance(ch, Node)
 True
+
+``Node`` objects are meant to be used as ``Mapping`` keys. Their intended role 
+is to allow easy and uniform retrieval of information related to the nodes they 
+represent within the theoretical context of a particular model. To this end, 
+they are implemented as frozen dataclasses. This implementation ensures the 
+usability of ``Nodes`` as keys and allows for some extensibility. Many different 
+kinds of information relevant to a Clarion agent may be stored using 
+``Mapping`` objects while keeping coupling to a minimum.
+
+For instance, ``pyClarion.base.activation.packet`` provides container 
+classes for node activations. These containers are implemented as ``Mapping`` 
+objects which expect ``Node`` objects as keys and activation strengths as values. 
+Informing some consumer about a particular activation pattern is as simple as 
+passing a container carrying the relevant pattern. Similar patterns may be used 
+for implementing action callbacks (for interaction with the environment), node 
+related statistics and other constructs.
 
 Equality Checking
 -----------------
@@ -51,7 +68,7 @@ False
 Attributes
 ----------
 
-Since Microfeature and Chunk instances are frozen, attempting to set new 
+``Microfeature`` and ``Chunk`` instances are frozen. Attempting to set new 
 or existing attributes will cause an error:
 
 >>> mf.dim = 'code'
@@ -63,8 +80,8 @@ Traceback (most recent call last):
     ...
 dataclasses.FrozenInstanceError: cannot assign to field 'my_attribute'
 
-However, it is possible to subclass Microfeature or Chunk in order to add 
-additional fields, as shown below.
+However, it is possible to subclass ``Microfeature`` or ``Chunk`` in order to 
+add additional fields, as shown below.
 
 >>> from typing import Hashable
 >>> @dataclasses.dataclass(frozen=True)
