@@ -140,10 +140,11 @@ class ActivationHandler(object):
     def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
         '''Return current activation of node represented by `self`.
 
-        It is expected that the return value of this function will be an 
-        ``ActivationPacket`` instance with ``self.node`` as its only key. If 
-        this is not the case, ``ActivationHandler`` will not complain, but may 
-        do so in the future.
+        .. warning::
+          It is expected that the return value of this function will be an 
+          ``ActivationPacket`` instance with ``self.node`` as its only key. If 
+          this is not the case, ``ActivationHandler`` will not complain, but may 
+          do so in the future.
 
         :param input_map: An activation packet representing the input to 
             `self.node`.
