@@ -25,12 +25,12 @@ Base Classes
 Type Aliases
 ~~~~~~~~~~~~
 
-.. data:: ChannelSet
+.. data:: ChannelToTop
 
-Type alias for set containing ``Channel`` objects.
+Type alias for representing channels that output to top-level nodes (i.e., 
+`TopLevel` and `BottomUp` channels).
 
-Functions
-~~~~~~~~~
+.. data:: ChannelToBottom
 
-.. autofunction:: select_channels_by_type
-
+Type alias for representing channels that output to bottom-level nodes (i.e., 
+`BottomLevel` and `TopDown` channels).

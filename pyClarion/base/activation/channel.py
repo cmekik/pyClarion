@@ -9,7 +9,7 @@ is a callable object that receives a single ``ActivationPacket`` instance as
 input and outputs a single ``ActivationPacket`` instance in response.
 
 ``Channel`` objects may be used to capture activation flows in many ways, at 
-multiple levels of granualarity. The role of the ``Channel`` class is to provide 
+multiple levels of granularity. The role of the ``Channel`` class is to provide 
 implementations of various activation flows with a uniform interface while 
 leaving authors free to determine as many implementation details as possible.
 
@@ -174,7 +174,7 @@ There is no a priori restriction on the granularity of a ``Channel`` object. The
 examples above are rather coarse, often capturing and handling all of the 
 knowledge of some component (e.g., an entire associative network). Such an 
 architecture may be well-suited for certain use cases, but others may call for 
-a more fine-grained implementation such as the one below.
+a more fine-grained implementation such as the one below:
 
 >>> class FineGrainedTopDown(TopDown):
 ...     """Represents a top-down link between two individual nodes."""
@@ -192,79 +192,7 @@ a more fine-grained implementation such as the one below.
 ... 
 
 The ``FineGrainedTopDown`` class above defines a top-down link between a single 
-chunk and microfeature. Such a fine-grained channel implementation may be useful 
-for constructing a massively parallel Clarion agent architecture. Below is just 
-a sketch of how such a system may be set up.
-
->>> class ActivationTracker(object):
-...     """Tracks the activation associated with an individual node or edge."""
-...     
-...     def __init__(self, callback):
-...         self.callback = callback
-...         self.listeners = set()
-...         self.buffer = MyPacket()
-...
-...     def update(self, packet):
-...         self.buffer.update(packet)
-...     
-...     def subscribe(self, tracker):
-...         tracker.register(self) 
-...     
-...     def register(self, listener):
-...         self.listeners.add(listener)
-... 
-...     def notify_listeners(self):
-...         output = self.callback(self.buffer)
-...         for listener in self.listeners:
-...             listener.update(output)
-...     
-...     def trigger_condition(self):
-...         """This is just a place holder for an actual condition."""
-...         return True
-... 
-...     def step(self):
-...         if self.trigger_condition():
-...             self.notify_listeners()
-... 
-
-This simple ``ActivationTracker`` will help parallelize activation flow control.
-Now we can set up a network using the constructs defined so far. Here is an 
-example of a top-down activation flow about apples.
-
->>> ch = Chunk("APPLE")
->>> mf1 = Microfeature("color", "red")
->>> mf2 = Microfeature("tasty", True)
->>> edge1 = FineGrainedTopDown(ch, mf1, 1.0)
->>> edge2 = FineGrainedTopDown(ch, mf2, 1.0)
->>> trackers = {
-...     # Trackers associated with nodes should simply pass on their activation.
-...     ch : ActivationTracker(lambda x: x),
-...     mf1 : ActivationTracker(lambda x: x),
-...     mf2 : ActivationTracker(lambda x: x),
-...     edge1 : ActivationTracker(edge1),
-...     edge2 : ActivationTracker(edge2)
-... }
-... 
->>> # We still need to connect everything up.
->>> trackers[mf1].subscribe(trackers[edge1])
->>> trackers[mf2].subscribe(trackers[edge2])
->>> trackers[edge1].subscribe(trackers[ch])
->>> trackers[edge2].subscribe(trackers[ch])
->>> # Set initial chunk activation.
->>> trackers[ch].update(MyPacket({ch : 1.0}))
->>> # Propagate activations
->>> for tracker in trackers.values():
-...     tracker.step()
-... 
->>> # Check that propagation worked
->>> trackers[mf1].buffer == MyPacket({mf1 : 1.0})
-True
->>> trackers[mf2].buffer == MyPacket({mf2 : 1.0})
-True
-
-In the example above, the concept APPLE is activated, which leads to the 
-activation, in the bottom level, of microfeatures corresponding to the color 
-red and tastiness.
+chunk and microfeature. 
 '''
 
 import abc
@@ -312,7 +240,6 @@ class Channel(abc.ABC):
 
         :param input_map: An activation packet representing the input to this 
             channel.
-
         """
 
         pass
@@ -380,36 +307,8 @@ class BottomLevel(Channel):
 ################
 
 
-ChannelSet = T.Set[Channel]
-Channel2Iterable = T.Dict[Channel, T.Iterable]
-ChannelType = T.Type[Channel]
-ChannelTypeVar = T.TypeVar("ChannelTypeVar", bound=ChannelType)
-ChannelTypeSet = T.Set[ChannelTypeVar]
-
-
-#############
-# FUNCTIONS #
-#############
-
-
-def select_channels_by_type(
-    channels : ChannelSet, 
-    channel_types : ChannelTypeSet
-) -> ChannelSet:
-    """Return a subset of channels that match the desired types.
-
-    :param channels: A set of channels to be filtered.
-    :param channel_types: A set of channel types to be included in the output.
-    """
-
-    selected : ChannelSet = set()
-    for channel in channels:
-        for channel_type in channel_types:
-            if isinstance(channel, channel_type):
-                selected.add(channel)
-            else:
-                continue
-    return selected
+TopChannel = T.Union[TopLevel, BottomUp]
+BottomChannel = T.Union[BottomLevel, TopDown]
 
 
 if __name__=='__main__':

@@ -7,3 +7,4 @@ pyClarion.base.activation
    packet.rst
    channel.rst
    junction.rst
+   handler.rst

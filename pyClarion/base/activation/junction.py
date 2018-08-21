@@ -112,7 +112,7 @@ convenience, this module provides generic implementations of several of these
 junctions. In order to use these generic implementations, one must specify 
 the desired output packet type.
 
->>> class MyMaxJunction(MaxJunction):
+>>> class MyMaxJunction(GenericMaxJunction):
 ... 
 ...     @property
 ...     def output_type(self):
