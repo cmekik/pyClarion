@@ -1,23 +1,16 @@
 ---
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
-date: 2018-08-15
-version : 0.9.0
+date: 2018-08-21
+version : 0.10.0
 ---
 
 # pyClarion Readme
 
 This is a python implementation of the Clarion cognitive architecture. 
 
-To grasp the architecture of this codebase, see the online documentation:
-
-https://pyclarion.readthedocs.io
+Online documentation: https://pyclarion.readthedocs.io
     
-This package is experimental.
-
-Implementation of larger constructs, such as individual subsystems are 
-forthcoming. 
-
 ## Implementation Goals
 
 This package aims to satisfy the following goals:
