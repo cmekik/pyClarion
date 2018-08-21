@@ -3,6 +3,9 @@ pyClarion.base.activation
 
 .. automodule:: pyClarion.base.activation
 
+Sub-Modules
+-----------
+
 .. toctree::
    :maxdepth: 1
 

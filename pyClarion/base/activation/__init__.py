@@ -9,11 +9,13 @@ This module provides four constructs for representing and manipulating node
 activations. These are: 
 
 - Activation packets (see submodule ``packet``), for representing activation 
-patterns.
+  patterns.
 - Activation channels (see submodule ``channel``), for representing activation 
-flows.
+  flows.
 - Activation junctions (see submodule ``junction``), for combining activation 
-flows.
+  flows.
 - Activation handlers (see submodule ``handler``), for handling activation 
-propagation through individual nodes.
+  propagation through individual nodes.
+
+The constructs are presented in order from lowest-level to highest-level.
 """

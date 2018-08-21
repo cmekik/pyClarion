@@ -8,6 +8,9 @@ pyClarion Documentation
 
 .. automodule:: pyClarion
 
+Sub-Modules
+-----------
+
 .. toctree::
    :maxdepth: 1
 
