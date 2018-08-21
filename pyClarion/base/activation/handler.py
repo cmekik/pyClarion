@@ -4,18 +4,18 @@ This module provides tools for handling activations of individual nodes.
 Usage
 =====
 
-The main export of this module is the `ActivationHandler` class, which defines 
+The main export of this module is the ``ActivationHandler`` class, which defines 
 how an individual node reacts to incoming activations.
 
-An `ActivationHandler` instance associates a node with two channels and a 
+An ``ActivationHandler`` instance associates a node with two channels and a 
 junction. One channel defines how the node reacts to inputs from the top-level, 
 and the other defines how the node reacts to inputs from the bottom level.
 
-`ActivationHandler`s  are callable: they compute the activation of their 
+``ActivationHandler`` instances  are callable: they compute the activation of  
 assigned nodes with respect to given input.
 
 Demo
-~~~~
+----
 
 >>> from pyClarion.base.node import Microfeature, Chunk
 >>> from pyClarion.base.activation.packet import (
@@ -89,9 +89,11 @@ True
 '''
 
 
-from pyClarion.base.node import Node, NodeSet
+from pyClarion.base.node import Node, Microfeature, Chunk, NodeSet
 from pyClarion.base.activation.packet import ActivationPacket
-from pyClarion.base.activation.channel import TopChannel, BottomChannel
+from pyClarion.base.activation.channel import (
+    TopChannel, BottomChannel, TopLevel, BottomLevel, TopDown, BottomUp
+)
 from pyClarion.base.activation.junction import Junction
 
 
@@ -105,7 +107,31 @@ class ActivationHandler(object):
         bottom_channel : BottomChannel,
         junction : Junction
     ) -> None:
+        '''Initialize a new ActivationHandler instance.
+
+        .. warning::
+           The types of ``node``, ``top_channel``, and ``bottom_channel`` must 
+           be compatible. The rule is as follows:
+
+           - If ``isinstance(node, Chunk)`` then it must be the case that 
+             ``isinstance(top_channel, channel.TopLevel)`` and 
+             ``isinstance(bottom_channel, channel.BottomUp)``
+           - If ``isinstance(node, Chunk)`` then it must be the case that 
+             ``isinstance(top_channel, channel.TopDown)`` and 
+             ``isinstance(bottom_channel, channel.BottomLevel)``
+
+           If these conditions are not satisfied, ``ActivationHandler`` will not 
+           complain. But, it may do so in the future.
         
+        :param node: The node assgined to this activation handler.
+        :param top_channel: A channel defining how the node reacts to incoming 
+          top-level activations.
+        :param bottom_channel: A channel defining how the node reacts to 
+          incoming botton-level activations.
+        :param junction: A junction defining how top- and bottom-level 
+          activations are combined to produce the node's output. 
+        '''
+
         self._node = node
         self._top_channel = top_channel
         self._bottom_channel = bottom_channel
@@ -113,6 +139,11 @@ class ActivationHandler(object):
 
     def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
         '''Return current activation of node represented by `self`.
+
+        It is expected that the return value of this function will be an 
+        ``ActivationPacket`` instance with ``self.node`` as its only key. If 
+        this is not the case, ``ActivationHandler`` will not complain, but may 
+        do so in the future.
 
         :param input_map: An activation packet representing the input to 
             `self.node`.
@@ -123,15 +154,6 @@ class ActivationHandler(object):
         output = self.junction(
             activation_from_top_level, activation_from_bottom_level
         )
-
-        if output.keys() != {self.node}:
-            untracked = output.copy()
-            del untracked[self.node]
-            raise ValueError(
-                "Activation(s) assigned to untracked node(s): {}".format(
-                    repr(untracked)
-                )
-            )
         
         return output
 

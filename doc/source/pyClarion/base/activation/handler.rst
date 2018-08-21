@@ -13,4 +13,5 @@ Abstraction
 
 .. autoclass:: ActivationHandler
    :members:
+.. automethod:: ActivationHandler.__init__
 .. automethod:: ActivationHandler.__call__
