@@ -31,6 +31,7 @@ release = '0.9.0'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
+    'sphinx_autodoc_typehints',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -153,3 +154,4 @@ texinfo_documents = [
 # -- Extension configuration -------------------------------------------------
 
 autodoc_default_flags = ['show-inheritance']
+autodoc_member_order = 'bysource'
