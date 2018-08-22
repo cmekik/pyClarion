@@ -12,4 +12,3 @@ Sub-Modules
    packet.rst
    channel.rst
    junction.rst
-   handler.rst
