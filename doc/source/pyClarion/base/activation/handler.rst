@@ -17,6 +17,7 @@ Abstraction
 .. automethod:: ActivationHandler.__call__
 .. automethod:: ActivationHandler.register
 .. automethod:: ActivationHandler.update
+.. automethod:: ActivationHandler.clear
 .. automethod:: ActivationHandler.propagate
 .. automethod:: ActivationHandler.notify_listeners
 

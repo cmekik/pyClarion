@@ -100,6 +100,14 @@ True
 True
 >>> handlers[mf2].buffer == {edge2 : MyPacket({mf2 : 1.0})}
 True
+>>> # Note: ``ch`` still remembers its activation after firing.
+>>> handlers[ch].buffer == {'Initial Activation' : MyPacket({ch : 1.0})}
+True
+>>> # In other words, buffers must be manually cleared when necessary.
+>>> handlers[ch].clear()
+>>> handlers[ch].buffer == dict()
+True
+
 
 Why Separate Activation Handlers for Nodes and Channels?
 --------------------------------------------------------
@@ -173,6 +181,7 @@ activation handler architecture may handle different levels of granularity.
 ...     handler()
 ... 
 >>> # Check that propagation worked
+>>> # Note: Initial activation not yet cleared, so ``ch1`` activation persists
 >>> handlers[ch1].propagate() == MyPacket({ch1 : 1.0})
 True
 >>> handlers[ch2].propagate() == MyPacket({ch2 : 0.4})
@@ -262,6 +271,11 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
 
         self.buffer[construct] = packet
 
+    def clear(self) -> None:
+        '''Empty ``self.buffer``.'''
+
+        self.buffer.clear()
+
     @abc.abstractmethod
     def propagate(self) -> ActivationPacket:
         '''Compute and return current output of ``self.client``.
@@ -285,7 +299,10 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
 
     @property
     def buffer(self) -> T.Dict[T.Hashable, ActivationPacket]:
-        '''Buffers inputs to ``self.client``.'''
+        '''Buffers inputs to ``self.client``.
+        
+        Activations recorded here persist until changed or manually cleared.
+        '''
         return self._buffer
 
     @property
