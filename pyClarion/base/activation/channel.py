@@ -4,18 +4,14 @@ This module provides constructs for modeling activation flows in pyClarion.
 Usage
 =====
 
-The main export of this module is the ``Channel`` class. A pyClarion ``Channel`` 
-is a callable object that receives a single ``ActivationPacket`` instance as 
-input and outputs a single ``ActivationPacket`` instance in response.
+This module exports the ``Channel`` class. A pyClarion ``Channel`` is a callable 
+object that receives a single ``BaseActivationPacket`` instance as input and 
+outputs a single ``BaseActivationPacket`` instance in response.
 
 ``Channel`` objects may be used to capture activation flows in many ways, at 
 multiple levels of granularity. The role of the ``Channel`` class is to provide 
 implementations of various activation flows with a uniform interface while 
 leaving authors free to determine as many implementation details as possible.
-
-An important point to note is that ``Channel`` objects are responsible only for 
-implementing an activation flow. They are not responsible for implementing or 
-handling learning. Learning is the responsibility of other constructs.
 
 Instantiation
 -------------
@@ -30,13 +26,13 @@ TypeError: Can't instantiate abstract class Channel with abstract methods __call
 To define a concrete ``Channel``, one must provide a ``__call__`` method with 
 an appropriate signature.
 
->>> class MyPacket(ActivationPacket):
+>>> class MyPacket(BaseActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
 >>> class MyChannel(Channel):
 ...     """An activation channel that outputs an empty MyPacket instance."""
-...     def __call__(self, input_map : ActivationPacket) -> MyPacket:
+...     def __call__(self, input_map : BaseActivationPacket) -> MyPacket:
 ...         return MyPacket() 
 ... 
 >>> MyChannel()
@@ -50,18 +46,14 @@ types, in keeping with the Liskov principle. In practice, the input type is
 generally expected to be left unchanged, and the output type is expected be 
 restricted so as to reflect the type of processing that occurred.
 
->>> class MyTopDownPacket(TopDownPacket, MyPacket):
+>>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
->>> class MyTopDownChannel(TopDown):
+>>> class MyTopDownChannel(Channel):
 ...     """A top-down channel that outputs an empty MyTopDownPacket instance."""
-...     def __call__(self, input_map : ActivationPacket) -> MyTopDownPacket:
+...     def __call__(self, input_map : BaseActivationPacket) -> MyTopDownPacket:
 ...         return MyTopDownPacket() 
 ... 
-
-Several abstract base ``Channel`` types are defined in this module in order to 
-facilitate definition and identification of ``Channel`` types fulfilling 
-various roles within Clarion theory.
 
 Use Cases
 ---------
@@ -78,7 +70,7 @@ activation packets.
 ...     def __init__(self, multiplier):
 ...         self.multiplier = multiplier
 ... 
-...     def __call__(self, input_map):
+...     def __call__(self, input_map : BaseActivationPacket) -> ScaledPacket:
 ...         output = ScaledPacket()
 ...         for n in input_map:
 ...             output[n] = input_map[n] * self.multiplier
@@ -87,29 +79,33 @@ activation packets.
 >>> n1, n2 = Node(), Node()
 >>> input_activations = MyPacket({n1 : 0.2, n2 : 0.4})
 >>> channel = MultiplierChannel(2)
->>> channel(input_activations) == MyPacket({n1 : 0.4, n2 : 0.8})
+>>> output =channel(input_activations) 
+>>> output == MyPacket({n1 : 0.4, n2 : 0.8})
+True
+>>> isinstance(output, ScaledPacket)
 True
 
 A much more interesting use case of ``Channel`` is implementing knowledge-based
 processing of the input activation packet.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
->>> class MyTopLevelPacket(TopLevelPacket, MyPacket):
+>>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ... 
->>> class MyAssociativeNetwork(TopLevel):
+>>> class MyAssociativeNetwork(Channel):
 ... 
 ...     def __init__(
-...         self, association_matrix : T.Dict[Node, T.Dict[Node, float]]
-...     ) -> None:
+...         self, assoc : T.Dict[Node, T.Dict[Node, float]]) -> None:
 ...         """Initialize an associative network.
 ... 
-...         :param association_matrix: A dict that maps conclusion chunks to 
+...         :param assoc: A dict that maps conclusion chunks to 
 ...         dicts mapping their condition chunks to their respective weights.
 ...         """
-...         self.assoc = association_matrix
+...         self.assoc = assoc
 ... 
-...     def __call__(self, input_map : ActivationPacket) -> MyTopLevelPacket:
+...     def __call__(
+...     self, input_map : BaseActivationPacket
+... ) -> MyTopLevelPacket:
 ...         output = MyTopLevelPacket()
 ...         for conclusion_chunk in self.assoc:
 ...             output[conclusion_chunk] = 0.0
@@ -122,18 +118,17 @@ processing of the input activation packet.
 >>> ch1, ch2, ch3 = Chunk('BLOOD ORANGE'), Chunk('RED'), Chunk('YELLOW')
 >>> # Throw in some Microfeatures to see if MyAssociativeNetwork gets confused
 >>> mf1, mf2 = Microfeature('color', 'red'), Microfeature('color', 'orange')
->>> association_matrix = {
-...     ch1 : {ch1 : 1.0, ch2 : 0.4, ch3 : 0.2},
-...     ch2 : {ch1 : 0.4, ch2 : 1.0, ch3 : 0.1},
-...     ch3 : {ch1 : 0.2, ch2 : 0.1, ch3 : 1.0}    
+>>> assoc = {
+...     ch2 : {ch1 : 0.4},
+...     ch3 : {ch1 : 0.2}    
 ... }
->>> channel = MyAssociativeNetwork(association_matrix)
+>>> channel = MyAssociativeNetwork(assoc)
 >>> input_map = MyPacket({ch1 : 1.0, mf1: 0.3, mf2 : 0.2})
->>> channel(input_map) == {ch1 : 1.0, ch2 : 0.4, ch3 : 0.2}
+>>> channel(input_map) == {ch2 : 0.4, ch3 : 0.2}
 True
 
 ``Channel`` instances can be used to wrap efficient implementations of various 
-components.
+constructs:
 
 >>> class AmazingDQN(object):
 ...     def __call__(self, input_map):
@@ -145,17 +140,19 @@ components.
 ...                  output[k] = v
 ...         return output
 ... 
->>> class MyAmazingDQNPacket(BottomLevelPacket, MyPacket):
+>>> class MyAmazingDQNPacket(MyPacket):
 ...     pass
 ... 
 ...
->>> class MyAmazingDQNChannel(BottomLevel):
+>>> class MyAmazingDQNChannel(Channel):
 ...     """A wrapper for an AmazingDQN implementation."""
 ...
 ...     def __init__(self, amazing_dqn):
 ...         self.amazing_dqn = amazing_dqn
 ... 
-...     def __call__(self, input_map : ActivationPacket) -> MyAmazingDQNPacket:
+...     def __call__(
+...     self, input_map : BaseActivationPacket
+... ) -> MyAmazingDQNPacket:
 ...         output = self.amazing_dqn(input_map)
 ...         return MyAmazingDQNPacket(output)
 ... 
@@ -176,7 +173,7 @@ knowledge of some component (e.g., an entire associative network). Such an
 architecture may be well-suited for certain use cases, but others may call for 
 a more fine-grained implementation such as the one below:
 
->>> class FineGrainedTopDown(TopDown):
+>>> class FineGrainedTopDownChannel(Channel):
 ...     """Represents a top-down link between two individual nodes."""
 ... 
 ...     def __init__(self, chunk, microfeature, weight):
@@ -234,8 +231,8 @@ is an example of a top-down activation flow about apples with
 >>> ch = Chunk("APPLE")
 >>> mf1 = Microfeature("color", "red")
 >>> mf2 = Microfeature("tasty", True)
->>> edge1 = FineGrainedTopDown(ch, mf1, 1.0)
->>> edge2 = FineGrainedTopDown(ch, mf2, 1.0)
+>>> edge1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
+>>> edge2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
 >>> trackers = {
 ...     # Trackers associated with nodes should simply pass on their activation.
 ...     ch : ActivationTracker(lambda x: x),
@@ -270,10 +267,7 @@ red and tastiness
 
 import abc
 import typing as T
-from pyClarion.base.activation.packet import (
-    ActivationPacket, TopDownPacket, BottomUpPacket, TopLevelPacket, 
-    BottomLevelPacket
-)
+from pyClarion.base.activation.packet import BaseActivationPacket
 
 
 ###############
@@ -302,7 +296,9 @@ class Channel(abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
+    def __call__(
+        self, input_map : BaseActivationPacket
+    ) -> BaseActivationPacket:
         """Compute and return activations resulting from an input to this 
         channel.
 
@@ -316,72 +312,6 @@ class Channel(abc.ABC):
         """
 
         pass
-
-
-######################
-# BASE CHANNEL TYPES #
-######################
-
-
-class TopDown(Channel):
-    """A base class for top-down activation channels.
-
-    This is an abstract interface for various possible implementations of 
-    top-down activation channels. 
-    """
-
-    @abc.abstractmethod
-    def __call__(self, input_map : ActivationPacket) -> TopDownPacket:
-        
-        pass
-
-
-class BottomUp(Channel):
-    """A base class for bottom-up activation channels.
-
-    This is an abstract interface for various possible implementations of 
-    bottom-up activation channels. 
-    """
-
-    @abc.abstractmethod
-    def __call__(self, input_map : ActivationPacket) -> BottomUpPacket:
-
-        pass
-
-
-class TopLevel(Channel):
-    """A base class for top-level (i.e., explicit) activation channels.
-
-    This is an abstract interface for various possible implementations of 
-    top-level activation channels. 
-    """
-
-    @abc.abstractmethod
-    def __call__(self, input_map : ActivationPacket) -> TopLevelPacket:
-        
-        pass
-
-
-class BottomLevel(Channel):
-    """A base class for bottom-level (i.e., implicit) activation channels.
-
-    This is an abstract interface for various possible implementations of 
-    bottom-level activation channels.
-    """
-
-    @abc.abstractmethod
-    def __call__(self, input_map : ActivationPacket) -> BottomLevelPacket:
-
-        pass
-
-
-################
-# TYPE ALIASES #
-################
-
-
-TopChannel = T.Union[TopLevel, BottomUp]
-BottomChannel = T.Union[BottomLevel, TopDown]
 
 
 if __name__=='__main__':

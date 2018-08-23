@@ -4,29 +4,23 @@ This module provides tools for representing activation patterns in pyClarion.
 Usage
 =====
 
-The main construct exported by this module is the ``ActivationPacket`` class, 
-which represents a collection of node activations.
-
-This module provides base classes for major activation flow types that can be 
-found within Clarion models. These basic types are meant to promote precise 
-definitions of higher-level constructs (i.e., allow for more specific signature 
-declarations), reduce coupling between pyClarion objects, and facilitate 
-conditional processing of activations.
+This module exports the ``BaseActivationPacket`` class, which is a base class 
+for representing collections of node activations.
 
 Instantiation
 -------------
 
-``ActivationPacket`` is an abstract class with one abstract method called 
+``BaseActivationPacket`` is an abstract class with one abstract method called 
 ``default_activation``; it cannot be directly instanced.
 
->>> ActivationPacket()
+>>> BaseActivationPacket()
 Traceback (most recent call last):
     ...
-TypeError: Can't instantiate abstract class ActivationPacket with abstract methods default_activation
+TypeError: Can't instantiate abstract class BaseActivationPacket with abstract methods default_activation
 
-In other words, ``ActivationPacket`` must be subclassed before use. 
+In other words, ``BaseActivationPacket`` must be subclassed before use. 
 
->>> class MyPacket(ActivationPacket):
+>>> class MyPacket(BaseActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ...
@@ -36,7 +30,7 @@ MyPacket({})
 Basic Behavior
 --------------
 
-An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
+An ``BaseActivationPacket`` instance behaves mostly like a ``dict`` object.
 
 >>> n1, n2 = Node(), Node()
 >>> p = MyPacket({n1 : 0.3})
@@ -50,15 +44,17 @@ An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
 0.2
 
 In fact, almost all methods available to ``dict`` are also available to 
-``ActivationPacket``.
+``BaseActivationPacket``.
 
 Default Behavior
 ----------------
 
-Unlike regular dicts, a ``KeyError`` is not raised when an ``ActivationPacket`` 
-receives an unknown key. In this case, ``ActivationPacket`` objects behave like 
+Unlike regular dicts, a ``KeyError`` is not raised when an ``BaseActivationPacket`` 
+receives an unknown key. ``BaseActivationPacket`` objects handle unknown keys like 
 ``collections.defaultdict`` objects: they output a default value and record 
-the new ``(key, value)`` pair.
+the new ``(key, value)`` pair. However, unlike ``collections.defaultdict`` 
+objects, default values for ``BaseActivationPacket`` objects are provided by the 
+``default_activation`` method. 
 
 >>> n3 = Node()
 >>> n3 in p
@@ -68,11 +64,11 @@ False
 >>> n3 in p
 True
 
-Default values are provided by the ``default_activation`` method. This method 
-can be set to return different default values for different nodes.
+The ``default_activation`` method can be set to return different default values 
+for different nodes.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
->>> class MySubtlePacket(ActivationPacket):
+>>> class MySubtlePacket(BaseActivationPacket):
 ...     def default_activation(self, key):
 ...         if isinstance(key, Microfeature):
 ...             return 0.5
@@ -94,20 +90,33 @@ False
 Packet Types
 ------------
 
-The precise type of an ```ActivationPacket``` is meaningful. Different 
+The precise type of an ```BaseActivationPacket``` is meaningful. Different 
 activation sources may output packets of different types. For instance, a 
-top-down activation cycle should output an instance of ``TopDownPacket``.
+top-down activation cycle may output an instance of ``TopDownPacket``, as 
+illustrated in the example below.
 
->>> class MyTopDownPacket(TopDownPacket, MyPacket):
+>>> class MyTopDownPacket(MyPacket):
 ...     """Represents the output of a top-down activation cycle.
 ...     """
 ...     pass
 ... 
->>> p = MyTopDownPacket()
->>> isinstance(p, MyPacket)
+>>> def my_top_down_activation_cycle(packet):
+...     """A dummy top-down activation cycle for demonstration purposes""" 
+...     val = max(packet.values())
+...     return MyTopDownPacket({n3 : val})
+... 
+>>> packet = MyPacket({n1 : .2, n2 : .6})
+>>> output = my_top_down_activation_cycle(packet)
+>>> output == MyPacket({n3 : .6})
 True
->>> isinstance(p, MyTopDownPacket)
+>>> isinstance(output, MyPacket)
 True
+>>> isinstance(output, MyTopDownPacket)
+True
+
+Strictly speaking, a top-down activation flow should drive ``Microfeature`` 
+activations based on ``Chunk`` activations. For simplicity, the example above 
+omits this detail.
 '''
 
 from abc import abstractmethod
@@ -116,25 +125,24 @@ from collections import UserDict
 from pyClarion.base.node import Node
 
 
-###############
-# ABSTRACTION #
-###############
-
-
 T = TypeVar("T")
 
-class ActivationPacket(UserDict, MutableMapping[Node, T]):
+
+class BaseActivationPacket(UserDict, MutableMapping[Node, T]):
     """An abstract class for representing node activations.
 
     Has type ``MutableMapping[pyClarion.base.node.Node, T]``, where ``T`` is an 
-    unrestricted type variable.
+    unrestricted type variable. It is generally expected that ``T`` will be some 
+    numerical type such as ``float``, however this expectation is not enforced. 
+    Violate this at your own risk.
 
-    Nodes not contained in an ActivationPacket object are assumed to be at a 
+    Nodes not contained in an BaseActivationPacket object are assumed to be at a 
     default activation level. Default activation levels are defined by the 
-    ActivationPacket.default_activation method and are handled similarly to 
+    BaseActivationPacket.default_activation method and are handled similarly to 
     ``collections.defaultdict``.
-    
-    The precise type of an ActivationPacket may encode important metadata. 
+
+    The precise type of an ``BaseActivationPacket`` instance may encode important 
+    metadata. 
 
     See module documentation for further details and examples.
     """
@@ -151,35 +159,6 @@ class ActivationPacket(UserDict, MutableMapping[Node, T]):
         '''Return designated default value for the given input.
         '''
         pass
-
-
-###############################
-# BASE ActivationPacket TYPES #
-###############################
-
-
-class TopDownPacket(ActivationPacket):
-    """An activation packet resulting from a top-down activation flow.
-    """
-    pass
-
-
-class BottomUpPacket(ActivationPacket):
-    """An activation packet resulting from a bottom-up activation flow.
-    """
-    pass
-
-
-class TopLevelPacket(ActivationPacket):
-    """An activation packet resulting from a top-level activation flow.
-    """
-    pass
-
-
-class BottomLevelPacket(ActivationPacket):
-    """An activation packet resulting from a bottom-level activation flow.
-    """
-    pass
 
 
 if __name__ == '__main__':

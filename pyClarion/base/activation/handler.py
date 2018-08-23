@@ -18,10 +18,8 @@ listen to ``NodeHandler`` instances and vice versa, though this is not enforced.
 Since ``ActivationHandler`` is an abstract class, it cannot be directly 
 instantiated:
 
->>> from pyClarion.base.node import Node
->>> from pyClarion.base.activation.packet import ActivationPacket
 >>> from pyClarion.base.activation.junction import GenericMaxJunction
->>> class MyPacket(ActivationPacket):
+>>> class MyPacket(BaseActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
@@ -48,12 +46,10 @@ The example below is adapted from the documentation of
 ``pyClarion.base.activation.channel`` to use ``ActivationHandler`` objects.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
->>> from pyClarion.base.activation.packet import TopDownPacket
->>> from pyClarion.base.activation.channel import TopDown
->>> class MyTopDownPacket(TopDownPacket, MyPacket):
+>>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
->>> class FineGrainedTopDown(TopDown):
+>>> class FineGrainedTopDownChannel(Channel):
 ...     """Represents a top-down link between two individual nodes."""
 ... 
 ...     def __init__(self, chunk, microfeature, weight):
@@ -61,7 +57,7 @@ The example below is adapted from the documentation of
 ...         self.microfeature = microfeature
 ...         self.weight = weight
 ...
-...     def __call__(self, input_map : ActivationPacket) -> MyTopDownPacket:
+...     def __call__(self, input_map : BaseActivationPacket) -> MyTopDownPacket:
 ...         output = MyTopDownPacket({
 ...             self.microfeature : input_map[self.chunk] * self.weight
 ...         })
@@ -70,8 +66,8 @@ The example below is adapted from the documentation of
 >>> ch = Chunk("APPLE")
 >>> mf1 = Microfeature("color", "red")
 >>> mf2 = Microfeature("tasty", True)
->>> edge1 = FineGrainedTopDown(ch, mf1, 1.0)
->>> edge2 = FineGrainedTopDown(ch, mf2, 1.0)
+>>> edge1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
+>>> edge2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
 >>> handlers = {
 ...     ch : NodeHandler(ch, MyMaxJunction()),
 ...     mf1 : NodeHandler(mf1, MyMaxJunction()),
@@ -129,24 +125,24 @@ The example below adapts another example from
 ``pyClarion.base.activation.channel`` in order to demonstrate how the dual 
 activation handler architecture may handle different levels of granularity.
 
->>> from pyClarion.base.activation.packet import TopLevelPacket
->>> from pyClarion.base.activation.channel import TopLevel
->>> class MyTopLevelPacket(TopLevelPacket, MyPacket):
+>>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ... 
->>> class MyAssociativeNetwork(TopLevel):
+>>> class MyAssociativeNetwork(Channel):
 ... 
 ...     def __init__(
-...         self, association_matrix : T.Dict[Node, T.Dict[Node, float]]
+...         self, assoc : T.Dict[Node, T.Dict[Node, float]]
 ...     ) -> None:
 ...         """Initialize an associative network.
 ... 
-...         :param association_matrix: A dict that maps conclusion chunks to 
+...         :param assoc: A dict that maps conclusion chunks to 
 ...         dicts mapping their condition chunks to their respective weights.
 ...         """
-...         self.assoc = association_matrix
+...         self.assoc = assoc
 ... 
-...     def __call__(self, input_map : ActivationPacket) -> MyTopLevelPacket:
+...     def __call__(
+...     self, input_map : BaseActivationPacket
+... ) -> MyTopLevelPacket:
 ...         output = MyTopLevelPacket()
 ...         for conclusion_chunk in self.assoc:
 ...             output[conclusion_chunk] = 0.0
@@ -157,12 +153,11 @@ activation handler architecture may handle different levels of granularity.
 ...                 )
 ...         return output
 >>> ch1, ch2, ch3 = Chunk('BLOOD ORANGE'), Chunk('RED'), Chunk('YELLOW')
->>> association_matrix = {
-...     ch1 : {ch1 : 0.0, ch2 : 0.4, ch3 : 0.2},
-...     ch2 : {ch1 : 0.4, ch2 : 0.0, ch3 : 0.1},
-...     ch3 : {ch1 : 0.2, ch2 : 0.1, ch3 : 0.0}    
+>>> assoc = {
+...     ch2 : {ch1 : 0.4},
+...     ch3 : {ch1 : 0.2}    
 ... }
->>> channel = MyAssociativeNetwork(association_matrix)
+>>> channel = MyAssociativeNetwork(assoc)
 >>> handlers = {
 ...     ch1 : NodeHandler(ch1, MyMaxJunction()),
 ...     ch2 : NodeHandler(ch2, MyMaxJunction()),
@@ -188,7 +183,7 @@ True
 True
 >>> handlers[ch3].propagate() == MyPacket({ch3 : 0.2})
 True
->>> handlers[channel].propagate() == MyPacket({ch1 : 0.0, ch2 : 0.4, ch3 : 0.2})
+>>> handlers[channel].propagate() == MyPacket({ch2 : 0.4, ch3 : 0.2})
 True
 '''
 
@@ -197,7 +192,7 @@ import abc
 import typing as T
 from pyClarion.base.node import Node
 from pyClarion.base.activation.channel import Channel
-from pyClarion.base.activation.packet import ActivationPacket
+from pyClarion.base.activation.packet import BaseActivationPacket
 from pyClarion.base.activation.junction import Junction
 
 
@@ -232,7 +227,7 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
 
         self._client : Tv = client
         self._junction = junction
-        self._buffer : T.Dict[T.Hashable, ActivationPacket] = dict()
+        self._buffer : T.Dict[T.Hashable, BaseActivationPacket] = dict()
         self._listeners : T.Set['ActivationHandler'] = set()
         # String literal in type hint above represents forward reference to 
         # type(self). See PEP 484 section on Forward References for details.
@@ -264,7 +259,7 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
             self.listeners.add(handler)
 
     def update(
-        self, construct : T.Hashable, packet : ActivationPacket
+        self, construct : T.Hashable, packet : BaseActivationPacket
     ) -> None:
         '''Update output of ``construct`` recorded in ``self.buffer``.
         '''
@@ -282,14 +277,14 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
         self.listeners.clear()
 
     @abc.abstractmethod
-    def propagate(self) -> ActivationPacket:
+    def propagate(self) -> BaseActivationPacket:
         '''Compute and return current output of ``self.client``.
         
         This is an abstract method.
         '''
         pass
 
-    def notify_listeners(self, packet : ActivationPacket) -> None:
+    def notify_listeners(self, packet : BaseActivationPacket) -> None:
         '''Report new output of ``self.client`` to listeners.
         '''
 
@@ -303,7 +298,7 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
         return self._client
 
     @property
-    def buffer(self) -> T.Dict[T.Hashable, ActivationPacket]:
+    def buffer(self) -> T.Dict[T.Hashable, BaseActivationPacket]:
         '''Buffers inputs to ``self.client``.
         
         Activations recorded here persist until changed or manually cleared.
@@ -334,7 +329,7 @@ class NodeHandler(ActivationHandler[Node]):
     For details, see module documentation.
     '''
 
-    def propagate(self) -> ActivationPacket:
+    def propagate(self) -> BaseActivationPacket:
         '''Compute and return current output of client node.
 
         Passes activation packets stored in ``self.buffer`` through 
@@ -355,7 +350,7 @@ class ChannelHandler(ActivationHandler[Channel]):
     For details, see module documentation.
     '''
 
-    def propagate(self) -> ActivationPacket:
+    def propagate(self) -> BaseActivationPacket:
         '''Update listeners with new output of client activation channel.
 
         Passes activation packets stored in ``self.buffer`` through 

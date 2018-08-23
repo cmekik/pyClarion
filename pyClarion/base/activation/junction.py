@@ -30,7 +30,9 @@ their inputs. Below, ``MyJunction`` returns the first activation packet it
 receieves, and discards the others. 
 
 >>> class MyJunction(Junction):
-...     def __call__(self, *input_maps : ActivationPacket) -> ActivationPacket:
+...     def __call__(
+...     self, *input_maps : BaseActivationPacket
+... ) -> BaseActivationPacket:
 ...         return input_maps[0]
 ... 
 >>> junc = MyJunction()
@@ -41,7 +43,7 @@ Traceback (most recent call last):
 IndexError: tuple index out of range
 >>> # Let's get some inputs for junc
 >>> from pyClarion.base.node import Node
->>> class MyPacket(ActivationPacket):
+>>> class MyPacket(BaseActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ...
@@ -66,11 +68,10 @@ input streams.
 Here is a junction where bottom-up activations are suppressed to half-strength 
 but top-level activations flow unhindered.
 
->>> from pyClarion.base.activation.packet import TopLevelPacket, BottomUpPacket
->>> class MyTopLevelPacket(TopLevelPacket, MyPacket):
+>>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ...
->>> class MyBottomUpPacket(BottomUpPacket, MyPacket):
+>>> class MyBottomUpPacket(MyPacket):
 ...     pass
 ... 
 >>> class MyStatefulJunction(Junction):
@@ -123,14 +124,13 @@ the desired output packet type.
 >>> p2 = MyPacket({n1 : .7})
 >>> junc(p1, p2) == MyPacket({n1 : .7})
 True
-
 '''
 
 
 import typing as T
 import abc
 from pyClarion.base.node import get_nodes
-from pyClarion.base.activation.packet import ActivationPacket
+from pyClarion.base.activation.packet import BaseActivationPacket
 
 
 ###############
@@ -144,7 +144,9 @@ class Junction(abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(self, *input_maps: ActivationPacket) -> ActivationPacket:
+    def __call__(
+        self, *input_maps: BaseActivationPacket
+    ) -> BaseActivationPacket:
         """Return a combined mapping from chunks and/or microfeatures to 
         activations.
 
@@ -168,7 +170,7 @@ class GenericJunction(Junction):
 
     @property
     @abc.abstractmethod
-    def output_type(self) -> T.Type[ActivationPacket]:
+    def output_type(self) -> T.Type[BaseActivationPacket]:
         '''The output type of this junction'''
         pass
 
@@ -177,7 +179,9 @@ class GenericMaxJunction(GenericJunction):
     """An activation junction returning max activations for all input nodes.
     """
 
-    def __call__(self, *input_maps : ActivationPacket) -> ActivationPacket:
+    def __call__(
+        self, *input_maps : BaseActivationPacket
+    ) -> BaseActivationPacket:
         """Return the maximum activation value for each input node.
 
         kwargs:
