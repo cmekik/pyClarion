@@ -276,6 +276,11 @@ class ActivationHandler(T.Generic[Tv], abc.ABC):
 
         self.buffer.clear()
 
+    def clear_listeners(self) -> None:
+        '''Empty ``self.listeners``.'''
+
+        self.listeners.clear()
+
     @abc.abstractmethod
     def propagate(self) -> ActivationPacket:
         '''Compute and return current output of ``self.client``.

@@ -20,6 +20,7 @@ Abstraction
 .. automethod:: ActivationHandler.clear
 .. automethod:: ActivationHandler.propagate
 .. automethod:: ActivationHandler.notify_listeners
+.. automethod:: ActivationHandler.clear_listeners
 
 Node Handler
 ~~~~~~~~~~~~
