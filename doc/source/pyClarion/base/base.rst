@@ -10,4 +10,11 @@ Sub-Modules
    :maxdepth: 1
 
    node.rst
-   activation/activation.rst
+   packet.rst
+   channel.rst
+   junction.rst
+   selector.rst
+   effector.rst
+   connector.rst
+   agent.rst
+

@@ -6,7 +6,7 @@ Usage
 
 This module exports the ``Junction`` class and related constructs. ``Junction`` 
 objects are similar to pyClarion activation channels (see 
-``pyClarion.base.activation.channel``) in their design, but have a distinct call 
+``pyClarion.base.channel``) in their design, but have a distinct call 
 signature. ``Junction`` objects expect a sequence of activation packets as 
 input and output a single activation packet.
 
@@ -130,7 +130,7 @@ True
 import typing as T
 import abc
 from pyClarion.base.node import get_nodes
-from pyClarion.base.activation.packet import BaseActivationPacket
+from pyClarion.base.packet import BaseActivationPacket
 
 
 ###############

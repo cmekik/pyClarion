@@ -267,7 +267,7 @@ red and tastiness
 
 import abc
 import typing as T
-from pyClarion.base.activation.packet import BaseActivationPacket
+from pyClarion.base.packet import BaseActivationPacket
 
 
 ###############
