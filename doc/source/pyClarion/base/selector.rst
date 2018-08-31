@@ -8,6 +8,8 @@ Module Reference
 
 .. currentmodule:: pyClarion.base.selector
 
+.. autoclass:: SelectorPacket
+
 .. autoclass:: Selector
    :members: __call__
 
