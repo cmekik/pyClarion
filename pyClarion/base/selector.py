@@ -28,7 +28,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 ... 
 >>> class MaxSelector(Selector):
 ...
-...     def __init__(self, actionable_chunks : T.Set[Chunk]) -> None:
+...     def __init__(self, actionable_chunks : Set[Chunk]) -> None:
 ...
 ...         self.actionable_chunks = actionable_chunks
 ...
@@ -88,17 +88,17 @@ as shown in the example below.
 True
 '''
 
-import typing as T
+from typing import TypeVar, Generic, Iterable, Dict, Set, Any
 import abc
 import numpy as np
 from pyClarion.base.node import Node, Chunk
 from pyClarion.base.packet import ActivationPacket
 
 
-At = T.TypeVar('At', bound=ActivationPacket)
+At = TypeVar('At', bound=ActivationPacket)
+St = TypeVar('St')
 
-
-class SelectorPacket(object):
+class SelectorPacket(Generic[St]):
     '''
     Represents the output of an action selection routine.
 
@@ -107,7 +107,7 @@ class SelectorPacket(object):
     '''
     
     def __init__(
-        self, choices : T.Set[Chunk], activations : T.Dict[Node, T.Any]
+        self, choices : Set[Chunk], activations : Dict[Node, St]
     ) -> None:
         '''
         Initialize a ``SelectorPacket`` instance.
@@ -119,7 +119,7 @@ class SelectorPacket(object):
         self.choices = choices
         self.activations = activations
 
-    def __eq__(self, other : T.Any) -> bool:
+    def __eq__(self, other : Any) -> bool:
 
         if (
             isinstance(other, SelectorPacket) and
@@ -131,15 +131,12 @@ class SelectorPacket(object):
             return False
 
 
-class Selector(abc.ABC):
+class Selector(Generic[At, St], abc.ABC):
     """Selects actionable chunks based on chunk strengths.
     """
 
     @abc.abstractmethod
-    def __call__(
-        self, 
-        input_map: ActivationPacket
-    ) -> SelectorPacket:
+    def __call__(self, input_map: At) -> SelectorPacket[St]:
         """Identify chunks that are currently actionable based on their 
         strengths.
 
@@ -149,11 +146,11 @@ class Selector(abc.ABC):
         pass
 
 
-class BoltzmannSelector(Selector):
+class BoltzmannSelector(Selector[At, float]):
     """Select a chunk according to a Boltzmann distribution.
     """
 
-    def __init__(self, chunks : T.Iterable[Chunk], temperature: float) -> None:
+    def __init__(self, chunks : Iterable[Chunk], temperature: float) -> None:
         """Initialize a ``BoltzmannSelector`` instance.
 
         
@@ -164,10 +161,7 @@ class BoltzmannSelector(Selector):
         self.actionable_chunks = chunks
         self.temperature = temperature
 
-    def __call__(
-        self, 
-        input_map: ActivationPacket
-    ) -> SelectorPacket:
+    def __call__(self, input_map: At) -> SelectorPacket[float]:
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -176,17 +170,14 @@ class BoltzmannSelector(Selector):
         :param input_map: Strengths of input nodes.
         """
 
-        boltzmann_distribution : T.Dict[Node, float] = (
+        boltzmann_distribution : Dict[Node, float] = (
             self.get_boltzmann_distribution(input_map)
         )
         chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
         choices = self.choose(chunk_list, probabilities)
         return SelectorPacket(choices, boltzmann_distribution)
 
-    def get_boltzmann_distribution(
-        self, 
-        input_map: ActivationPacket
-    ) -> T.Dict[Node, float]:
+    def get_boltzmann_distribution(self, input_map: At) -> Dict[Node, float]:
         """Construct and return a boltzmann distribution.
         """
 
