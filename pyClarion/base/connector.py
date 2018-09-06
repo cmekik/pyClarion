@@ -18,11 +18,11 @@ enforced.
 Since ``Connector`` is an abstract class, it cannot be directly instantiated:
 
 >>> from pyClarion.base.junction import GenericMaxJunction
->>> class MyPacket(BaseActivationPacket):
+>>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
->>> class MyMaxJunction(GenericMaxJunction):
+>>> class MyMaxJunction(GenericMaxJunction[MyPacket]):
 ... 
 ...     @property
 ...     def output_type(self):
@@ -48,7 +48,7 @@ The example below is adapted from the documentation of
 >>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
->>> class FineGrainedTopDownChannel(Channel):
+>>> class FineGrainedTopDownChannel(Channel[MyPacket]):
 ...     """Represents a top-down link between two individual nodes."""
 ... 
 ...     def __init__(self, chunk, microfeature, weight):
@@ -56,7 +56,7 @@ The example below is adapted from the documentation of
 ...         self.microfeature = microfeature
 ...         self.weight = weight
 ...
-...     def __call__(self, input_map : BaseActivationPacket) -> MyTopDownPacket:
+...     def __call__(self, input_map : MyPacket) -> MyTopDownPacket:
 ...         output = MyTopDownPacket({
 ...             self.microfeature : input_map[self.chunk] * self.weight
 ...         })
@@ -129,10 +129,10 @@ activation Connector architecture may handle different levels of granularity.
 >>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ... 
->>> class MyAssociativeNetwork(Channel):
+>>> class MyAssociativeNetwork(Channel[MyPacket]):
 ... 
 ...     def __init__(
-...         self, assoc : T.Dict[Node, T.Dict[Node, float]]
+...         self, assoc : Dict[Node, Dict[Node, float]]
 ...     ) -> None:
 ...         """Initialize an associative network.
 ... 
@@ -141,9 +141,7 @@ activation Connector architecture may handle different levels of granularity.
 ...         """
 ...         self.assoc = assoc
 ... 
-...     def __call__(
-...     self, input_map : BaseActivationPacket
-... ) -> MyTopLevelPacket:
+...     def __call__(self, input_map : MyPacket) -> MyTopLevelPacket:
 ...         output = MyTopLevelPacket()
 ...         for conclusion_chunk in self.assoc:
 ...             output[conclusion_chunk] = 0.0
@@ -190,10 +188,10 @@ True
 
 
 import abc
-import typing as T
+from typing import TypeVar, Generic, Hashable, Callable, Any, Dict, Set
 from pyClarion.base.node import Node
 from pyClarion.base.channel import Channel
-from pyClarion.base.packet import BaseActivationPacket
+from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.junction import Junction
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
@@ -202,9 +200,9 @@ from pyClarion.base.effector import Effector
 # TYPE VARIABLES #
 ##################
 
-
-C = T.TypeVar('C', bound=T.Hashable)
-P = T.TypeVar('P')
+At = TypeVar('At', bound=ActivationPacket)
+Ct = TypeVar('Ct', bound=Hashable)
+Pt = TypeVar('Pt')
 
 
 ################
@@ -219,7 +217,7 @@ class Reporter(object):
     updates from an upstream Connector to a downstream Connector.
     '''
 
-    def __init__(self, connector_id : T.Hashable, updater : T.Callable) -> None:
+    def __init__(self, connector_id : Hashable, updater : Callable) -> None:
         '''Initialize ``Reporter`` instance.
 
         :param connector_id: A unique id for client connector.
@@ -229,7 +227,7 @@ class Reporter(object):
         self.connector_id = connector_id
         self.updater = updater
 
-    def update(self, construct : T.Hashable, payload : T.Any):
+    def update(self, construct : Hashable, payload : Any):
         '''Pass on new activations to activation Connector assigned to client.
 
         For param details see ``Connector.update``.
@@ -238,7 +236,7 @@ class Reporter(object):
         self.updater(construct, payload)
 
 
-class Connector(T.Generic[C, P], abc.ABC):
+class Connector(Generic[Ct, Pt], abc.ABC):
     '''Embeds a client in a Clarion network.
 
     This is an abstract class, it cannot be directly instantiated.
@@ -246,7 +244,7 @@ class Connector(T.Generic[C, P], abc.ABC):
     For details, see module documentation.
     '''
 
-    def __init__(self, client : C, junction : Junction) -> None:
+    def __init__(self, client : Ct, junction : Junction) -> None:
         '''
         Initialize an activation Connector serving construct ``client``.
 
@@ -254,10 +252,10 @@ class Connector(T.Generic[C, P], abc.ABC):
         :param junction: Method for combining activations used by client.
         '''
 
-        self._client : C = client
+        self._client : Ct = client
         self._junction = junction
-        self._buffer : T.Dict[T.Hashable, P] = dict()
-        self._listeners : T.Set[Reporter] = set()
+        self._buffer : Dict[Hashable, Pt] = dict()
+        self._listeners : Set[Reporter] = set()
 
     def __call__(self) -> None:
         '''Update listeners with new output of ``self.client``.
@@ -281,7 +279,7 @@ class Connector(T.Generic[C, P], abc.ABC):
         for reporter in reporters:
             self.listeners.add(reporter)
 
-    def update(self, construct : T.Hashable, payload : P) -> None:
+    def update(self, construct : Hashable, payload : Pt) -> None:
         '''Update output of ``construct`` recorded in ``self.buffer``.
         '''
 
@@ -307,14 +305,14 @@ class Connector(T.Generic[C, P], abc.ABC):
         self.listeners.clear()
 
     @abc.abstractmethod
-    def propagate(self) -> P:
+    def propagate(self) -> Pt:
         '''Compute and return current output of ``self.client``.
         
         This is an abstract method.
         '''
         pass
 
-    def notify_listeners(self, payload : P) -> None:
+    def notify_listeners(self, payload : Pt) -> None:
         '''Report new output of ``self.client`` to listeners.
         '''
 
@@ -322,13 +320,13 @@ class Connector(T.Generic[C, P], abc.ABC):
             listener.update(self.client, payload)
 
     @property
-    def client(self) -> C:
+    def client(self) -> Ct:
         '''The client construct whose outputs are handled by ``self``.
         '''
         return self._client
 
     @property
-    def buffer(self) -> T.Dict[T.Hashable, P]:
+    def buffer(self) -> Dict[Hashable, Pt]:
         '''Buffers inputs to ``self.client``.
         
         Activations recorded here persist until changed or manually cleared.
@@ -341,7 +339,7 @@ class Connector(T.Generic[C, P], abc.ABC):
         return self._junction
 
     @property
-    def listeners(self) -> T.Set[Reporter]:
+    def listeners(self) -> Set[Reporter]:
         '''Links to constructs interested in output of ``self.client``.'''
 
         return self._listeners 
@@ -352,13 +350,13 @@ class Connector(T.Generic[C, P], abc.ABC):
 ####################
 
 
-class NodeConnector(Connector[Node, BaseActivationPacket]):
+class NodeConnector(Connector[Node, At]):
     '''Embeds a node in a Clarion network.
 
     For details, see module documentation.
     '''
 
-    def propagate(self) -> BaseActivationPacket:
+    def propagate(self) -> At:
         '''Compute and return current output of client node.
 
         Passes activation packets stored in ``self.buffer`` through 
@@ -373,13 +371,13 @@ class NodeConnector(Connector[Node, BaseActivationPacket]):
 
 
 
-class ChannelConnector(Connector[Channel, BaseActivationPacket]):
+class ChannelConnector(Connector[Channel, At]):
     '''Embeds an activation channel in a Clarion network.
 
     For details, see module documentation.
     '''
 
-    def propagate(self) -> BaseActivationPacket:
+    def propagate(self) -> At:
         '''Update listeners with new output of client activation channel.
 
         Passes activation packets stored in ``self.buffer`` through 
@@ -392,7 +390,7 @@ class ChannelConnector(Connector[Channel, BaseActivationPacket]):
         return output_packet
 
 
-class SelectorConnector(Connector[Selector, BaseActivationPacket]):
+class SelectorConnector(Connector[Selector, At]):
     pass
 
 class EffectorConnector(Connector[Effector, None]):

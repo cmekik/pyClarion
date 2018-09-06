@@ -1,5 +1,5 @@
 '''
-This module provides constructs for modeling activation flows in pyClarion.
+Provides constructs for modeling activation flows in pyClarion.
 
 Usage
 =====
@@ -24,16 +24,22 @@ Traceback (most recent call last):
 TypeError: Can't instantiate abstract class Channel with abstract methods __call__
 
 To define a concrete ``Channel``, one must provide a ``__call__`` method with 
-an appropriate signature.
+an appropriate signature. The ``Channel`` class is implemented as a generic 
+class, taking one type variable, ``T``, which determines the input and output 
+types of the ``__call__`` method. This variable is bounded above by the type 
+``ActivationPacket``. In other words, it is expected that arguments to and 
+return values of ``Channel.__call__`` are subclasses of ``ActivationPacket``. 
+These type annotations are useful for capturing assumptions about activations 
+(for example, about default activation values).
 
->>> class MyPacket(BaseActivationPacket):
+>>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
->>> class MyChannel(Channel):
+>>> class MyChannel(Channel[MyPacket]):
 ...     """An activation channel that outputs an empty MyPacket instance."""
-...     def __call__(self, input_map : BaseActivationPacket) -> MyPacket:
-...         return MyPacket() 
+...     def __call__(self, input_map : MyPacket) -> MyPacket:
+...         return input_map 
 ... 
 >>> MyChannel()
 <__main__.MyChannel object at ...>
@@ -49,28 +55,28 @@ restricted so as to reflect the type of processing that occurred.
 >>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
->>> class MyTopDownChannel(Channel):
+>>> class MyTopDownChannel(Channel[MyPacket]):
 ...     """A top-down channel that outputs an empty MyTopDownPacket instance."""
-...     def __call__(self, input_map : BaseActivationPacket) -> MyTopDownPacket:
-...         return MyTopDownPacket() 
+...     def __call__(self, input_map : MyPacket) -> MyTopDownPacket:
+...         return MyTopDownPacket(input_map) 
 ... 
 
 Use Cases
 ---------
 
-The simplest use case for a ``Channel`` object is to statically transform 
-activation packets.
+The simplest use case for a ``Channel`` object is to transform activation 
+strengths.
 
 >>> from pyClarion.base.node import Node
 >>> class ScaledPacket(MyPacket):
 ...     pass
 ... 
->>> class MultiplierChannel(Channel):
+>>> class MultiplierChannel(Channel[MyPacket]):
 ... 
 ...     def __init__(self, multiplier):
 ...         self.multiplier = multiplier
 ... 
-...     def __call__(self, input_map : BaseActivationPacket) -> ScaledPacket:
+...     def __call__(self, input_map : MyPacket) -> ScaledPacket:
 ...         output = ScaledPacket()
 ...         for n in input_map:
 ...             output[n] = input_map[n] * self.multiplier
@@ -79,7 +85,7 @@ activation packets.
 >>> n1, n2 = Node(), Node()
 >>> input_activations = MyPacket({n1 : 0.2, n2 : 0.4})
 >>> channel = MultiplierChannel(2)
->>> output =channel(input_activations) 
+>>> output = channel(input_activations) 
 >>> output == MyPacket({n1 : 0.4, n2 : 0.8})
 True
 >>> isinstance(output, ScaledPacket)
@@ -92,10 +98,11 @@ processing of the input activation packet.
 >>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ... 
->>> class MyAssociativeNetwork(Channel):
+>>> from typing import Dict
+>>> class MyAssociativeNetwork(Channel[MyPacket]):
 ... 
 ...     def __init__(
-...         self, assoc : T.Dict[Node, T.Dict[Node, float]]) -> None:
+...         self, assoc : Dict[Node, Dict[Node, float]]) -> None:
 ...         """Initialize an associative network.
 ... 
 ...         :param assoc: A dict that maps conclusion chunks to 
@@ -103,9 +110,7 @@ processing of the input activation packet.
 ...         """
 ...         self.assoc = assoc
 ... 
-...     def __call__(
-...     self, input_map : BaseActivationPacket
-... ) -> MyTopLevelPacket:
+...     def __call__(self, input_map : MyPacket) -> MyTopLevelPacket:
 ...         output = MyTopLevelPacket()
 ...         for conclusion_chunk in self.assoc:
 ...             output[conclusion_chunk] = 0.0
@@ -144,15 +149,13 @@ constructs:
 ...     pass
 ... 
 ...
->>> class MyAmazingDQNChannel(Channel):
+>>> class MyAmazingDQNChannel(Channel[MyPacket]):
 ...     """A wrapper for an AmazingDQN implementation."""
 ...
 ...     def __init__(self, amazing_dqn):
 ...         self.amazing_dqn = amazing_dqn
 ... 
-...     def __call__(
-...     self, input_map : BaseActivationPacket
-... ) -> MyAmazingDQNPacket:
+...     def __call__(self, input_map : MyPacket) -> MyAmazingDQNPacket:
 ...         output = self.amazing_dqn(input_map)
 ...         return MyAmazingDQNPacket(output)
 ... 
@@ -190,97 +193,27 @@ a more fine-grained implementation such as the one below:
 
 The ``FineGrainedTopDown`` class above defines a top-down link between a single 
 chunk and microfeature. Such a fine-grained channel implementation may be useful 
-for constructing a massively parallel Clarion agent architecture. Below is just 
-a sketch of how such a system may be set up.
-
->>> class ActivationTracker(object):
-...     """Tracks the activation associated with an individual node or edge."""
-...     
-...     def __init__(self, callback):
-...         self.callback = callback
-...         self.listeners = set()
-...         self.buffer = MyPacket()
-...
-...     def update(self, packet):
-...         self.buffer.update(packet)
-...     
-...     def subscribe(self, tracker):
-...         tracker.register(self) 
-...     
-...     def register(self, listener):
-...         self.listeners.add(listener)
-... 
-...     def notify_listeners(self):
-...         output = self.callback(self.buffer)
-...         for listener in self.listeners:
-...             listener.update(output)
-...     
-...     def trigger_condition(self):
-...         """This is just a place holder for an actual condition."""
-...         return True
-... 
-...     def step(self):
-...         if self.trigger_condition():
-...             self.notify_listeners()
-... 
-
-This simple ``ActivationTracker`` will enable concurrent activation flows. Here 
-is an example of a top-down activation flow about apples with 
-``ActivationTracker`` instances driving activation flow.
-
->>> ch = Chunk("APPLE")
->>> mf1 = Microfeature("color", "red")
->>> mf2 = Microfeature("tasty", True)
->>> edge1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
->>> edge2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
->>> trackers = {
-...     # Trackers associated with nodes should simply pass on their activation.
-...     ch : ActivationTracker(lambda x: x),
-...     mf1 : ActivationTracker(lambda x: x),
-...     mf2 : ActivationTracker(lambda x: x),
-...     edge1 : ActivationTracker(edge1),
-...     edge2 : ActivationTracker(edge2)
-... }
-... 
->>> # We still need to connect everything up.
->>> trackers[mf1].subscribe(trackers[edge1])
->>> trackers[mf2].subscribe(trackers[edge2])
->>> trackers[edge1].subscribe(trackers[ch])
->>> trackers[edge2].subscribe(trackers[ch])
->>> # Set initial chunk activation.
->>> trackers[ch].update(MyPacket({ch : 1.0}))
->>> # Propagate activations
->>> for tracker in trackers.values():
-...     tracker.step()
-... 
->>> # Check that propagation worked
->>> trackers[mf1].buffer == MyPacket({mf1 : 1.0})
-True
->>> trackers[mf2].buffer == MyPacket({mf2 : 1.0})
-True
-
-In the example above, the concept APPLE is activated, which leads to the 
-activation, in the bottom level, of microfeatures corresponding to the color 
-red and tastiness
+for, e.g., constructing a massively parallel Clarion agent architecture.
 '''
 
 
 import abc
-import typing as T
-from pyClarion.base.packet import BaseActivationPacket
+from typing import Generic, TypeVar
+from pyClarion.base.packet import ActivationPacket
 
 
 ###############
 # ABSTRACTION #
 ###############
 
+T = TypeVar('T', bound=ActivationPacket)
 
-class Channel(abc.ABC):
-    """An abstract class for capturing activation flows.
+class Channel(Generic[T], abc.ABC):
+    """An abstract generic class for capturing activation flows.
 
-    This is a callable class that provides an interface for handling basic 
-    activation flows. Outputs are allowed to be empty when such behavior is 
-    sensible.
+    This class that provides an interface for handling basic activation flows. 
+    Activation flows are implemented in instances' ``__call__`` methods. Outputs 
+    are allowed to be empty when such behavior is sensible.
     
     It is assumed that an activation channel will pay attention only to the 
     activations relevant to the computation it implements. For instance, if an 
@@ -297,8 +230,8 @@ class Channel(abc.ABC):
     
     @abc.abstractmethod
     def __call__(
-        self, input_map : BaseActivationPacket
-    ) -> BaseActivationPacket:
+        self, input_map : T
+    ) -> T:
         """Compute and return activations resulting from an input to this 
         channel.
 

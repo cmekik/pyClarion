@@ -29,21 +29,14 @@ Like activation channels, junctions may capture static transformations of
 their inputs. Below, ``MyJunction`` returns the first activation packet it 
 receieves, and discards the others. 
 
->>> class MyJunction(Junction):
+>>> class MyJunction(Junction[ActivationPacket]):
 ...     def __call__(
-...     self, *input_maps : BaseActivationPacket
-... ) -> BaseActivationPacket:
+...     self, *input_maps : ActivationPacket) -> ActivationPacket:
 ...         return input_maps[0]
 ... 
 >>> junc = MyJunction()
->>> # junc should complain if no input is given.
->>> junc()
-Traceback (most recent call last):
-    ...
-IndexError: tuple index out of range
->>> # Let's get some inputs for junc
 >>> from pyClarion.base.node import Node
->>> class MyPacket(BaseActivationPacket):
+>>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ...
@@ -74,15 +67,15 @@ but top-level activations flow unhindered.
 >>> class MyBottomUpPacket(MyPacket):
 ...     pass
 ... 
->>> class MyStatefulJunction(Junction):
+>>> class MyStatefulJunction(Junction[MyPacket]):
 ... 
-...     def __init__(self, top_level_weight, bottom_up_weight):
+...     def __init__(self, top_level_weight : float, bottom_up_weight : float):
 ...         self.weights = {
 ...             MyTopLevelPacket : top_level_weight,
 ...             MyBottomUpPacket : bottom_up_weight
 ...         }
 ...
-...     def __call__(self, *input_maps):
+...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
 ... 
 ...         output = MyPacket()
 ...         nodes = get_nodes(*input_maps)
@@ -113,7 +106,7 @@ convenience, this module provides generic implementations of several of these
 junctions. In order to use these generic implementations, one must specify 
 the desired output packet type.
 
->>> class MyMaxJunction(GenericMaxJunction):
+>>> class MyMaxJunction(GenericMaxJunction[MyPacket]):
 ... 
 ...     @property
 ...     def output_type(self):
@@ -126,11 +119,10 @@ the desired output packet type.
 True
 '''
 
-
-import typing as T
+from typing import Generic, TypeVar, Type
 import abc
 from pyClarion.base.node import get_nodes
-from pyClarion.base.packet import BaseActivationPacket
+from pyClarion.base.packet import ActivationPacket
 
 
 ###############
@@ -138,15 +130,16 @@ from pyClarion.base.packet import BaseActivationPacket
 ###############
 
 
-class Junction(abc.ABC):
+T = TypeVar('T', bound=ActivationPacket)
+
+
+class Junction(Generic[T], abc.ABC):
     """An abstract class for handling the combination of chunk and/or 
     (micro)feature activations from multiple sources.
     """
 
     @abc.abstractmethod
-    def __call__(
-        self, *input_maps: BaseActivationPacket
-    ) -> BaseActivationPacket:
+    def __call__(self, *input_maps: T) -> T:
         """Return a combined mapping from chunks and/or microfeatures to 
         activations.
 
@@ -163,25 +156,23 @@ class Junction(abc.ABC):
 #####################
 
 
-class GenericJunction(Junction):
+class GenericJunction(Junction[T]):
     """Base class for generic implementations of junctions. Expects an 
     output_type property.
     """
 
     @property
     @abc.abstractmethod
-    def output_type(self) -> T.Type[BaseActivationPacket]:
+    def output_type(self) -> Type[T]:
         '''The output type of this junction'''
         pass
 
 
-class GenericMaxJunction(GenericJunction):
+class GenericMaxJunction(GenericJunction[T]):
     """An activation junction returning max activations for all input nodes.
     """
 
-    def __call__(
-        self, *input_maps : BaseActivationPacket
-    ) -> BaseActivationPacket:
+    def __call__(self, *input_maps : T) -> T:
         """Return the maximum activation value for each input node.
 
         kwargs:

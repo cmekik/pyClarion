@@ -21,7 +21,7 @@ strengths associated with each actionable chunk.
 
 The following example defines a simple ``MaxSelector`` and demonstrates its use.
 
->>> class MyPacket(BaseActivationPacket):
+>>> class MyPacket(ActivationPacket):
 ... 
 ...     def default_activation(self, key) -> float:
 ...         return 0.0
@@ -32,7 +32,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 ...
 ...         self.actionable_chunks = actionable_chunks
 ...
-...     def __call__(self, input_map : BaseActivationPacket) -> SelectorPacket:
+...     def __call__(self, input_map : ActivationPacket) -> SelectorPacket:
 ...          
 ...         selected = self.get_max(input_map)
 ...         activations = {
@@ -40,7 +40,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 ...         }
 ...         return SelectorPacket(selected, activations)
 ...
-...     def get_max(self, input_map : BaseActivationPacket) -> Chunk:
+...     def get_max(self, input_map : ActivationPacket) -> Chunk:
 ...         """
 ...         Return actionable chunk with maximum activation in current input.
 ...         
@@ -72,7 +72,7 @@ as shown in the example below.
 
 >>> class NormalizedMaxSelector(MaxSelector):
 ...
-...     def __call__(self, input_map : BaseActivationPacket) -> SelectorPacket:
+...     def __call__(self, input_map : ActivationPacket) -> SelectorPacket:
 ...         
 ...         output = super().__call__(input_map)
 ...         total = sum(output.activations.values())
@@ -92,10 +92,10 @@ import typing as T
 import abc
 import numpy as np
 from pyClarion.base.node import Node, Chunk
-from pyClarion.base.packet import BaseActivationPacket
+from pyClarion.base.packet import ActivationPacket
 
 
-At = T.TypeVar('At', bound=BaseActivationPacket)
+At = T.TypeVar('At', bound=ActivationPacket)
 
 
 class SelectorPacket(object):
@@ -138,7 +138,7 @@ class Selector(abc.ABC):
     @abc.abstractmethod
     def __call__(
         self, 
-        input_map: BaseActivationPacket
+        input_map: ActivationPacket
     ) -> SelectorPacket:
         """Identify chunks that are currently actionable based on their 
         strengths.
@@ -166,7 +166,7 @@ class BoltzmannSelector(Selector):
 
     def __call__(
         self, 
-        input_map: BaseActivationPacket
+        input_map: ActivationPacket
     ) -> SelectorPacket:
         """Select actionable chunks for execution. 
         
@@ -185,7 +185,7 @@ class BoltzmannSelector(Selector):
 
     def get_boltzmann_distribution(
         self, 
-        input_map: BaseActivationPacket
+        input_map: ActivationPacket
     ) -> T.Dict[Node, float]:
         """Construct and return a boltzmann distribution.
         """

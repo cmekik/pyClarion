@@ -1,7 +1,7 @@
 import abc
 import typing as T
 from pyClarion.base.node import Chunk, Node
-from pyClarion.base.packet import BaseActivationPacket
+from pyClarion.base.packet import ActivationPacket
 
 class Effector(abc.ABC):
     """Links chunks to actions.
@@ -16,7 +16,7 @@ class Effector(abc.ABC):
         pass
 
     def get_actionable_chunks(
-        self, input_map : BaseActivationPacket
+        self, input_map : ActivationPacket
     ) -> T.Set[Chunk]:
         """Return the set of actionable chunks in given input.
         """

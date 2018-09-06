@@ -10,27 +10,33 @@ for representing collections of node activations.
 Instantiation
 -------------
 
-``BaseActivationPacket`` is an abstract class with one abstract method called 
-``default_activation``; it cannot be directly instanced.
+A ``ActivationPacket`` base activation packet behaves like a ``dict``. 
 
->>> BaseActivationPacket()
-Traceback (most recent call last):
-    ...
-TypeError: Can't instantiate abstract class BaseActivationPacket with abstract methods default_activation
+>>> ActivationPacket()
+ActivationPacket({})
 
-In other words, ``BaseActivationPacket`` must be subclassed before use. 
+The ``ActivationPacket`` class provides a ``default_activation`` method, which 
+may be overridden to capture assumptions about default activation values. 
 
->>> class MyPacket(BaseActivationPacket):
+>>> class MyPacket(ActivationPacket[float]):
 ...     def default_activation(self, key):
 ...         return 0.0
 ...
 >>> MyPacket()
 MyPacket({})
+>>> MyPacket()[Node()]
+0.0
+
+In the example above, a type parameter is passed to the base class 
+``ActivationPacket``. This is an optional step. In standard python, it should 
+have no noticeable effect on the program, but may serve to clarify the intended 
+usage of the defined subclass. If type-checking is enabled, it may be used as a 
+regular type parameter.
 
 Basic Behavior
 --------------
 
-An ``BaseActivationPacket`` instance behaves mostly like a ``dict`` object.
+An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
 
 >>> n1, n2 = Node(), Node()
 >>> p = MyPacket({n1 : 0.3})
@@ -44,17 +50,14 @@ An ``BaseActivationPacket`` instance behaves mostly like a ``dict`` object.
 0.2
 
 In fact, almost all methods available to ``dict`` are also available to 
-``BaseActivationPacket``.
+``ActivationPacket``.
 
 Default Behavior
 ----------------
 
-Unlike regular dicts, a ``KeyError`` is not raised when an ``BaseActivationPacket`` 
-receives an unknown key. ``BaseActivationPacket`` objects handle unknown keys like 
-``collections.defaultdict`` objects: they output a default value and record 
-the new ``(key, value)`` pair. However, unlike ``collections.defaultdict`` 
-objects, default values for ``BaseActivationPacket`` objects are provided by the 
-``default_activation`` method. 
+When a default value is provided by ``default_activation``, ``ActivationPacket`` 
+objects handle unknown keys like ``collections.defaultdict`` objects: they 
+output a default value and record the new ``(key, value)`` pair.
 
 >>> n3 = Node()
 >>> n3 in p
@@ -68,7 +71,7 @@ The ``default_activation`` method can be set to return different default values
 for different nodes.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
->>> class MySubtlePacket(BaseActivationPacket):
+>>> class MySubtlePacket(ActivationPacket[float]):
 ...     def default_activation(self, key):
 ...         if isinstance(key, Microfeature):
 ...             return 0.5
@@ -113,10 +116,6 @@ True
 True
 >>> isinstance(output, MyTopDownPacket)
 True
-
-Strictly speaking, a top-down activation flow should drive ``Microfeature`` 
-activations based on ``Chunk`` activations. For simplicity, the example above 
-omits this detail.
 '''
 
 from abc import abstractmethod
@@ -128,37 +127,40 @@ from pyClarion.base.node import Node
 T = TypeVar("T")
 
 
-class BaseActivationPacket(UserDict, MutableMapping[Node, T]):
-    """An abstract class for representing node activations.
+class ActivationPacket(UserDict, MutableMapping[Node, T]):
+    """A class for representing node activations.
 
     Has type ``MutableMapping[pyClarion.base.node.Node, T]``, where ``T`` is an 
     unrestricted type variable. It is generally expected that ``T`` will be some 
     numerical type such as ``float``, however this expectation is not enforced. 
     Violate this at your own risk.
 
-    Nodes not contained in an BaseActivationPacket object are assumed to be at a 
-    default activation level. Default activation levels are defined by the 
-    BaseActivationPacket.default_activation method and are handled similarly to 
+    By default ``ActivationPacket`` objects raise an exception when given an 
+    unknown key. However, if there is a theoretically driven default activation 
+    level, it can be implemented by overriding the ``default_activation`` 
+    method. Default activations are handled similarly to 
     ``collections.defaultdict``.
 
-    The precise type of an ``BaseActivationPacket`` instance may encode important 
+    The precise type of an ``ActivationPacket`` instance may encode important 
     metadata. 
 
     See module documentation for further details and examples.
     """
 
     def __repr__(self) -> str:
+        
         return super().__repr__().join([type(self).__name__ + '(', ')'])
 
     def __missing__(self, key : Node) -> T:
+
         self[key] = value = self.default_activation(key)
         return value
 
-    @abstractmethod
     def default_activation(self, key : Node) -> T:
         '''Return designated default value for the given input.
         '''
-        pass
+        
+        raise KeyError
 
 
 if __name__ == '__main__':
