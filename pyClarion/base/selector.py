@@ -61,7 +61,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 >>> selector = MaxSelector(actionable_chunks={ch1, ch2, ch3})
 >>> p = MyPacket({ch1 : .2, ch2 :  .3, n1 : 1.})
 >>> selector(p) == SelectorPacket(
-...     choices={ch2}, activations=MyPacket({ch1 : .2, ch2 : .3, ch3 : 0.})
+...     choices={ch2}, activations={ch1 : .2, ch2 : .3, ch3 : 0.}
 ... )
 ...
 True
