@@ -1,5 +1,5 @@
 '''
-This module provides utilities for action selection.
+Tools for action selection.
 
 Usage
 =====
@@ -38,7 +38,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 ...         activations = {
 ...             chunk : input_map[chunk] for chunk in self.actionable_chunks
 ...         }
-...         return SelectorPacket(selected, activations)
+...         return SelectorPacket(activations, selected)
 ...
 ...     def get_max(self, input_map : ActivationPacket) -> Chunk:
 ...         """
@@ -60,10 +60,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 >>> n1, n2, n3 = Node(), Node(), Node()
 >>> selector = MaxSelector(actionable_chunks={ch1, ch2, ch3})
 >>> p = MyPacket({ch1 : .2, ch2 :  .3, n1 : 1.})
->>> selector(p) == SelectorPacket(
-...     choices={ch2}, activations={ch1 : .2, ch2 : .3, ch3 : 0.}
-... )
-...
+>>> selector(p) == SelectorPacket({ch1 : .2, ch2 : .3, ch3 : 0.}, chosen={ch2})
 True
 
 Activations reported by a ``Selector`` object need not be the identical to 
@@ -75,16 +72,13 @@ as shown in the example below.
 ...     def __call__(self, input_map : ActivationPacket) -> SelectorPacket:
 ...         
 ...         output = super().__call__(input_map)
-...         total = sum(output.activations.values())
-...         for chunk in output.activations:
-...             output.activations[chunk] /= total
+...         total = sum(output.values())
+...         for chunk in output:
+...             output[chunk] /= total
 ...         return output
 ... 
 >>> selector = NormalizedMaxSelector(actionable_chunks={ch1, ch2, ch3})
->>> selector(p) == SelectorPacket(
-...     choices={ch2}, activations=MyPacket({ch1 : .4, ch2 : .6, ch3 : 0.})
-... )
-...
+>>> selector(p) == SelectorPacket({ch1 : .4, ch2 : .6, ch3 : 0.}, chosen={ch2})
 True
 '''
 
@@ -92,51 +86,18 @@ from typing import TypeVar, Generic, Iterable, Dict, Set, Any
 import abc
 import numpy as np
 from pyClarion.base.node import Node, Chunk
-from pyClarion.base.packet import ActivationPacket
+from pyClarion.base.packet import ActivationPacket, SelectorPacket
 
 
-At = TypeVar('At', bound=ActivationPacket)
-St = TypeVar('St')
+At = TypeVar('At')
+Pt = TypeVar('Pt', bound=ActivationPacket)
 
-class SelectorPacket(Generic[St]):
-    '''
-    Represents the output of an action selection routine.
-
-    Contains information about the selected actions and strengths of actionable 
-    chunks. 
-    '''
-    
-    def __init__(
-        self, choices : Set[Chunk], activations : Dict[Node, St]
-    ) -> None:
-        '''
-        Initialize a ``SelectorPacket`` instance.
-
-        :param choices: The set of actions to be fired.
-        :param activations: Activation strengths of actionable chunks.
-        '''
-
-        self.choices = choices
-        self.activations = activations
-
-    def __eq__(self, other : Any) -> bool:
-
-        if (
-            isinstance(other, SelectorPacket) and
-            self.choices == other.choices and
-            self.activations == other.activations
-        ):
-            return True
-        else:
-            return False
-
-
-class Selector(Generic[At, St], abc.ABC):
+class Selector(Generic[Pt, At], abc.ABC):
     """Selects actionable chunks based on chunk strengths.
     """
 
     @abc.abstractmethod
-    def __call__(self, input_map: At) -> SelectorPacket[St]:
+    def __call__(self, input_map: Pt) -> SelectorPacket[At]:
         """Identify chunks that are currently actionable based on their 
         strengths.
 
@@ -146,7 +107,7 @@ class Selector(Generic[At, St], abc.ABC):
         pass
 
 
-class BoltzmannSelector(Selector[At, float]):
+class BoltzmannSelector(Selector[Pt, float]):
     """Select a chunk according to a Boltzmann distribution.
     """
 
@@ -161,7 +122,7 @@ class BoltzmannSelector(Selector[At, float]):
         self.actionable_chunks = chunks
         self.temperature = temperature
 
-    def __call__(self, input_map: At) -> SelectorPacket[float]:
+    def __call__(self, input_map: Pt) -> SelectorPacket[float]:
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -175,9 +136,9 @@ class BoltzmannSelector(Selector[At, float]):
         )
         chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
         choices = self.choose(chunk_list, probabilities)
-        return SelectorPacket(choices, boltzmann_distribution)
+        return SelectorPacket(boltzmann_distribution, choices)
 
-    def get_boltzmann_distribution(self, input_map: At) -> Dict[Node, float]:
+    def get_boltzmann_distribution(self, input_map: Pt) -> Dict[Node, float]:
         """Construct and return a boltzmann distribution.
         """
 

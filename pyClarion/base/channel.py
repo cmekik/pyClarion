@@ -1,12 +1,11 @@
 '''
-Provides constructs for modeling activation flows in pyClarion.
+Tools for modeling activation flows.
 
 Usage
 =====
 
-This module exports the ``Channel`` class. A pyClarion ``Channel`` is a callable 
-object that receives a single ``BaseActivationPacket`` instance as input and 
-outputs a single ``BaseActivationPacket`` instance in response.
+A ``Channel`` is a callable object that receives a single ``ActivationPacket`` 
+as input and outputs a single ``ActivationPacket`` in response.
 
 ``Channel`` objects may be used to capture activation flows in many ways, at 
 multiple levels of granularity. The role of the ``Channel`` class is to provide 
@@ -24,42 +23,28 @@ Traceback (most recent call last):
 TypeError: Can't instantiate abstract class Channel with abstract methods __call__
 
 To define a concrete ``Channel``, one must provide a ``__call__`` method with 
-an appropriate signature. The ``Channel`` class is implemented as a generic 
-class, taking one type variable, ``T``, which determines the input and output 
-types of the ``__call__`` method. This variable is bounded above by the type 
-``ActivationPacket``. In other words, it is expected that arguments to and 
-return values of ``Channel.__call__`` are subclasses of ``ActivationPacket``. 
-These type annotations are useful for capturing assumptions about activations 
-(for example, about default activation values).
+an appropriate signature. 
+
+The ``Channel`` class is implemented as a generic class, taking one type 
+variable, ``Pt``, which determines the input type of the ``__call__`` method. 
+This variable is bounded above by the type ``ActivationPacket``. In other words, 
+it is expected that arguments to ``Channel.__call__`` are subclasses of 
+``ActivationPacket``. These type annotations are useful for capturing 
+assumptions about activations (for example, about default activation values).
 
 >>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
 >>> class MyChannel(Channel[MyPacket]):
-...     """An activation channel that outputs an empty MyPacket instance."""
+...     """An activation channel that outputs its input as is."""
+... 
 ...     def __call__(self, input_map : MyPacket) -> MyPacket:
+... 
 ...         return input_map 
 ... 
 >>> MyChannel()
 <__main__.MyChannel object at ...>
-
-Channel Sub-Types
------------------
-
-``Channel`` subclasses are expected to extend input types and restrict output 
-types, in keeping with the Liskov principle. In practice, the input type is 
-generally expected to be left unchanged, and the output type is expected be 
-restricted so as to reflect the type of processing that occurred.
-
->>> class MyTopDownPacket(MyPacket):
-...     pass
-... 
->>> class MyTopDownChannel(Channel[MyPacket]):
-...     """A top-down channel that outputs an empty MyTopDownPacket instance."""
-...     def __call__(self, input_map : MyPacket) -> MyTopDownPacket:
-...         return MyTopDownPacket(input_map) 
-... 
 
 Use Cases
 ---------
@@ -206,9 +191,9 @@ from pyClarion.base.packet import ActivationPacket
 # ABSTRACTION #
 ###############
 
-T = TypeVar('T', bound=ActivationPacket)
+Pt = TypeVar('Pt', bound=ActivationPacket)
 
-class Channel(Generic[T], abc.ABC):
+class Channel(Generic[Pt], abc.ABC):
     """An abstract generic class for capturing activation flows.
 
     This class that provides an interface for handling basic activation flows. 
@@ -229,9 +214,7 @@ class Channel(Generic[T], abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(
-        self, input_map : T
-    ) -> T:
+    def __call__(self, input_map : Pt) -> ActivationPacket:
         """Compute and return activations resulting from an input to this 
         channel.
 

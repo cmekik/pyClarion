@@ -7,5 +7,8 @@ pyClarion.base.packet
 
 Module Reference
 ----------------
-.. autoclass:: BaseActivationPacket
+.. autoclass:: ActivationPacket
+   :members:
+
+.. autoclass:: SelectorPacket
    :members:

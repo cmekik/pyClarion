@@ -1,19 +1,18 @@
 '''
-This module provides tools for joining activation flows in pyClarion.
+Tools for joining activation flows in pyClarion.
 
 Usage
 =====
 
-This module exports the ``Junction`` class and related constructs. ``Junction`` 
-objects are similar to pyClarion activation channels (see 
-``pyClarion.base.channel``) in their design, but have a distinct call 
-signature. ``Junction`` objects expect a sequence of activation packets as 
-input and output a single activation packet.
+This module exports the ``Junction`` class. ``Junction`` objects are similar to 
+activation channels (see ``pyClarion.base.channel``), but have a distinct call 
+signature: they expect a sequence of activation packets as input and output a 
+single activation packet.
 
 Instantiation
 -------------
 
-The Junction class is abstract.
+The ``Junction`` class is an abstract generic class.
 
 >>> Junction()
 Traceback (most recent call last):
@@ -22,12 +21,15 @@ TypeError: Can't instantiate abstract class Junction with abstract methods __cal
 
 It may be instanced when its ``__call__`` method is implemented.
 
+The ``Junction`` class takes one type parameter, which is used to specify the 
+expected input type. 
+
 Use Cases
 ---------
 
 Like activation channels, junctions may capture static transformations of 
 their inputs. Below, ``MyJunction`` returns the first activation packet it 
-receieves, and discards the others. 
+receieves and discards the others. 
 
 >>> class MyJunction(Junction[ActivationPacket]):
 ...     def __call__(
@@ -54,9 +56,7 @@ True
 Stateful Junctions
 ~~~~~~~~~~~~~~~~~~
 
-Again like channels, the more interesting use of a junction is for capturing 
-stateful processes. A stateful junction enables tunable prioritization of 
-input streams.
+Stateful junctions enable tunable prioritization of input streams.
 
 Here is a junction where bottom-up activations are suppressed to half-strength 
 but top-level activations flow unhindered.
@@ -98,24 +98,39 @@ True
 >>> junc(p1, p3) == MyPacket({n1 : .3})
 True
 
-Generic Junctions
------------------
+Generic Junction Implementations
+--------------------------------
 
 There are several kinds of junction that occur in Clarion theory. For 
-convenience, this module provides generic implementations of several of these 
-junctions. In order to use these generic implementations, one must specify 
-the desired output packet type.
+convenience, this module provides generic implementations of some of these 
+junction types.
 
->>> class MyMaxJunction(GenericMaxJunction[MyPacket]):
-... 
-...     @property
-...     def output_type(self):
-...         return MyPacket
-...
->>> junc = MyMaxJunction()
+>>> junc = MaxJunction()
 >>> p1 = MyPacket({n1 : .2})
 >>> p2 = MyPacket({n1 : .7})
 >>> junc(p1, p2) == MyPacket({n1 : .7})
+True
+
+By default, generic implementations output vanilla ``ActivationPacket`` 
+instances. 
+
+>>> isinstance(junc(p1, p2), ActivationPacket)
+True
+>>> isinstance(junc(p1, p2), MyPacket)
+False
+
+This behavior can be modified by overriding the ``__call__`` method.
+
+>>> class MyMaxJunction(MaxJunction[MyPacket]):
+...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
+...         res = super().__call__(*input_maps)
+...         return MyPacket(res)
+>>> myjunc = MyMaxJunction()
+>>> myjunc(p1, p2) == MyPacket({n1 : .7})
+True
+>>> isinstance(myjunc(p1, p2), ActivationPacket)
+True
+>>> isinstance(myjunc(p1, p2), MyPacket)
 True
 '''
 
@@ -130,16 +145,16 @@ from pyClarion.base.packet import ActivationPacket
 ###############
 
 
-T = TypeVar('T', bound=ActivationPacket)
+Pt = TypeVar('Pt', bound=ActivationPacket)
 
 
-class Junction(Generic[T], abc.ABC):
+class Junction(Generic[Pt], abc.ABC):
     """An abstract class for handling the combination of chunk and/or 
     (micro)feature activations from multiple sources.
     """
 
     @abc.abstractmethod
-    def __call__(self, *input_maps: T) -> T:
+    def __call__(self, *input_maps: Pt) -> ActivationPacket:
         """Return a combined mapping from chunks and/or microfeatures to 
         activations.
 
@@ -155,24 +170,11 @@ class Junction(Generic[T], abc.ABC):
 # GENERIC JUNCTIONS #
 #####################
 
-
-class GenericJunction(Junction[T]):
-    """Base class for generic implementations of junctions. Expects an 
-    output_type property.
-    """
-
-    @property
-    @abc.abstractmethod
-    def output_type(self) -> Type[T]:
-        '''The output type of this junction'''
-        pass
-
-
-class GenericMaxJunction(GenericJunction[T]):
+class MaxJunction(Junction[Pt]):
     """An activation junction returning max activations for all input nodes.
     """
 
-    def __call__(self, *input_maps : T) -> T:
+    def __call__(self, *input_maps : Pt) -> ActivationPacket:
         """Return the maximum activation value for each input node.
 
         kwargs:
@@ -181,10 +183,14 @@ class GenericMaxJunction(GenericJunction[T]):
         """
 
         node_set = get_nodes(*input_maps)
-        output = self.output_type()
+        output : ActivationPacket = ActivationPacket()
         for n in node_set:
             for input_map in input_maps:
-                if output[n] < input_map[n]:
+                try :
+                    found_new_max = output[n] < input_map[n]
+                except KeyError:
+                    found_new_max = (n in input_map) and (not n in output)
+                if found_new_max:
                     output[n] = input_map[n]
         return output
 

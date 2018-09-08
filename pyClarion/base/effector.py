@@ -1,57 +1,93 @@
+'''
+Tools for controlling action execution.
+
+Usage
+=====
+
+The ``Effector`` class is an abstract generic class providing an interface 
+between the outcome of an action selection cycle and action callbacks. It has 
+one abstract method, ``__call__``, which must be implemented before 
+instantiation.
+
+>>> Effector()
+Traceback (most recent call last):
+    ...
+TypeError: Can't instantiate abstract class Effector with abstract methods __call__
+
+``Effector.__call__`` expects as input a ``SelectorPacket`` instance, which it 
+may use to execute selected actions, compute reaction times etc. The method 
+returns ``None``.
+
+The primary responsibility of an ``Effector`` object is to ensure proper 
+execution of selected actions. This includes effecting calls to appropriate 
+callbacks, providing correct reaction times, and resuming cognitive processing 
+in the event that a suitable action candidate has not yet been found (e.g., 
+based on internal confidence levels).
+
+The ``MappingEffector`` provides a very simple concrete effector class. This 
+class may be used to directly bind individual chunks to callbacks. 
+
+>>> def callback_1():
+...     print('Executed callback_1.') 
+... 
+>>> def callback_2():
+...     print('Executed callback_2')
+... 
+>>> ch1, ch2 = Chunk(1), Chunk(2)
+>>> effector = MappingEffector({ch1: callback_1, ch2: callback_2})
+>>> selector_packet = SelectorPacket({ch1 : .7, ch2 : .3}, chosen={ch1})
+>>> effector(selector_packet)
+Executed callback_1.
+
+Some applications may require parametrized calls to various callback that are 
+contingent on chosen chunks. Such sophisticated effectors may be implemented by 
+overriding ``Effector.__call__``
+'''
+
 import abc
-import typing as T
+from typing import Generic, TypeVar, Mapping, Callable
 from pyClarion.base.node import Chunk, Node
-from pyClarion.base.packet import ActivationPacket
+from pyClarion.base.packet import SelectorPacket
 
-class Effector(abc.ABC):
-    """Links chunks to actions.
-    """
+St = TypeVar('St', bound=SelectorPacket)
+
+class Effector(Generic[St], abc.ABC):
+    '''An abstract class for linking actionable chunks to action callbacks.'''
     
-    _buffer : T.Set[Chunk] = set()
-
     @abc.abstractmethod
-    def is_actionable(self, node : Node) -> bool:
-        """Return True if input is actionable by self.
-        """
+    def __call__(self, selector_packet : St) -> None:
+        '''
+        Execute actions associated with given actionable chunk.
+
+        :param selector_packet: The output of an action selection cycle.
+        '''
         pass
 
-    def get_actionable_chunks(
-        self, input_map : ActivationPacket
-    ) -> T.Set[Chunk]:
-        """Return the set of actionable chunks in given input.
-        """
 
-        actionable_chunks = set()
-        for node_ in input_map:
-            if isinstance(node_, Chunk) and self.is_actionable(node_):
-                actionable_chunks.add(node_)
-        return actionable_chunks
+class MappingEffector(Effector[St]):
+    '''A simple effector built on a map from actionable chunks to callbacks.'''
 
-    @abc.abstractmethod
-    def fire(self, chunk : Chunk) -> None:
-        """Execute actions associated with given actionable chunk.
+    def __init__(self, chunk2callback : Mapping[Chunk, Callable]) -> None:
+        '''Initialize a ``MappingEffector`` instance.
 
-        kwargs:
-            chunk: A chunk selected for action execution.
-        """
-        pass
+        :param chunk2callback: Defines mapping from actionable chunks to 
+            callbacks.
+        '''
 
-    def fire_buffered(self):
-        """Fire all chunks in self.buffer, then clear the buffer. 
-        """
+        self.chunk2callback = dict(chunk2callback)
 
-        for chunk in self.buffer:
-            self.fire(chunk)
-        self.buffer.clear()
+    def __call__(self, selector_packet : St) -> None:
+        '''
+        Execute callbacks associated with each chosen chunk.
 
-    @property
-    def buffer(self) -> T.Set[Chunk]:
-        """Stores actions selected for execution.
-        """
-        return self._buffer
-    
-    @buffer.setter
-    def buffer(self, value : T.Set[Chunk]) -> None:
-        """Stores a shallow copy of value for later execution.
-        """
-        self._buffer = value.copy()
+        :param selector_packet: The output of an action selection cycle.
+        '''
+        
+        if selector_packet.chosen:
+            for chunk in selector_packet.chosen:
+                self.chunk2callback[chunk]()
+
+            
+if __name__=='__main__':
+    import doctest
+    doctest.testmod()

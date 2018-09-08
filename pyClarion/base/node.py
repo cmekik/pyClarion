@@ -1,4 +1,8 @@
-'''This module captures the fundamental representational constructs of Clarion.
+'''
+Tools for capturing fundamental representational constructs.
+
+Usage
+=====
 
 The most basic representational construct in Clarion is the connectionist node: 
 an individual unit in a network that may receive activation from and propagate 
@@ -8,9 +12,6 @@ microfeatures and chunks.
 This module provides the ``Microfeature`` and ``Chunk`` classes, implemented as 
 frozen dataclasses, for representing microfeatures and chunks respectively, 
 along with other related utilities.
-
-Usage
-=====
 
 You may create ``Microfeature`` and ``Chunk`` instances to represent nodes known
 to a Clarion agent. Below, a microfeature node representing the dimension-value 

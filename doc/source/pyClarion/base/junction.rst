@@ -13,10 +13,8 @@ Abstraction
 
 .. autoclass:: Junction
 .. automethod:: Junction.__call__
-.. autoclass:: GenericJunction
-   :members:
 
-Generic Junctions
-~~~~~~~~~~~~~~~~~
+Generic Junction Implementations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: GenericMaxJunction
+.. autoclass:: MaxJunction

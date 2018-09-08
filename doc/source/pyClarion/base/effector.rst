@@ -10,3 +10,6 @@ Module Reference
 
 .. autoclass:: Effector
    :members:
+
+.. autoclass:: MappingEffector
+   :members:
