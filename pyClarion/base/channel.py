@@ -44,7 +44,7 @@ assumptions about activations (for example, about default activation values).
 ...         return input_map 
 ... 
 >>> MyChannel()
-<__main__.MyChannel object at ...>
+<pyClarion.base.channel.MyChannel object at ...>
 
 Use Cases
 ---------
