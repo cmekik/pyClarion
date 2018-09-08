@@ -8,19 +8,25 @@ Module Reference
 
 .. currentmodule:: pyClarion.base.connector
 
-Abstraction
-~~~~~~~~~~~
+Abstractions
+~~~~~~~~~~~~
 
 .. autoclass:: Connector
-   :members: client, buffer, junction, listeners
+   :members:
 .. automethod:: Connector.__init__
 .. automethod:: Connector.__call__
-.. automethod:: Connector.register
 .. automethod:: Connector.update
 .. automethod:: Connector.clear
-.. automethod:: Connector.propagate
-.. automethod:: Connector.notify_listeners
-.. automethod:: Connector.clear_listeners
+.. automethod:: Connector.get_reporter
+
+
+.. autoclass:: Propagator
+    :members:
+.. automethod:: Propagator.__call__
+.. automethod:: Propagator.register
+.. automethod:: Propagator.propagate
+.. automethod:: Propagator.notify_listeners
+.. automethod:: Propagator.clear_listeners
 
 NodeConnector
 ~~~~~~~~~~~~~
@@ -33,3 +39,15 @@ ChannelConnector
 
 .. autoclass:: ChannelConnector
 .. automethod:: ChannelConnector.propagate
+
+SelectorConnector
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: SelectorConnector
+.. automethod:: SelectorConnector.propagate
+
+EffectorConnector
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: EffectorConnector
+.. automethod:: EffectorConnector.__call__
