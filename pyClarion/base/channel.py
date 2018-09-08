@@ -228,8 +228,3 @@ class Channel(Generic[Pt], abc.ABC):
         """
 
         pass
-
-
-if __name__=='__main__':
-    import doctest
-    doctest.testmod(optionflags=doctest.ELLIPSIS)

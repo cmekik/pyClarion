@@ -193,8 +193,3 @@ class MaxJunction(Junction[Pt]):
                 if found_new_max:
                     output[n] = input_map[n]
         return output
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()

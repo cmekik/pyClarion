@@ -227,8 +227,3 @@ class SelectorPacket(ActivationPacket[At]):
             ]
         )
         return repr_
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()

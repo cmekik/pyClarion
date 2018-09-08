@@ -157,8 +157,3 @@ class BoltzmannSelector(Selector[Pt, float]):
 
         choice = np.random.choice(chunk_list, p=probabilities)
         return {choice}
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()

@@ -86,8 +86,3 @@ class MappingEffector(Effector[St]):
         if selector_packet.chosen:
             for chunk in selector_packet.chosen:
                 self.chunk2callback[chunk]()
-
-            
-if __name__=='__main__':
-    import doctest
-    doctest.testmod()

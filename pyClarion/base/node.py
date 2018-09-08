@@ -209,8 +209,3 @@ def get_nodes(*node_iterables : T.Iterable[Node]) -> T.Set[Node]:
         for node in node_iterable:
             node_set.add(node)
     return node_set
-
-
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()

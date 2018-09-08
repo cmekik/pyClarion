@@ -430,8 +430,3 @@ class EffectorConnector(Connector[Effector, Pt]):
 
         input_packet = self.junction(*self.buffer.values())
         self.client(input_packet)
-
-
-if __name__ == '__main__':
-    import doctest
-    doctest.testmod()
