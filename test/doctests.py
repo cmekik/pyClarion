@@ -8,10 +8,10 @@ import pyClarion.base.selector
 import pyClarion.base.effector
 import pyClarion.base.connector
 
-doctest.testmod(pyClarion.base.node)
-doctest.testmod(pyClarion.base.packet)
-doctest.testmod(pyClarion.base.channel)
-doctest.testmod(pyClarion.base.junction)
-doctest.testmod(pyClarion.base.selector)
-doctest.testmod(pyClarion.base.effector)
-doctest.testmod(pyClarion.base.connector)
+doctest.testmod(pyClarion.base.node, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.packet, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.channel, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.junction, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.selector, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.effector, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.connector, optionflags=doctest.ELLIPSIS)
