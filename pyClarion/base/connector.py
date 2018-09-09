@@ -4,57 +4,18 @@ Tools for propagating information within a Clarion agent.
 Usage
 =====
 
-The abstract ``Connector`` class enables client objects to listen and react to 
-information flows within a Clarion agent. The abstract ``Propagator`` class 
-extends the functionality of the ``Connector`` class to enable propagation of 
-client outputs to downstream listeners.
-
-This module defines four concrete classes based on these abstractions: 
-``NodeConnector``, ``ChannelConnector``, ``SelectorConnector``, and 
-``EffectorConnector``. ``NodeConnector`` instances are charged with determining 
-and relaying the output of their client nodes to listeners. 
-``ChannelConnectors`` are charged with feeding inputs to client ``Channel`` 
-instances and relaying their outputs to listeners. 
+This module defines four concrete classes: ``NodeConnector``, 
+``ChannelConnector``, ``SelectorConnector``, and ``EffectorConnector``. 
+``NodeConnector`` instances are charged with determining and relaying the output 
+of their client nodes to listeners. ``ChannelConnectors`` are charged with 
+feeding inputs to client ``Channel`` instances and relaying their outputs to 
+listeners. 
 
 Listeners to ``NodeConnector`` instances are expected to be either 
 ``ChannelConnector`` or ``SelectorConnector`` instances. ``NodeConnector`` 
 instances are expected to only listen to ``ChannelConnector`` instances, and 
 ``EffectorConnector`` instances are expected to only listen to 
 ``SelectorConnector`` instances.
-
-Instantiation
--------------
-
-Since ``Connector`` is an abstract class, it cannot be directly instantiated:
-
->>> from pyClarion.base.junction import MaxJunction
->>> class MyPacket(ActivationPacket):
-...     def default_activation(self, key):
-...         return 0.0
-... 
->>> class MyMaxJunction(MaxJunction[MyPacket]):
-... 
-...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
-...         output = MyPacket()
-...         if input_maps:
-...             output.update(super().__call__(*input_maps))
-...         return output
-... 
->>> Connector(Node(), MyMaxJunction())
-Traceback (most recent call last):
-    ...
-TypeError: Can't instantiate abstract class Connector with abstract methods __call__
-
-The same is true of the ``Propagator`` class.
-
->>> Propagator(Node(), MyMaxJunction())
-Traceback (most recent call last):
-    ...
-TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
-
-Users are not expected to directly implement the abstract ``__call__`` and 
-``propagate`` methods of these classes. Instead, they should work with the 
-concrete classes provided by this module.
 
 Example
 -------
@@ -123,6 +84,48 @@ True
 >>> nodes[mf2].output_buffer == MyPacket({mf2 : 1.0})
 True
 
+Abstractions
+============
+
+The abstract ``Connector`` class enables client objects to listen and react to 
+information flows within a Clarion agent. The abstract ``Propagator`` class 
+extends the functionality of the ``Connector`` class to enable propagation of 
+client outputs to downstream listeners.
+
+Instantiation
+-------------
+
+Since ``Connector`` is an abstract class, it cannot be directly instantiated:
+
+>>> from pyClarion.base.junction import MaxJunction
+>>> class MyPacket(ActivationPacket):
+...     def default_activation(self, key):
+...         return 0.0
+... 
+>>> class MyMaxJunction(MaxJunction[MyPacket]):
+... 
+...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
+...         output = MyPacket()
+...         if input_maps:
+...             output.update(super().__call__(*input_maps))
+...         return output
+... 
+>>> Connector(Node(), MyMaxJunction())
+Traceback (most recent call last):
+    ...
+TypeError: Can't instantiate abstract class Connector with abstract methods __call__
+
+The same is true of the ``Propagator`` class.
+
+>>> Propagator(Node(), MyMaxJunction())
+Traceback (most recent call last):
+    ...
+TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
+
+Users are not expected to directly implement the abstract ``__call__`` and 
+``propagate`` methods of these classes. Instead, they should work with the 
+concrete classes provided by this module.
+
 '''
 
 
@@ -160,10 +163,9 @@ class Connector(Generic[Ct, It], abc.ABC):
     For details, see module documentation.
     '''
 
-    def __init__(self, client: Ct, junction: Junction) -> None:
+    def __init__(self, client: Ct) -> None:
 
         self.client: Ct = client
-        self.junction = junction
         self.input_links: List[Callable[..., It]] = list()
         self.input_buffer: List[It] = list()
 
@@ -191,8 +193,9 @@ class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
     
     def __init__(self, client: Ct, junction: Junction) -> None:
         
-        super().__init__(client, junction)
+        super().__init__(client)
         self.output_buffer : Ot = self.propagate()
+        self.junction = junction
 
     def __call__(self) -> None:
         '''Update ``self.output_buffer``.'''
@@ -322,4 +325,4 @@ class EffectorConnector(Connector[Effector, SelectorPacket]):
     def __call__(self) -> None:
 
         self.pull()
-        self.client(self.junction(*self.input_buffer))
+        self.client(*self.input_buffer)
