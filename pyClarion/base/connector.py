@@ -24,6 +24,19 @@ This example is adapted builds on an example from the documentation of
 ``pyClarion.base.channel``.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
+>>> from pyClarion.base.junction import MaxJunction
+>>> class MyPacket(ActivationPacket):
+...     def default_activation(self, key):
+...         return 0.0
+... 
+>>> class MyMaxJunction(MaxJunction[MyPacket]):
+... 
+...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
+...         output = MyPacket()
+...         if input_maps:
+...             output.update(super().__call__(*input_maps))
+...         return output
+... 
 >>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
@@ -97,20 +110,7 @@ Instantiation
 
 Since ``Connector`` is an abstract class, it cannot be directly instantiated:
 
->>> from pyClarion.base.junction import MaxJunction
->>> class MyPacket(ActivationPacket):
-...     def default_activation(self, key):
-...         return 0.0
-... 
->>> class MyMaxJunction(MaxJunction[MyPacket]):
-... 
-...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
-...         output = MyPacket()
-...         if input_maps:
-...             output.update(super().__call__(*input_maps))
-...         return output
-... 
->>> Connector(Node(), MyMaxJunction())
+>>> Connector(Node())
 Traceback (most recent call last):
     ...
 TypeError: Can't instantiate abstract class Connector with abstract methods __call__
@@ -194,8 +194,8 @@ class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
     def __init__(self, client: Ct, junction: Junction) -> None:
         
         super().__init__(client)
-        self.output_buffer : Ot = self.propagate()
         self.junction = junction
+        self.output_buffer : Ot = self.propagate()
 
     def __call__(self) -> None:
         '''Update ``self.output_buffer``.'''
