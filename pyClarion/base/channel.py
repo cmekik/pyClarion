@@ -193,6 +193,7 @@ from pyClarion.base.packet import ActivationPacket
 
 Pt = TypeVar('Pt', bound=ActivationPacket)
 
+
 class Channel(Generic[Pt], abc.ABC):
     """An abstract generic class for capturing activation flows.
 
@@ -214,7 +215,7 @@ class Channel(Generic[Pt], abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(self, input_map : Pt) -> ActivationPacket:
+    def __call__(self, input_map: Pt) -> ActivationPacket:
         """Compute and return activations resulting from an input to this 
         channel.
 

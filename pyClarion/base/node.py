@@ -1,4 +1,4 @@
-'''
+"""
 Tools for capturing fundamental representational constructs.
 
 Usage
@@ -110,10 +110,11 @@ compares equal to itself but not to another newly created node.
 True
 >>> n == Node()
 False
-'''
+
+"""
 
 
-import typing as T
+import typing as t
 import dataclasses
 
 
@@ -124,46 +125,49 @@ import dataclasses
 
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class Node(object):
-    '''A generic connectionist node.
+    """
+    A generic connectionist node.
 
-    Although this class may be used on its own, it is intended for use as a base 
+    Although this class may be used on its own, it is intended for use as a base
     class for more specific node types.
-    '''
+    """
     
     pass
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
 class Microfeature(Node):
-    '''A microfeature node.
+    """
+    A microfeature node.
 
-    Microfeatures are implicit, connectionist representations. They represent 
+    Microfeatures are implicit, connectionist representations. They represent
     dimension-value pairs.
 
-    Microfeature objects are frozen dataclasses that compare equal iff the 
+    Microfeature objects are frozen dataclasses that compare equal iff the
     contents of their data fields are equal.
 
     See module documentation for details and examples.
-    '''
+    """
 
-    dim : T.Hashable
-    val : T.Hashable
+    dim: t.Hashable
+    val: t.Hashable
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
 class Chunk(Node):
-    '''A chunk node. 
+    """
+    A chunk node.
 
-    Chunks are explicit, localist representations. They represent individual 
+    Chunks are explicit, localist representations. They represent individual
     concepts.
 
-    Chunk objects are frozen dataclasses that compare equal iff the contents of 
+    Chunk objects are frozen dataclasses that compare equal iff the contents of
     their data fields are equal.
 
     See module documentation for details and examples.
-    '''
+    """
 
-    id : T.Hashable
+    id: t.Hashable
 
 
 ################
@@ -171,10 +175,10 @@ class Chunk(Node):
 ################
 
 
-Dim2Num = T.Dict[T.Hashable, float]
-FeatureSet = T.Set[Microfeature]
-NodeSet = T.Set[Node]
-ChunkSet = T.Set[Chunk]
+Dim2Num = t.Dict[t.Hashable, float]
+FeatureSet = t.Set[Microfeature]
+NodeSet = t.Set[Node]
+ChunkSet = t.Set[Chunk]
 
 
 #############
@@ -182,8 +186,9 @@ ChunkSet = T.Set[Chunk]
 #############
 
 
-def get_nodes(*node_iterables : T.Iterable[Node]) -> T.Set[Node]:
-    """Construct the set of all nodes in a set of node containers.
+def get_nodes(*node_iterables: t.Iterable[Node]) -> t.Set[Node]:
+    """
+    Construct the set of all nodes in a set of node containers.
 
     Usage example:
 
