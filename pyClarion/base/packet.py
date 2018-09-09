@@ -126,7 +126,7 @@ SelectorPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
 '''
 
 from abc import abstractmethod
-from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any
+from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
 from collections import UserDict
 from pyClarion.base.node import Node, Chunk
 
@@ -134,7 +134,22 @@ from pyClarion.base.node import Node, Chunk
 At = TypeVar("At")
 
 
-class ActivationPacket(UserDict, MutableMapping[Node, At]):
+class Packet(UserDict, MutableMapping[Node, At]):
+
+    def __repr__(self) -> str:
+        
+        repr_ = ''.join(
+            [
+                type(self).__name__,
+                '(',
+                super().__repr__(),
+                ')'
+            ]
+        )
+        return repr_
+
+
+class ActivationPacket(Packet):
     """A class for representing node activations.
 
     Has type ``MutableMapping[pyClarion.base.node.Node, At]``, where ``At`` is 
@@ -153,45 +168,35 @@ class ActivationPacket(UserDict, MutableMapping[Node, At]):
     See module documentation for further details and examples.
     """
 
-    def __init__(self, kvpairs : Mapping[Node, At] = None) -> None:
+    def __missing__(self, key: Node) -> At:
 
-        super().__init__(kvpairs)
-
-    def __repr__(self) -> str:
-        
-        repr_ = ''.join(
-            [
-                type(self).__name__,
-                '(',
-                super().__repr__(),
-                ')'
-            ]
-        )
-        return repr_
-
-    def __missing__(self, key : Node) -> At:
-
-        self[key] = value = self.default_activation(key)
+        value : At = self.default_activation(key)
+        self[key] = value
         return value
 
-    def default_activation(self, key : Node) -> At:
-        '''Return designated default value for the given input.
-        '''
+    def default_activation(self, key: Node) -> At:
+        """Return designated default value for the given input."""
         
         raise KeyError
 
-class SelectorPacket(ActivationPacket[At]):
-    '''
+    def subpacket(self, nodes: Iterable[Node]):
+        """Return a subpacket containing activations for ``nodes``."""
+        
+        return type(self)({node: self[node] for node in nodes})
+
+
+class SelectorPacket(Packet[At]):
+    """
     Represents the output of an action selection routine.
 
-    Contains information about the selected actions and strengths of actionable 
-    chunks. 
-    '''
+    Contains information about the selected actions and strengths of actionable
+    chunks.
+    """
 
     def __init__(
         self, 
-        kvpairs : Mapping[Node, At] = None, 
-        chosen : Set[Chunk] = None
+        kvpairs: Mapping[Node, At] = None,
+        chosen: Set[Chunk] = None
     ) -> None:
         '''
         Initialize a ``SelectorPacket`` instance.
@@ -203,7 +208,7 @@ class SelectorPacket(ActivationPacket[At]):
         super().__init__(kvpairs)
         self.chosen = chosen
 
-    def __eq__(self, other : Any) -> bool:
+    def __eq__(self, other: Any) -> bool:
 
         if (
             isinstance(other, SelectorPacket) and
@@ -220,7 +225,7 @@ class SelectorPacket(ActivationPacket[At]):
             [
                 type(self).__name__, 
                 '(',
-                super(ActivationPacket, self).__repr__(),
+                super(Packet, self).__repr__(),
                 ', ',
                 'chosen=' + repr(self.chosen),
                 ')'
