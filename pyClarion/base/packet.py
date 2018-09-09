@@ -149,7 +149,7 @@ class Packet(UserDict, MutableMapping[Node, At]):
         return repr_
 
 
-class ActivationPacket(Packet):
+class ActivationPacket(Packet[At]):
     """A class for representing node activations.
 
     Has type ``MutableMapping[pyClarion.base.node.Node, At]``, where ``At`` is 

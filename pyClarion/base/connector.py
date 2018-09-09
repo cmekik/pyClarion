@@ -35,8 +35,10 @@ Since ``Connector`` is an abstract class, it cannot be directly instantiated:
 >>> class MyMaxJunction(MaxJunction[MyPacket]):
 ... 
 ...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
-... 
-...         return MyPacket(super().__call__(*input_maps))
+...         output = MyPacket()
+...         if input_maps:
+...             output.update(super().__call__(*input_maps))
+...         return output
 ... 
 >>> Connector(Node(), MyMaxJunction())
 Traceback (most recent call last):
@@ -48,7 +50,7 @@ The same is true of the ``Propagator`` class.
 >>> Propagator(Node(), MyMaxJunction())
 Traceback (most recent call last):
     ...
-TypeError: Can't instantiate abstract class Propagator with abstract methods propagate
+TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
 
 Users are not expected to directly implement the abstract ``__call__`` and 
 ``propagate`` methods of these classes. Instead, they should work with the 
@@ -57,8 +59,8 @@ concrete classes provided by this module.
 Example
 -------
 
-The example below is adapted from the documentation of 
-``pyClarion.base.channel`` to use ``Connector`` objects.
+This example is adapted builds on an example from the documentation of 
+``pyClarion.base.channel``.
 
 >>> from pyClarion.base.node import Microfeature, Chunk
 >>> class MyTopDownPacket(MyPacket):
@@ -83,128 +85,44 @@ The example below is adapted from the documentation of
 >>> mf2 = Microfeature("tasty", True)
 >>> edge1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
 >>> edge2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
->>> connectors = {
+>>> nodes = {
 ...     ch : NodeConnector(ch, MyMaxJunction()),
 ...     mf1 : NodeConnector(mf1, MyMaxJunction()),
 ...     mf2 : NodeConnector(mf2, MyMaxJunction()),
+... }
+...
+>>> channels = {
 ...     edge1 : ChannelConnector(edge1, MyMaxJunction()),
 ...     edge2 : ChannelConnector(edge2, MyMaxJunction())
-... }
-... 
+... } 
 >>> # We need to connect everything up.
->>> connectors[edge1].register(connectors[mf1].get_reporter())
->>> connectors[edge2].register(connectors[mf2].get_reporter())
->>> connectors[ch].register(
-...     connectors[edge1].get_reporter(), connectors[edge2].get_reporter()
-... )
+>>> nodes[mf1].add_link(channels[edge1].get_pull_method())
+>>> nodes[mf2].add_link(channels[edge2].get_pull_method())
+>>> channels[edge1].add_link(nodes[ch].get_pull_method())
+>>> channels[edge2].add_link(nodes[ch].get_pull_method())
 >>> # Check that buffers are empty prior to test
->>> connectors[mf1].buffer == dict()
+>>> nodes[mf1].output_buffer == MyPacket()
 True
->>> connectors[mf2].buffer == dict()
+>>> nodes[mf2].output_buffer == MyPacket()
 True
 >>> # Set initial chunk activation.
->>> connectors[ch].update('Initial Activation', MyPacket({ch : 1.0}))
+>>> nodes[ch].add_link(lambda x: MyPacket({ch : 1.0}))
+>>> for connector in nodes.values():
+...     connector()
+... 
 >>> # Propagate activations
->>> for connector in connectors.values():
+>>> for connector in channels.values():
+...     connector()
+... 
+>>> for connector in nodes.values():
 ...     connector()
 ... 
 >>> # Check that propagation worked
->>> connectors[mf1].buffer == {edge1 : MyPacket({mf1 : 1.0})}
+>>> nodes[mf1].output_buffer == MyPacket({mf1 : 1.0})
 True
->>> connectors[mf2].buffer == {edge2 : MyPacket({mf2 : 1.0})}
-True
->>> # Note: ``ch`` still remembers its activation after firing.
->>> connectors[ch].buffer == {'Initial Activation' : MyPacket({ch : 1.0})}
-True
->>> # In other words, buffers must be manually cleared when necessary.
->>> connectors[ch].clear()
->>> connectors[ch].buffer == dict()
+>>> nodes[mf2].output_buffer == MyPacket({mf2 : 1.0})
 True
 
-
-Why Separate Dedicated ``Connector`` classes for Nodes and Channels?
---------------------------------------------------------------------
-
-The choice to have different activation connectors for nodes and channels 
-derives from a compromise between fidelity to Clarion theory and a parsimonious, 
-flexible implementation.
-
-Since the fundamental representational construct in Clarion theory is the node, 
-it is desirable to provide dedicated ``Connector`` instances for individual 
-nodes: such a design encapsulates relevant information about a given node in a 
-single object. 
-
-Implementation of distinct ``Connector`` types for activation channels and nodes 
-provides a uniform interface for the use of channels at varying levels of 
-granularity while simultaneously enabling encapsulation of relevant information 
-about individual nodes.
-
-An advantage of such an architecture is that it allows for a simple mechanism 
-for activation cycle synchronization. This can be done by, for example, 
-sequentially propagating activations through all nodes then all channels.
-
-The example below adapts another example from 
-``pyClarion.base.channel`` in order to demonstrate how the dual 
-activation Connector architecture may handle different levels of granularity.
-
->>> class MyTopLevelPacket(MyPacket):
-...     pass
-... 
->>> class MyAssociativeNetwork(Channel[MyPacket]):
-... 
-...     def __init__(
-...         self, assoc : Dict[Node, Dict[Node, float]]
-...     ) -> None:
-...         """Initialize an associative network.
-... 
-...         :param assoc: A dict that maps conclusion chunks to 
-...         dicts mapping their condition chunks to their respective weights.
-...         """
-...         self.assoc = assoc
-... 
-...     def __call__(self, input_map : MyPacket) -> MyTopLevelPacket:
-...         output = MyTopLevelPacket()
-...         for conclusion_chunk in self.assoc:
-...             output[conclusion_chunk] = 0.0
-...             for condition_chunk in self.assoc[conclusion_chunk]:
-...                 output[conclusion_chunk] += (
-...                         input_map[condition_chunk] *
-...                         self.assoc[conclusion_chunk][condition_chunk]
-...                 )
-...         return output
->>> ch1, ch2, ch3 = Chunk('BLOOD ORANGE'), Chunk('RED'), Chunk('YELLOW')
->>> assoc = {
-...     ch2 : {ch1 : 0.4},
-...     ch3 : {ch1 : 0.2}    
-... }
->>> channel = MyAssociativeNetwork(assoc)
->>> connectors = {
-...     ch1 : NodeConnector(ch1, MyMaxJunction()),
-...     ch2 : NodeConnector(ch2, MyMaxJunction()),
-...     ch3 : NodeConnector(ch3, MyMaxJunction()),
-...     channel : ChannelConnector(channel, MyMaxJunction())
-... }
->>> # Connect everything
->>> connectors[ch1].register(connectors[channel])
->>> connectors[ch2].register(connectors[channel])
->>> connectors[ch3].register(connectors[channel])
->>> connectors[channel].register(connectors[ch1], connectors[ch2], connectors[ch3])
->>> # Set initial chunk activation.
->>> connectors[ch1].update('Initial Activation', MyPacket({ch1 : 1.0}))
->>> # Propagate activations
->>> for Connector in connectors.values():
-...     Connector()
-... 
->>> # Check that propagation worked
->>> # Note: Initial activation not yet cleared, so ``ch1`` activation persists
->>> connectors[ch1].propagate() == MyPacket({ch1 : 1.0})
-True
->>> connectors[ch2].propagate() == MyPacket({ch2 : 0.4})
-True
->>> connectors[ch3].propagate() == MyPacket({ch3 : 0.2})
-True
->>> connectors[channel].propagate() == MyPacket({ch2 : 0.4, ch3 : 0.2})
-True
 '''
 
 
