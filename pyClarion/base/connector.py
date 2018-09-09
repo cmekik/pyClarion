@@ -70,17 +70,17 @@ This example is adapted builds on an example from the documentation of
 ...     edge2 : ChannelConnector(edge2, MyMaxJunction())
 ... } 
 >>> # We need to connect everything up.
->>> nodes[mf1].add_link(channels[edge1].get_pull_method())
->>> nodes[mf2].add_link(channels[edge2].get_pull_method())
->>> channels[edge1].add_link(nodes[ch].get_pull_method())
->>> channels[edge2].add_link(nodes[ch].get_pull_method())
+>>> nodes[mf1].add_link(id(edge1), channels[edge1].get_pull_method())
+>>> nodes[mf2].add_link(id(edge2), channels[edge2].get_pull_method())
+>>> channels[edge1].add_link(ch, nodes[ch].get_pull_method())
+>>> channels[edge2].add_link(ch, nodes[ch].get_pull_method())
 >>> # Check that buffers are empty prior to test
 >>> nodes[mf1].output_buffer == MyPacket()
 True
 >>> nodes[mf2].output_buffer == MyPacket()
 True
 >>> # Set initial chunk activation.
->>> nodes[ch].add_link(lambda x: MyPacket({ch : 1.0}))
+>>> nodes[ch].add_link('External Input', lambda x: MyPacket({ch : 1.0}))
 >>> for connector in nodes.values():
 ...     connector()
 ... 
@@ -166,7 +166,7 @@ class Connector(Generic[Ct, It], abc.ABC):
     def __init__(self, client: Ct) -> None:
 
         self.client: Ct = client
-        self.input_links: List[Callable[..., It]] = list()
+        self.input_links: Dict[Hashable, Callable[..., It]] = dict()
         self.input_buffer: List[It] = list()
 
     @abc.abstractmethod
@@ -175,11 +175,19 @@ class Connector(Generic[Ct, It], abc.ABC):
 
     def pull(self) -> None:
         
-        self.input_buffer = [callback() for callback in self.input_links] 
+        self.input_buffer = [
+            callback() for callback in self.input_links.values()
+        ] 
 
-    def add_link(self, callback: Callable[..., It]) -> None:
+    def add_link(
+        self, identifier: Hashable, callback: Callable[..., It]
+    ) -> None:
 
-        self.input_links.append(callback)
+        self.input_links[identifier] = callback
+
+    def drop_link(self, identifier: Hashable):
+
+        del self.input_links[identifier]
 
 
 class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
@@ -253,7 +261,7 @@ class NodeConnector(ActivationPropagator[Node]):
     def pull(self) -> None:
         
         self.input_buffer = [
-            callback([self.client]) for callback in self.input_links
+            callback([self.client]) for callback in self.input_links.values()
         ]
 
     def propagate(self) -> ActivationPacket:
