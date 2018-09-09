@@ -4,7 +4,7 @@ Tools for propagating information within a Clarion agent.
 Usage
 =====
 
-The abstract ``Connector`` class enables clients to listen and react to 
+The abstract ``Connector`` class enables client objects to listen and react to 
 information flows within a Clarion agent. The abstract ``Propagator`` class 
 extends the functionality of the ``Connector`` class to enable propagation of 
 client outputs to downstream listeners.
@@ -122,11 +122,12 @@ True
 True
 
 
-Why Dedicated ``Connector`` classes for Nodes and Channels?
------------------------------------------------------------
+Why Separate Dedicated ``Connector`` classes for Nodes and Channels?
+--------------------------------------------------------------------
 
-The choice to have two types of activation connectors derives from a compromise 
-between fidelity to Clarion theory and a parsimonious, flexible implementation.
+The choice to have different activation connectors for nodes and channels 
+derives from a compromise between fidelity to Clarion theory and a parsimonious, 
+flexible implementation.
 
 Since the fundamental representational construct in Clarion theory is the node, 
 it is desirable to provide dedicated ``Connector`` instances for individual 
@@ -137,6 +138,10 @@ Implementation of distinct ``Connector`` types for activation channels and nodes
 provides a uniform interface for the use of channels at varying levels of 
 granularity while simultaneously enabling encapsulation of relevant information 
 about individual nodes.
+
+An advantage of such an architecture is that it allows for a simple mechanism 
+for activation cycle synchronization. This can be done by, for example, 
+sequentially propagating activations through all nodes then all channels.
 
 The example below adapts another example from 
 ``pyClarion.base.channel`` in order to demonstrate how the dual 
@@ -204,9 +209,12 @@ True
 
 
 import abc
-from typing import TypeVar, Generic, Hashable, Callable, Any, Dict, Set
+import copy
+from typing import (
+    TypeVar, Generic, Hashable, Callable, Any, Dict, Set, List, Iterable
+)
 from pyClarion.base.node import Node
-from pyClarion.base.packet import ActivationPacket, SelectorPacket
+from pyClarion.base.packet import Packet, ActivationPacket, SelectorPacket
 from pyClarion.base.channel import Channel
 from pyClarion.base.junction import Junction
 from pyClarion.base.selector import Selector
@@ -216,45 +224,16 @@ from pyClarion.base.effector import Effector
 # TYPE VARIABLES #
 ##################
 
-Ct = TypeVar('Ct', bound=Hashable)
-Pt = TypeVar('Pt', bound=ActivationPacket)
+Ct = TypeVar('Ct')
+It = TypeVar('It', bound=Packet)
+Ot = TypeVar('Ot', bound=Packet)
 
 
 ################
 # ABSTRACTIONS #
 ################
 
-
-class Reporter(object):
-    '''
-    A helper class for updating ``Connector`` instances.
-    
-    Exposes the ``update`` method of a client ``Connector`` instance. Reports 
-    updates from an upstream sources to client.
-    '''
-
-    def __init__(self, connector_id : Hashable, updater : Callable) -> None:
-        '''
-        Initialize ``Reporter`` instance.
-
-        :param connector_id: A unique id for client connector.
-        :param updater: Method for updating client connector.
-        '''
-
-        self.connector_id = connector_id
-        self.updater = updater
-
-    def update(self, construct : Hashable, payload : Pt):
-        '''
-        Pass on new activations to activation Connector assigned to client.
-
-        For param details see ``Connector.update``.
-        '''
-
-        self.updater(construct, payload)
-
-
-class Connector(Generic[Ct, Pt], abc.ABC):
+class Connector(Generic[Ct, It], abc.ABC):
     '''
     Connects client to relevant constructs as a listener.
 
@@ -263,42 +242,27 @@ class Connector(Generic[Ct, Pt], abc.ABC):
     For details, see module documentation.
     '''
 
-    def __init__(self, client : Ct, junction : Junction) -> None:
-        '''
-        Initialize an activation Connector serving construct ``client``.
+    def __init__(self, client: Ct, junction: Junction) -> None:
 
-        :param client: The construct that is served by self.
-        :param junction: Method for combining activations used by client.
-        '''
-
-        self.client : Ct = client
-        self.junction : Junction = junction
-        self.buffer : Dict[Hashable, Pt] = dict()
+        self.client: Ct = client
+        self.junction = junction
+        self.input_links: List[Callable[..., It]] = list()
+        self.input_buffer: List[It] = list()
 
     @abc.abstractmethod
     def __call__(self) -> None:
         pass
 
-    def update(self, construct : Hashable, payload : Pt) -> None:
-        '''Update output of ``construct`` recorded in ``self.buffer``.'''
+    def pull(self) -> None:
+        
+        self.input_buffer = [callback() for callback in self.input_links] 
 
-        self.buffer[construct] = payload
+    def add_link(self, callback: Callable[..., It]) -> None:
 
-    def clear(self) -> None:
-        '''Empty ``self.buffer``.'''
-
-        self.buffer.clear()
-
-    def get_reporter(self) -> Reporter:
-        '''Create and return an Reporter with an update link to self.'''
-
-        reporter : Reporter = Reporter(
-            id(self), self.update
-        )
-        return reporter
+        self.input_links.append(callback)
 
 
-class Propagator(Connector[Ct, Pt]):
+class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
     '''
     Allows client to push activation packets to listeners.
 
@@ -307,41 +271,19 @@ class Propagator(Connector[Ct, Pt]):
     For details, see module documentation.
     '''
     
-    def __init__(self, client : Ct, junction : Junction) -> None:
+    def __init__(self, client: Ct, junction: Junction) -> None:
         
         super().__init__(client, junction)
-        self.listeners : Set[Reporter] = set()
+        self.output_buffer : Ot = self.propagate()
 
     def __call__(self) -> None:
-        '''
-        Update listeners with new output of ``self.client``.
+        '''Update ``self.output_buffer``.'''
 
-        .. warning::
-           It is expected that ``Connector`` instances will only update 
-           listeners with the activations of their clients. However, this 
-           expectation is currently not enforced.
-        '''
-        
-        output_packet = self.propagate()
-        self.notify_listeners(output_packet)
-
-    def register(self, *reporters : Reporter) -> None:
-        '''
-        Register reporters as listeners of ``self``.
-
-        :param reporters: ``Reporter`` that listen to self.
-        '''
-
-        for reporter in reporters:
-            self.listeners.add(reporter)
-
-    def clear_listeners(self) -> None:
-        '''Empty ``self.listeners``.'''
-
-        self.listeners.clear()
+        self.pull()        
+        self.output_buffer = self.propagate()
 
     @abc.abstractmethod
-    def propagate(self) -> ActivationPacket:
+    def propagate(self) -> Ot:
         '''
         Compute and return current output of ``self.client``.
         
@@ -349,11 +291,31 @@ class Propagator(Connector[Ct, Pt]):
         '''
         pass
 
-    def notify_listeners(self, payload : ActivationPacket) -> None:
-        '''Report new output of ``self.client`` to listeners.'''
+    @abc.abstractmethod
+    def get_pull_method(self) -> Callable:
+        pass
 
-        for listener in self.listeners:
-            listener.update(self.client, payload)
+
+class ActivationPropagator(Propagator[Ct, ActivationPacket, ActivationPacket]):
+
+    def get_pull_method(self) -> Callable:
+
+        return self.get_output
+
+    def get_output(self, nodes: Iterable[Node] = None) -> ActivationPacket:
+        '''
+        Return current output of ``self``.
+
+        Returns a subpacket of ``self.output_buffer``. Intended to be used as a 
+        pull method for listeners of this propagator.
+
+        :param nodes: Nodes to be included in returned subpacket. If ``None``, 
+            all nodes in ``self.output_buffer`` will be included. 
+        '''
+
+        if not nodes:
+            nodes = self.output_buffer.keys()
+        return self.output_buffer.subpacket(nodes)
 
 
 ####################
@@ -361,11 +323,17 @@ class Propagator(Connector[Ct, Pt]):
 ####################
 
 
-class NodeConnector(Propagator[Node, Pt]):
-    '''Embeds a node in a Clarion agent.
+class NodeConnector(ActivationPropagator[Node]):
+    '''Embeds a node in a network.
 
     For details, see module documentation.
     '''
+
+    def pull(self) -> None:
+        
+        self.input_buffer = [
+            callback([self.client]) for callback in self.input_links
+        ]
 
     def propagate(self) -> ActivationPacket:
         '''Compute and return current output of client node.
@@ -373,14 +341,11 @@ class NodeConnector(Propagator[Node, Pt]):
         Passes activation packets stored in ``self.buffer`` through 
         ``self.junction`` and returns the result.
         '''
-
-        junction_output = self.junction(*self.buffer.values())
-        activation_dict = {self.client : junction_output[self.client]}
-        output_packet = type(junction_output)(activation_dict)
-        return output_packet
+        
+        return self.junction(*self.input_buffer)
 
 
-class ChannelConnector(Propagator[Channel, Pt]):
+class ChannelConnector(ActivationPropagator[Channel]):
     '''Embeds an activation channel in a Clarion agent.
 
     For details, see module documentation.
@@ -394,12 +359,10 @@ class ChannelConnector(Propagator[Channel, Pt]):
         output of ``self.clent``.
         '''
 
-        input_packet = self.junction(*self.buffer.values())
-        output_packet = self.client(input_packet)
-        return output_packet
+        return self.client(self.junction(*self.input_buffer))
 
 
-class SelectorConnector(Propagator[Selector, Pt]):
+class SelectorConnector(Propagator[Selector, ActivationPacket, SelectorPacket]):
     '''
     Embeds an action selector in a Clarion agent.
 
@@ -414,12 +377,24 @@ class SelectorConnector(Propagator[Selector, Pt]):
         output of ``self.clent``.
         '''
 
-        input_packet = self.junction(*self.buffer.values())
-        output_packet = self.client(input_packet)
-        return output_packet
+        return self.client(self.junction(*self.input_buffer))
+
+    def get_pull_method(self) -> Callable:
+
+        return self.get_output
+
+    def get_output(self, nodes: Iterable[Node] = None) -> SelectorPacket:
+        '''
+        Return current output of ``self``.
+
+        Returns a deepcopy of ``self.output_buffer``. Intended to be used as a 
+        pull method for listeners of this propagator. 
+        '''
+
+        return copy.deepcopy(self.output_buffer)
 
 
-class EffectorConnector(Connector[Effector, Pt]):
+class EffectorConnector(Connector[Effector, SelectorPacket]):
     '''
     Embeds an action effector in a Clarion agent.
 
@@ -428,5 +403,5 @@ class EffectorConnector(Connector[Effector, Pt]):
 
     def __call__(self) -> None:
 
-        input_packet = self.junction(*self.buffer.values())
-        self.client(input_packet)
+        self.pull()
+        self.client(self.junction(*self.input_buffer))
