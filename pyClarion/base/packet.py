@@ -1,15 +1,11 @@
-'''
-Tools for representing activation patterns in pyClarion.
+"""
+Tools for representing information about Clarion nodes.
 
-Activation Packets
-==================
+Packets
+=======
 
-The ``ActivationPacket`` class represents collections of node activations.
-
-Basic Behavior
---------------
-
-An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
+The ``Packet`` class represents represents mappings from nodes to data. 
+``Packet`` instances behave like ``dict`` objects.
 
 >>> n1, n2 = Node(), Node()
 >>> p = ActivationPacket({n1 : 0.3}) 
@@ -22,11 +18,16 @@ An ``ActivationPacket`` instance behaves mostly like a ``dict`` object.
 >>> p[n2]
 0.2
 
-In fact, almost all methods available to ``dict`` are also available to 
-``ActivationPacket``.
+Value Types
+-----------
 
-Default Behavior
-----------------
+``Packet`` is implemented as a generic class taking one type variable. This type 
+variable specifies the expected packet value type. Its use is optional.
+
+Activation Packets
+==================
+
+Activation packets represent patterns of node activations. 
 
 The ``ActivationPacket`` class provides a ``default_activation`` method, which 
 may be overridden to capture assumptions about default activation values. 
@@ -76,27 +77,22 @@ False
 >>> p[ch]
 0.0
 
-Value Types
------------
+Activation Packet Types
+-----------------------
 
-``ActivationPacket`` is implemented as a generic class taking one type variable. 
-This type variable specifies the expected value type. Its use is optional.
+The type of an ``ActivationPacket`` may be used to drive conditional processing. 
 
-Packet Types
-------------
-
-The type of an ``ActivationPacket`` is meaningful. Different activation sources 
-may output packets of different types. For instance, a top-down activation cycle 
-may output an instance of ``TopDownPacket``, as illustrated in the example 
-below.
+Different activation sources may output packets of different types. For 
+instance, a top-down activation cycle may output an instance of 
+``TopDownPacket``, as illustrated in the example below.
 
 >>> class MyTopDownPacket(MyPacket):
-...     """Represents the output of a top-down activation cycle.
-...     """
+...     '''Represents the output of a top-down activation cycle.'''
+...
 ...     pass
 ... 
 >>> def my_top_down_activation_cycle(packet):
-...     """A dummy top-down activation cycle for demonstration purposes""" 
+...     '''A dummy top-down activation cycle for demonstration purposes''' 
 ...     val = max(packet.values())
 ...     return MyTopDownPacket({n3 : val})
 ... 
@@ -112,18 +108,17 @@ True
 Selector Packets
 ================
 
-The ``SelectorPacket`` class serves to capture the result of an action selection 
+The ``SelectorPacket`` class represents the results of an action selection 
 cycle.
 
-In addition to activation strengths, action selection results in action choices.  
-The ``SelectorPacket`` class is a subclass of ``ActivationPacket``, but it has 
-one additional attribute called ``chosen``, which may be used to represent 
+``SelectorPacket`` have an attribute called ``chosen``, whose contents represent 
 chosen action chunks.
 
 >>> ch1, ch2 = Chunk(1), Chunk(2)
 >>> SelectorPacket({ch1 : .78, ch2 : .24}, chosen={ch1})
 SelectorPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
-'''
+
+"""
 
 from abc import abstractmethod
 from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
@@ -135,6 +130,12 @@ At = TypeVar("At")
 
 
 class Packet(UserDict, MutableMapping[Node, At]):
+    """
+    Base class for encapsulating information about nodes.
+
+    Takes one type variable, ``At``, which is an unrestricted type variable 
+    denoting the expected type for data values.
+    """
 
     def __repr__(self) -> str:
         
@@ -150,16 +151,11 @@ class Packet(UserDict, MutableMapping[Node, At]):
 
 
 class ActivationPacket(Packet[At]):
-    """A class for representing node activations.
+    """
+    A class for representing node activations.
 
-    Has type ``MutableMapping[pyClarion.base.node.Node, At]``, where ``At`` is 
-    an unrestricted type variable denoting the expected type for activation 
-    values. It is expected that ``At`` will be some numerical type such as 
-    ``float``, however this expectation is not enforced.
-
-    By default, ``ActivationPacket`` objects raise an exception when given an 
-    unknown key. However, a default activation can be implemented by overriding 
-    the ``default_activation`` method. Default activations are handled 
+    Default activation values may be implemented by overriding the 
+    ``default_activation`` method. When defined, default activations are handled 
     similarly to ``collections.defaultdict``.
 
     The precise type of an ``ActivationPacket`` instance may encode important 

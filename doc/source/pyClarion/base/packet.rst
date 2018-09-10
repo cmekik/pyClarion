@@ -7,6 +7,10 @@ pyClarion.base.packet
 
 Module Reference
 ----------------
+
+.. autoclass:: Packet
+   :members:
+
 .. autoclass:: ActivationPacket
    :members:
 
