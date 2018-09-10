@@ -1,11 +1,12 @@
 '''
 Tools for modeling activation flows.
 
+Provides the abstract ``Channel`` class, which defines a callable object that 
+receives a single ``ActivationPacket`` as input and outputs a single 
+``ActivationPacket`` in response.
+
 Usage
 =====
-
-A ``Channel`` is a callable object that receives a single ``ActivationPacket`` 
-as input and outputs a single ``ActivationPacket`` in response.
 
 ``Channel`` objects may be used to capture activation flows in many ways, at 
 multiple levels of granularity. The role of the ``Channel`` class is to provide 
@@ -198,18 +199,7 @@ class Channel(Generic[Pt], abc.ABC):
     """An abstract generic class for capturing activation flows.
 
     This class that provides an interface for handling basic activation flows. 
-    Activation flows are implemented in instances' ``__call__`` methods. Outputs 
-    are allowed to be empty when such behavior is sensible.
-    
-    It is assumed that an activation channel will pay attention only to the 
-    activations relevant to the computation it implements. For instance, if an 
-    activation class implementing a bottom-up connection is passed a bunch of 
-    chunk activations, it should simply ignore these and look for matching
-    microfeatures. 
-    
-    If an activation channel is handed an input that does not contain a complete 
-    activation dictionary for expected nodes, it should not fail. Instead, it 
-    should have a well-defined default behavior for such cases. 
+    Activation flows are implemented in the ``__call__`` method. 
 
     See module documentation for examples and details.
     """
