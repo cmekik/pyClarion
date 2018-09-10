@@ -149,9 +149,7 @@ Pt = TypeVar('Pt', bound=ActivationPacket)
 
 
 class Junction(Generic[Pt], abc.ABC):
-    """An abstract class for handling the combination of chunk and/or 
-    (micro)feature activations from multiple sources.
-    """
+    """Combines activations flows from multiple sources."""
 
     @abc.abstractmethod
     def __call__(self, *input_maps: Pt) -> ActivationPacket:
