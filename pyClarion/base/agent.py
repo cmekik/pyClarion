@@ -1,9 +1,18 @@
+'''
+Tools for building Clarion agents.
+
+.. warning:: 
+   This module is very experimental. Definitions may change substantially.
+'''
+
 import abc
 import typing as T
-from pyClarion.base.packet import BaseActivationPacket
+from pyClarion.base.node import Node
+from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.channel import Channel
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
+from pyClarion.base.network import Network
 
 
 class Statistic(abc.ABC):
@@ -17,64 +26,35 @@ class Statistic(abc.ABC):
 
 
 class Component(abc.ABC):
-    """Manages some class of activation channels associated with a subsystem.
+    """Manages some class of activation flows associated with a subsystem.
 
     Components are abstractions meant to capture learning and forgetting 
     routines. They monitor the activity of the subsystem to which they belong 
     and modify its members (channels and/or parameters).
     """
-    pass
+    
+    @abc.abstractmethod
+    def spawn_channels(self) -> T.Union[Channel, T.Iterable[Channel]]:
+        '''Create and return channel(s) managed by ``self``.'''
+
+        pass
 
 
 class Subsystem(abc.ABC):
-    """A Clarion subsystem.
-    """
-
-    @abc.abstractmethod
-    def __call__(self) -> None:
-        """Run through one processing cycle.
-        """
-        pass
-
-    def select_actions(self, input_map : BaseActivationPacket) -> None:
-        """Select a 
-        """
-
-        actionable_chunks = self.effector.get_actionable_chunks(input_map)
-        self.effector.buffer = self.selector(input_map, actionable_chunks)
-
-    def execute_actions(self) -> None:
-        
-        self.effector.fire_buffered()
+    '''A Clarion subsystem.'''
 
     @property
     @abc.abstractmethod
-    def channels(self) -> T.Set[Channel]:
-        """A set of activation channels representing top- and bottom-level 
-        knowledge stored in self.
-        """
+    def network(self) -> Network:
+        '''A set of channels representing knowledge stored in ``self``.'''
+        
         pass
 
     @property
     @abc.abstractmethod
     def components(self) -> T.Set[Component]:
-        """A set of subsystem components for handling learning, forgetting and 
-        other changes to the knowledge-base of the subject.
-        """
-        pass
+        '''Components handling learning and forgetting in ``self``.'''
 
-    @property
-    @abc.abstractmethod
-    def selector(self) -> Selector:
-        """Binds actionable chunks to action routines.
-        """
-        pass
-
-    @property
-    @abc.abstractmethod
-    def effector(self) -> Effector:
-        """Binds actionable chunks to action routines.
-        """
         pass
 
 

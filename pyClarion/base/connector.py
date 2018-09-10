@@ -23,7 +23,7 @@ Example
 This example is adapted builds on an example from the documentation of 
 ``pyClarion.base.channel``.
 
->>> from pyClarion.base.node import Microfeature, Chunk
+>>> from pyClarion.base.knowledge import Microfeature, Chunk, Flow, Plicity
 >>> from pyClarion.base.junction import MaxJunction
 >>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
@@ -57,23 +57,25 @@ This example is adapted builds on an example from the documentation of
 >>> ch = Chunk("APPLE")
 >>> mf1 = Microfeature("color", "red")
 >>> mf2 = Microfeature("tasty", True)
->>> edge1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
->>> edge2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
+>>> fl1 = Flow(id=(ch, mf1), plicity=Plicity.Abplicit)
+>>> fl2 = Flow(id=(ch, mf2), plicity=Plicity.Abplicit)
+>>> channel1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
+>>> channel2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
 >>> nodes = {
 ...     ch : NodeConnector(ch, MyMaxJunction()),
 ...     mf1 : NodeConnector(mf1, MyMaxJunction()),
 ...     mf2 : NodeConnector(mf2, MyMaxJunction()),
 ... }
 ...
->>> channels = {
-...     edge1 : ChannelConnector(edge1, MyMaxJunction()),
-...     edge2 : ChannelConnector(edge2, MyMaxJunction())
+>>> flows = {
+...     fl1 : FlowConnector(fl1, channel1, MyMaxJunction()),
+...     fl2 : FlowConnector(fl2, channel2, MyMaxJunction())
 ... } 
 >>> # We need to connect everything up.
->>> nodes[mf1].add_link(id(edge1), channels[edge1].get_pull_method())
->>> nodes[mf2].add_link(id(edge2), channels[edge2].get_pull_method())
->>> channels[edge1].add_link(ch, nodes[ch].get_pull_method())
->>> channels[edge2].add_link(ch, nodes[ch].get_pull_method())
+>>> nodes[mf1].add_link(fl1, flows[fl1].get_pull_method())
+>>> nodes[mf2].add_link(fl2, flows[fl2].get_pull_method())
+>>> flows[fl1].add_link(ch, nodes[ch].get_pull_method())
+>>> flows[fl2].add_link(ch, nodes[ch].get_pull_method())
 >>> # Check that buffers are empty prior to test
 >>> nodes[mf1].output_buffer == MyPacket()
 True
@@ -85,7 +87,7 @@ True
 ...     connector()
 ... 
 >>> # Propagate activations
->>> for connector in channels.values():
+>>> for connector in flows.values():
 ...     connector()
 ... 
 >>> for connector in nodes.values():
@@ -132,9 +134,9 @@ concrete classes provided by this module.
 import abc
 import copy
 from typing import (
-    TypeVar, Generic, Hashable, Callable, Any, Dict, Set, List, Iterable
+    TypeVar, Generic, Hashable, Callable, Any, Dict, Set, List, Iterable, Union
 )
-from pyClarion.base.node import Node
+from pyClarion.base.knowledge import Node, Flow
 from pyClarion.base.packet import Packet, ActivationPacket, SelectorPacket
 from pyClarion.base.channel import Channel
 from pyClarion.base.junction import Junction
@@ -145,7 +147,7 @@ from pyClarion.base.effector import Effector
 # TYPE VARIABLES #
 ##################
 
-Ct = TypeVar('Ct')
+Ct = TypeVar('Ct', bound=Union[Node, Flow])
 It = TypeVar('It', bound=Packet)
 Ot = TypeVar('Ot', bound=Packet)
 
@@ -154,7 +156,7 @@ Ot = TypeVar('Ot', bound=Packet)
 # ABSTRACTIONS #
 ################
 
-class Connector(Generic[Ct, It], abc.ABC):
+class Connector(Generic[It], abc.ABC):
     '''
     Connects client to relevant constructs as a listener.
 
@@ -163,9 +165,8 @@ class Connector(Generic[Ct, It], abc.ABC):
     For details, see module documentation.
     '''
 
-    def __init__(self, client: Ct) -> None:
+    def __init__(self) -> None:
 
-        self.client: Ct = client
         self.input_links: Dict[Hashable, Callable[..., It]] = dict()
         self.input_buffer: List[It] = list()
 
@@ -190,7 +191,7 @@ class Connector(Generic[Ct, It], abc.ABC):
         del self.input_links[identifier]
 
 
-class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
+class Propagator(Connector[It], Generic[It, Ot]):
     '''
     Allows client to push activation packets to listeners.
 
@@ -199,9 +200,9 @@ class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
     For details, see module documentation.
     '''
     
-    def __init__(self, client: Ct, junction: Junction) -> None:
+    def __init__(self, junction: Junction) -> None:
         
-        super().__init__(client)
+        super().__init__()
         self.junction = junction
         self.output_buffer : Ot = self.propagate()
 
@@ -225,7 +226,12 @@ class Propagator(Connector[Ct, It], Generic[Ct, It, Ot]):
         pass
 
 
-class ActivationPropagator(Propagator[Ct, ActivationPacket, ActivationPacket]):
+class ActivationPropagator(Propagator[ActivationPacket, ActivationPacket], Generic[Ct]):
+
+    def __init__(self, client: Ct, junction: Junction) -> None:
+
+        super().__init__(junction)
+        self.client = client
 
     def get_pull_method(self) -> Callable:
 
@@ -274,11 +280,19 @@ class NodeConnector(ActivationPropagator[Node]):
         return self.junction(*self.input_buffer)
 
 
-class ChannelConnector(ActivationPropagator[Channel]):
+class FlowConnector(ActivationPropagator[Flow]):
     '''Embeds an activation channel in a Clarion agent.
 
     For details, see module documentation.
     '''
+
+    def __init__(
+        self, client: Flow, channel: Channel, junction: Junction
+    ) -> None:
+    
+        self.channel = channel
+        super().__init__(client, junction)
+
 
     def propagate(self) -> ActivationPacket:
         '''Update listeners with new output of client activation channel.
@@ -288,15 +302,20 @@ class ChannelConnector(ActivationPropagator[Channel]):
         output of ``self.clent``.
         '''
 
-        return self.client(self.junction(*self.input_buffer))
+        return self.channel(self.junction(*self.input_buffer))
 
 
-class SelectorConnector(Propagator[Selector, ActivationPacket, SelectorPacket]):
+class SelectorConnector(Propagator[ActivationPacket, SelectorPacket]):
     '''
     Embeds an action selector in a Clarion agent.
 
     For details, see module documentation.
     '''
+
+    def __init__(self, selector: Selector, junction: Junction) -> None:
+
+        super().__init__(junction)
+        self.selector = selector
 
     def propagate(self) -> SelectorPacket:
         '''Update listeners with new output of client activation channel.
@@ -306,7 +325,7 @@ class SelectorConnector(Propagator[Selector, ActivationPacket, SelectorPacket]):
         output of ``self.clent``.
         '''
 
-        return self.client(self.junction(*self.input_buffer))
+        return self.selector(self.junction(*self.input_buffer))
 
     def get_pull_method(self) -> Callable:
 
@@ -323,14 +342,19 @@ class SelectorConnector(Propagator[Selector, ActivationPacket, SelectorPacket]):
         return copy.deepcopy(self.output_buffer)
 
 
-class EffectorConnector(Connector[Effector, SelectorPacket]):
+class EffectorConnector(Connector[SelectorPacket]):
     '''
     Embeds an action effector in a Clarion agent.
 
     For details, see module documentation.
     '''
 
+    def __init__(self, effector: Effector) -> None:
+
+        super().__init__()
+        self.effector = effector
+
     def __call__(self) -> None:
 
         self.pull()
-        self.client(*self.input_buffer)
+        self.effector(*self.input_buffer)

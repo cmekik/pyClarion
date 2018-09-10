@@ -8,10 +8,11 @@ receives a single ``ActivationPacket`` as input and outputs a single
 Usage
 =====
 
-``Channel`` objects may be used to capture activation flows in many ways, at 
-multiple levels of granularity. The role of the ``Channel`` class is to provide 
-implementations of various activation flows with a uniform interface while 
-leaving authors free to determine as many implementation details as possible.
+``Channel`` objects may be used to capture the behavior of activation flows in 
+many ways, at multiple levels of granularity. The role of the ``Channel`` class 
+is to provide implementations of various activation flows with a uniform 
+interface while leaving authors free to determine as many implementation details 
+as possible.
 
 Instantiation
 -------------
@@ -53,7 +54,7 @@ Use Cases
 The simplest use case for a ``Channel`` object is to transform activation 
 strengths.
 
->>> from pyClarion.base.node import Node
+>>> from pyClarion.base.knowledge import Node
 >>> class ScaledPacket(MyPacket):
 ...     pass
 ... 
@@ -80,7 +81,7 @@ True
 A much more interesting use case of ``Channel`` is implementing knowledge-based
 processing of the input activation packet.
 
->>> from pyClarion.base.node import Microfeature, Chunk
+>>> from pyClarion.base.knowledge import Microfeature, Chunk
 >>> class MyTopLevelPacket(MyPacket):
 ...     pass
 ... 

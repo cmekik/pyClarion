@@ -1,6 +1,6 @@
 import doctest
 
-import pyClarion.base.node
+import pyClarion.base.knowledge
 import pyClarion.base.packet
 import pyClarion.base.channel
 import pyClarion.base.junction
@@ -8,7 +8,7 @@ import pyClarion.base.selector
 import pyClarion.base.effector
 import pyClarion.base.connector
 
-doctest.testmod(pyClarion.base.node, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.knowledge, optionflags=doctest.ELLIPSIS)
 doctest.testmod(pyClarion.base.packet, optionflags=doctest.ELLIPSIS)
 doctest.testmod(pyClarion.base.channel, optionflags=doctest.ELLIPSIS)
 doctest.testmod(pyClarion.base.junction, optionflags=doctest.ELLIPSIS)

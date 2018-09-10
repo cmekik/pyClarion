@@ -9,7 +9,7 @@ Sub-Modules
 .. toctree::
    :maxdepth: 1
 
-   node.rst
+   knowledge.rst
    packet.rst
    channel.rst
    junction.rst

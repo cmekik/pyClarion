@@ -55,7 +55,7 @@ The following example defines a simple ``MaxSelector`` and demonstrates its use.
 ...                 selected = chunk
 ...         return set([selected])
 ...
->>> from pyClarion.base.node import Node
+>>> from pyClarion.base.knowledge import Node
 >>> ch1, ch2, ch3 = Chunk(1), Chunk(2), Chunk(3)
 >>> n1, n2, n3 = Node(), Node(), Node()
 >>> selector = MaxSelector(actionable_chunks={ch1, ch2, ch3})
@@ -85,7 +85,7 @@ True
 from typing import TypeVar, Generic, Iterable, Dict, Set, Any
 import abc
 import numpy as np
-from pyClarion.base.node import Node, Chunk
+from pyClarion.base.knowledge import Node, Chunk
 from pyClarion.base.packet import ActivationPacket, SelectorPacket
 
 

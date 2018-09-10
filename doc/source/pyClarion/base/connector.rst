@@ -15,18 +15,14 @@ Abstractions
    :members:
 .. automethod:: Connector.__init__
 .. automethod:: Connector.__call__
-.. automethod:: Connector.update
-.. automethod:: Connector.clear
-.. automethod:: Connector.get_reporter
-
+.. automethod:: Connector.pull
+.. automethod:: Connector.add_link
 
 .. autoclass:: Propagator
     :members:
 .. automethod:: Propagator.__call__
-.. automethod:: Propagator.register
+.. automethod:: Propagator.get_pull_method
 .. automethod:: Propagator.propagate
-.. automethod:: Propagator.notify_listeners
-.. automethod:: Propagator.clear_listeners
 
 NodeConnector
 ~~~~~~~~~~~~~

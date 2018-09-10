@@ -57,7 +57,7 @@ True
 The ``default_activation`` method can be set to return different default values 
 for different nodes.
 
->>> from pyClarion.base.node import Microfeature, Chunk
+>>> from pyClarion.base.knowledge import Microfeature, Chunk
 >>> class MySubtlePacket(ActivationPacket[float]):
 ...     def default_activation(self, key):
 ...         if isinstance(key, Microfeature):
@@ -123,7 +123,7 @@ SelectorPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
 from abc import abstractmethod
 from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
 from collections import UserDict
-from pyClarion.base.node import Node, Chunk
+from pyClarion.base.knowledge import Node, Chunk
 
 
 At = TypeVar("At")

@@ -46,7 +46,7 @@ overriding ``Effector.__call__``
 
 import abc
 from typing import Generic, TypeVar, Mapping, Callable
-from pyClarion.base.node import Chunk, Node
+from pyClarion.base.knowledge import Chunk, Node
 from pyClarion.base.packet import SelectorPacket
 
 St = TypeVar('St', bound=SelectorPacket)

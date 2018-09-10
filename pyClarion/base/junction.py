@@ -37,7 +37,7 @@ receieves and discards the others.
 ...         return input_maps[0]
 ... 
 >>> junc = MyJunction()
->>> from pyClarion.base.node import Node
+>>> from pyClarion.base.knowledge import Node
 >>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
@@ -136,7 +136,7 @@ True
 
 from typing import Generic, TypeVar, Type
 import abc
-from pyClarion.base.node import get_nodes
+from pyClarion.base.knowledge import get_nodes
 from pyClarion.base.packet import ActivationPacket
 
 
