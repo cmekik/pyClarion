@@ -4,7 +4,7 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 
 from typing import Dict, Hashable, Set, Tuple
-from pyClarion.base.node import Chunk, Microfeature
+from pyClarion.base.knowledge import Chunk, Microfeature
 from pyClarion.standard.common import (
     ActivationPacket, TopLevelPacket, TopDownPacket, BottomUpPacket, Channel
 )
@@ -100,6 +100,14 @@ class InterLevelComponent(Component):
         links : Dict[Chunk, Set[Microfeature]], 
         weights : Dict[Chunk, Dict[Hashable, float]]
     ) -> None:
+        '''
+        Initialize an InterLevelComponent.
+
+        Must have:
+            for every chunk, microfeature if ``microfeature in links[chunk]``
+            then ``microfeature.dim in weights[chunk] and
+            ``weights[chunk][microfeature.dim] != 0
+        '''
 
         self.links = links
         self.weights = weights

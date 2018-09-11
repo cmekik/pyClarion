@@ -1,6 +1,6 @@
 '''Common constructs for the standard implementation of Clarion.'''
 
-from pyClarion.base.node import Node
+from pyClarion.base.knowledge import Node
 from pyClarion.base.packet import ActivationPacket as BaseActivationPacket
 from pyClarion.base.channel import Channel as BaseChannel
 
