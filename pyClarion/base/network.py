@@ -15,6 +15,7 @@ from pyClarion.base.channel import Channel
 from pyClarion.base.junction import Junction
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
+from pyClarion.base.structure import NodeStructure, FlowStructure, ActuatorStructure
 from pyClarion.base.connector import NodeConnector, FlowConnector, Actuator
 
 
@@ -23,19 +24,18 @@ class ActuatorNetwork(object):
 
     def __init__(self,
         external_inputs: Dict[Hashable, Callable[..., ActivationPacket]],
-        selector: Selector, 
-        effector: Effector,
-        selector_junction: Junction, 
+        actuator_structure: ActuatorStructure
     ) -> None:
 
         self._external_inputs = external_inputs
         self._nodes: Dict[Node, NodeConnector] = dict()
         self._flows: Dict[Flow, FlowConnector] = dict()
-        self._actuator = Actuator(selector, effector, selector_junction)
+        self._actuator = Actuator(actuator_structure)
 
-    def add_node(self, node: Node, junction: Junction) -> None:
+    def add_node(self, node_structure: NodeStructure) -> None:
         
-        node_connector = NodeConnector(node, junction)
+        node = node_structure.construct
+        node_connector = NodeConnector(node_structure)
         self.nodes[node] = node_connector
         for identifier, pull_method in self.external_inputs.items():
             node_connector.add_link(identifier, pull_method)
@@ -51,9 +51,10 @@ class ActuatorNetwork(object):
             flow_connector.drop_link(node)
         del self.nodes[node]
             
-    def add_flow(self, flow: Flow, channel: Channel, junction: Junction) -> None:
+    def add_flow(self, flow_structure: FlowStructure) -> None:
 
-        flow_connector = FlowConnector(flow, channel, junction)
+        flow = flow_structure.construct
+        flow_connector = FlowConnector(flow_structure)
         self.flows[flow] = flow_connector
         for node, node_connector in self.nodes.items():
             node_connector.add_link(flow, flow_connector.get_pull_method())

@@ -130,18 +130,19 @@ import copy
 from typing import (
     TypeVar, Generic, Hashable, Callable, Any, Dict, Set, List, Iterable, Union
 )
-from pyClarion.base.knowledge import Node, Flow
+from pyClarion.base.knowledge import Node
 from pyClarion.base.packet import Packet, ActivationPacket, SelectorPacket
-from pyClarion.base.channel import Channel
-from pyClarion.base.junction import Junction
-from pyClarion.base.selector import Selector
-from pyClarion.base.effector import Effector
+from pyClarion.base.structure import (
+    Structure, KnowledgeStructure, NodeStructure, FlowStructure, 
+    ActuatorStructure
+)
 
 ##################
 # TYPE VARIABLES #
 ##################
 
-Ct = TypeVar('Ct', bound=Union[Node, Flow])
+St = TypeVar('St', bound=Structure)
+Kt = TypeVar('Kt', bound=KnowledgeStructure)
 It = TypeVar('It', bound=Packet)
 Ot = TypeVar('Ot', bound=Packet)
 
@@ -185,7 +186,7 @@ class Connector(Generic[It], abc.ABC):
         del self.input_links[identifier]
 
 
-class Propagator(Connector[It], Generic[It, Ot]):
+class Propagator(Connector[It], Generic[St, It, Ot]):
     """
     Allows listeners to pull output of client.
 
@@ -194,10 +195,10 @@ class Propagator(Connector[It], Generic[It, Ot]):
     For details, see module documentation.
     """
     
-    def __init__(self, junction: Junction) -> None:
+    def __init__(self, structure: St) -> None:
         
         super().__init__()
-        self.junction = junction
+        self.structure = structure
         self.output_buffer : Ot = self.propagate()
 
     def __call__(self) -> None:
@@ -221,12 +222,7 @@ class Propagator(Connector[It], Generic[It, Ot]):
         pass
 
 
-class ActivationPropagator(Propagator[ActivationPacket, ActivationPacket], Generic[Ct]):
-
-    def __init__(self, client: Ct, junction: Junction) -> None:
-
-        super().__init__(junction)
-        self.client = client
+class KnowledgePropagator(Propagator[Kt, ActivationPacket, ActivationPacket]):
 
     def get_pull_method(self) -> Callable:
 
@@ -253,7 +249,7 @@ class ActivationPropagator(Propagator[ActivationPacket, ActivationPacket], Gener
 ####################
 
 
-class NodeConnector(ActivationPropagator[Node]):
+class NodeConnector(KnowledgePropagator[NodeStructure]):
     """
     Embeds a node in a network.
 
@@ -263,60 +259,49 @@ class NodeConnector(ActivationPropagator[Node]):
     def pull(self) -> None:
         
         self.input_buffer = [
-            callback([self.client]) for callback in self.input_links.values()
+            callback([self.structure.construct]) 
+            for callback in self.input_links.values()
         ]
 
     def propagate(self) -> ActivationPacket:
         """Compute and return current output of client node."""
         
-        return self.junction(*self.input_buffer)
+        return self.structure.junction(*self.input_buffer)
 
 
-class FlowConnector(ActivationPropagator[Flow]):
+class FlowConnector(KnowledgePropagator[FlowStructure]):
     """
     Embeds an activation flow in a Clarion agent.
 
     For details, see module documentation.
     """
 
-    def __init__(
-        self, client: Flow, channel: Channel, junction: Junction
-    ) -> None:
-
-        self.channel = channel
-        super().__init__(client, junction)
-
-
     def propagate(self) -> ActivationPacket:
         """Compute and return output of client activation flow."""
 
-        return self.channel(self.junction(*self.input_buffer))
+        return self.structure.channel(
+            self.structure.junction(*self.input_buffer)
+        )
 
 
-class Actuator(Propagator[ActivationPacket, SelectorPacket]):
+class Actuator(Propagator[ActuatorStructure, ActivationPacket, SelectorPacket]):
     """
     Embeds an action selector/effector pair in a Clarion agent.
 
     For details, see module documentation.
     """
 
-    def __init__(
-        self, selector: Selector, effector: Effector, junction: Junction
-    ) -> None:
-
-        self.selector = selector
-        self.effector = effector
-        super().__init__(junction)
-
     def __call__(self):
 
         super().__call__()
-        self.effector(self.get_output())
+        self.structure.effector(self.get_output())
 
     def propagate(self) -> SelectorPacket:
         """Compute and return output of client selector."""
 
-        return self.selector(self.junction(*self.input_buffer))
+        return self.structure.selector(
+            self.structure.junction(*self.input_buffer)
+        )
 
     def get_pull_method(self) -> Callable:
 

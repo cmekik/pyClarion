@@ -31,26 +31,14 @@ class Subsystem(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def selector(self) -> Selector:
-
-        pass
-
-    @property
-    @abc.abstractmethod
-    def effector(self) -> Effector:
-        
-        pass
-
-    @property
-    @abc.abstractmethod
-    def flow_components(self) -> T.Set[FlowComponent]:
+    def node_component(self) -> T.Set[NodeComponent]:
         '''Components handling learning and forgetting in ``self``.'''
 
         pass
 
     @property
     @abc.abstractmethod
-    def node_component(self) -> T.Set[NodeComponent]:
+    def flow_components(self) -> T.Set[FlowComponent]:
         '''Components handling learning and forgetting in ``self``.'''
 
         pass

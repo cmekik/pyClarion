@@ -8,6 +8,7 @@ from pyClarion.base.knowledge import Node, Chunk, Microfeature, Flow, Plicity
 from pyClarion.standard.common import (
     ActivationPacket, TopLevelPacket, TopDownPacket, BottomUpPacket, Channel, UpdateJunction
 )
+from pyClarion.base.structure import FlowStructure
 from pyClarion.base.component import NodeComponent, FlowComponent
 from pyClarion.base.agent import Subsystem
 
@@ -45,13 +46,13 @@ class GKS(FlowComponent):
     def update_knowledge(self, *args, **kwargs):
         pass
 
-    def initialize_knowledge(self) -> List[Tuple[Flow, Channel, UpdateJunction]]:
+    def initialize_knowledge(self) -> List[FlowStructure]:
 
         return [
-            (
+            FlowStructure(
                 self.flow, 
-                AssociativeRuleChannel(self.associations),
-                UpdateJunction()
+                UpdateJunction(),
+                AssociativeRuleChannel(self.associations)
             )
         ]
 
@@ -139,18 +140,18 @@ class InterLevelComponent(FlowComponent):
     def update_knowledge(self, *args, **kwargs):
         pass
 
-    def initialize_knowledge(self) -> List[Tuple[Flow, Channel, UpdateJunction]]:
+    def initialize_knowledge(self) -> List[FlowStructure]:
 
         return [
-            (
+            FlowStructure(
                 self.flows[Plicity.Abplicit], 
-                TopDownChannel(self.links, self.weights),
-                UpdateJunction() 
+                UpdateJunction(),
+                TopDownChannel(self.links, self.weights)
             ),
-            (
+            FlowStructure(
                 self.flows[Plicity.Deplicit],
-                BottomUpChannel(self.links, self.weights),
-                UpdateJunction()
+                UpdateJunction(),
+                BottomUpChannel(self.links, self.weights)
             )
         ]
 
@@ -163,14 +164,14 @@ class InterLevelComponent(FlowComponent):
 class NACS(Subsystem):
     """Ensures smooth functioning of components."""
 
-    def __init__(self, external_inputs, selector, effector, node_component, *components):
+    def __init__(self, external_inputs, actuator_structure, node_component, *components):
 
         self._selector = selector
         self._effector = effector
         self._node_component = node_component
         self._flow_components = set(components)
         self._network = ActuatorNetwork(
-            external_inputs, selector, effector, UpdateJunction()
+            external_inputs, actuator_structure
         )
 
     def init_links(self):
@@ -184,14 +185,6 @@ class NACS(Subsystem):
         self.node_component.attach_to_network(self.network)
         self.node_component.add_initial_nodes(initial_nodes)
         self.node_component.add_knowledge_to_network()
-
-    @property
-    def selector(self):
-        return self._selector
-
-    @property
-    def effector(self):
-        return self._effector
 
     @property
     def node_component(self):

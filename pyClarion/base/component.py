@@ -9,16 +9,14 @@ Tools for constructing Clarion components.
 import abc
 from typing import Union, List, Tuple, Generic, TypeVar, Callable, Optional, Set
 from pyClarion.base.knowledge import Node, Flow
+from pyClarion.base.structure import KnowledgeStructure, NodeStructure, FlowStructure
 from pyClarion.base.channel import Channel
 from pyClarion.base.junction import Junction
 from pyClarion.base.network import ActuatorNetwork
 
 
-Kt = TypeVar(
-    'Kt', bound=Union[Tuple[Node, Junction], Tuple[Flow, Channel, Junction]]
-)
-Nt = TypeVar('Nt', bound=Tuple[Node, Junction])
-Ft = TypeVar('Ft', bound=Tuple[Flow, Channel, Junction])
+Kt = TypeVar('Kt', bound=KnowledgeStructure)
+
 
 class Component(Generic[Kt], abc.ABC):
     """Manages some class of nodes or flows associated with a subsystem.
@@ -53,7 +51,7 @@ class Component(Generic[Kt], abc.ABC):
         pass
 
 
-class NodeComponent(Component[Nt]):
+class NodeComponent(Component[NodeStructure]):
 
     node_adder: Optional[Callable] = None
     node_remover: Optional[Callable] = None
@@ -64,7 +62,7 @@ class NodeComponent(Component[Nt]):
         self.node_remover = network.remove_node
 
 
-class FlowComponent(Component[Ft]):
+class FlowComponent(Component[FlowStructure]):
 
     flow_adder: Optional[Callable] = None
     flow_remover: Optional[Callable] = None
