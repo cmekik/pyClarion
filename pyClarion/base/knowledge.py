@@ -132,7 +132,7 @@ class Attribution(object):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class Node(object):
+class Node(Attribution):
     """
     A generic connectionist node.
 
