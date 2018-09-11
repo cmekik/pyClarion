@@ -7,12 +7,13 @@ Tools for building Clarion agents.
 
 import abc
 import typing as T
-from pyClarion.base.node import Node
+from pyClarion.base.knowledge import Node
 from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.channel import Channel
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
-from pyClarion.base.network import Network
+from pyClarion.base.network import ActuatorNetwork
+from pyClarion.base.component import NodeComponent, FlowComponent
 
 
 class Statistic(abc.ABC):
@@ -25,36 +26,40 @@ class Statistic(abc.ABC):
     pass
 
 
-class Component(abc.ABC):
-    """Manages some class of activation flows associated with a subsystem.
-
-    Components are abstractions meant to capture learning and forgetting 
-    routines. They monitor the activity of the subsystem to which they belong 
-    and modify its members (channels and/or parameters).
-    """
-    
-    @abc.abstractmethod
-    def spawn_channels(self) -> T.Union[Channel, T.Iterable[Channel]]:
-        '''Create and return channel(s) managed by ``self``.'''
-
-        pass
-
-
 class Subsystem(abc.ABC):
     '''A Clarion subsystem.'''
 
     @property
     @abc.abstractmethod
-    def network(self) -> Network:
-        '''A set of channels representing knowledge stored in ``self``.'''
+    def selector(self) -> Selector:
+
+        pass
+
+    @property
+    @abc.abstractmethod
+    def effector(self) -> Effector:
         
         pass
 
     @property
     @abc.abstractmethod
-    def components(self) -> T.Set[Component]:
+    def flow_components(self) -> T.Set[FlowComponent]:
         '''Components handling learning and forgetting in ``self``.'''
 
+        pass
+
+    @property
+    @abc.abstractmethod
+    def node_component(self) -> T.Set[NodeComponent]:
+        '''Components handling learning and forgetting in ``self``.'''
+
+        pass
+
+    @property
+    @abc.abstractmethod
+    def network(self) -> ActuatorNetwork:
+        '''A set of channels representing knowledge stored in ``self``.'''
+        
         pass
 
 

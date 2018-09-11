@@ -3,12 +3,13 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 '''
 
 
-from typing import Dict, Hashable, Set, Tuple
-from pyClarion.base.knowledge import Chunk, Microfeature
+from typing import Dict, Hashable, Set, Tuple, List
+from pyClarion.base.knowledge import Node, Chunk, Microfeature, Flow, Plicity
 from pyClarion.standard.common import (
-    ActivationPacket, TopLevelPacket, TopDownPacket, BottomUpPacket, Channel
+    ActivationPacket, TopLevelPacket, TopDownPacket, BottomUpPacket, Channel, UpdateJunction
 )
-from pyClarion.base.agent import Component, Subsystem
+from pyClarion.base.component import NodeComponent, FlowComponent
+from pyClarion.base.agent import Subsystem
 
 
 ###########################
@@ -33,15 +34,33 @@ class AssociativeRuleChannel(Channel):
         return output
 
 
-class GKS(Component):
+class GKS(FlowComponent):
     
     def __init__(self) -> None:
 
+        flow_name = 'GKS'
+        self.flow = Flow(flow_name, Plicity.Explicit) 
         self.associations : Dict[Chunk, Dict[Chunk, float]] = dict()
 
-    def spawn_channels(self) -> AssociativeRuleChannel:
+    def update_knowledge(self, *args, **kwargs):
+        pass
 
-        return AssociativeRuleChannel(self.associations)
+    def initialize_knowledge(self) -> List[Tuple[Flow, Channel, UpdateJunction]]:
+
+        return [
+            (
+                self.flow, 
+                AssociativeRuleChannel(self.associations),
+                UpdateJunction()
+            )
+        ]
+
+    def get_known_nodes(self) -> Set[Node]:
+
+        output: Set[Node] = set(self.associations.keys())
+        for mapping in self.associations.values():
+            output.update(mapping.keys())
+        return output
 
 
 #############################
@@ -93,7 +112,7 @@ class BottomUpChannel(_InterLevelChannel):
         return output
 
 
-class InterLevelComponent(Component):
+class InterLevelComponent(FlowComponent):
 
     def __init__(
         self, 
@@ -109,20 +128,79 @@ class InterLevelComponent(Component):
             ``weights[chunk][microfeature.dim] != 0
         '''
 
+        flow_name = 'Interlevel'
+        self.flows = {
+            Plicity.Abplicit: Flow(flow_name, Plicity.Abplicit),
+            Plicity.Deplicit: Flow(flow_name, Plicity.Deplicit)
+        }
         self.links = links
         self.weights = weights
 
-    def spawn_channels(self) -> Tuple[TopDownChannel, BottomUpChannel]:
+    def update_knowledge(self, *args, **kwargs):
+        pass
 
-        return (
-            TopDownChannel(self.links, self.weights), 
-            BottomUpChannel(self.links, self.weights)
-        )
+    def initialize_knowledge(self) -> List[Tuple[Flow, Channel, UpdateJunction]]:
+
+        return [
+            (
+                self.flows[Plicity.Abplicit], 
+                TopDownChannel(self.links, self.weights),
+                UpdateJunction() 
+            ),
+            (
+                self.flows[Plicity.Deplicit],
+                BottomUpChannel(self.links, self.weights),
+                UpdateJunction()
+            )
+        ]
 
 
 ############################
 ### SUBSYSTEM DEFINITION ###
 ############################
 
+
 class NACS(Subsystem):
-    pass
+    """Ensures smooth functioning of components."""
+
+    def __init__(self, external_inputs, selector, effector, node_component, *components):
+
+        self._selector = selector
+        self._effector = effector
+        self._node_component = node_component
+        self._flow_components = set(components)
+        self._network = ActuatorNetwork(
+            external_inputs, selector, effector, UpdateJunction()
+        )
+
+    def init_links(self):
+        """Link up and sync components and network at initialization time."""
+
+        initial_nodes = set()
+        for component in self.components:
+            component.attach_to_network(self.network)
+            component.add_knowledge_to_network()
+            initial_nodes.update(component.get_known_nodes())
+        self.node_component.attach_to_network(self.network)
+        self.node_component.add_initial_nodes(initial_nodes)
+        self.node_component.add_knowledge_to_network()
+
+    @property
+    def selector(self):
+        return self._selector
+
+    @property
+    def effector(self):
+        return self._effector
+
+    @property
+    def node_component(self):
+        return self._node_component
+
+    @property
+    def flow_components(self):
+        return self._flow_components
+
+    @property
+    def network(self):
+        return self._network
