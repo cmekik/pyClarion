@@ -164,7 +164,7 @@ class InterLevelComponent(FlowComponent):
 class NACS(Subsystem):
     """Ensures smooth functioning of components."""
 
-    def __init__(self, external_inputs, actuator_structure, node_component, *components):
+    def __init__(self, external_inputs, external_outputs, actuator_structure, node_component, *components):
 
         self._selector = selector
         self._effector = effector
