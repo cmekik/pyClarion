@@ -13,20 +13,16 @@ in a Clarion network.
 
 import dataclasses
 from typing import Union
-from pyClarion.base.knowledge import Node, Flow
+from pyClarion.base.knowledge import Node, Flow, Appraisal
 from pyClarion.base.channel import Channel
 from pyClarion.base.junction import Junction
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
 
 @dataclasses.dataclass()
-class Structure(object):
-    pass
+class KnowledgeStructure(object):
 
-@dataclasses.dataclass()
-class KnowledgeStructure(Structure):
-
-    construct: Union[Node, Flow]
+    construct: Union[Node, Flow, Appraisal]
 
 @dataclasses.dataclass()
 class NodeStructure(KnowledgeStructure):
@@ -42,8 +38,9 @@ class FlowStructure(KnowledgeStructure):
     channel: Channel
 
 @dataclasses.dataclass()
-class ActuatorStructure(Structure):
+class ActuatorStructure(KnowledgeStructure):
 
+    construct: Appraisal
     junction: Junction
     selector: Selector
     effector: Effector

@@ -119,6 +119,17 @@ import enum
 # CLASSES #
 ###########
 
+@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
+class Attribution(object):
+    """
+    A generic connectionist node.
+
+    Although this class may be used on its own, it is intended for use as a base
+    class for more specific node types.
+    """
+    
+    pass
+
 
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class Node(object):
@@ -184,13 +195,22 @@ class Plicity(enum.Enum):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Flow(object):
+class Flow(Attribution):
     """
     A body of knowledge represented as an activation flow.
     """
 
     id: t.Hashable
     plicity: Plicity
+
+
+@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+class Appraisal(Attribution):
+    """
+    A body of knowledge represented as an activation flow.
+    """
+
+    id: t.Hashable
 
 
 ################

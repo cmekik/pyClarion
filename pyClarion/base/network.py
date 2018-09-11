@@ -24,13 +24,20 @@ class ActuatorNetwork(object):
 
     def __init__(self,
         external_inputs: Dict[Hashable, Callable[..., ActivationPacket]],
+        external_outputs: Dict[Hashable, Connector],
         actuator_structure: ActuatorStructure
     ) -> None:
 
-        self._external_inputs = external_inputs
+        self._external_inputs = set(external_inputs.keys())
+        self._external_outputs = set(external_outputs.keys())
         self._nodes: Dict[Node, NodeConnector] = dict()
         self._flows: Dict[Flow, FlowConnector] = dict()
         self._actuator = Actuator(actuator_structure)
+
+        for connector in external_outputs.values():
+            connector.add_link(
+                actuator_structure.construct, self.actuator.get_pull_method()
+            )
 
     def add_node(self, node_structure: NodeStructure) -> None:
         
@@ -86,7 +93,13 @@ class ActuatorNetwork(object):
             chosen = self.actuator.get_output().chosen
 
     @property
-    def external_inputs(self) -> Dict[Hashable, Callable[..., ActivationPacket]]:
+    def external_inputs(self) -> Set[Hashable]:
+        """External inputs to this network"""
+
+        return self._external_inputs
+
+    @property
+    def external_outputs(self) -> Set[Hashable]:
         """External inputs to this network"""
 
         return self._external_inputs
