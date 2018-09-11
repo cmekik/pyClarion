@@ -1,16 +1,21 @@
 """
 Tools for capturing fundamental representational constructs.
 
-Nodes
-=====
-
 The most basic representational construct in Clarion is the connectionist node: 
 an individual unit in a network that may receive activation from and propagate 
-activation to other units. 
+activation to other units.
 
-In Clarion, there are two essential kinds of node: microfeatures and chunks. 
-This module provides the ``Microfeature`` and ``Chunk`` classes, implemented as 
-frozen dataclasses, for representing microfeatures and chunks respectively.
+Nodes
+===== 
+
+In Clarion, there are two essential kinds of node: microfeatures and chunks, 
+which are represented by the ``Microfeature`` and ``Chunk`` classes 
+respectively.
+
+Both of these classes are implemeted as frozen dataclasses. 
+
+Examples
+--------
 
 Below, a microfeature node representing the dimension-value pair ``('color', 
 'red')`` and a chunk node with id ``1234`` are defined:
@@ -30,7 +35,7 @@ is to allow easy and uniform retrieval of information related to the nodes they
 represent within the theoretical context of a particular model.
 
 Equality Checking
------------------
+~~~~~~~~~~~~~~~~~
 
 Microfeature and Chunk instances compare equal iff the contents of their data 
 fields are equal. Below, ``mf`` compares equal to a new Microfeature instance 
@@ -53,7 +58,7 @@ False
 False
 
 Attributes
-----------
+~~~~~~~~~~
 
 ``Microfeature`` and ``Chunk`` instances are frozen. Attempting to set new 
 or existing attributes will cause an error:
@@ -77,11 +82,8 @@ add additional fields, as shown below.
 >>> MyMicrofeature('color', 'red', 'some metadata')
 MyMicrofeature(dim='color', val='red', meta='some metadata')
 
-By default, ``MyMicrofeature`` instances will only compare equal if all of 
-their attributes, including the new ``meta`` attribute compare equal.
-
 Node Objects
-------------
+~~~~~~~~~~~~
 
 The ``Node`` class is included as a base class for ``Microfeature`` and 
 ``Chunk`` and as a convenience for possible future extensions to Clarion. It is
@@ -189,7 +191,6 @@ class Flow(object):
 
     id: t.Hashable
     plicity: Plicity
-
 
 
 ################
