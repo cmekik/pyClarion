@@ -33,17 +33,11 @@ NodeConnector
 ChannelConnector
 ~~~~~~~~~~~~~~~~
 
-.. autoclass:: ChannelConnector
-.. automethod:: ChannelConnector.propagate
+.. autoclass:: FlowConnector
+.. automethod:: FlowConnector.propagate
 
-SelectorConnector
-~~~~~~~~~~~~~~~~~
+Actuator
+~~~~~~~~
 
-.. autoclass:: SelectorConnector
-.. automethod:: SelectorConnector.propagate
-
-EffectorConnector
-~~~~~~~~~~~~~~~~~
-
-.. autoclass:: EffectorConnector
-.. automethod:: EffectorConnector.__call__
+.. autoclass:: Actuator
+.. automethod:: Actuator.propagate

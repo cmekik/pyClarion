@@ -16,5 +16,6 @@ Sub-Modules
    selector.rst
    effector.rst
    connector.rst
+   network.rst
    agent.rst
 

@@ -1,12 +1,12 @@
-pyClarion.base.node
-===================
+pyClarion.base.knowledge
+========================
 
-.. automodule:: pyClarion.base.node
+.. automodule:: pyClarion.base.knowledge
 
 Module Reference
 ----------------
 
-.. currentmodule:: pyClarion.base.node
+.. currentmodule:: pyClarion.base.knowledge
 
 Classes
 ~~~~~~~
