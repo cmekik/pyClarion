@@ -9,9 +9,8 @@ Tools for constructing Clarion components.
 import abc
 from typing import Union, List, Tuple, Generic, TypeVar, Callable, Optional, Set
 from pyClarion.base.knowledge import Node, Flow
+from pyClarion.base.processor import Channel, Junction
 from pyClarion.base.structure import KnowledgeStructure, NodeStructure, FlowStructure
-from pyClarion.base.channel import Channel
-from pyClarion.base.junction import Junction
 from pyClarion.base.network import ActuatorNetwork
 
 

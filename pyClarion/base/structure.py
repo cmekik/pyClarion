@@ -14,10 +14,7 @@ in a Clarion network.
 import dataclasses
 from typing import Union
 from pyClarion.base.knowledge import Node, Flow, Appraisal
-from pyClarion.base.channel import Channel
-from pyClarion.base.junction import Junction
-from pyClarion.base.selector import Selector
-from pyClarion.base.effector import Effector
+from pyClarion.base.processor import Channel, Junction, Selector, Effector
 
 @dataclasses.dataclass()
 class Structure(object):
@@ -25,7 +22,7 @@ class Structure(object):
     pass
 
 @dataclasses.dataclass()
-class KnowledgeStructure(object):
+class KnowledgeStructure(Structure):
 
     construct: Union[Node, Flow, Appraisal]
 
@@ -43,9 +40,14 @@ class FlowStructure(KnowledgeStructure):
     channel: Channel
 
 @dataclasses.dataclass()
-class ActuatorStructure(KnowledgeStructure):
+class AppraisalStructure(KnowledgeStructure):
 
     construct: Appraisal
     junction: Junction
     selector: Selector
+
+@dataclasses.dataclass()
+class ActuatorStructure(Structure):
+
+    junction: Junction
     effector: Effector

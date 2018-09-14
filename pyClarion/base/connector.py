@@ -17,14 +17,13 @@ Example
 This example is adapted builds on an example from the documentation of 
 ``pyClarion.base.channel``.
 
->>> from pyClarion.base.channel import Channel
+>>> from pyClarion.base.processor import Channel, MaxJunction
 >>> from pyClarion.base.knowledge import Microfeature, Chunk, Flow, Plicity
->>> from pyClarion.base.junction import MaxJunction
 >>> class MyPacket(ActivationPacket):
 ...     def default_activation(self, key):
 ...         return 0.0
 ... 
->>> class MyMaxJunction(MaxJunction[MyPacket]):
+>>> class MyMaxJunction(MaxJunction[MyPacket, float]):
 ... 
 ...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
 ...         output = MyPacket()
@@ -35,7 +34,7 @@ This example is adapted builds on an example from the documentation of
 >>> class MyTopDownPacket(MyPacket):
 ...     pass
 ... 
->>> class FineGrainedTopDownChannel(Channel[MyPacket]):
+>>> class FineGrainedTopDownChannel(Channel[MyPacket, float]):
 ...     '''Represents a top-down link between two individual nodes.'''
 ... 
 ...     def __init__(self, chunk, microfeature, weight):
@@ -60,16 +59,16 @@ This example is adapted builds on an example from the documentation of
 >>> channel1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
 >>> channel2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
 >>> nodes = {
-...     ch : NodeConnector(ch_struct),
-...     mf1 : NodeConnector(mf1_struct),
-...     mf2 : NodeConnector(mf2_struct),
+...     ch : NodePropagator(ch_struct),
+...     mf1 : NodePropagator(mf1_struct),
+...     mf2 : NodePropagator(mf2_struct),
 ... }
 ...
 >>> flow_struct_1 = FlowStructure(fl1, MyMaxJunction(), channel1)
 >>> flow_struct_2 = FlowStructure(fl2, MyMaxJunction(), channel2)
 >>> flows = {
-...     fl1 : FlowConnector(flow_struct_1),
-...     fl2 : FlowConnector(flow_struct_2)
+...     fl1 : FlowPropagator(flow_struct_1),
+...     fl2 : FlowPropagator(flow_struct_2)
 ... } 
 >>> # We need to connect everything up.
 >>> nodes[mf1].add_link(fl1, flows[fl1].get_pull_method())
@@ -140,7 +139,7 @@ from pyClarion.base.knowledge import Node
 from pyClarion.base.packet import Packet, ActivationPacket, SelectorPacket
 from pyClarion.base.structure import (
     Structure, KnowledgeStructure, NodeStructure, FlowStructure, 
-    ActuatorStructure
+    AppraisalStructure, ActuatorStructure
 )
 
 ##################
@@ -240,7 +239,7 @@ class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
         self.output_buffer = self.propagate()
 
 
-class KnowledgePropagator(Propagator[Kt, ActivationPacket, ActivationPacket]):
+class KnowledgePropagator(Propagator[St, ActivationPacket, ActivationPacket]):
 
     def get_pull_method(self) -> Callable:
 
@@ -267,7 +266,7 @@ class KnowledgePropagator(Propagator[Kt, ActivationPacket, ActivationPacket]):
 ####################
 
 
-class NodeConnector(KnowledgePropagator[NodeStructure]):
+class NodePropagator(KnowledgePropagator[NodeStructure]):
     """
     Embeds a node in a network.
 
@@ -287,7 +286,7 @@ class NodeConnector(KnowledgePropagator[NodeStructure]):
         return self.structure.junction(*self.input_buffer)
 
 
-class FlowConnector(KnowledgePropagator[FlowStructure]):
+class FlowPropagator(KnowledgePropagator[FlowStructure]):
     """
     Embeds an activation flow in a Clarion agent.
 
@@ -302,7 +301,9 @@ class FlowConnector(KnowledgePropagator[FlowStructure]):
         )
 
 
-class Actuator(Propagator[ActuatorStructure, ActivationPacket, SelectorPacket]):
+class AppraisalPropagator(
+    Propagator[AppraisalStructure, ActivationPacket, SelectorPacket]
+):
     """
     Embeds an action selector/effector pair in a Clarion agent.
 
@@ -312,7 +313,6 @@ class Actuator(Propagator[ActuatorStructure, ActivationPacket, SelectorPacket]):
     def __call__(self):
 
         super().__call__()
-        self.structure.effector(self.get_output())
 
     def propagate(self) -> SelectorPacket:
         """Compute and return output of client selector."""
