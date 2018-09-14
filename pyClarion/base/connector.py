@@ -17,6 +17,7 @@ Example
 This example is adapted builds on an example from the documentation of 
 ``pyClarion.base.channel``.
 
+>>> from pyClarion.base.channel import Channel
 >>> from pyClarion.base.knowledge import Microfeature, Chunk, Flow, Plicity
 >>> from pyClarion.base.junction import MaxJunction
 >>> class MyPacket(ActivationPacket):
@@ -53,17 +54,22 @@ This example is adapted builds on an example from the documentation of
 >>> mf2 = Microfeature("tasty", True)
 >>> fl1 = Flow(id=(ch, mf1), plicity=Plicity.Abplicit)
 >>> fl2 = Flow(id=(ch, mf2), plicity=Plicity.Abplicit)
+>>> ch_struct = NodeStructure(ch, MyMaxJunction())
+>>> mf1_struct = NodeStructure(mf1, MyMaxJunction())
+>>> mf2_struct = NodeStructure(mf2, MyMaxJunction())
 >>> channel1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
 >>> channel2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
 >>> nodes = {
-...     ch : NodeConnector(ch, MyMaxJunction()),
-...     mf1 : NodeConnector(mf1, MyMaxJunction()),
-...     mf2 : NodeConnector(mf2, MyMaxJunction()),
+...     ch : NodeConnector(ch_struct),
+...     mf1 : NodeConnector(mf1_struct),
+...     mf2 : NodeConnector(mf2_struct),
 ... }
 ...
+>>> flow_struct_1 = FlowStructure(fl1, MyMaxJunction(), channel1)
+>>> flow_struct_2 = FlowStructure(fl2, MyMaxJunction(), channel2)
 >>> flows = {
-...     fl1 : FlowConnector(fl1, channel1, MyMaxJunction()),
-...     fl2 : FlowConnector(fl2, channel2, MyMaxJunction())
+...     fl1 : FlowConnector(flow_struct_1),
+...     fl2 : FlowConnector(flow_struct_2)
 ... } 
 >>> # We need to connect everything up.
 >>> nodes[mf1].add_link(fl1, flows[fl1].get_pull_method())
@@ -106,14 +112,14 @@ Instantiation
 
 Since ``Connector`` is an abstract class, it cannot be directly instantiated:
 
->>> Connector(Node())
+>>> Observer()
 Traceback (most recent call last):
     ...
-TypeError: Can't instantiate abstract class Connector with abstract methods __call__
+TypeError: Can't instantiate abstract class Observer with abstract methods __call__
 
 The same is true of the ``Propagator`` class.
 
->>> Propagator(Node(), MyMaxJunction())
+>>> Propagator(NodeStructure(Node(), MyMaxJunction()))
 Traceback (most recent call last):
     ...
 TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
@@ -151,7 +157,7 @@ Ot = TypeVar('Ot', bound=Packet)
 # ABSTRACTIONS #
 ################
 
-class Connector(Generic[It], abc.ABC):
+class Observer(Generic[It], abc.ABC):
     """
     Connects client to relevant constructs as a listener.
 
@@ -186,26 +192,17 @@ class Connector(Generic[It], abc.ABC):
         del self.input_links[identifier]
 
 
-class Propagator(Connector[It], Generic[St, It, Ot]):
-    """
-    Allows listeners to pull output of client.
+class Observable(Generic[St, Ot], abc.ABC):
 
-    This is an abstract class, it cannot be directly instantiated.
-
-    For details, see module documentation.
-    """
-    
     def __init__(self, structure: St) -> None:
         
-        super().__init__()
         self.structure = structure
         self.output_buffer : Ot = self.propagate()
 
-    def __call__(self) -> None:
+    @abc.abstractmethod
+    def __call__(self):
         """Update ``self.output_buffer``."""
-
-        self.pull()        
-        self.output_buffer = self.propagate()
+        pass
 
     @abc.abstractmethod
     def propagate(self) -> Ot:
@@ -220,6 +217,27 @@ class Propagator(Connector[It], Generic[St, It, Ot]):
     @abc.abstractmethod
     def get_pull_method(self) -> Callable:
         pass
+
+
+class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
+    """
+    Allows listeners to pull output of client.
+
+    This is an abstract class, it cannot be directly instantiated.
+
+    For details, see module documentation.
+    """
+    
+    def __init__(self, structure: St) -> None:
+        
+        Observer.__init__(self)
+        Observable.__init__(self, structure)
+
+    def __call__(self) -> None:
+        """Update ``self.output_buffer``."""
+
+        self.pull()        
+        self.output_buffer = self.propagate()
 
 
 class KnowledgePropagator(Propagator[Kt, ActivationPacket, ActivationPacket]):

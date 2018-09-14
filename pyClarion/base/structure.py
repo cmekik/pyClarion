@@ -20,6 +20,11 @@ from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
 
 @dataclasses.dataclass()
+class Structure(object):
+
+    pass
+
+@dataclasses.dataclass()
 class KnowledgeStructure(object):
 
     construct: Union[Node, Flow, Appraisal]

@@ -76,22 +76,6 @@ class ActuatorNetwork(object):
         except KeyError:
             pass
 
-    def run_activation_cycle(self) -> None:
-
-        # Initialization
-        for node_connector in self.nodes.values():
-            node_connector()
-        
-        # Cycle body
-        chosen: Optional[Set[Chunk]] = None
-        while not chosen:
-            for flow_connector in self.flows.values():
-                flow_connector()
-            for node_connector in self.nodes.values():
-                node_connector()            
-            self.actuator()
-            chosen = self.actuator.get_output().chosen
-
     @property
     def external_inputs(self) -> Set[Hashable]:
         """External inputs to this network"""
