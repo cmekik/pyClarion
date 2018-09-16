@@ -9,12 +9,17 @@ Tools for representing networks of chunks and microfeatures.
 import abc
 import enum
 from typing import Dict, Union, Set, Tuple, Optional, Hashable, Callable
-from pyClarion.base.knowledge import Flow, Node, Chunk, Microfeature, Appraisal, Memory, Activity
+from pyClarion.base.knowledge import (
+    Flow, Node, Chunk, Microfeature, Appraisal, Memory, Activity
+)
 from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.processor import Channel, Junction, Selector, Effector
-from pyClarion.base.structure import NodeStructure, FlowStructure, AppraisalStructure
+from pyClarion.base.realizer import (
+    NodeRealizer, FlowRealizer, AppraisalRealizer
+)
 from pyClarion.base.connector import (
-    Observer, Observable, NodePropagator, FlowPropagator, AppraisalPropagator, ActivityDispatcher
+    Observer, Observable, NodePropagator, FlowPropagator, AppraisalPropagator, 
+    ActivityDispatcher
 )
 
 
@@ -29,10 +34,10 @@ class ActivationNetwork(object):
         self._appraisal: Dict[Appraisal, AppraisalPropagator] = dict()
         self._activity: Dict[Activity, ActivityDispatcher] = dict()
 
-    def add_node(self, node_structure: NodeStructure) -> None:
+    def add_node(self, node_realizer: NodeRealizer) -> None:
         
-        node = node_structure.construct
-        node_connector = NodePropagator(node_structure)
+        node = node_realizer.construct
+        node_connector = NodePropagator(node_realizer)
         self.nodes[node] = node_connector
         for memory, pull_method in self.inputs.items():
             node_connector.add_link(memory, pull_method)
@@ -50,10 +55,10 @@ class ActivationNetwork(object):
             flow_connector.drop_link(node)
         del self.nodes[node]
             
-    def add_flow(self, flow_structure: FlowStructure) -> None:
+    def add_flow(self, flow_realizer: FlowRealizer) -> None:
 
-        flow = flow_structure.construct
-        flow_connector = FlowPropagator(flow_structure)
+        flow = flow_realizer.construct
+        flow_connector = FlowPropagator(flow_realizer)
         self.flows[flow] = flow_connector
         for node, node_connector in self.nodes.items():
             node_connector.add_link(flow, flow_connector.get_pull_method())

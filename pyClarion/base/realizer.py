@@ -1,16 +1,3 @@
-"""
-Tools for representing knowledge and action structures.
-
-Structures generally completely specify the behavior of some element when 
-embedded in a Clarion network.
-
-Knowledge structures completely specify the behavior of a knowledge construct 
-when embedded in a Clarion network.
-
-Actuator structures completely specify the behavior of an actuator when embedded 
-in a Clarion network.
-"""
-
 import dataclasses
 from typing import Union, TypeVar, Generic, MutableMapping
 from pyClarion.base.symbols import (

@@ -10,16 +10,16 @@ import abc
 from typing import Union, List, Tuple, Generic, TypeVar, Callable, Optional, Set
 from pyClarion.base.knowledge import Node, Flow
 from pyClarion.base.processor import Channel, Junction
-from pyClarion.base.structure import (
-    KnowledgeStructure, NodeStructure, FlowStructure
+from pyClarion.base.realizer import (
+    BasicConstructRealizer, NodeRealizer, FlowRealizer
 )
-from pyClarion.base.network import Network
+from pyClarion.base.network import ActivationNetwork
 
 
-Kt = TypeVar('Kt', bound=KnowledgeStructure)
+Ct = TypeVar('Ct', bound=BasicConstructRealizer)
 
 
-class ConstructAdministrator(Generic[Kt], abc.ABC):
+class ConstructAdministrator(Generic[Ct], abc.ABC):
     """
     Manages some class of realizers.
 
@@ -39,13 +39,13 @@ class ConstructAdministrator(Generic[Kt], abc.ABC):
         pass
     
     @abc.abstractmethod
-    def initialize_knowledge(self) -> List[Kt]:
+    def initialize_knowledge(self) -> List[Ct]:
         '''Create and return channel(s) managed by ``self``.'''
 
         pass
 
     @abc.abstractmethod
-    def attach_to_network(self, network: Network) -> None:
+    def attach_to_network(self, network: ActivationNetwork) -> None:
         pass
 
     @abc.abstractmethod
@@ -53,23 +53,23 @@ class ConstructAdministrator(Generic[Kt], abc.ABC):
         pass
 
 
-class NodeAdministrator(ConstructAdministrator[NodeStructure]):
+class NodeAdministrator(ConstructAdministrator[NodeRealizer]):
 
     node_adder: Optional[Callable] = None
     node_remover: Optional[Callable] = None
     
-    def attach_to_network(self, network: Network) -> None:
+    def attach_to_network(self, network: ActivationNetwork) -> None:
 
         self.node_adder = network.add_node
         self.node_remover = network.remove_node
 
 
-class FlowAdministrator(ConstructAdministrator[FlowStructure]):
+class FlowAdministrator(ConstructAdministrator[FlowRealizer]):
 
     flow_adder: Optional[Callable] = None
     flow_remover: Optional[Callable] = None
     
-    def attach_to_network(self, network: Network) -> None:
+    def attach_to_network(self, network: ActivationNetwork) -> None:
 
         self.flow_adder = network.add_flow
         self.flow_remover = network.remove_flow
