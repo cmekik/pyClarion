@@ -11,7 +11,7 @@ from typing import Union, List, Tuple, Generic, TypeVar, Callable, Optional, Set
 from pyClarion.base.knowledge import Node, Flow
 from pyClarion.base.processor import Channel, Junction
 from pyClarion.base.structure import KnowledgeStructure, NodeStructure, FlowStructure
-from pyClarion.base.network import ActuatorNetwork
+from pyClarion.base.network import Network
 
 
 Kt = TypeVar('Kt', bound=KnowledgeStructure)
@@ -42,7 +42,7 @@ class Component(Generic[Kt], abc.ABC):
         pass
 
     @abc.abstractmethod
-    def attach_to_network(self, network: ActuatorNetwork) -> None:
+    def attach_to_network(self, network: Network) -> None:
         pass
 
     @abc.abstractmethod
@@ -55,7 +55,7 @@ class NodeComponent(Component[NodeStructure]):
     node_adder: Optional[Callable] = None
     node_remover: Optional[Callable] = None
     
-    def attach_to_network(self, network: ActuatorNetwork) -> None:
+    def attach_to_network(self, network: Network) -> None:
 
         self.node_adder = network.add_node
         self.node_remover = network.remove_node
@@ -66,7 +66,7 @@ class FlowComponent(Component[FlowStructure]):
     flow_adder: Optional[Callable] = None
     flow_remover: Optional[Callable] = None
     
-    def attach_to_network(self, network: ActuatorNetwork) -> None:
+    def attach_to_network(self, network: Network) -> None:
 
         self.flow_adder = network.add_flow
         self.flow_remover = network.remove_flow

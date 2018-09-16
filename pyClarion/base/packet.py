@@ -57,7 +57,7 @@ True
 The ``default_activation`` method can be set to return different default values 
 for different nodes.
 
->>> from pyClarion.base.knowledge import Microfeature, Chunk
+>>> from pyClarion.base.symbols import Microfeature, Chunk
 >>> class MySubtlePacket(ActivationPacket[float]):
 ...     def default_activation(self, key):
 ...         if isinstance(key, Microfeature):
@@ -105,25 +105,25 @@ True
 >>> isinstance(output, MyTopDownPacket)
 True
 
-Selector Packets
+Decision Packets
 ================
 
-The ``SelectorPacket`` class represents the results of an action selection 
+The ``DecisionPacket`` class represents the results of an action selection 
 cycle.
 
-``SelectorPacket`` have an attribute called ``chosen``, whose contents represent 
+``DecisionPacket`` have an attribute called ``chosen``, whose contents represent 
 chosen action chunks.
 
 >>> ch1, ch2 = Chunk(1), Chunk(2)
->>> SelectorPacket({ch1 : .78, ch2 : .24}, chosen={ch1})
-SelectorPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
+>>> DecisionPacket({ch1 : .78, ch2 : .24}, chosen={ch1})
+DecisionPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
 
 """
 
 from abc import abstractmethod
 from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
 from collections import UserDict
-from pyClarion.base.knowledge import Node, Chunk
+from pyClarion.base.symbols import Node, Chunk
 
 
 At = TypeVar("At")
@@ -181,7 +181,7 @@ class ActivationPacket(Packet[At]):
         return type(self)({node: self[node] for node in nodes})
 
 
-class SelectorPacket(Packet[At]):
+class DecisionPacket(Packet[At]):
     """
     Represents the output of an action selection routine.
 
@@ -195,7 +195,7 @@ class SelectorPacket(Packet[At]):
         chosen: Set[Chunk] = None
     ) -> None:
         '''
-        Initialize a ``SelectorPacket`` instance.
+        Initialize a ``DecisionPacket`` instance.
 
         :param kvpairs: Strengths of actionable chunks.
         :param chosen: The set of actions to be fired.
@@ -207,7 +207,6 @@ class SelectorPacket(Packet[At]):
     def __eq__(self, other: Any) -> bool:
 
         if (
-            isinstance(other, SelectorPacket) and
             super().__eq__(other) and
             self.chosen == other.chosen
         ):

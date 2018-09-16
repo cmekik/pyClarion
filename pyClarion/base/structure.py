@@ -13,7 +13,7 @@ in a Clarion network.
 
 import dataclasses
 from typing import Union
-from pyClarion.base.knowledge import Node, Flow, Appraisal
+from pyClarion.base.symbols import Node, Flow, Appraisal, Activity
 from pyClarion.base.processor import Channel, Junction, Selector, Effector
 
 @dataclasses.dataclass()
@@ -47,7 +47,8 @@ class AppraisalStructure(KnowledgeStructure):
     selector: Selector
 
 @dataclasses.dataclass()
-class ActuatorStructure(Structure):
+class ActivityStructure(Structure):
 
+    construct: Activity
     junction: Junction
     effector: Effector
