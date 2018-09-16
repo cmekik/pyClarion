@@ -15,11 +15,25 @@ class ConstructSymbol(object):
     pass
 
 
+@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
+class BasicConstructSymbol(ConstructSymbol):
+    """Represents some basic theoretical construct."""
+
+    pass
+
+
+@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
+class CompositeConstructSymbol(ConstructSymbol):
+    """Represents some theoretical construct owning other constructs."""
+
+    pass
+
+
 ### NODE SYMBOLS ###
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class Node(ConstructSymbol):
+class Node(BasicConstructSymbol):
     """
     A generic unit of knowledge.
 
@@ -78,7 +92,7 @@ class FlowType(enum.Enum):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Flow(ConstructSymbol):
+class Flow(BasicConstructSymbol):
     """
     A body of agent knowledge in the form of an activation flow.
     """
@@ -91,7 +105,7 @@ class Flow(ConstructSymbol):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Appraisal(ConstructSymbol):
+class Appraisal(BasicConstructSymbol):
     """
     A class of judgments and/or decisions an agent can make.
     """
@@ -103,9 +117,21 @@ class Appraisal(ConstructSymbol):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Activity(ConstructSymbol):
+class Activity(BasicConstructSymbol):
     """
     A class of things that an agent can do.
+    """
+
+    id: t.Hashable
+
+
+### MEMORY SYMBOLS ###
+
+
+@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+class Memory(BasicConstructSymbol):
+    """
+    A memory buffer.
     """
 
     id: t.Hashable
@@ -115,7 +141,7 @@ class Activity(ConstructSymbol):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Subsystem(ConstructSymbol):
+class Subsystem(CompositeConstructSymbol):
     """
     A functionally distinct piece of an agent's cognitive apparatus.
     """
@@ -127,7 +153,7 @@ class Subsystem(ConstructSymbol):
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Agent(ConstructSymbol):
+class Agent(CompositeConstructSymbol):
     """
     A Clarion agent.
     """

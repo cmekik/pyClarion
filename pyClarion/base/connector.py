@@ -53,19 +53,19 @@ This example is adapted builds on an example from the documentation of
 >>> mf2 = Microfeature("tasty", True)
 >>> fl1 = Flow(id=(ch, mf1), flow_type=FlowType.TopDown)
 >>> fl2 = Flow(id=(ch, mf2), flow_type=FlowType.TopDown)
->>> ch_struct = NodeStructure(ch, MyMaxJunction())
->>> mf1_struct = NodeStructure(mf1, MyMaxJunction())
->>> mf2_struct = NodeStructure(mf2, MyMaxJunction())
 >>> channel1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
 >>> channel2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
+>>> ch_struct = NodeRealizer(ch, MyMaxJunction())
+>>> mf1_struct = NodeRealizer(mf1, MyMaxJunction())
+>>> mf2_struct = NodeRealizer(mf2, MyMaxJunction())
+>>> flow_struct_1 = FlowRealizer(fl1, MyMaxJunction(), channel1)
+>>> flow_struct_2 = FlowRealizer(fl2, MyMaxJunction(), channel2)
 >>> nodes = {
 ...     ch : NodePropagator(ch_struct),
 ...     mf1 : NodePropagator(mf1_struct),
 ...     mf2 : NodePropagator(mf2_struct),
 ... }
 ...
->>> flow_struct_1 = FlowStructure(fl1, MyMaxJunction(), channel1)
->>> flow_struct_2 = FlowStructure(fl2, MyMaxJunction(), channel2)
 >>> flows = {
 ...     fl1 : FlowPropagator(flow_struct_1),
 ...     fl2 : FlowPropagator(flow_struct_2)
@@ -118,7 +118,7 @@ TypeError: Can't instantiate abstract class Observer with abstract methods __cal
 
 The same is true of the ``Propagator`` class.
 
->>> Propagator(NodeStructure(Node(), MyMaxJunction()))
+>>> Propagator(NodeRealizer(Node(), MyMaxJunction()))
 Traceback (most recent call last):
     ...
 TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
@@ -137,17 +137,16 @@ from typing import (
 )
 from pyClarion.base.symbols import Node
 from pyClarion.base.packet import Packet, ActivationPacket, DecisionPacket
-from pyClarion.base.structure import (
-    Structure, KnowledgeStructure, NodeStructure, FlowStructure, 
-    AppraisalStructure, ActivityStructure
+from pyClarion.base.realizer import (
+    BasicConstructRealizer, NodeRealizer, FlowRealizer, 
+    AppraisalRealizer, ActivityRealizer
 )
 
 ##################
 # TYPE VARIABLES #
 ##################
 
-St = TypeVar('St', bound=Structure)
-Kt = TypeVar('Kt', bound=KnowledgeStructure)
+St = TypeVar('St', bound=BasicConstructRealizer)
 It = TypeVar('It', bound=Packet)
 Ot = TypeVar('Ot', bound=Packet)
 
@@ -193,9 +192,9 @@ class Observer(Generic[It], abc.ABC):
 
 class Observable(Generic[St, Ot], abc.ABC):
 
-    def __init__(self, structure: St) -> None:
+    def __init__(self, realizer: St) -> None:
         
-        self.structure = structure
+        self.realizer = realizer
         self.output_buffer : Ot = self.propagate()
 
     @abc.abstractmethod
@@ -227,10 +226,10 @@ class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
     For details, see module documentation.
     """
     
-    def __init__(self, structure: St) -> None:
+    def __init__(self, realizer: St) -> None:
         
         Observer.__init__(self)
-        Observable.__init__(self, structure)
+        Observable.__init__(self, realizer)
 
     def __call__(self) -> None:
         """Update ``self.output_buffer``."""
@@ -239,7 +238,7 @@ class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
         self.output_buffer = self.propagate()
 
 
-class KnowledgePropagator(Propagator[St, ActivationPacket, ActivationPacket]):
+class ActivationPropagator(Propagator[St, ActivationPacket, ActivationPacket]):
 
     def get_pull_method(self) -> Callable:
 
@@ -266,7 +265,7 @@ class KnowledgePropagator(Propagator[St, ActivationPacket, ActivationPacket]):
 ####################
 
 
-class NodePropagator(KnowledgePropagator[NodeStructure]):
+class NodePropagator(ActivationPropagator[NodeRealizer]):
     """
     Embeds a node in a network.
 
@@ -276,17 +275,17 @@ class NodePropagator(KnowledgePropagator[NodeStructure]):
     def pull(self) -> None:
         
         self.input_buffer = [
-            callback([self.structure.construct]) 
+            callback([self.realizer.construct]) 
             for callback in self.input_links.values()
         ]
 
     def propagate(self) -> ActivationPacket:
         """Compute and return current output of client node."""
         
-        return self.structure.junction(*self.input_buffer)
+        return self.realizer.junction(*self.input_buffer)
 
 
-class FlowPropagator(KnowledgePropagator[FlowStructure]):
+class FlowPropagator(ActivationPropagator[FlowRealizer]):
     """
     Embeds an activation flow in a Clarion agent.
 
@@ -296,16 +295,16 @@ class FlowPropagator(KnowledgePropagator[FlowStructure]):
     def propagate(self) -> ActivationPacket:
         """Compute and return output of client activation flow."""
 
-        return self.structure.channel(
-            self.structure.junction(*self.input_buffer)
+        return self.realizer.channel(
+            self.realizer.junction(*self.input_buffer)
         )
 
 
 class AppraisalPropagator(
-    Propagator[AppraisalStructure, ActivationPacket, DecisionPacket]
+    Propagator[AppraisalRealizer, ActivationPacket, DecisionPacket]
 ):
     """
-    Embeds an action selector/effector pair in a Clarion agent.
+    Embeds an action selector in a Clarion agent.
 
     For details, see module documentation.
     """
@@ -317,8 +316,8 @@ class AppraisalPropagator(
     def propagate(self) -> DecisionPacket:
         """Compute and return output of client selector."""
 
-        return self.structure.selector(
-            self.structure.junction(*self.input_buffer)
+        return self.realizer.selector(
+            self.realizer.junction(*self.input_buffer)
         )
 
     def get_pull_method(self) -> Callable:
@@ -334,3 +333,17 @@ class AppraisalPropagator(
         """
 
         return copy.deepcopy(self.output_buffer)
+
+
+class ActivityDispatcher(Observer[DecisionPacket]):
+
+    def __init__(self, realizer: ActivityRealizer) -> None:
+        
+        self.realizer = realizer
+        super().__init__()
+
+    def __call__(self):
+
+        self.pull()
+        for decision_packet in self.input_buffer:
+            self.realizer.effector(decision_packet)

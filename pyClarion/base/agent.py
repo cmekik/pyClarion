@@ -7,13 +7,13 @@ Tools for building Clarion agents.
 
 import abc
 import typing as T
-from pyClarion.base.knowledge import Node
+from pyClarion.base.symbols import Node
 from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.channel import Channel
 from pyClarion.base.selector import Selector
 from pyClarion.base.effector import Effector
-from pyClarion.base.network import ActuatorNetwork
-from pyClarion.base.component import NodeComponent, FlowComponent
+from pyClarion.base.network import Network
+from pyClarion.base.administrator import NodeAdministrator, FlowAdministrator
 
 
 class Statistic(abc.ABC):
@@ -31,21 +31,21 @@ class Subsystem(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def node_component(self) -> T.Set[NodeComponent]:
+    def node_administrator(self) -> T.Set[NodeAdministrator]:
         '''Components handling learning and forgetting in ``self``.'''
 
         pass
 
     @property
     @abc.abstractmethod
-    def flow_components(self) -> T.Set[FlowComponent]:
+    def flow_administrator(self) -> T.Set[FlowAdministrator]:
         '''Components handling learning and forgetting in ``self``.'''
 
         pass
 
     @property
     @abc.abstractmethod
-    def network(self) -> ActuatorNetwork:
+    def network(self) -> Network:
         '''A set of channels representing knowledge stored in ``self``.'''
         
         pass

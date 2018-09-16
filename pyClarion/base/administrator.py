@@ -10,19 +10,22 @@ import abc
 from typing import Union, List, Tuple, Generic, TypeVar, Callable, Optional, Set
 from pyClarion.base.knowledge import Node, Flow
 from pyClarion.base.processor import Channel, Junction
-from pyClarion.base.structure import KnowledgeStructure, NodeStructure, FlowStructure
+from pyClarion.base.structure import (
+    KnowledgeStructure, NodeStructure, FlowStructure
+)
 from pyClarion.base.network import Network
 
 
 Kt = TypeVar('Kt', bound=KnowledgeStructure)
 
 
-class Component(Generic[Kt], abc.ABC):
-    """Manages some class of nodes or flows associated with a subsystem.
+class ConstructAdministrator(Generic[Kt], abc.ABC):
+    """
+    Manages some class of realizers.
 
-    Components are abstractions meant to capture learning and forgetting 
-    routines. They monitor the activity of the subsystem to which they belong 
-    and modify its members (channels, junctions and/or parameters).
+    Administrators are intended to be objects implementing learning and 
+    forgetting routines. They monitor the activity of the subsystem to which 
+    they belong and modify its members (channels, junctions and/or parameters).
     """
 
     @abc.abstractmethod
@@ -50,7 +53,7 @@ class Component(Generic[Kt], abc.ABC):
         pass
 
 
-class NodeComponent(Component[NodeStructure]):
+class NodeAdministrator(ConstructAdministrator[NodeStructure]):
 
     node_adder: Optional[Callable] = None
     node_remover: Optional[Callable] = None
@@ -61,7 +64,7 @@ class NodeComponent(Component[NodeStructure]):
         self.node_remover = network.remove_node
 
 
-class FlowComponent(Component[FlowStructure]):
+class FlowAdministrator(ConstructAdministrator[FlowStructure]):
 
     flow_adder: Optional[Callable] = None
     flow_remover: Optional[Callable] = None

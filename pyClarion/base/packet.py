@@ -123,7 +123,7 @@ DecisionPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
 from abc import abstractmethod
 from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
 from collections import UserDict
-from pyClarion.base.symbols import Node, Chunk
+from pyClarion.base.symbols import Node, Chunk, FlowType
 
 
 At = TypeVar("At")
@@ -136,6 +136,21 @@ class Packet(UserDict, MutableMapping[Node, At]):
     Takes one type variable, ``At``, which is an unrestricted type variable 
     denoting the expected type for data values.
     """
+
+    def __init__(
+        self, 
+        kvpairs: Mapping[Node, At] = None,
+        flow_type: FlowType = None
+    ) -> None:
+        '''
+        Initialize a ``DecisionPacket`` instance.
+
+        :param kvpairs: Strengths of actionable chunks.
+        :param chosen: The set of actions to be fired.
+        '''
+
+        super().__init__(kvpairs)
+        self.flow_type = flow_type
 
     def __repr__(self) -> str:
         

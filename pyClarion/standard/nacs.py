@@ -4,13 +4,12 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 
 from typing import Dict, Hashable, Set, Tuple, List
-from pyClarion.base.knowledge import Node, Chunk, Microfeature, Flow, Plicity
+from pyClarion.base.symbol import Node, Chunk, Microfeature, Flow, FlowType
 from pyClarion.standard.common import (
-    ActivationPacket, TopLevelPacket, TopDownPacket, BottomUpPacket, Channel, UpdateJunction
+    ActivationPacket, Channel, UpdateJunction
 )
-from pyClarion.base.structure import FlowStructure
-from pyClarion.base.component import NodeComponent, FlowComponent
-from pyClarion.base.agent import Subsystem
+from pyClarion.base.realizer import FlowRealizer
+from pyClarion.base.administrator import FlowAdministrator
 
 
 ###########################
@@ -18,7 +17,7 @@ from pyClarion.base.agent import Subsystem
 ###########################
 
 
-class AssociativeRuleChannel(Channel):
+class AssociativeRules(Channel):
 
     def __init__(self, associations : Dict[Chunk, Dict[Chunk, float]]) -> None:
         
@@ -35,7 +34,7 @@ class AssociativeRuleChannel(Channel):
         return output
 
 
-class GKS(FlowComponent):
+class GKSAdministrator(FlowAdministrator):
     
     def __init__(self) -> None:
 
@@ -52,7 +51,7 @@ class GKS(FlowComponent):
             FlowStructure(
                 self.flow, 
                 UpdateJunction(),
-                AssociativeRuleChannel(self.associations)
+                AssociativeRules(self.associations)
             )
         ]
 
@@ -83,9 +82,9 @@ class _InterLevelChannel(Channel):
 
 class TopDownChannel(_InterLevelChannel):
 
-    def __call__(self, input_map : ActivationPacket) -> TopDownPacket:
+    def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
         
-        output = TopDownPacket()
+        output = ActivationPacket(flow_type=FlowType.TopDown)
         for nd, strength in input_map.items():
             if nd in self.links:
                 for mf in self.links[nd]:
@@ -97,9 +96,9 @@ class TopDownChannel(_InterLevelChannel):
 
 class BottomUpChannel(_InterLevelChannel):
 
-    def __call__(self, input_map : ActivationPacket) -> BottomUpPacket:
+    def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
 
-        output = BottomUpPacket()
+        output = ActivationPacket(flow_type=FlowType.BottomUp)
         for nd in self.links:
             dim_activations : Dict[Hashable, float] = dict()
             for mf in self.links[nd]:
@@ -113,7 +112,7 @@ class BottomUpChannel(_InterLevelChannel):
         return output
 
 
-class InterLevelComponent(FlowComponent):
+class InterLevelFlowAdministrator(FlowAdministrator):
 
     def __init__(
         self, 
@@ -131,8 +130,8 @@ class InterLevelComponent(FlowComponent):
 
         flow_name = 'Interlevel'
         self.flows = {
-            Plicity.Abplicit: Flow(flow_name, Plicity.Abplicit),
-            Plicity.Deplicit: Flow(flow_name, Plicity.Deplicit)
+            Flow(flow_name, FlowType.TopDown), 
+            Flow(flow_name, FlowType.BottomUp)
         }
         self.links = links
         self.weights = weights
@@ -144,56 +143,13 @@ class InterLevelComponent(FlowComponent):
 
         return [
             FlowStructure(
-                self.flows[Plicity.Abplicit], 
+                Flow("Interlevel", FlowType.TopDown), 
                 UpdateJunction(),
                 TopDownChannel(self.links, self.weights)
             ),
             FlowStructure(
-                self.flows[Plicity.Deplicit],
+                Flow("Interlevel", FlowType.BottomUp),
                 UpdateJunction(),
                 BottomUpChannel(self.links, self.weights)
             )
         ]
-
-
-############################
-### SUBSYSTEM DEFINITION ###
-############################
-
-
-class NACS(Subsystem):
-    """Ensures smooth functioning of components."""
-
-    def __init__(self, external_inputs, external_outputs, actuator_structure, node_component, *components):
-
-        self._selector = selector
-        self._effector = effector
-        self._node_component = node_component
-        self._flow_components = set(components)
-        self._network = ActuatorNetwork(
-            external_inputs, actuator_structure
-        )
-
-    def init_links(self):
-        """Link up and sync components and network at initialization time."""
-
-        initial_nodes = set()
-        for component in self.components:
-            component.attach_to_network(self.network)
-            component.add_knowledge_to_network()
-            initial_nodes.update(component.get_known_nodes())
-        self.node_component.attach_to_network(self.network)
-        self.node_component.add_initial_nodes(initial_nodes)
-        self.node_component.add_knowledge_to_network()
-
-    @property
-    def node_component(self):
-        return self._node_component
-
-    @property
-    def flow_components(self):
-        return self._flow_components
-
-    @property
-    def network(self):
-        return self._network

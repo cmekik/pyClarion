@@ -2,8 +2,8 @@
 
 from pyClarion.base.knowledge import Node
 from pyClarion.base.packet import ActivationPacket as BaseActivationPacket
-from pyClarion.base.channel import Channel as BaseChannel
-from pyClarion.base.junction import Junction as BaseJunction
+from pyClarion.base.processor import Channel as BaseChannel
+from pyClarion.base.processor import Junction as BaseJunction
 
 ##########################
 ### ACTIVATION PACKETS ###
@@ -20,24 +20,12 @@ class ActivationPacket(BaseActivationPacket[float]):
 
         return 0.0
 
-class TopLevelPacket(ActivationPacket):
-    pass
-
-class BottomLevelPacket(ActivationPacket):
-    pass
-
-class TopDownPacket(ActivationPacket):
-    pass
-
-class BottomUpPacket(ActivationPacket):
-    pass
-
 
 ################
 ### CHANNELS ###
 ################
 
-class Channel(BaseChannel[ActivationPacket]):
+class Channel(BaseChannel[ActivationPacket, ActivationPacket]):
     pass
 
 
@@ -45,7 +33,7 @@ class Channel(BaseChannel[ActivationPacket]):
 ### JUNCTIONS ###
 #################
 
-class UpdateJunction(BaseJunction[ActivationPacket]):
+class UpdateJunction(BaseJunction[ActivationPacket, ActivationPacket]):
     """Merges input activation packets using the packet ``update`` method."""
 
     def __call__(self, *input_maps: ActivationPacket) -> ActivationPacket:
