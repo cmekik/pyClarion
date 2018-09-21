@@ -15,7 +15,7 @@ from pyClarion.base.knowledge import (
 from pyClarion.base.packet import ActivationPacket
 from pyClarion.base.processor import Channel, Junction, Selector, Effector
 from pyClarion.base.realizer import (
-    NodeRealizer, FlowRealizer, AppraisalRealizer
+    NodeRealizer, FlowRealizer, AppraisalRealizer, ActivityRealizer
 )
 from pyClarion.base.connector import (
     Observer, Observable, NodePropagator, FlowPropagator, AppraisalPropagator, 
@@ -23,16 +23,47 @@ from pyClarion.base.connector import (
 )
 
 
-class ActivationNetwork(object):
+class SubsystemRealizer(object):
     """A network of interconnected nodes and flows linked to an actuator."""
 
-    def __init__(self) -> None:
+    def __init__(self, construct) -> None:
 
+        self.construct = construct
         self._inputs: Dict[Memory, Callable[..., ActivationPacket]] = dict()
         self._nodes: Dict[Node, NodePropagator] = dict()
         self._flows: Dict[Flow, FlowPropagator] = dict()
+        # Not sure if implementation should be dict here.
         self._appraisal: Dict[Appraisal, AppraisalPropagator] = dict()
         self._activity: Dict[Activity, ActivityDispatcher] = dict()
+
+    def __getitem__(self, key):
+
+        if isinstance(key, Node):
+            out = self.nodes[key]
+        elif isinstance(key, Flow):
+            out = self.flows[key]
+        elif isinstance(key, Appraisal):
+            out = self._appraisal[key]
+        elif isinstance(key, Activity):
+            out = self._activity[key]
+        else:
+            raise TypeError("Unexpected type {}".format(type(key)))
+        return out
+
+    def __setitem__(self, key, value):
+
+        if isinstance(key, Node):
+            self.add_node(key, value)
+        elif isinstance(key, Flow):
+            self.add_flow(key, value)
+        elif isinstance(key, Appraisal):
+            self._add_appraisal(key, value)
+        elif isinstance(key, Activity):
+            self._add_activity(key, value)
+        else:
+            raise TypeError("Unexpected type {}".format(type(key)))
+        return out
+
 
     def add_node(self, node_realizer: NodeRealizer) -> None:
         
@@ -72,6 +103,36 @@ class ActivationNetwork(object):
             del self.flows[flow]
         except KeyError:
             pass
+
+    def _add_appraisal(
+        self, appraisal: Appraisal, appraisal_realizer: AppraisalRealizer
+    ):
+
+        if self._appraisal:
+            raise Exception("Appraisal already set")
+        elif (
+            isinstance(appraisal, Appraisal) and 
+            isinstance(appraisal_realizer, AppraisalRealizer)
+        ):
+            self._appraisal[appraisal] = AppraisalPropagator(appraisal_realizer) 
+        else:
+            # Print informate type error message.
+            raise TypeError()
+
+    def _add_activity(
+        self, activity: Activity, activity_realizer: ActivityRealizer
+    ):
+
+        if self._activity:
+            raise Exception("Activity already set")
+        elif (
+            isinstance(activity, Activity) and 
+            isinstance(activity_realizer, ActivityRealizer)
+        ):
+            self._activity[activity] = ActivityDispatcher(activity_realizer) 
+        else:
+            # Print informate type error message.
+            raise TypeError()
 
     @property
     def inputs(self) -> Dict[Hashable, Callable[..., ActivationPacket]]:
