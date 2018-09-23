@@ -1,21 +1,8 @@
 """
-Tools for propagating information within a pyClarion network.
-
-Usage
-=====
-
-This module defines three concrete classes: ``NodeConnector``, ``FlowConnector`` 
-and ``Actuator``. 
-
-``NodeConnector`` instances relay node activations to flows and selectors. 
-``FlowConnector`` objects relay transformed activations back to listener nodes. 
-``Actuator`` objects select and execute actions based on node activations.
+Tools for linking up a network of construct realizers.
 
 Example
--------
-
-This example is adapted builds on an example from the documentation of 
-``pyClarion.base.channel``.
+=======
 
 >>> from pyClarion.base.processor import Channel, MaxJunction
 >>> from pyClarion.base.symbols import Microfeature, Chunk, Flow, FlowType
@@ -71,10 +58,10 @@ This example is adapted builds on an example from the documentation of
 ...     fl2 : FlowPropagator(flow_struct_2)
 ... } 
 >>> # We need to connect everything up.
->>> nodes[mf1].add_link(fl1, flows[fl1].get_pull_method())
->>> nodes[mf2].add_link(fl2, flows[fl2].get_pull_method())
->>> flows[fl1].add_link(ch, nodes[ch].get_pull_method())
->>> flows[fl2].add_link(ch, nodes[ch].get_pull_method())
+>>> nodes[mf1].watch(fl1, flows[fl1].get_pull_method())
+>>> nodes[mf2].watch(fl2, flows[fl2].get_pull_method())
+>>> flows[fl1].watch(ch, nodes[ch].get_pull_method())
+>>> flows[fl2].watch(ch, nodes[ch].get_pull_method())
 >>> # Check that buffers are empty prior to test
 >>> nodes[mf1].output_buffer == MyPacket()
 True
@@ -97,35 +84,6 @@ True
 True
 >>> nodes[mf2].output_buffer == MyPacket({mf2 : 1.0})
 True
-
-Abstractions
-============
-
-The abstract ``Connector`` class enables client objects to listen and react to 
-information flows within a Clarion agent. The abstract ``Propagator`` class 
-extends the functionality of the ``Connector`` class to enable propagation of 
-client outputs to downstream listeners.
-
-Instantiation
--------------
-
-Since ``Connector`` is an abstract class, it cannot be directly instantiated:
-
->>> Observer()
-Traceback (most recent call last):
-    ...
-TypeError: Can't instantiate abstract class Observer with abstract methods __call__
-
-The same is true of the ``Propagator`` class.
-
->>> Propagator(NodeRealizer(Node(), MyMaxJunction()))
-Traceback (most recent call last):
-    ...
-TypeError: Can't instantiate abstract class Propagator with abstract methods get_pull_method, propagate
-
-Users are not expected to directly implement the abstract ``__call__`` and 
-``propagate`` methods of these classes. Instead, they should work with the 
-concrete classes provided by this module.
 
 """
 
@@ -179,13 +137,11 @@ class Observer(Generic[It], abc.ABC):
             callback() for callback in self.input_links.values()
         ] 
 
-    def add_link(
-        self, identifier: Hashable, callback: Callable[..., It]
-    ) -> None:
+    def watch(self, identifier: Hashable, callback: Callable[..., It]) -> None:
 
         self.input_links[identifier] = callback
 
-    def drop_link(self, identifier: Hashable):
+    def drop(self, identifier: Hashable):
 
         del self.input_links[identifier]
 

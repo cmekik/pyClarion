@@ -1,3 +1,7 @@
+"""
+Tools for creating and manipulating activation and decision patterns.
+"""
+
 import abc
 import numpy as np
 from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union

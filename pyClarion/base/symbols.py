@@ -1,3 +1,8 @@
+"""
+Tools for naming, identifying, and indexing therotically relevant constructs.
+"""
+
+
 import typing as t
 import dataclasses
 import enum
@@ -37,7 +42,7 @@ class Node(BasicConstructSymbol):
     """
     A generic unit of knowledge.
 
-    Symbol for a distinct piece of knowledge such as a chunk or a microfeature. 
+    Represents a distinct piece of knowledge such as a chunk or a microfeature. 
     Intended for use as a common base class for Microfeature and Chunk classes.
     """
     
@@ -51,11 +56,6 @@ class Microfeature(Node):
 
     Microfeatures are implicit, connectionist representations. They represent
     dimension-value pairs.
-
-    Microfeature objects are frozen dataclasses that compare equal iff the
-    contents of their data fields are equal.
-
-    See module documentation for details and examples.
     """
 
     dim: t.Hashable
@@ -69,11 +69,6 @@ class Chunk(Node):
 
     Chunks are explicit, localist representations. They represent individual
     concepts.
-
-    Chunk objects are frozen dataclasses that compare equal iff the contents of
-    their data fields are equal.
-
-    See module documentation for details and examples.
     """
 
     id: t.Hashable
@@ -125,7 +120,7 @@ class Activity(BasicConstructSymbol):
     id: t.Hashable
 
 
-### MEMORY SYMBOLS ###
+### BUFFER SYMBOLS ###
 
 
 @dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
