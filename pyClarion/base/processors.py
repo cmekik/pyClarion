@@ -4,20 +4,9 @@ Tools for creating and manipulating activation and decision patterns.
 
 import abc
 import numpy as np
-from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union
+from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union, Set
 from pyClarion.base.symbols import get_nodes, Node, Chunk
-from pyClarion.base.packet import Packet, ActivationPacket, DecisionPacket
-
-
-######################
-### TYPE VARIABLES ###
-######################
-
-
-Pt = TypeVar('Pt', bound=Packet)
-It = TypeVar('It', bound=ActivationPacket)
-Ot = TypeVar('Ot', bound=ActivationPacket)
-St = TypeVar('St', bound=DecisionPacket)
+from pyClarion.base.packets import Packet, ActivationPacket, DecisionPacket, At
 
 
 ################
@@ -25,7 +14,7 @@ St = TypeVar('St', bound=DecisionPacket)
 ################
 
 
-class Channel(Generic[It, Ot], abc.ABC):
+class Channel(Generic[At], abc.ABC):
     """
     Transforms an activation pattern.
 
@@ -38,7 +27,7 @@ class Channel(Generic[It, Ot], abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(self, input_map: It) -> Ot:
+    def __call__(self, input_map: ActivationPacket[At]) -> ActivationPacket[At]:
         """Compute and return activations resulting from an input to this 
         channel.
 
@@ -54,7 +43,7 @@ class Channel(Generic[It, Ot], abc.ABC):
         pass
 
 
-class Junction(Generic[It, Ot], abc.ABC):
+class Junction(Generic[At], abc.ABC):
     """Combines activations flows from multiple sources.
 
     ``Junction`` instances are callable objects whose ``__call__`` method 
@@ -66,7 +55,7 @@ class Junction(Generic[It, Ot], abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(self, *input_maps: It) -> Ot:
+    def __call__(self, *input_maps: ActivationPacket[At]) -> ActivationPacket:
         """Return a combined mapping from chunks and/or microfeatures to 
         activations.
 
@@ -78,7 +67,7 @@ class Junction(Generic[It, Ot], abc.ABC):
         pass
 
 
-class Selector(Generic[It, St], abc.ABC):
+class Selector(Generic[At], abc.ABC):
     """
     Selects output chunks.
 
@@ -90,7 +79,7 @@ class Selector(Generic[It, St], abc.ABC):
     """
 
     @abc.abstractmethod
-    def __call__(self, input_map: It) -> St:
+    def __call__(self, input_map: ActivationPacket[At]) -> DecisionPacket[At]:
         """
         Select output chunk(s).
 
@@ -100,7 +89,7 @@ class Selector(Generic[It, St], abc.ABC):
         pass
 
 
-class Effector(Generic[St], abc.ABC):
+class Effector(Generic[At], abc.ABC):
     """
     Links output chunks to callbacks.
 
@@ -112,12 +101,22 @@ class Effector(Generic[St], abc.ABC):
     """
     
     @abc.abstractmethod
-    def __call__(self, selector_packet : St) -> None:
+    def __call__(self, selector_packet : DecisionPacket[At]) -> None:
         '''
         Execute actions associated with given output.
 
         :param selector_packet: The output of an action selection cycle.
         '''
+        pass
+
+
+class Buffer(Generic[At], abc.ABC):
+    """ """
+
+    @abc.abstractmethod
+    def __call__(self, selector_packet: DecisionPacket[At]) -> ActivationPacket[At]:
+        """ """
+
         pass
 
 
@@ -134,11 +133,26 @@ ActivationProcessor = Union[Channel, Junction, Selector, Effector]
 ################
 
 
-class MaxJunction(Junction[It, ActivationPacket]):
+class UpdateJunction(Junction[At]):
+    """Merges input activation packets using the packet ``update`` method."""
+
+    def __call__(
+        self, *input_maps: ActivationPacket[At]
+    ) -> ActivationPacket[At]:
+
+        output: ActivationPacket = ActivationPacket()
+        for input_map in input_maps:
+            output.update(input_map)
+        return output
+
+
+class MaxJunction(Junction[At]):
     """An activation junction returning max activations for all input nodes.
     """
 
-    def __call__(self, *input_maps : It) -> ActivationPacket:
+    def __call__(
+        self, *input_maps: ActivationPacket[At]
+    ) -> ActivationPacket[At]:
         """Return the maximum activation value for each input node.
 
         kwargs:
@@ -159,11 +173,11 @@ class MaxJunction(Junction[It, ActivationPacket]):
         return output
 
 
-class BoltzmannSelector(Selector[It, DecisionPacket[float]]):
+class BoltzmannSelector(Selector[float]):
     """Select a chunk according to a Boltzmann distribution.
     """
 
-    def __init__(self, chunks : Iterable[Chunk], temperature: float) -> None:
+    def __init__(self, temperature: float) -> None:
         """Initialize a ``BoltzmannSelector`` instance.
 
         
@@ -171,10 +185,11 @@ class BoltzmannSelector(Selector[It, DecisionPacket[float]]):
         :param temperature: Temperature of the Boltzmann distribution.
         """
 
-        self.actionable_chunks = chunks
         self.temperature = temperature
 
-    def __call__(self, input_map: Pt) -> DecisionPacket[float]:
+    def __call__(
+        self, input_map: ActivationPacket[float]
+    ) -> DecisionPacket[float]:
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -183,35 +198,40 @@ class BoltzmannSelector(Selector[It, DecisionPacket[float]]):
         :param input_map: Strengths of input nodes.
         """
 
+        choices: Set[Chunk] = set()
         boltzmann_distribution : Dict[Node, float] = (
             self.get_boltzmann_distribution(input_map)
         )
-        chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
-        choices = self.choose(chunk_list, probabilities)
+        if boltzmann_distribution:
+            chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
+            choices = self.choose(chunk_list, probabilities)
         return DecisionPacket(boltzmann_distribution, choices)
 
-    def get_boltzmann_distribution(self, input_map: Pt) -> Dict[Node, float]:
+    def get_boltzmann_distribution(
+        self, input_map: ActivationPacket[float]
+    ) -> Dict[Node, float]:
         """Construct and return a boltzmann distribution.
         """
 
         terms = dict()
         divisor = 0.
-        for chunk in self.actionable_chunks:
+        chunks = [node for node in input_map if isinstance(node, Chunk)]
+        for chunk in chunks:
             terms[chunk] = np.exp(input_map[chunk] / self.temperature)
             divisor += terms[chunk]
         probabilities = [
-            terms[chunk] / divisor for chunk in self.actionable_chunks
+            terms[chunk] / divisor for chunk in chunks
         ]
-        return dict(zip(self.actionable_chunks, probabilities))
+        return dict(zip(chunks, probabilities))
 
     def choose(self, chunks, probabilities):
         '''Choose a chunk given some selection probabilities.'''
 
-        choice = np.random.choice(chunk_list, p=probabilities)
+        choice = np.random.choice(chunks, p=probabilities)
         return {choice}
 
 
-class MappingEffector(Effector[St]):
+class MappingEffector(Effector[At]):
     '''A simple effector built on a map from actionable chunks to callbacks.'''
 
     def __init__(self, chunk2callback : Mapping[Chunk, Callable]) -> None:
@@ -223,7 +243,7 @@ class MappingEffector(Effector[St]):
 
         self.chunk2callback = dict(chunk2callback)
 
-    def __call__(self, selector_packet : St) -> None:
+    def __call__(self, selector_packet : DecisionPacket[At]) -> None:
         '''
         Execute callbacks associated with each chosen chunk.
 

@@ -4,24 +4,10 @@ Tools for linking up a network of construct realizers.
 Example
 =======
 
->>> from pyClarion.base.processor import Channel, MaxJunction
+>>> from pyClarion.base.packets import Level
+>>> from pyClarion.base.processors import Channel, MaxJunction, UpdateJunction
 >>> from pyClarion.base.symbols import Microfeature, Chunk, Flow, FlowType
->>> class MyPacket(ActivationPacket[float]):
-...     def default_activation(self, key):
-...         return 0.0
-... 
->>> class MyMaxJunction(MaxJunction[MyPacket]):
-... 
-...     def __call__(self, *input_maps : MyPacket) -> MyPacket:
-...         output = MyPacket()
-...         if input_maps:
-...             output.update(super().__call__(*input_maps))
-...         return output
-... 
->>> class MyTopDownPacket(MyPacket):
-...     pass
-... 
->>> class FineGrainedTopDownChannel(Channel[MyPacket, MyTopDownPacket]):
+>>> class FineGrainedTopDownChannel(Channel[float]):
 ...     '''Represents a top-down link between two individual nodes.'''
 ... 
 ...     def __init__(self, chunk, microfeature, weight):
@@ -29,10 +15,14 @@ Example
 ...         self.microfeature = microfeature
 ...         self.weight = weight
 ...
-...     def __call__(self, input_map : MyPacket) -> MyTopDownPacket:
-...         output = MyTopDownPacket({
-...             self.microfeature : input_map[self.chunk] * self.weight
-...         })
+...     def __call__(self, input_map):
+...         output = ActivationPacket(
+...             {
+...                 self.microfeature : input_map.get(self.chunk, 0.0) * self.weight
+...             },
+...             origin = Level.TopLevel,
+...             default_factory = lambda key: 0.0
+...         )
 ...         return output
 ... 
 >>> ch = Chunk("APPLE")
@@ -42,20 +32,20 @@ Example
 >>> fl2 = Flow(id=(ch, mf2), flow_type=FlowType.TopDown)
 >>> channel1 = FineGrainedTopDownChannel(ch, mf1, 1.0)
 >>> channel2 = FineGrainedTopDownChannel(ch, mf2, 1.0)
->>> ch_struct = NodeRealizer(ch, MyMaxJunction())
->>> mf1_struct = NodeRealizer(mf1, MyMaxJunction())
->>> mf2_struct = NodeRealizer(mf2, MyMaxJunction())
->>> flow_struct_1 = FlowRealizer(fl1, MyMaxJunction(), channel1)
->>> flow_struct_2 = FlowRealizer(fl2, MyMaxJunction(), channel2)
+>>> ch_realizer = NodeRealizer(ch, MaxJunction())
+>>> mf1_realizer = NodeRealizer(mf1, MaxJunction())
+>>> mf2_realizer = NodeRealizer(mf2, MaxJunction())
+>>> flow_realizer_1 = FlowRealizer(fl1, UpdateJunction(), channel1)
+>>> flow_realizer_2 = FlowRealizer(fl2, UpdateJunction(), channel2)
 >>> nodes = {
-...     ch : NodePropagator(ch_struct),
-...     mf1 : NodePropagator(mf1_struct),
-...     mf2 : NodePropagator(mf2_struct),
+...     ch : NodePropagator(ch_realizer),
+...     mf1 : NodePropagator(mf1_realizer),
+...     mf2 : NodePropagator(mf2_realizer),
 ... }
 ...
 >>> flows = {
-...     fl1 : FlowPropagator(flow_struct_1),
-...     fl2 : FlowPropagator(flow_struct_2)
+...     fl1 : FlowPropagator(flow_realizer_1),
+...     fl2 : FlowPropagator(flow_realizer_2)
 ... } 
 >>> # We need to connect everything up.
 >>> nodes[mf1].watch(fl1, flows[fl1].get_pull_method())
@@ -63,12 +53,12 @@ Example
 >>> flows[fl1].watch(ch, nodes[ch].get_pull_method())
 >>> flows[fl2].watch(ch, nodes[ch].get_pull_method())
 >>> # Check that buffers are empty prior to test
->>> nodes[mf1].output_buffer == MyPacket()
+>>> nodes[mf1].output_buffer == ActivationPacket()
 True
->>> nodes[mf2].output_buffer == MyPacket()
+>>> nodes[mf2].output_buffer == ActivationPacket()
 True
 >>> # Set initial chunk activation.
->>> nodes[ch].add_link('External Input', lambda x: MyPacket({ch : 1.0}))
+>>> nodes[ch].watch('External Input', lambda x: ActivationPacket({ch : 1.0}))
 >>> for connector in nodes.values():
 ...     connector()
 ... 
@@ -80,9 +70,9 @@ True
 ...     connector()
 ... 
 >>> # Check that propagation worked
->>> nodes[mf1].output_buffer == MyPacket({mf1 : 1.0})
+>>> nodes[mf1].output_buffer == ActivationPacket({mf1 : 1.0})
 True
->>> nodes[mf2].output_buffer == MyPacket({mf2 : 1.0})
+>>> nodes[mf2].output_buffer == ActivationPacket({mf2 : 1.0})
 True
 
 """
@@ -94,10 +84,10 @@ from typing import (
     TypeVar, Generic, Hashable, Callable, Any, Dict, Set, List, Iterable, Union
 )
 from pyClarion.base.symbols import Node
-from pyClarion.base.packet import Packet, ActivationPacket, DecisionPacket
-from pyClarion.base.realizer import (
-    BasicConstructRealizer, NodeRealizer, FlowRealizer, 
-    AppraisalRealizer, ActivityRealizer
+from pyClarion.base.packets import Packet, ActivationPacket, DecisionPacket
+from pyClarion.base.realizers.basic import (
+    BasicConstructRealizer, NodeRealizer, FlowRealizer, AppraisalRealizer, 
+    ActivityRealizer
 )
 
 ##################
@@ -125,15 +115,14 @@ class Observer(Generic[It], abc.ABC):
     def __init__(self) -> None:
 
         self.input_links: Dict[Hashable, Callable[..., It]] = dict()
-        self.input_buffer: List[It] = list()
 
     @abc.abstractmethod
     def __call__(self) -> None:
         pass
 
-    def pull(self) -> None:
+    def pull(self) -> List[It]:
         
-        self.input_buffer = [
+        return [
             callback() for callback in self.input_links.values()
         ] 
 
@@ -146,12 +135,9 @@ class Observer(Generic[It], abc.ABC):
         del self.input_links[identifier]
 
 
-class Observable(Generic[St, Ot], abc.ABC):
+class Observable(Generic[Ot], abc.ABC):
 
-    def __init__(self, realizer: St) -> None:
-        
-        self.realizer = realizer
-        self.output_buffer : Ot = self.propagate()
+    output_buffer : Ot
 
     @abc.abstractmethod
     def __call__(self):
@@ -159,21 +145,11 @@ class Observable(Generic[St, Ot], abc.ABC):
         pass
 
     @abc.abstractmethod
-    def propagate(self) -> Ot:
-        """
-        Compute and return current output of ``self.client``.
-        
-        This is an abstract method.
-        """
-
-        pass
-
-    @abc.abstractmethod
     def get_pull_method(self) -> Callable:
         pass
 
 
-class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
+class Propagator(Observable[Ot], Observer[It], Generic[It, Ot]):
     """
     Allows listeners to pull output of client.
 
@@ -182,19 +158,38 @@ class Propagator(Observable[St, Ot], Observer[It], Generic[St, It, Ot]):
     For details, see module documentation.
     """
     
-    def __init__(self, realizer: St) -> None:
+    def __init__(self) -> None:
         
         Observer.__init__(self)
-        Observable.__init__(self, realizer)
+        Observable.__init__(self)
+        # Call to self initializes output_buffer
+        self.__call__()
+
+
+class BasicConstructPropagator(Propagator[It, Ot], Generic[St, It, Ot]):
+
+    def __init__(self, realizer: St) -> None:
+
+        self.realizer = realizer
+        super().__init__()
 
     def __call__(self) -> None:
         """Update ``self.output_buffer``."""
 
-        self.pull()        
-        self.output_buffer = self.propagate()
+        self.output_buffer = self.propagate(self.pull())
+
+    @abc.abstractmethod
+    def propagate(self, inputs: List[It]) -> Ot:
+        """
+        Compute and return current output of ``self.client``.
+        
+        This is an abstract method.
+        """
+
+        pass
 
 
-class ActivationPropagator(Propagator[St, ActivationPacket, ActivationPacket]):
+class ActivationPropagator(BasicConstructPropagator[St, ActivationPacket, ActivationPacket]):
 
     def get_pull_method(self) -> Callable:
 
@@ -228,17 +223,17 @@ class NodePropagator(ActivationPropagator[NodeRealizer]):
     For details, see module documentation.
     """
 
-    def pull(self) -> None:
+    def pull(self) -> List[ActivationPacket]:
         
-        self.input_buffer = [
+        return [
             callback([self.realizer.construct]) 
             for callback in self.input_links.values()
         ]
 
-    def propagate(self) -> ActivationPacket:
+    def propagate(self, inputs: List[ActivationPacket]) -> ActivationPacket:
         """Compute and return current output of client node."""
         
-        return self.realizer.junction(*self.input_buffer)
+        return self.realizer.junction(*inputs)
 
 
 class FlowPropagator(ActivationPropagator[FlowRealizer]):
@@ -248,16 +243,16 @@ class FlowPropagator(ActivationPropagator[FlowRealizer]):
     For details, see module documentation.
     """
 
-    def propagate(self) -> ActivationPacket:
+    def propagate(self, inputs: List[ActivationPacket]) -> ActivationPacket:
         """Compute and return output of client activation flow."""
 
         return self.realizer.channel(
-            self.realizer.junction(*self.input_buffer)
+            self.realizer.junction(*inputs)
         )
 
 
 class AppraisalPropagator(
-    Propagator[AppraisalRealizer, ActivationPacket, DecisionPacket]
+    BasicConstructPropagator[AppraisalRealizer, ActivationPacket, DecisionPacket]
 ):
     """
     Embeds an action selector in a Clarion agent.
@@ -265,15 +260,11 @@ class AppraisalPropagator(
     For details, see module documentation.
     """
 
-    def __call__(self):
-
-        super().__call__()
-
-    def propagate(self) -> DecisionPacket:
+    def propagate(self, inputs: List[ActivationPacket]) -> DecisionPacket:
         """Compute and return output of client selector."""
 
         return self.realizer.selector(
-            self.realizer.junction(*self.input_buffer)
+            self.realizer.junction(*inputs)
         )
 
     def get_pull_method(self) -> Callable:
@@ -300,6 +291,6 @@ class ActivityDispatcher(Observer[DecisionPacket]):
 
     def __call__(self):
 
-        self.pull()
-        for decision_packet in self.input_buffer:
+        inputs = self.pull()
+        for decision_packet in inputs:
             self.realizer.effector(decision_packet)

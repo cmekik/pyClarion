@@ -2,10 +2,9 @@
 Tools for naming, identifying, and indexing therotically relevant constructs.
 """
 
-
-import typing as t
-import dataclasses
-import enum
+from typing import Hashable, Iterable, Set
+from dataclasses import dataclass
+from enum import Enum, auto
 
 
 ######################
@@ -13,21 +12,19 @@ import enum
 ######################
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
+@dataclass(init=True, repr=True, eq=False, frozen=True)
 class ConstructSymbol(object):
     """Represents some theoretical construct."""
 
     pass
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class BasicConstructSymbol(ConstructSymbol):
     """Represents some basic theoretical construct."""
 
     pass
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class CompositeConstructSymbol(ConstructSymbol):
     """Represents some theoretical construct owning other constructs."""
 
@@ -37,10 +34,9 @@ class CompositeConstructSymbol(ConstructSymbol):
 ### NODE SYMBOLS ###
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class Node(BasicConstructSymbol):
     """
-    A generic unit of knowledge.
+    A generic connectionist node.
 
     Represents a distinct piece of knowledge such as a chunk or a microfeature. 
     Intended for use as a common base class for Microfeature and Chunk classes.
@@ -49,7 +45,7 @@ class Node(BasicConstructSymbol):
     pass
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Microfeature(Node):
     """
     A microfeature node.
@@ -58,11 +54,11 @@ class Microfeature(Node):
     dimension-value pairs.
     """
 
-    dim: t.Hashable
-    val: t.Hashable
+    dim: Hashable
+    val: Hashable
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Chunk(Node):
     """
     A chunk node.
@@ -71,89 +67,86 @@ class Chunk(Node):
     concepts.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
 ### FLOW SYMBOLS ###
 
 
-class FlowType(enum.Enum):
+class FlowType(Enum):
     """An enumeration of level types."""
 
-    TopLevel = enum.auto()
-    BottomLevel = enum.auto()
-    TopDown = enum.auto()
-    BottomUp = enum.auto()
+    TopLevel = auto()
+    BottomLevel = auto()
+    TopDown = auto()
+    BottomUp = auto()
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Flow(BasicConstructSymbol):
     """
     A body of agent knowledge in the form of an activation flow.
     """
 
-    id: t.Hashable
+    id: Hashable
     flow_type: FlowType
 
 
 ### APPRAISAL SYMBOLS ###
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Appraisal(BasicConstructSymbol):
     """
     A class of judgments and/or decisions an agent can make.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
 ### ACTIVITY SYMBOLS ###
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Activity(BasicConstructSymbol):
     """
     A class of things that an agent can do.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
 ### BUFFER SYMBOLS ###
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Memory(BasicConstructSymbol):
     """
     A memory buffer.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
 ### SUBSYSTEM SYMBOLS ###
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Subsystem(CompositeConstructSymbol):
     """
     A functionally distinct piece of an agent's cognitive apparatus.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
-### AGENT SYMBOLS ###
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Agent(CompositeConstructSymbol):
     """
     A Clarion agent.
     """
 
-    id: t.Hashable
+    id: Hashable
 
 
 #############
@@ -161,7 +154,7 @@ class Agent(CompositeConstructSymbol):
 #############
 
 
-def get_nodes(*node_iterables: t.Iterable[Node]) -> t.Set[Node]:
+def get_nodes(*node_iterables: Iterable[Node]) -> Set[Node]:
     """
     Construct the set of all nodes in a set of node containers.
 

@@ -1,7 +1,7 @@
 import doctest
 
-import pyClarion.base.packet
-import pyClarion.base.connector
+import pyClarion.base.packets
+import pyClarion.base.links
 
-doctest.testmod(pyClarion.base.packet, optionflags=doctest.ELLIPSIS)
-doctest.testmod(pyClarion.base.connector, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.packets, optionflags=doctest.ELLIPSIS)
+doctest.testmod(pyClarion.base.links, optionflags=doctest.ELLIPSIS)

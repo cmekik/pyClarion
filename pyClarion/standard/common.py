@@ -1,43 +1,31 @@
 '''Common constructs for the standard implementation of Clarion.'''
 
-from pyClarion.base.knowledge import Node
-from pyClarion.base.packet import ActivationPacket as BaseActivationPacket
-from pyClarion.base.processor import Channel as BaseChannel
-from pyClarion.base.processor import Junction as BaseJunction
+from pyClarion.base.symbols import Node
+from pyClarion.base.packet import ActivationPacket
+from pyClarion.base.processor import UpdateJunction as BaseUpdateJunction
 
-##########################
-### ACTIVATION PACKETS ###
-##########################
 
-class ActivationPacket(BaseActivationPacket[float]):
+###########################
+### DEFAULT ACTIVATIONS ###
+###########################
+
+
+def default_factory(key: Node) -> float:
     
-    def default_activation(self, key : Node) -> float:
-        '''
-        Return base node activation in standard Clarion.
-        
-        Returns 0.
-        '''
-
-        return 0.0
-
-
-################
-### CHANNELS ###
-################
-
-class Channel(BaseChannel[ActivationPacket, ActivationPacket]):
-    pass
+    return 0.0
 
 
 #################
 ### JUNCTIONS ###
 #################
 
-class UpdateJunction(BaseJunction[ActivationPacket, ActivationPacket]):
+class UpdateJunction(BaseUpdateJunction[float]):
     """Merges input activation packets using the packet ``update`` method."""
 
-    def __call__(self, *input_maps: ActivationPacket) -> ActivationPacket:
+    def __call__(
+        self, *input_maps: ActivationPacket[float]
+    ) -> ActivationPacket[float]:
 
-        output = ActivationPacket()
-        output.update(*input_maps)
+        output = super().__call__(*input_maps)
+        output.default_factory = default_factory
         return output

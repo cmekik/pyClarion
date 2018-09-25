@@ -5,10 +5,12 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 from typing import Dict, Hashable, Set, Tuple, List
 from pyClarion.base.symbol import Node, Chunk, Microfeature, Flow, FlowType
+from pyClarion.base.packets import Level
+from pyClarion.base.processors import Channel
 from pyClarion.standard.common import (
-    ActivationPacket, Channel, UpdateJunction
+    ActivationPacket, UpdateJunction, default_factory
 )
-from pyClarion.base.realizer import FlowRealizer
+from pyClarion.base.realizer import FlowRealizer, SubsystemRealizer
 from pyClarion.base.administrator import FlowAdministrator
 
 
@@ -17,15 +19,17 @@ from pyClarion.base.administrator import FlowAdministrator
 ###########################
 
 
-class AssociativeRules(Channel):
+class AssociativeRules(Channel[float]):
 
     def __init__(self, associations : Dict[Chunk, Dict[Chunk, float]]) -> None:
         
         self.associations = associations
 
-    def __call__(self, input_map : ActivationPacket) -> TopLevelPacket:
+    def __call__(self, input_map : ActivationPacket[float]) -> ActivationPacket[float]:
 
-        output = TopLevelPacket()
+        output = ActivationPacket(
+            default_factory=default_factory, origin=Level.TopLevel
+        )
         for conclusion_chunk, weight_map in self.associations.items():
             for condition_chunk, weight in weight_map.items():
                 output[conclusion_chunk] += (
@@ -39,16 +43,16 @@ class GKSAdministrator(FlowAdministrator):
     def __init__(self) -> None:
 
         flow_name = 'GKS'
-        self.flow = Flow(flow_name, Plicity.Explicit) 
+        self.flow = Flow(flow_name, FlowType.TopLevel) 
         self.associations : Dict[Chunk, Dict[Chunk, float]] = dict()
 
     def update_knowledge(self, *args, **kwargs):
         pass
 
-    def initialize_knowledge(self) -> List[FlowStructure]:
+    def initialize_knowledge(self) -> List[FlowRealizer]:
 
         return [
-            FlowStructure(
+            FlowRealizer(
                 self.flow, 
                 UpdateJunction(),
                 AssociativeRules(self.associations)
@@ -139,17 +143,47 @@ class InterLevelFlowAdministrator(FlowAdministrator):
     def update_knowledge(self, *args, **kwargs):
         pass
 
-    def initialize_knowledge(self) -> List[FlowStructure]:
+    def initialize_knowledge(self) -> List[FlowRealizer]:
 
         return [
-            FlowStructure(
+            FlowRealizer(
                 Flow("Interlevel", FlowType.TopDown), 
                 UpdateJunction(),
                 TopDownChannel(self.links, self.weights)
             ),
-            FlowStructure(
+            FlowRealizer(
                 Flow("Interlevel", FlowType.BottomUp),
                 UpdateJunction(),
                 BottomUpChannel(self.links, self.weights)
             )
         ]
+
+
+class NACSRealizer(SubsystemRealizer):
+
+    def __call__(self):
+
+        for node, node_propagator in self._nodes.items():
+            if isinstance(node, Chunk):
+                node_propagator()
+        for flow, flow_propagator in self._flows.values():
+            if flow.flow_type == FlowType.TopDown:
+                flow_propagator()
+        for node, node_propagator in self._nodes.items():
+            if isinstance(node, Microfeature):
+                node_propagator()
+        for flow, flow_propagator in self._flows.values():
+            if flow.flow_type in (FlowType.TopLevel, FlowType.BottomLevel):
+                flow_propagator()
+        for node, node_propagator in self._nodes.items():
+            node_propagator()
+        for flow, flow_propagator in self._flows.values():
+            if flow.flow_type == FlowType.BottomUp:
+                flow_propagator()
+        for node, node_propagator in self._nodes.items():
+            if isinstance(node, Chunk):
+                node_propagator()
+        for appraisal, appraisal_propagator in self._appraisal.items():
+            appraisal_propagator()
+        for activity, activity_dispatcher in self._activity.items():
+            activity_dispatcher()

@@ -1,127 +1,8 @@
-"""
-Tools for representing information about Clarion nodes.
-
-Packets
-=======
-
-The ``Packet`` class represents represents mappings from nodes to data. 
-``Packet`` instances behave like ``dict`` objects.
-
->>> n1, n2 = Node(), Node()
->>> p = ActivationPacket({n1 : 0.3}) 
->>> p[n1]
-0.3
->>> p[n1] = 0.6
->>> p[n1]
-0.6
->>> p[n2] = 0.2
->>> p[n2]
-0.2
-
-Value Types
------------
-
-``Packet`` is implemented as a generic class taking one type variable. This type 
-variable specifies the expected packet value type. Its use is optional.
-
-Activation Packets
-==================
-
-Activation packets represent patterns of node activations. 
-
-The ``ActivationPacket`` class provides a ``default_activation`` method, which 
-may be overridden to capture assumptions about default activation values. 
-
->>> class MyPacket(ActivationPacket):
-...     def default_activation(self, key):
-...         return 0.0
-...
->>> MyPacket()
-MyPacket({})
->>> MyPacket()[Node()]
-0.0
-
-When a default value is provided by ``default_activation``, ``ActivationPacket`` 
-objects handle unknown keys like ``collections.defaultdict`` objects: they 
-output a default value and record the new ``(key, value)`` pair.
-
->>> p = MyPacket()
->>> n3 = Node()
->>> n3 in p
-False
->>> p[n3]
-0.0
->>> n3 in p
-True
-
-The ``default_activation`` method can be set to return different default values 
-for different nodes.
-
->>> from pyClarion.base.symbols import Microfeature, Chunk
->>> class MySubtlePacket(ActivationPacket[float]):
-...     def default_activation(self, key):
-...         if isinstance(key, Microfeature):
-...             return 0.5
-...         elif isinstance(key, Chunk):
-...             return 0.0
-... 
->>> mf = Microfeature("color", "red")
->>> ch = Chunk(1234)
->>> p = MySubtlePacket()
->>> mf in p
-False
->>> ch in p
-False
->>> p[mf]
-0.5
->>> p[ch]
-0.0
-
-Activation Packet Types
------------------------
-
-The type of an ``ActivationPacket`` may be used to drive conditional processing. 
-
-Different activation sources may output packets of different types. For 
-instance, a top-down activation cycle may output an instance of 
-``TopDownPacket``, as illustrated in the example below.
-
->>> class MyTopDownPacket(MyPacket):
-...     '''Represents the output of a top-down activation cycle.'''
-...
-...     pass
-... 
->>> def my_top_down_activation_cycle(packet):
-...     '''A dummy top-down activation cycle for demonstration purposes''' 
-...     val = max(packet.values())
-...     return MyTopDownPacket({n3 : val})
-... 
->>> packet = MyPacket({n1 : .2, n2 : .6})
->>> output = my_top_down_activation_cycle(packet)
->>> output == MyPacket({n3 : .6})
-True
->>> isinstance(output, MyPacket)
-True
->>> isinstance(output, MyTopDownPacket)
-True
-
-Decision Packets
-================
-
-The ``DecisionPacket`` class represents the results of an action selection 
-cycle.
-
-``DecisionPacket`` have an attribute called ``chosen``, whose contents represent 
-chosen action chunks.
-
->>> ch1, ch2 = Chunk(1), Chunk(2)
->>> DecisionPacket({ch1 : .78, ch2 : .24}, chosen={ch1})
-DecisionPacket({Chunk(id=1): 0.78, Chunk(id=2): 0.24}, chosen={Chunk(id=1)})
-
-"""
+"""Tools for representing information about Clarion nodes."""
 
 from abc import abstractmethod
-from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable
+from enum import Enum, auto
+from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, cast
 from collections import UserDict
 from pyClarion.base.symbols import Node, Chunk, FlowType
 
@@ -129,7 +10,7 @@ from pyClarion.base.symbols import Node, Chunk, FlowType
 At = TypeVar("At")
 
 
-class Packet(UserDict, MutableMapping[Node, At]):
+class Packet(MutableMapping[Node, At]):
     """
     Base class for encapsulating information about nodes.
 
@@ -137,35 +18,16 @@ class Packet(UserDict, MutableMapping[Node, At]):
     denoting the expected type for data values.
     """
 
-    def __init__(
-        self, 
-        kvpairs: Mapping[Node, At] = None,
-        flow_type: FlowType = None
-    ) -> None:
-        '''
-        Initialize a ``DecisionPacket`` instance.
-
-        :param kvpairs: Strengths of actionable chunks.
-        :param chosen: The set of actions to be fired.
-        '''
-
-        super().__init__(kvpairs)
-        self.flow_type = flow_type
-
-    def __repr__(self) -> str:
-        
-        repr_ = ''.join(
-            [
-                type(self).__name__,
-                '(',
-                super().__repr__(),
-                ')'
-            ]
-        )
-        return repr_
+    pass
 
 
-class ActivationPacket(Packet[At]):
+class Level(Enum):
+
+    TopLevel = auto()
+    BottomLevel = auto()
+
+
+class ActivationPacket(dict, Packet[At]):
     """
     A class for representing node activations.
 
@@ -179,16 +41,45 @@ class ActivationPacket(Packet[At]):
     See module documentation for further details and examples.
     """
 
+    def __init__(
+        self, 
+        kvpairs: Mapping[Node, At] = None,
+        default_factory: Callable[[Node], At] = None,
+        origin: Level = None
+    ) -> None:
+        '''
+        Initialize a ``DecisionPacket`` instance.
+
+        :param kvpairs: Strengths of actionable chunks.
+        :param chosen: The set of actions to be fired.
+        '''
+
+        super().__init__()
+        if kvpairs:
+            self.update(kvpairs)
+        self.default_factory = default_factory
+        self.origin = origin
+
+    def __repr__(self) -> str:
+        
+        repr_ = ''.join(
+            [
+                type(self).__name__,
+                '(',
+                super().__repr__(),
+                ')'
+            ]
+        )
+        return repr_
+
     def __missing__(self, key: Node) -> At:
 
-        value : At = self.default_activation(key)
-        self[key] = value
-        return value
-
-    def default_activation(self, key: Node) -> At:
-        """Return designated default value for the given input."""
-        
-        raise KeyError
+        if self.default_factory:
+            value : At = self.default_factory(key)
+            self[key] = value
+            return value
+        else:
+            raise KeyError(key)
 
     def subpacket(self, nodes: Iterable[Node]):
         """Return a subpacket containing activations for ``nodes``."""
@@ -196,7 +87,7 @@ class ActivationPacket(Packet[At]):
         return type(self)({node: self[node] for node in nodes})
 
 
-class DecisionPacket(Packet[At]):
+class DecisionPacket(dict, Packet[At]):
     """
     Represents the output of an action selection routine.
 
@@ -216,7 +107,7 @@ class DecisionPacket(Packet[At]):
         :param chosen: The set of actions to be fired.
         '''
 
-        super().__init__(kvpairs)
+        super().__init__(cast(Mapping, kvpairs))
         self.chosen = chosen
 
     def __eq__(self, other: Any) -> bool:
@@ -235,7 +126,7 @@ class DecisionPacket(Packet[At]):
             [
                 type(self).__name__, 
                 '(',
-                super(Packet, self).__repr__(),
+                super().__repr__(),
                 ', ',
                 'chosen=' + repr(self.chosen),
                 ')'
