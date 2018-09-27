@@ -4,11 +4,6 @@ from pyClarion.base.processors import Channel, Junction, Selector, Buffer, Effec
 from pyClarion.base.realizers.abstract import BasicConstructRealizer
 
 
-#################################
-### BASIC CONSTRUCT REALIZERS ###
-#################################
-
-
 @dataclass()
 class NodeRealizer(BasicConstructRealizer[Node]):
 

@@ -23,13 +23,16 @@ class AssociativeRules(Channel[float]):
         output = ActivationPacket(
             default_factory=default_factory, origin=Level.TopLevel
         )
-        for chunk in self.assoc:
-            for cond_chunk in self.assoc[chunk]: 
-                output[chunk] += (
-                    self.assoc[chunk][cond_chunk] * 
-                    input_map.get(cond_chunk, default_factory())
+        for rule in self.assoc:
+            conditions = rule["conditions"]
+            conclusion = rule["conclusion"]
+            strength = 0.
+            for cond in conditions: 
+                strength += (
+                    conditions[cond] * 
+                    input_map.get(cond, default_factory())
                 )
-            output[chunk] = min(1., output[chunk])
+            output[conclusion] = max(output[conclusion], strength)
         return output
 
 
@@ -126,11 +129,14 @@ class NACSRealizer(SubsystemRealizer):
         self[self.appraisal]()
 
 
-toplevel_assoc = {
-    Chunk("FRUIT"): {
-        Chunk("APPLE"): 1.
+toplevel_assoc = [
+    {
+        "conclusion": Chunk("FRUIT"), 
+        "conditions": {
+            Chunk("APPLE"): 1.
+        }
     }
-}
+]
 
 
 interlevel_assoc = {

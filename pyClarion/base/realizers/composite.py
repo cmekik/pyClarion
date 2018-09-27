@@ -1,54 +1,28 @@
-from typing import MutableMapping, Dict, Callable, Any, Iterator, Iterable, Type, Optional
+from typing import Dict, Any, Iterator, Iterable, Type, Optional
 from pyClarion.base.symbols import (
-    BasicConstructSymbol, Node, Flow, Appraisal, Activity, Subsystem, may_contain, connection_allowed
+    BasicConstructSymbol, Node, Microfeature, Chunk, Flow, Appraisal, 
+    Subsystem, FlowType
 )
 from pyClarion.base.packets import ActivationPacket, DecisionPacket
 from pyClarion.base.links import (
-    Propagator, NodePropagator, FlowPropagator, AppraisalPropagator, 
-    ActivityDispatcher
+    Propagator, NodePropagator, FlowPropagator, AppraisalPropagator
 )
 from pyClarion.base.realizers.abstract import CompositeConstructRealizer
-from pyClarion.base.realizers.basic import (
-    NodeRealizer, FlowRealizer, AppraisalRealizer, ActivityRealizer
-)
-
-
-#####################################
-### COMPOSITE CONSTRUCT REALIZERS ###
-#####################################
-
-
-def get_link_factory(construct: BasicConstructSymbol) -> Type:
-
-    constructor: Type
-    if isinstance(construct, Node):
-        constructor = NodePropagator
-    elif isinstance(construct, Flow):
-        constructor = FlowPropagator
-    elif isinstance(construct, Appraisal):
-        constructor = AppraisalPropagator
-    elif isinstance(construct, Activity):
-        constructor = ActivityDispatcher
-    else:
-        raise TypeError()
-    return constructor
 
 
 class SubsystemRealizer(
     Propagator[ActivationPacket, DecisionPacket], 
     CompositeConstructRealizer[Subsystem]
 ):
-    """A network of interconnected nodes and flows linked to an actuator."""
+    """A network of interconnected nodes and flows."""
 
     def __init__(self, construct: Subsystem) -> None:
 
         CompositeConstructRealizer.__init__(self, construct)
+        Propagator.__init__(self)
 
         self.dict: Dict = dict()
-        self._appraisal: Optional[Appraisal] = None
-        self._activity: Optional[Activity] = None
-        
-        Propagator.__init__(self)
+        self._appraisal: Optional[Appraisal] = None        
 
     def __len__(self) -> int:
 
@@ -71,7 +45,7 @@ class SubsystemRealizer(
         if not key == value.construct:
             raise ValueError("Mismatch between key and realizer construct.")
 
-        if may_contain(self.construct, key):
+        if self.may_contain(key):
 
             if isinstance(key, Appraisal):
                 if self._appraisal:
@@ -79,13 +53,7 @@ class SubsystemRealizer(
                 else:
                     self._appraisal = key
 
-            elif isinstance(key, Activity):
-                if self._activity:
-                    raise Exception("Activity already set")
-                else:
-                    self._activity = key
-
-            link_factory = get_link_factory(key)
+            link_factory = self.get_link_factory(key)
             new_link = link_factory(value)
             self.dict[key] = new_link
 
@@ -94,9 +62,9 @@ class SubsystemRealizer(
                     new_link.watch(buffer, pull_method)
 
             for construct, construct_link in self.dict.items():
-                if connection_allowed(source=construct, target=key):
+                if self.connection_allowed(source=construct, target=key):
                     new_link.watch(construct, construct_link.get_pull_method())
-                if connection_allowed(source=key, target=construct):
+                if self.connection_allowed(source=key, target=construct):
                     construct_link.watch(key, new_link.get_pull_method())
 
         else:
@@ -106,13 +74,20 @@ class SubsystemRealizer(
 
         del self.dict[key]
         for construct, construct_link in self.dict.items():
-            if connection_allowed(key, construct):
+            if self.connection_allowed(key, construct):
                 construct_link.drop(key)
 
         if isinstance(key, Appraisal):
             self._appraisal = None
-        elif isinstance(key, Activity):
-            self._activity = None
+
+    def may_contain(self, key: Any) -> bool:
+        
+        value = (
+            isinstance(key, Node) or
+            isinstance(key, Flow) or
+            isinstance(key, Appraisal)
+        )
+        return value
 
     def watch(self, construct, pull_method):
 
@@ -158,10 +133,56 @@ class SubsystemRealizer(
         else:
             raise AttributeError("Appraisal not set.")
 
-    @property
-    def activity(self) -> Activity:
+    @staticmethod
+    def connection_allowed(source: Any, target: Any) -> bool:
+        
+        possibilities = [
+            isinstance(source, Node) and isinstance(target, Appraisal),
+            (
+                isinstance(source, Microfeature) and 
+                isinstance(target, Flow) and
+                (
+                    target.flow_type == FlowType.BottomUp or
+                    target.flow_type == FlowType.BottomLevel
+                )
+            ),
+            (
+                isinstance(source, Chunk) and 
+                isinstance(target, Flow) and
+                (
+                    target.flow_type == FlowType.TopDown or
+                    target.flow_type == FlowType.TopLevel
+                )
+            ),
+            (
+                isinstance(source, Flow) and
+                isinstance(target, Microfeature) and
+                (
+                    source.flow_type == FlowType.TopDown or 
+                    source.flow_type == FlowType.BottomLevel
+                )
+            ),
+            (
+                isinstance(source, Flow) and
+                isinstance(target, Chunk) and
+                (
+                    source.flow_type == FlowType.BottomUp or 
+                    source.flow_type == FlowType.TopLevel
+                )
+            )
+        ]
+        return any(possibilities)
 
-        if self._activity:
-            return self._activity
+    @staticmethod    
+    def get_link_factory(construct: BasicConstructSymbol) -> Type:
+
+        constructor: Type
+        if isinstance(construct, Node):
+            constructor = NodePropagator
+        elif isinstance(construct, Flow):
+            constructor = FlowPropagator
+        elif isinstance(construct, Appraisal):
+            constructor = AppraisalPropagator
         else:
-            raise AttributeError("Activity not set.")
+            raise TypeError()
+        return constructor
