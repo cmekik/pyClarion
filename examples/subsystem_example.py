@@ -1,6 +1,8 @@
+from typing import List
 from pyClarion.base.symbols import Node, Microfeature, Chunk, Flow, FlowType, Appraisal, Subsystem
 from pyClarion.base.packets import Level, ActivationPacket, DecisionPacket
 from pyClarion.base.processors import UpdateJunction, MaxJunction, Channel, BoltzmannSelector
+from pyClarion.base.realizers.abstract import BasicConstructRealizer
 from pyClarion.base.realizers.basic import NodeRealizer, FlowRealizer, AppraisalRealizer
 from pyClarion.base.realizers.composite import SubsystemRealizer
 
@@ -165,7 +167,7 @@ interlevel_assoc = {
     }
 }
 
-nacs_contents = [
+nacs_contents: List[BasicConstructRealizer] = [
     NodeRealizer(
         Chunk("APPLE"), 
         MaxJunction()
@@ -225,7 +227,10 @@ for realizer in nacs_contents:
      nacs_realizer[realizer.construct] = realizer
 
 nacs_realizer.watch(
-    "external", lambda key: ActivationPacket({Chunk("APPLE"): 1.0})
+    "external", lambda key: ActivationPacket(
+        {Chunk("APPLE"): 1.0},
+        default_factory=default_factory
+    ).subpacket(key)
 )
 
 nacs_realizer()

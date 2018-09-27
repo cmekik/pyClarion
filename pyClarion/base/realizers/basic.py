@@ -12,12 +12,14 @@ from pyClarion.base.realizers.abstract import BasicConstructRealizer
 @dataclass()
 class NodeRealizer(BasicConstructRealizer[Node]):
 
+    construct: Node
     junction: Junction        
 
 
 @dataclass()
 class FlowRealizer(BasicConstructRealizer[Flow]):
 
+    construct: Flow
     junction: Junction
     channel: Channel
 
@@ -25,6 +27,7 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
 @dataclass()
 class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
 
+    construct: Appraisal
     junction: Junction
     selector: Selector
 
@@ -32,11 +35,13 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
 @dataclass()
 class ActivityRealizer(BasicConstructRealizer[Activity]):
 
+    construct: Activity
     effector: Effector
  
 
 @dataclass()
 class MemoryRealizer(BasicConstructRealizer[Memory]):
 
+    construct: Memory
     buffer: Buffer
  
