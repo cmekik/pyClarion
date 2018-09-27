@@ -162,16 +162,15 @@ class Propagator(Observable[Ot], Observer[It], Generic[It, Ot]):
         
         Observer.__init__(self)
         Observable.__init__(self)
-        # Call to self initializes output_buffer
-        self.__call__()
 
 
 class BasicConstructPropagator(Propagator[It, Ot], Generic[St, It, Ot]):
 
     def __init__(self, realizer: St) -> None:
 
-        self.realizer = realizer
         super().__init__()
+        self.realizer = realizer
+        self.output_buffer = self.propagate([])
 
     def __call__(self) -> None:
         """Update ``self.output_buffer``."""
@@ -190,6 +189,10 @@ class BasicConstructPropagator(Propagator[It, Ot], Generic[St, It, Ot]):
 
 
 class ActivationPropagator(BasicConstructPropagator[St, ActivationPacket, ActivationPacket]):
+
+    def __init__(self, realizer: St) -> None:
+
+        super().__init__(realizer)
 
     def get_pull_method(self) -> Callable:
 
@@ -260,6 +263,10 @@ class AppraisalPropagator(
     For details, see module documentation.
     """
 
+    def __init__(self, realizer: AppraisalRealizer) -> None:
+
+        super().__init__(realizer)
+
     def propagate(self, inputs: List[ActivationPacket]) -> DecisionPacket:
         """Compute and return output of client selector."""
 
@@ -286,8 +293,8 @@ class ActivityDispatcher(Observer[DecisionPacket]):
 
     def __init__(self, realizer: ActivityRealizer) -> None:
         
-        self.realizer = realizer
         super().__init__()
+        self.realizer = realizer
 
     def __call__(self):
 

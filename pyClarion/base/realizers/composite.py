@@ -1,6 +1,6 @@
-from typing import MutableMapping, Dict, Callable, Any, Iterator, Iterable
+from typing import MutableMapping, Dict, Callable, Any, Iterator, Iterable, Type, Optional
 from pyClarion.base.symbols import (
-    BasicConstructSymbol, Node, Flow, Appraisal, Activity, Subsystem
+    BasicConstructSymbol, Node, Flow, Appraisal, Activity, Subsystem, may_contain, connection_allowed
 )
 from pyClarion.base.packets import ActivationPacket, DecisionPacket
 from pyClarion.base.links import (
@@ -18,6 +18,22 @@ from pyClarion.base.realizers.basic import (
 #####################################
 
 
+def get_link_factory(construct: BasicConstructSymbol) -> Type:
+
+    constructor: Type
+    if isinstance(construct, Node):
+        constructor = NodePropagator
+    elif isinstance(construct, Flow):
+        constructor = FlowPropagator
+    elif isinstance(construct, Appraisal):
+        constructor = AppraisalPropagator
+    elif isinstance(construct, Activity):
+        constructor = ActivityDispatcher
+    else:
+        raise TypeError()
+    return constructor
+
+
 class SubsystemRealizer(
     Propagator[ActivationPacket, DecisionPacket], 
     CompositeConstructRealizer[Subsystem]
@@ -28,87 +44,75 @@ class SubsystemRealizer(
 
         CompositeConstructRealizer.__init__(self, construct)
 
-        self._nodes: Dict[Node, NodePropagator] = dict()
-        self._flows: Dict[Flow, FlowPropagator] = dict()
-        self._appraisal: Dict[Appraisal, AppraisalPropagator] = dict()
-        self._activity: Dict[Activity, ActivityDispatcher] = dict()
+        self.dict: Dict = dict()
+        self._appraisal: Optional[Appraisal] = None
+        self._activity: Optional[Activity] = None
         
         Propagator.__init__(self)
 
     def __len__(self) -> int:
 
-        return (
-            len(self._nodes) +
-            len(self._flows) +
-            len(self._appraisal) +
-            len(self._activity)
-        )
+        return len(self.dict)
 
     def __contains__(self, obj: Any) -> bool:
-        
-        if isinstance(obj, Node):
-            out = obj in self._nodes
-        elif isinstance(obj, Flow):
-            out = obj in self._flows
-        elif isinstance(obj, Appraisal):
-            out = obj in self._appraisal
-        elif isinstance(obj, Activity):
-            out = obj in self._activity
-        else:
-            out = False
-        return out
+
+        return obj in self.dict
 
     def __iter__(self) -> Iterator:
 
-        for node in self._nodes:
-            yield node
-        for flow in self._flows:
-            yield flow
-        for appraisal in self._appraisal:
-            yield appraisal
-        for activity in self._activity:
-            yield activity
+        return self.dict.__iter__()
 
     def __getitem__(self, key: Any) -> Any:
 
-        out : Any
-        if isinstance(key, Node):
-            out = self._nodes[key]
-        elif isinstance(key, Flow):
-            out = self._flows[key]
-        elif isinstance(key, Appraisal):
-            out = self._appraisal[key]
-        elif isinstance(key, Activity):
-            out = self._activity[key]
-        else:
-            raise TypeError("Unexpected type {}".format(type(key)))
-        return out
+        return self.dict[key]
 
     def __setitem__(self, key: Any, value: Any) -> None:
 
-        if isinstance(key, Node):
-            self._add_node(key, value)
-        elif isinstance(key, Flow):
-            self._add_flow(key, value)
-        elif isinstance(key, Appraisal):
-            self._add_appraisal(key, value)
-        elif isinstance(key, Activity):
-            self._add_activity(key, value)
+        if not key == value.construct:
+            raise ValueError("Mismatch between key and realizer construct.")
+
+        if may_contain(self.construct, key):
+
+            if isinstance(key, Appraisal):
+                if self._appraisal:
+                    raise Exception("Appraisal already set")
+                else:
+                    self._appraisal = key
+
+            elif isinstance(key, Activity):
+                if self._activity:
+                    raise Exception("Activity already set")
+                else:
+                    self._activity = key
+
+            link_factory = get_link_factory(key)
+            new_link = link_factory(value)
+            self.dict[key] = new_link
+
+            if isinstance(key, Node):
+                for buffer, pull_method in self.input_links.items():
+                    new_link.watch(buffer, pull_method)
+
+            for construct, construct_link in self.dict.items():
+                if connection_allowed(source=construct, target=key):
+                    new_link.watch(construct, construct_link.get_pull_method())
+                if connection_allowed(source=key, target=construct):
+                    construct_link.watch(key, new_link.get_pull_method())
+
         else:
             raise TypeError("Unexpected type {}".format(type(key)))
 
     def __delitem__(self, key: Any) -> None:
 
-        if isinstance(key, Node):
-            self._remove_node(key)
-        elif isinstance(key, Flow):
-            self._remove_flow(key)
-        elif isinstance(key, Appraisal):
-            self._remove_appraisal(key)
+        del self.dict[key]
+        for construct, construct_link in self.dict.items():
+            if connection_allowed(key, construct):
+                construct_link.drop(key)
+
+        if isinstance(key, Appraisal):
+            self._appraisal = None
         elif isinstance(key, Activity):
-            self._remove_activity(key)
-        else:
-            raise TypeError("Unexpected type {}".format(type(key)))
+            self._activity = None
 
     def watch(self, construct, pull_method):
 
@@ -130,104 +134,34 @@ class SubsystemRealizer(
         
         return self[self.appraisal].get_output()
 
-    def _add_node(self, node: Node, node_realizer: NodeRealizer) -> None:
-        
-        node_connector = NodePropagator(node_realizer)
-        self._nodes[node] = node_connector
-        for buffer, pull_method in self.input_links.items():
-            node_connector.watch(buffer, pull_method)
-        for flow, flow_connector in self._flows.items():
-            flow_connector.watch(node, node_connector.get_pull_method())
-            node_connector.watch(flow, flow_connector.get_pull_method())
-        for appraisal, appraisal_connector in self._appraisal.items():
-            appraisal_connector.watch(node, node_connector.get_pull_method())
-
-    def _remove_node(self, node: Node) -> None:
-        
-        for appraisal, appraisal_connector in self._appraisal.items():
-            appraisal_connector.drop(node)
-        for flow_connector in self._flows.values():
-            flow_connector.drop(node)
-        del self._nodes[node]
-            
-    def _add_flow(self, flow: Flow, flow_realizer: FlowRealizer) -> None:
-
-        flow_connector = FlowPropagator(flow_realizer)
-        self._flows[flow] = flow_connector
-        for node, node_connector in self._nodes.items():
-            node_connector.watch(flow, flow_connector.get_pull_method())
-            flow_connector.watch(node, node_connector.get_pull_method())
-
-    def _remove_flow(self, flow: Flow) -> None:
-        
-        try:
-            for node_connector in self._nodes.values():
-                node_connector.drop(flow)
-            del self._flows[flow]
-        except KeyError:
-            pass
-
-    def _add_appraisal(
-        self, appraisal: Appraisal, appraisal_realizer: AppraisalRealizer
-    ) -> None:
-
-        if self._appraisal:
-            raise Exception("Appraisal already set")
-        elif (
-            isinstance(appraisal, Appraisal) and 
-            isinstance(appraisal_realizer, AppraisalRealizer)
-        ):
-            appraisal_propagator = AppraisalPropagator(appraisal_realizer)
-            self._appraisal[appraisal] = appraisal_propagator
-            for node, node_propagator in self._nodes.items():
-                appraisal_propagator.watch(node, node_propagator.get_pull_method())
-            for activity, activity_dispatcher in self._activity.items():
-                activity_dispatcher.watch(appraisal, appraisal_propagator.get_pull_method()) 
-        else:
-            # Print informative type error message.
-            raise TypeError()
-
-    def _remove_appraisal(self, appraisal: Appraisal) -> None:
-        
-        for activity, activity_dispatcher in self._activity.items():
-            activity_dispatcher.drop(appraisal)
-        del self._appraisal[appraisal]
-
-    def _add_activity(
-        self, activity: Activity, activity_realizer: ActivityRealizer
-    ) -> None:
-
-        if self._activity:
-            raise Exception("Activity already set")
-        elif (
-            isinstance(activity, Activity) and 
-            isinstance(activity_realizer, ActivityRealizer)
-        ):
-            self._activity[activity] = ActivityDispatcher(activity_realizer) 
-        else:
-            # Print informative type error message.
-            raise TypeError()
-
-    def _remove_activity(self, activity: Activity) -> None:
-
-        del self._activity[activity]
-
     @property
     def nodes(self) -> Iterable[Node]:
         
-        return self._nodes.keys()
+        return {
+            construct for construct in self.dict 
+            if isinstance(construct, Node)
+        }
 
     @property
     def flows(self) -> Iterable[Flow]:
         
-        return self._flows.keys()
+        return {
+            construct for construct in self.dict 
+            if isinstance(construct, Flow)
+        }
 
     @property
     def appraisal(self) -> Appraisal:
         
-        return list(self._appraisal.keys())[0]
+        if self._appraisal:
+            return self._appraisal
+        else:
+            raise AttributeError("Appraisal not set.")
 
     @property
     def activity(self) -> Activity:
 
-        return list(self._activity.keys())[0]
+        if self._activity:
+            return self._activity
+        else:
+            raise AttributeError("Activity not set.")

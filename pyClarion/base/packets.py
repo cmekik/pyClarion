@@ -67,6 +67,12 @@ class ActivationPacket(dict, Packet[At]):
                 type(self).__name__,
                 '(',
                 super().__repr__(),
+                ", ",
+                "default_factory=",
+                repr(self.default_factory),
+                ", ",
+                "origin=",
+                repr(self.origin),
                 ')'
             ]
         )
@@ -84,7 +90,11 @@ class ActivationPacket(dict, Packet[At]):
     def subpacket(self, nodes: Iterable[Node]):
         """Return a subpacket containing activations for ``nodes``."""
         
-        return type(self)({node: self[node] for node in nodes})
+        return type(self)(
+            {node: self[node] for node in nodes}, 
+            default_factory=self.default_factory, 
+            origin=self.origin
+        )
 
 
 class DecisionPacket(dict, Packet[At]):
@@ -107,7 +117,9 @@ class DecisionPacket(dict, Packet[At]):
         :param chosen: The set of actions to be fired.
         '''
 
-        super().__init__(cast(Mapping, kvpairs))
+        super().__init__()
+        if kvpairs:
+            self.update(kvpairs)
         self.chosen = chosen
 
     def __eq__(self, other: Any) -> bool:

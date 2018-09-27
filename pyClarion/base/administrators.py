@@ -14,7 +14,7 @@ from pyClarion.base.realizer import (
 )
 
 
-class ConstructAdministrator(abc.ABC):
+class ConstructReviewer(abc.ABC):
     """
     Manages some class of realizers associated with one or more subsystems.
 

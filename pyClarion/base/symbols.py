@@ -182,3 +182,81 @@ def get_nodes(*node_iterables: Iterable[Node]) -> Set[Node]:
         for node in node_iterable:
             node_set.add(node)
     return node_set
+
+
+def connection_allowed(
+    source: BasicConstructSymbol, target: BasicConstructSymbol
+) -> bool:
+
+    possibilities = [
+        isinstance(source, Node) and isinstance(target, Appraisal),
+        (
+            isinstance(source, Microfeature) and 
+            isinstance(target, Flow) and
+            (
+                target.flow_type == FlowType.BottomUp or
+                target.flow_type == FlowType.BottomLevel
+            )
+        ),
+        (
+            isinstance(source, Chunk) and 
+            isinstance(target, Flow) and
+            (
+                target.flow_type == FlowType.TopDown or
+                target.flow_type == FlowType.TopLevel
+            )
+        ),
+        (
+            isinstance(source, Flow) and
+            isinstance(target, Microfeature) and
+            (
+                source.flow_type == FlowType.TopDown or 
+                source.flow_type == FlowType.BottomLevel
+            )
+        ),
+        (
+            isinstance(source, Flow) and
+            isinstance(target, Chunk) and
+            (
+                source.flow_type == FlowType.BottomUp or 
+                source.flow_type == FlowType.TopLevel
+            )
+        ),
+        (
+            isinstance(source, Appraisal) and
+            (
+                isinstance(target, Activity) or
+                isinstance(target, Memory)
+            )
+        ),
+        (
+            isinstance(source, Memory) and
+            isinstance(target, Node) 
+        )
+    ]
+    return any(possibilities)
+
+
+def may_contain(
+    container: ConstructSymbol, containee: ConstructSymbol
+) -> bool:
+
+    possibilities = [
+        (
+            isinstance(container, Subsystem) and
+            (
+                isinstance(containee, Node) or
+                isinstance(containee, Flow) or
+                isinstance(containee, Appraisal) or
+                isinstance(containee, Activity)
+            )
+        ),
+        (
+            isinstance(container, Agent) and 
+            (
+                isinstance(containee, Subsystem) or
+                isinstance(containee, Memory)
+            )
+        )
+    ]
+    return any(possibilities)

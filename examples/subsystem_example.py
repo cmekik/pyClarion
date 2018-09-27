@@ -89,52 +89,49 @@ class NACSRealizer(SubsystemRealizer):
     def __call__(self):
 
         # Update Chunks
-        for node, node_propagator in self._nodes.items():
+        for node in self.nodes:
             if isinstance(node, Chunk):
-                node_propagator()
+                self[node]()
 
         # Propagate Top-down Flows
-        for flow, flow_propagator in self._flows.items():
+        for flow in self.flows:
             if flow.flow_type == FlowType.TopDown:
-                flow_propagator()
+                self[flow]()
         
         # Update Microfeatures
-        for node, node_propagator in self._nodes.items():
+        for node in self.nodes:
             if isinstance(node, Microfeature):
-                node_propagator()
+                self[node]()
         
         # Simultaneously Process at Both Top and Bottom Levels
-        for flow, flow_propagator in self._flows.items():
+        for flow in self.flows:
             if flow.flow_type in (FlowType.TopLevel, FlowType.BottomLevel):
-                flow_propagator()
+                self[flow]()
         
         # Update All Nodes
-        for node, node_propagator in self._nodes.items():
-            node_propagator()
+        for node in self.nodes:
+            self[node]()
         
         # Propagate Bottom-up Links
-        for flow, flow_propagator in self._flows.items():
+        for flow in self.flows:
             if flow.flow_type == FlowType.BottomUp:
-                flow_propagator()
+                self[flow]()
         
         # Update Chunks
-        for node, node_propagator in self._nodes.items():
+        for node in self.nodes:
             if isinstance(node, Chunk):
-                node_propagator()
+                self[node]()
         
         # Update Appraisal
-        for appraisal, appraisal_propagator in self._appraisal.items():
-            appraisal_propagator()
-        
-        # Execute Activities
-        for activity, activity_dispatcher in self._activity.items():
-            activity_dispatcher()
+        self[self.appraisal]()
+
 
 toplevel_assoc = {
     Chunk("FRUIT"): {
         Chunk("APPLE"): 1.
     }
 }
+
 
 interlevel_assoc = {
     Chunk("APPLE"): {
@@ -166,6 +163,7 @@ interlevel_assoc = {
         }
     }
 }
+
 
 nacs_contents: List[BasicConstructRealizer] = [
     NodeRealizer(
@@ -222,9 +220,11 @@ nacs_contents: List[BasicConstructRealizer] = [
     )
 ]
 
+
 nacs_realizer = NACSRealizer(Subsystem("NACS"))
 for realizer in nacs_contents:
      nacs_realizer[realizer.construct] = realizer
+
 
 nacs_realizer.watch(
     "external", lambda key: ActivationPacket(
@@ -233,7 +233,9 @@ nacs_realizer.watch(
     ).subpacket(key)
 )
 
+
 nacs_realizer()
+
 
 for c in nacs_realizer:
     print(c, nacs_realizer[c].get_output())
