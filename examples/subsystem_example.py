@@ -1,132 +1,18 @@
 from typing import List
-from pyClarion.base.symbols import Node, Microfeature, Chunk, Flow, FlowType, Appraisal, Subsystem
-from pyClarion.base.packets import Level, ActivationPacket, DecisionPacket
-from pyClarion.base.processors import UpdateJunction, MaxJunction, Channel, BoltzmannSelector
-from pyClarion.base.realizers.abstract import BasicConstructRealizer
-from pyClarion.base.realizers.basic import NodeRealizer, FlowRealizer, AppraisalRealizer
-from pyClarion.base.realizers.composite import SubsystemRealizer
-
-
-def default_factory(key=None):
-    
-    return 0.0
-
-
-class AssociativeRules(Channel[float]):
-
-    def __init__(self, assoc):
-
-        self.assoc = assoc
-
-    def __call__(self, input_map):
-        
-        output = ActivationPacket(
-            default_factory=default_factory, origin=Level.TopLevel
-        )
-        for rule in self.assoc:
-            conditions = rule["conditions"]
-            conclusion = rule["conclusion"]
-            strength = 0.
-            for cond in conditions: 
-                strength += (
-                    conditions[cond] * 
-                    input_map.get(cond, default_factory())
-                )
-            output[conclusion] = max(output[conclusion], strength)
-        return output
-
-
-class TopDown(Channel[float]):
-
-    def __init__(self, assoc):
-
-        self.assoc = assoc
-
-    def __call__(self, input_map):
-
-        output = ActivationPacket(
-            default_factory=default_factory, origin=Level.TopLevel
-        )
-        for node in input_map:
-            if isinstance(node, Chunk) and node in self.assoc:
-                mfs = self.assoc[node]["microfeatures"]
-                weights = self.assoc[node]["weights"]
-                for mf in mfs:
-                    output[mf] = max(
-                        output[mf],
-                        weights[mf.dim] * input_map[node]
-                    )
-        return output
-
-
-class BottomUp(Channel[float]):
-
-    def __init__(self, assoc):
-
-        self.assoc = assoc
-
-    def __call__(self, input_map):
-
-        output = ActivationPacket(
-            default_factory=default_factory, origin=Level.BottomLevel
-        )
-        for chunk in self.assoc:
-            microfeatures = self.assoc[chunk]["microfeatures"]
-            weights = self.assoc[chunk]["weights"]
-            dim_activations = dict()
-            for mf in microfeatures:
-                dim_activations[mf.dim] = max(
-                    dim_activations.get(mf.dim, default_factory()),
-                    input_map.get(mf, default_factory())
-                )
-            for dim in dim_activations:
-                output[chunk] += (
-                    weights[dim] * dim_activations[dim]
-                )
-            output[chunk] /= len(weights) ** 1.1
-        return output
-
-
-class NACSRealizer(SubsystemRealizer):
-
-    def __call__(self):
-
-        # Update Chunks
-        for node in self.nodes:
-            if isinstance(node, Chunk):
-                self[node]()
-
-        # Propagate Top-down Flows
-        for flow in self.flows:
-            if flow.flow_type == FlowType.TopDown:
-                self[flow]()
-        
-        # Update Microfeatures
-        for node in self.nodes:
-            if isinstance(node, Microfeature):
-                self[node]()
-        
-        # Simultaneously Process at Both Top and Bottom Levels
-        for flow in self.flows:
-            if flow.flow_type in (FlowType.TopLevel, FlowType.BottomLevel):
-                self[flow]()
-        
-        # Update All Nodes
-        for node in self.nodes:
-            self[node]()
-        
-        # Propagate Bottom-up Links
-        for flow in self.flows:
-            if flow.flow_type == FlowType.BottomUp:
-                self[flow]()
-        
-        # Update Chunks
-        for node in self.nodes:
-            if isinstance(node, Chunk):
-                self[node]()
-        
-        # Update Appraisal
-        self[self.appraisal]()
+from pyClarion.base.symbols import (
+    Microfeature, Chunk, Flow, FlowType, Appraisal, Subsystem
+)
+from pyClarion.base.packets import ActivationPacket
+from pyClarion.base.realizers.basic import (
+    NodeRealizer, FlowRealizer, AppraisalRealizer
+)
+from pyClarion.base.processors import BoltzmannSelector
+from pyClarion.standard.common import (
+    get_default_activation, StandardMaxJunction, StandardUpdateJunction
+)
+from pyClarion.standard.nacs import (
+    AssociativeRules, TopDownChannel, BottomUpChannel, NACSRealizer
+)
 
 
 toplevel_assoc = [
@@ -146,7 +32,8 @@ interlevel_assoc = {
             "tasty": 1.
         },
         "microfeatures": {
-            Microfeature("color", "red"), 
+            Microfeature("color", "#ff0000"), # "RED"
+            Microfeature("color", "#008000"), # "GREEN"
             Microfeature("tasty", True)
         }
     },
@@ -167,59 +54,63 @@ interlevel_assoc = {
         "microfeatures": {
             Microfeature("tasty", True)
         }
-    }
+    } 
 }
 
 
-nacs_contents: List[BasicConstructRealizer] = [
+nacs_contents: List = [
     NodeRealizer(
-        Chunk("APPLE"), 
-        MaxJunction()
+        construct=Chunk("APPLE"), 
+        junction=StandardMaxJunction()
     ),
     NodeRealizer(
         Chunk("JUICE"), 
-        MaxJunction()
+        StandardMaxJunction()
     ),
     NodeRealizer(
         Chunk("FRUIT"), 
-        MaxJunction()
+        StandardMaxJunction()
     ),
     NodeRealizer(
-        Microfeature("color", "red"), 
-        MaxJunction()
+        Microfeature("color", "#ff0000"), 
+        StandardMaxJunction()
+    ),
+    NodeRealizer(
+        Microfeature("color", "#008000"), 
+        StandardMaxJunction()
     ),
     NodeRealizer(
         Microfeature("tasty", True), 
-        MaxJunction()
+        StandardMaxJunction()
     ),
     NodeRealizer(
         Microfeature("state", "liquid"), 
-        MaxJunction()
+        StandardMaxJunction()
     ),
     FlowRealizer(
         Flow("GKS", flow_type=FlowType.TopLevel),
-        UpdateJunction(),
+        StandardUpdateJunction(),
         AssociativeRules(
             assoc = toplevel_assoc
         )
     ),
     FlowRealizer(
         Flow("NACS", flow_type=FlowType.TopDown),
-        UpdateJunction(),
-        TopDown(
+        StandardUpdateJunction(),
+        TopDownChannel(
             assoc = interlevel_assoc
         )
     ),
     FlowRealizer(
         Flow("NACS", flow_type=FlowType.BottomUp),
-        UpdateJunction(),
-        BottomUp(
+        StandardUpdateJunction(),
+        BottomUpChannel(
             assoc = interlevel_assoc
         )
     ),
     AppraisalRealizer(
         Appraisal("NACS"),
-        UpdateJunction(),
+        StandardUpdateJunction(),
         BoltzmannSelector(
             temperature = .1
         )
@@ -227,7 +118,9 @@ nacs_contents: List[BasicConstructRealizer] = [
 ]
 
 
-nacs_realizer = NACSRealizer(Subsystem("NACS"))
+nacs_realizer = NACSRealizer(
+    construct=Subsystem("NACS")
+)
 for realizer in nacs_contents:
      nacs_realizer[realizer.construct] = realizer
 
@@ -235,7 +128,7 @@ for realizer in nacs_contents:
 nacs_realizer.watch(
     "external", lambda key: ActivationPacket(
         {Chunk("APPLE"): 1.0},
-        default_factory=default_factory
+        default_factory=get_default_activation
     ).subpacket(key)
 )
 
@@ -245,4 +138,3 @@ nacs_realizer()
 
 for c in nacs_realizer:
     print(c, nacs_realizer[c].get_output())
-print(nacs_realizer.construct, nacs_realizer.get_output())

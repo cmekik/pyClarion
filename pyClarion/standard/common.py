@@ -1,31 +1,23 @@
 '''Common constructs for the standard implementation of Clarion.'''
 
 from pyClarion.base.symbols import Node
-from pyClarion.base.packet import ActivationPacket
-from pyClarion.base.processor import UpdateJunction as BaseUpdateJunction
+from pyClarion.base.processors import UpdateJunction, MaxJunction
 
 
-###########################
-### DEFAULT ACTIVATIONS ###
-###########################
-
-
-def default_factory(key: Node) -> float:
+def get_default_activation(key: Node) -> float:
     
     return 0.0
 
 
-#################
-### JUNCTIONS ###
-#################
+class StandardUpdateJunction(UpdateJunction[float]):
 
-class UpdateJunction(BaseUpdateJunction[float]):
-    """Merges input activation packets using the packet ``update`` method."""
+    def __init__(self, default_activation=get_default_activation):
 
-    def __call__(
-        self, *input_maps: ActivationPacket[float]
-    ) -> ActivationPacket[float]:
+        super().__init__(default_activation)
 
-        output = super().__call__(*input_maps)
-        output.default_factory = default_factory
-        return output
+
+class StandardMaxJunction(MaxJunction[float]):
+
+    def __init__(self, default_activation=get_default_activation):
+
+        super().__init__(default_activation)

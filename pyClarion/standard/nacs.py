@@ -4,186 +4,125 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 
 from typing import Dict, Hashable, Set, Tuple, List
-from pyClarion.base.symbol import Node, Chunk, Microfeature, Flow, FlowType
-from pyClarion.base.packets import Level
+from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow, FlowType
+from pyClarion.base.packets import ActivationPacket, Level
 from pyClarion.base.processors import Channel
-from pyClarion.standard.common import (
-    ActivationPacket, UpdateJunction, default_factory
-)
-from pyClarion.base.realizer import FlowRealizer, SubsystemRealizer
-from pyClarion.base.administrator import FlowAdministrator
-
-
-###########################
-### TOPLEVEL CONSTRUCTS ###
-###########################
+from pyClarion.base.realizers.composite import SubsystemRealizer
+from pyClarion.standard.common import get_default_activation
 
 
 class AssociativeRules(Channel[float]):
 
-    def __init__(self, associations : Dict[Chunk, Dict[Chunk, float]]) -> None:
-        
-        self.associations = associations
+    def __init__(self, assoc):
 
-    def __call__(self, input_map : ActivationPacket[float]) -> ActivationPacket[float]:
+        self.assoc = assoc
+
+    def __call__(self, input_map):
+        
+        output = ActivationPacket(
+            default_factory=get_default_activation, origin=Level.TopLevel
+        )
+        for rule in self.assoc:
+            conditions = rule["conditions"]
+            conclusion = rule["conclusion"]
+            strength = 0.
+            for cond in conditions: 
+                strength += (
+                    conditions[cond] * 
+                    input_map.get(cond, get_default_activation(cond))
+                )
+            output[conclusion] = max(output[conclusion], strength)
+        return output
+
+
+class TopDownChannel(Channel[float]):
+
+    def __init__(self, assoc):
+
+        self.assoc = assoc
+
+    def __call__(self, input_map):
 
         output = ActivationPacket(
-            default_factory=default_factory, origin=Level.TopLevel
+            default_factory=get_default_activation, origin=Level.TopLevel
         )
-        for conclusion_chunk, weight_map in self.associations.items():
-            for condition_chunk, weight in weight_map.items():
-                output[conclusion_chunk] += (
-                    weight * input_map[condition_chunk]
+        for node in input_map:
+            if isinstance(node, Chunk) and node in self.assoc:
+                mfs = self.assoc[node]["microfeatures"]
+                weights = self.assoc[node]["weights"]
+                for mf in mfs:
+                    output[mf] = max(
+                        output[mf],
+                        weights[mf.dim] * input_map[node]
+                    )
+        return output
+
+
+class BottomUpChannel(Channel[float]):
+
+    def __init__(self, assoc):
+
+        self.assoc = assoc
+
+    def __call__(self, input_map):
+
+        output = ActivationPacket(
+            default_factory=get_default_activation, origin=Level.BottomLevel
+        )
+        for chunk in self.assoc:
+            microfeatures = self.assoc[chunk]["microfeatures"]
+            weights = self.assoc[chunk]["weights"]
+            dim_activations = dict()
+            for mf in microfeatures:
+                dim_activations[mf.dim] = max(
+                    dim_activations.get(mf.dim, get_default_activation(mf)),
+                    input_map.get(mf, get_default_activation(mf))
                 )
+            for dim in dim_activations:
+                output[chunk] += (
+                    weights[dim] * dim_activations[dim]
+                )
+            output[chunk] /= len(weights) ** 1.1
         return output
-
-
-class GKSAdministrator(FlowAdministrator):
-    
-    def __init__(self) -> None:
-
-        flow_name = 'GKS'
-        self.flow = Flow(flow_name, FlowType.TopLevel) 
-        self.associations : Dict[Chunk, Dict[Chunk, float]] = dict()
-
-    def update_knowledge(self, *args, **kwargs):
-        pass
-
-    def initialize_knowledge(self) -> List[FlowRealizer]:
-
-        return [
-            FlowRealizer(
-                self.flow, 
-                UpdateJunction(),
-                AssociativeRules(self.associations)
-            )
-        ]
-
-    def get_known_nodes(self) -> Set[Node]:
-
-        output: Set[Node] = set(self.associations.keys())
-        for mapping in self.associations.values():
-            output.update(mapping.keys())
-        return output
-
-
-#############################
-### INTERLEVEL CONSTRUCTS ###
-#############################
-
-    
-class _InterLevelChannel(Channel):
-
-    def __init__(
-        self, 
-        links : Dict[Chunk, Set[Microfeature]],
-        weights : Dict[Chunk, Dict[Hashable, float]]
-    ) -> None:
-
-        self.links = links
-        self.weights = weights
-
-
-class TopDownChannel(_InterLevelChannel):
-
-    def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
-        
-        output = ActivationPacket(flow_type=FlowType.TopDown)
-        for nd, strength in input_map.items():
-            if nd in self.links:
-                for mf in self.links[nd]:
-                    val = self.weights[nd][mf.dim] * strength
-                    if output[mf] < val:
-                        output[mf] = val
-        return output
-
-
-class BottomUpChannel(_InterLevelChannel):
-
-    def __call__(self, input_map : ActivationPacket) -> ActivationPacket:
-
-        output = ActivationPacket(flow_type=FlowType.BottomUp)
-        for nd in self.links:
-            dim_activations : Dict[Hashable, float] = dict()
-            for mf in self.links[nd]:
-                if (
-                    (mf.dim not in dim_activations) or
-                    (dim_activations[mf.dim] < input_map[mf])
-                ):
-                    dim_activations[mf.dim] = input_map[mf]
-            for dim, strength in dim_activations.items():
-                output[nd] += self.weights[nd][dim] * strength
-        return output
-
-
-class InterLevelFlowAdministrator(FlowAdministrator):
-
-    def __init__(
-        self, 
-        links : Dict[Chunk, Set[Microfeature]], 
-        weights : Dict[Chunk, Dict[Hashable, float]]
-    ) -> None:
-        '''
-        Initialize an InterLevelComponent.
-
-        Must have:
-            for every chunk, microfeature if ``microfeature in links[chunk]``
-            then ``microfeature.dim in weights[chunk] and
-            ``weights[chunk][microfeature.dim] != 0
-        '''
-
-        flow_name = 'Interlevel'
-        self.flows = {
-            Flow(flow_name, FlowType.TopDown), 
-            Flow(flow_name, FlowType.BottomUp)
-        }
-        self.links = links
-        self.weights = weights
-
-    def update_knowledge(self, *args, **kwargs):
-        pass
-
-    def initialize_knowledge(self) -> List[FlowRealizer]:
-
-        return [
-            FlowRealizer(
-                Flow("Interlevel", FlowType.TopDown), 
-                UpdateJunction(),
-                TopDownChannel(self.links, self.weights)
-            ),
-            FlowRealizer(
-                Flow("Interlevel", FlowType.BottomUp),
-                UpdateJunction(),
-                BottomUpChannel(self.links, self.weights)
-            )
-        ]
 
 
 class NACSRealizer(SubsystemRealizer):
 
     def __call__(self):
 
-        for node, node_propagator in self._nodes.items():
+        # Update Chunks
+        for node in self.nodes:
             if isinstance(node, Chunk):
-                node_propagator()
-        for flow, flow_propagator in self._flows.values():
+                self[node]()
+
+        # Propagate Top-down Flows
+        for flow in self.flows:
             if flow.flow_type == FlowType.TopDown:
-                flow_propagator()
-        for node, node_propagator in self._nodes.items():
+                self[flow]()
+        
+        # Update Microfeatures
+        for node in self.nodes:
             if isinstance(node, Microfeature):
-                node_propagator()
-        for flow, flow_propagator in self._flows.values():
+                self[node]()
+        
+        # Simultaneously Process at Both Top and Bottom Levels
+        for flow in self.flows:
             if flow.flow_type in (FlowType.TopLevel, FlowType.BottomLevel):
-                flow_propagator()
-        for node, node_propagator in self._nodes.items():
-            node_propagator()
-        for flow, flow_propagator in self._flows.values():
+                self[flow]()
+        
+        # Update All Nodes
+        for node in self.nodes:
+            self[node]()
+        
+        # Propagate Bottom-up Links
+        for flow in self.flows:
             if flow.flow_type == FlowType.BottomUp:
-                flow_propagator()
-        for node, node_propagator in self._nodes.items():
+                self[flow]()
+        
+        # Update Chunks
+        for node in self.nodes:
             if isinstance(node, Chunk):
-                node_propagator()
-        for appraisal, appraisal_propagator in self._appraisal.items():
-            appraisal_propagator()
-        for activity, activity_dispatcher in self._activity.items():
-            activity_dispatcher()
+                self[node]()
+        
+        # Update Appraisal
+        self[self.appraisal]()

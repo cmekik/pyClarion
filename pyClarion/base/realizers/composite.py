@@ -52,7 +52,9 @@ class SubsystemRealizer(
                     raise Exception("Appraisal already set")
                 else:
                     self._appraisal = key
-
+            
+            # Get constructor for Node, Flow, or Appraisal propagator 
+            # corresponding to key.
             link_factory = self.get_link_factory(key)
             new_link = link_factory(value)
             self.dict[key] = new_link
