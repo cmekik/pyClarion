@@ -9,5 +9,13 @@ Sub-Modules
 .. toctree::
    :maxdepth: 1
 
-   node.rst
-   activation/activation.rst
+   knowledge.rst
+   packet.rst
+   channel.rst
+   junction.rst
+   selector.rst
+   effector.rst
+   connector.rst
+   network.rst
+   agent.rst
+
