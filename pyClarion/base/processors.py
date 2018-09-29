@@ -5,7 +5,8 @@ Tools for creating and manipulating activation and decision patterns.
 import abc
 import numpy as np
 from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union, Set
-from pyClarion.base.symbols import get_nodes, Node, Chunk
+from pyClarion.base.symbols import Node, Chunk
+from pyClarion.base.utils import get_nodes
 from pyClarion.base.packets import ActivationPacket, DecisionPacket, At
 
 
@@ -111,16 +112,6 @@ class Effector(Generic[At], abc.ABC):
 
         :param selector_packet: The output of an action selection cycle.
         '''
-        pass
-
-
-class Buffer(Generic[At], abc.ABC):
-    """ """
-
-    @abc.abstractmethod
-    def __call__(self, selector_packet: DecisionPacket[At]) -> ActivationPacket[At]:
-        """ """
-
         pass
 
 

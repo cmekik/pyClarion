@@ -8,8 +8,8 @@ from pyClarion.base.enums import FlowType, Level
 from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow
 from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.processors import Channel
-from pyClarion.base.realizers.composite import SubsystemRealizer
-from pyClarion.standard.common import get_default_activation
+from pyClarion.base.realizers.subsystem import SubsystemRealizer
+from pyClarion.standard.common import default_activation
 
 
 class AssociativeRules(Channel[float]):
@@ -21,7 +21,7 @@ class AssociativeRules(Channel[float]):
     def __call__(self, input_map):
         
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.Top
+            default_factory=default_activation, origin=Level.Top
         )
         for rule in self.assoc:
             conditions = rule["conditions"]
@@ -30,7 +30,7 @@ class AssociativeRules(Channel[float]):
             for cond in conditions: 
                 strength += (
                     conditions[cond] * 
-                    input_map.get(cond, get_default_activation(cond))
+                    input_map.get(cond, default_activation(cond))
                 )
             output[conclusion] = max(output[conclusion], strength)
         return output
@@ -45,7 +45,7 @@ class TopDownChannel(Channel[float]):
     def __call__(self, input_map):
 
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.Top
+            default_factory=default_activation, origin=Level.Top
         )
         for node in input_map:
             if isinstance(node, Chunk) and node in self.assoc:
@@ -68,7 +68,7 @@ class BottomUpChannel(Channel[float]):
     def __call__(self, input_map):
 
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.Bot
+            default_factory=default_activation, origin=Level.Bot
         )
         for chunk in self.assoc:
             microfeatures = self.assoc[chunk]["microfeatures"]
@@ -76,8 +76,8 @@ class BottomUpChannel(Channel[float]):
             dim_activations = dict()
             for mf in microfeatures:
                 dim_activations[mf.dim] = max(
-                    dim_activations.get(mf.dim, get_default_activation(mf)),
-                    input_map.get(mf, get_default_activation(mf))
+                    dim_activations.get(mf.dim, default_activation(mf)),
+                    input_map.get(mf, default_activation(mf))
                 )
             for dim in dim_activations:
                 output[chunk] += (

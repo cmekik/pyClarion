@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from pyClarion.base.symbols import Node, Flow, Appraisal, Activity, Memory
+from pyClarion.base.symbols import Node, Flow, Appraisal
+from pyClarion.base.utils import check_construct
 from pyClarion.base.processors import Channel, Junction, Selector
 from pyClarion.base.realizers.abstract import BasicConstructRealizer
 
@@ -8,6 +9,7 @@ class NodeRealizer(BasicConstructRealizer[Node]):
 
     def __init__(self, construct: Node, junction: Junction) -> None:
         
+        check_construct(construct, Node)
         super().__init__(construct)
         self.junction: Junction = junction
         self._init_io()
@@ -25,6 +27,7 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
         self, construct: Flow, junction: Junction, channel: Channel
     ) -> None:
         
+        check_construct(construct, Flow)
         super().__init__(construct)
         self.junction: Junction = junction
         self.channel: Channel = channel
@@ -44,6 +47,7 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
         self, construct: Appraisal, junction: Junction, selector: Selector
     ) -> None:
         
+        check_construct(construct, Appraisal)
         super().__init__(construct)
         self.junction: Junction = junction
         self.selector: Selector = selector
