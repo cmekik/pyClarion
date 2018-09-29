@@ -1,28 +1,27 @@
-from typing import Dict, Any, Iterator, Iterable, Type, Optional
-from pyClarion.base.symbols import (
-    BasicConstructSymbol, Node, Microfeature, Chunk, Flow, Appraisal, 
-    Subsystem, FlowType
+from abc import abstractmethod
+from typing import Dict, Any, Iterator, Iterable, Type, Optional, Hashable
+from pyClarion.base.symbols import Node, Flow, Appraisal, Subsystem
+from pyClarion.base.invariants import (
+    subsystem_may_connect, subsystem_may_contain
 )
-from pyClarion.base.packets import ActivationPacket, DecisionPacket
+from pyClarion.base.packets import ActivationPacket
+from pyClarion.base.realizers.abstract import Realizer
 from pyClarion.base.links import (
-    Propagator, NodePropagator, FlowPropagator, AppraisalPropagator
+    SubsystemInputMonitor, SubsystemOutputView, PullMethod
 )
-from pyClarion.base.realizers.abstract import CompositeConstructRealizer
 
 
-class SubsystemRealizer(
-    Propagator[ActivationPacket, DecisionPacket], 
-    CompositeConstructRealizer[Subsystem]
-):
+class SubsystemRealizer(Realizer[Subsystem]):
     """A network of interconnected nodes and flows."""
 
     def __init__(self, construct: Subsystem) -> None:
 
-        CompositeConstructRealizer.__init__(self, construct)
-        Propagator.__init__(self)
+        super().__init__(construct)
 
         self.dict: Dict = dict()
-        self._appraisal: Optional[Appraisal] = None        
+        self._appraisal: Optional[Appraisal] = None
+        self.input = SubsystemInputMonitor(self._watch, self._drop)
+        self.output = SubsystemOutputView(self._view)        
 
     def __len__(self) -> int:
 
@@ -45,7 +44,7 @@ class SubsystemRealizer(
         if not key == value.construct:
             raise ValueError("Mismatch between key and realizer construct.")
 
-        if self.may_contain(key):
+        if subsystem_may_contain(key):
 
             if isinstance(key, Appraisal):
                 if self._appraisal:
@@ -53,21 +52,17 @@ class SubsystemRealizer(
                 else:
                     self._appraisal = key
             
-            # Get constructor for Node, Flow, or Appraisal propagator 
-            # corresponding to key.
-            link_factory = self.get_link_factory(key)
-            new_link = link_factory(value)
-            self.dict[key] = new_link
+            self.dict[key] = value
 
             if isinstance(key, Node):
-                for buffer, pull_method in self.input_links.items():
-                    new_link.watch(buffer, pull_method)
+                for buffer, pull_method in self.input.input_links.items():
+                    value.input.watch(buffer, pull_method)
 
-            for construct, construct_link in self.dict.items():
-                if self.connection_allowed(source=construct, target=key):
-                    new_link.watch(construct, construct_link.get_pull_method())
-                if self.connection_allowed(source=key, target=construct):
-                    construct_link.watch(key, new_link.get_pull_method())
+            for construct, realizer in self.dict.items():
+                if subsystem_may_connect(source=construct, target=key):
+                    value.input.watch(construct, realizer.output.view)
+                if subsystem_may_connect(source=key, target=construct):
+                    realizer.input.watch(key, value.output.view)
 
         else:
             raise TypeError("Unexpected type {}".format(type(key)))
@@ -76,40 +71,29 @@ class SubsystemRealizer(
 
         del self.dict[key]
         for construct, construct_link in self.dict.items():
-            if self.connection_allowed(key, construct):
+            if subsystem_may_connect(key, construct):
                 construct_link.drop(key)
 
         if isinstance(key, Appraisal):
             self._appraisal = None
 
-    def may_contain(self, key: Any) -> bool:
-        
-        value = (
-            isinstance(key, Node) or
-            isinstance(key, Flow) or
-            isinstance(key, Appraisal)
-        )
-        return value
+    def _watch(self, identifier: Hashable, pull_method: PullMethod) -> None:
 
-    def watch(self, construct, pull_method):
-
-        super().watch(construct, pull_method)
         for node in self.nodes:
-            self[node].watch(construct, pull_method)
+            self[node].input.watch(identifier, pull_method)
 
-    def drop(self, construct):
+    def _drop(self, identifier: Hashable) -> None:
 
-        super().drop(construct)
         for node in self.nodes:
-            self[node].drop(construct)
+            self[node].input.drop(identifier)
 
-    def get_pull_method(self):
+    def _view(self, keys: Iterable[Node] = None) -> ActivationPacket:
 
-        return self[self.appraisal].get_pull_method()
+        return self[self.appraisal].view(keys)
 
-    def get_output(self):
-        
-        return self[self.appraisal].get_output()
+    @abstractmethod
+    def do(self) -> None:
+        pass
 
     @property
     def nodes(self) -> Iterable[Node]:
@@ -134,57 +118,3 @@ class SubsystemRealizer(
             return self._appraisal
         else:
             raise AttributeError("Appraisal not set.")
-
-    @staticmethod
-    def connection_allowed(source: Any, target: Any) -> bool:
-        
-        possibilities = [
-            isinstance(source, Node) and isinstance(target, Appraisal),
-            (
-                isinstance(source, Microfeature) and 
-                isinstance(target, Flow) and
-                (
-                    target.flow_type == FlowType.BottomUp or
-                    target.flow_type == FlowType.BottomLevel
-                )
-            ),
-            (
-                isinstance(source, Chunk) and 
-                isinstance(target, Flow) and
-                (
-                    target.flow_type == FlowType.TopDown or
-                    target.flow_type == FlowType.TopLevel
-                )
-            ),
-            (
-                isinstance(source, Flow) and
-                isinstance(target, Microfeature) and
-                (
-                    source.flow_type == FlowType.TopDown or 
-                    source.flow_type == FlowType.BottomLevel
-                )
-            ),
-            (
-                isinstance(source, Flow) and
-                isinstance(target, Chunk) and
-                (
-                    source.flow_type == FlowType.BottomUp or 
-                    source.flow_type == FlowType.TopLevel
-                )
-            )
-        ]
-        return any(possibilities)
-
-    @staticmethod    
-    def get_link_factory(construct: BasicConstructSymbol) -> Type:
-
-        constructor: Type
-        if isinstance(construct, Node):
-            constructor = NodePropagator
-        elif isinstance(construct, Flow):
-            constructor = FlowPropagator
-        elif isinstance(construct, Appraisal):
-            constructor = AppraisalPropagator
-        else:
-            raise TypeError()
-        return constructor

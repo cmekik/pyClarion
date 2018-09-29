@@ -4,7 +4,7 @@ from pyClarion.base.symbols import Node
 from pyClarion.base.processors import UpdateJunction, MaxJunction
 
 
-def get_default_activation(key: Node) -> float:
+def get_default_activation(key: Node = None) -> float:
     
     return 0.0
 

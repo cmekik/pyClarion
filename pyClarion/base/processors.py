@@ -6,7 +6,7 @@ import abc
 import numpy as np
 from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union, Set
 from pyClarion.base.symbols import get_nodes, Node, Chunk
-from pyClarion.base.packets import Packet, ActivationPacket, DecisionPacket, At
+from pyClarion.base.packets import ActivationPacket, DecisionPacket, At
 
 
 ################
@@ -213,7 +213,7 @@ class BoltzmannSelector(Selector[float]):
         if boltzmann_distribution:
             chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
             choices = self.choose(chunk_list, probabilities)
-        return DecisionPacket(boltzmann_distribution, choices)
+        return DecisionPacket(boltzmann_distribution, chosen=choices)
 
     def get_boltzmann_distribution(
         self, input_map: ActivationPacket[float]

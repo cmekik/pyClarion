@@ -4,8 +4,9 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 
 from typing import Dict, Hashable, Set, Tuple, List
-from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow, FlowType
-from pyClarion.base.packets import ActivationPacket, Level
+from pyClarion.base.enums import FlowType, Level
+from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow
+from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.processors import Channel
 from pyClarion.base.realizers.composite import SubsystemRealizer
 from pyClarion.standard.common import get_default_activation
@@ -20,7 +21,7 @@ class AssociativeRules(Channel[float]):
     def __call__(self, input_map):
         
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.TopLevel
+            default_factory=get_default_activation, origin=Level.Top
         )
         for rule in self.assoc:
             conditions = rule["conditions"]
@@ -44,7 +45,7 @@ class TopDownChannel(Channel[float]):
     def __call__(self, input_map):
 
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.TopLevel
+            default_factory=get_default_activation, origin=Level.Top
         )
         for node in input_map:
             if isinstance(node, Chunk) and node in self.assoc:
@@ -67,7 +68,7 @@ class BottomUpChannel(Channel[float]):
     def __call__(self, input_map):
 
         output = ActivationPacket(
-            default_factory=get_default_activation, origin=Level.BottomLevel
+            default_factory=get_default_activation, origin=Level.Bot
         )
         for chunk in self.assoc:
             microfeatures = self.assoc[chunk]["microfeatures"]
@@ -88,41 +89,41 @@ class BottomUpChannel(Channel[float]):
 
 class NACSRealizer(SubsystemRealizer):
 
-    def __call__(self):
+    def do(self):
 
         # Update Chunks
         for node in self.nodes:
             if isinstance(node, Chunk):
-                self[node]()
+                self[node].do()
 
         # Propagate Top-down Flows
         for flow in self.flows:
-            if flow.flow_type == FlowType.TopDown:
-                self[flow]()
+            if flow.flow_type == FlowType.Top2Bot:
+                self[flow].do()
         
         # Update Microfeatures
         for node in self.nodes:
             if isinstance(node, Microfeature):
-                self[node]()
+                self[node].do()
         
         # Simultaneously Process at Both Top and Bottom Levels
         for flow in self.flows:
-            if flow.flow_type in (FlowType.TopLevel, FlowType.BottomLevel):
-                self[flow]()
+            if flow.flow_type in (FlowType.Top2Top, FlowType.Bot2Bot):
+                self[flow].do()
         
         # Update All Nodes
         for node in self.nodes:
-            self[node]()
+            self[node].do()
         
         # Propagate Bottom-up Links
         for flow in self.flows:
-            if flow.flow_type == FlowType.BottomUp:
-                self[flow]()
+            if flow.flow_type == FlowType.Bot2Top:
+                self[flow].do()
         
         # Update Chunks
         for node in self.nodes:
             if isinstance(node, Chunk):
-                self[node]()
+                self[node].do()
         
         # Update Appraisal
-        self[self.appraisal]()
+        self[self.appraisal].do()

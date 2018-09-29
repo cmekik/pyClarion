@@ -4,7 +4,7 @@ Tools for naming, identifying, and indexing therotically relevant constructs.
 
 from typing import Hashable, Iterable, Set
 from dataclasses import dataclass
-from enum import Enum, auto
+from pyClarion.base.enums import FlowType
 
 
 ######################
@@ -71,15 +71,6 @@ class Chunk(Node):
 
 
 ### FLOW SYMBOLS ###
-
-
-class FlowType(Enum):
-    """An enumeration of level types."""
-
-    TopLevel = auto()
-    BottomLevel = auto()
-    TopDown = auto()
-    BottomUp = auto()
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)

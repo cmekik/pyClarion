@@ -2,32 +2,19 @@
 
 from abc import abstractmethod
 from enum import Enum, auto
-from typing import MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, cast
+from typing import (
+    MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, 
+    List, Optional, cast
+)
 from collections import UserDict
+from pyClarion.base.enums import Level
 from pyClarion.base.symbols import Node, Chunk, FlowType
 
 
 At = TypeVar("At")
 
 
-class Packet(MutableMapping[Node, At]):
-    """
-    Base class for encapsulating information about nodes.
-
-    Takes one type variable, ``At``, which is an unrestricted type variable 
-    denoting the expected type for data values.
-    """
-
-    pass
-
-
-class Level(Enum):
-
-    TopLevel = auto()
-    BottomLevel = auto()
-
-
-class ActivationPacket(dict, Packet[At]):
+class ActivationPacket(dict, MutableMapping[Node, At]):
     """
     A class for representing node activations.
 
@@ -44,7 +31,7 @@ class ActivationPacket(dict, Packet[At]):
     def __init__(
         self, 
         kvpairs: Mapping[Node, At] = None,
-        default_factory: Callable[[Node], At] = None,
+        default_factory: Callable[[Optional[Node]], At] = None,
         origin: Level = None
     ) -> None:
         '''
@@ -62,21 +49,7 @@ class ActivationPacket(dict, Packet[At]):
 
     def __repr__(self) -> str:
         
-        repr_ = ''.join(
-            [
-                type(self).__name__,
-                '(',
-                super().__repr__(),
-                ", ",
-                "default_factory=",
-                repr(self.default_factory),
-                ", ",
-                "origin=",
-                repr(self.origin),
-                ')'
-            ]
-        )
-        return repr_
+        return ''.join(self._repr())
 
     def __missing__(self, key: Node) -> At:
 
@@ -87,6 +60,10 @@ class ActivationPacket(dict, Packet[At]):
         else:
             raise KeyError(key)
 
+    def copy(self):
+
+        return self.subpacket(self.keys())
+
     def subpacket(self, nodes: Iterable[Node]):
         """Return a subpacket containing activations for ``nodes``."""
         
@@ -96,8 +73,24 @@ class ActivationPacket(dict, Packet[At]):
             origin=self.origin
         )
 
+    def _repr(self) -> List[str]:
 
-class DecisionPacket(dict, Packet[At]):
+        repr_ = [
+            type(self).__name__,
+            '(',
+            super().__repr__(),
+            ", ",
+            "origin=",
+            repr(self.origin),
+            ", ",
+            "default_factory=",
+            repr(self.default_factory),
+            ")"
+        ]
+        return repr_
+
+
+class DecisionPacket(ActivationPacket[At]):
     """
     Represents the output of an action selection routine.
 
@@ -108,6 +101,8 @@ class DecisionPacket(dict, Packet[At]):
     def __init__(
         self, 
         kvpairs: Mapping[Node, At] = None,
+        default_factory: Callable[[Optional[Node]], At] = None,
+        origin: Level = None,
         chosen: Set[Chunk] = None
     ) -> None:
         '''
@@ -117,31 +112,23 @@ class DecisionPacket(dict, Packet[At]):
         :param chosen: The set of actions to be fired.
         '''
 
-        super().__init__()
-        if kvpairs:
-            self.update(kvpairs)
+        super().__init__(kvpairs, default_factory, origin)
         self.chosen = chosen
 
     def __eq__(self, other: Any) -> bool:
 
-        if (
+        return (
             super().__eq__(other) and
             self.chosen == other.chosen
-        ):
-            return True
-        else:
-            return False
-
-    def __repr__(self) -> str:
-        
-        repr_ = ''.join(
-            [
-                type(self).__name__, 
-                '(',
-                super().__repr__(),
-                ', ',
-                'chosen=' + repr(self.chosen),
-                ')'
-            ]
         )
-        return repr_
+
+    def _repr(self) -> List[str]:
+
+        repr_ = super()._repr()
+        supplement = [
+            "chosen=",
+            repr(self.chosen),
+            ", "
+        ]
+        return repr_[:-3] + supplement + repr_[-3:]
+        

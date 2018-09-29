@@ -1,6 +1,7 @@
 from typing import List
+from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
-    Microfeature, Chunk, Flow, FlowType, Appraisal, Subsystem
+    Microfeature, Chunk, Flow, Appraisal, Subsystem
 )
 from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.realizers.basic import (
@@ -88,21 +89,21 @@ nacs_contents: List = [
         StandardMaxJunction()
     ),
     FlowRealizer(
-        Flow("GKS", flow_type=FlowType.TopLevel),
+        Flow("GKS", flow_type=FlowType.Top2Top),
         StandardUpdateJunction(),
         AssociativeRules(
             assoc = toplevel_assoc
         )
     ),
     FlowRealizer(
-        Flow("NACS", flow_type=FlowType.TopDown),
+        Flow("NACS", flow_type=FlowType.Top2Bot),
         StandardUpdateJunction(),
         TopDownChannel(
             assoc = interlevel_assoc
         )
     ),
     FlowRealizer(
-        Flow("NACS", flow_type=FlowType.BottomUp),
+        Flow("NACS", flow_type=FlowType.Bot2Top),
         StandardUpdateJunction(),
         BottomUpChannel(
             assoc = interlevel_assoc
@@ -125,16 +126,17 @@ for realizer in nacs_contents:
      nacs_realizer[realizer.construct] = realizer
 
 
-nacs_realizer.watch(
-    "external", lambda key: ActivationPacket(
-        {Chunk("APPLE"): 1.0},
-        default_factory=get_default_activation
-    ).subpacket(key)
+nacs_realizer.input.watch(
+    "external", 
+    lambda key: 
+        ActivationPacket(
+            {Chunk("APPLE"): 1.0},
+            default_factory=get_default_activation
+        )
 )
 
-
-nacs_realizer()
+nacs_realizer.do()
 
 
 for c in nacs_realizer:
-    print(c, nacs_realizer[c].get_output())
+    print(c, nacs_realizer[c].output.view())
