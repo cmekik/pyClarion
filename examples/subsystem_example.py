@@ -32,12 +32,12 @@ def external_input(nodes):
 if __name__ == '__main__':
 
     toplevel_assoc = [
-        {
-            "conclusion": Chunk("FRUIT"), 
-            "conditions": {
-                Chunk("APPLE"): 1.
-            }
-        }
+        (
+            Chunk("FRUIT"),
+            (
+                (Chunk("APPLE"), 1.),
+            )
+        )
     ]
 
     interlevel_assoc = {
@@ -139,5 +139,6 @@ if __name__ == '__main__':
     nacs_realizer.input.watch("external_input", external_input)
 
     nacs_realizer.do()
+    
     for c in nacs_realizer:
         print(c, nacs_realizer[c].output.view())

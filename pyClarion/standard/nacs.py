@@ -3,7 +3,7 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 '''
 
 
-from typing import Dict, Hashable, Set, Tuple, List
+from typing import Dict, Hashable, Set, Tuple, List, Sequence
 from pyClarion.base.enums import FlowType, Level
 from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow
 from pyClarion.base.packets import ActivationPacket
@@ -12,20 +12,30 @@ from pyClarion.base.realizers.subsystem import SubsystemRealizer
 from pyClarion.standard.common import default_activation
 
 
+AssociativeRuleSequence = (
+    Sequence[
+        Tuple[
+            # Conclusion chunk
+            Chunk, 
+            # Condition chunks and corresponding weights
+            Sequence[Tuple[Chunk, float]]
+        ]
+    ]
+) 
+
+
 class AssociativeRules(Channel[float]):
 
-    def __init__(self, assoc):
+    def __init__(self, assoc: AssociativeRuleSequence) -> None:
 
-        self.assoc = assoc
+        self.assoc = [[chunk, dict(weights)] for chunk, weights in assoc]
 
     def __call__(self, input_map):
         
         output = ActivationPacket(
             default_factory=default_activation, origin=Level.Top
         )
-        for rule in self.assoc:
-            conditions = rule["conditions"]
-            conclusion = rule["conclusion"]
+        for conclusion, conditions in self.assoc:
             strength = 0.
             for cond in conditions: 
                 strength += (
