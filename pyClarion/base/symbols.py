@@ -68,6 +68,13 @@ class Buffer(BasicConstructSymbol):
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
+class Actions(BasicConstructSymbol):
+    """Represents actions available to an agent."""
+
+    id: Hashable
+
+
+@dataclass(init=True, repr=True, eq=True, frozen=True)
 class Subsystem(ContainerConstructSymbol):
     """Represents a functionally distinct section of a cognitive apparatus."""
 

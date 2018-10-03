@@ -9,7 +9,7 @@ Ot = TypeVar('Ot', bound=ActivationPacket)
 PullMethod = Callable[[Optional[Iterable[Node]]], ActivationPacket]
 
 
-class InputMonitor(object):
+class InputMonitor(ABC):
 
     @abstractmethod
     def pull(self) -> Iterable[ActivationPacket]:
@@ -24,7 +24,7 @@ class InputMonitor(object):
         pass
 
 
-class OutputView(object):
+class OutputView(ABC):
 
     @abstractmethod
     def view(self) -> ActivationPacket:

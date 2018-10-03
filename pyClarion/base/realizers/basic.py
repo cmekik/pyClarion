@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pyClarion.base.symbols import Node, Flow, Appraisal
+from pyClarion.base.symbols import Node, Flow, Appraisal, Actions, Buffer
 from pyClarion.base.utils import check_construct
 from pyClarion.base.processors import Channel, Junction, Selector
 from pyClarion.base.realizers.abstract import BasicConstructRealizer
@@ -59,3 +59,11 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
         combined = self.junction(*inputs)
         output = self.selector(combined)
         self.output.update(output)
+
+
+class BufferRealizer(BasicConstructRealizer[Buffer]):
+    pass
+
+
+class ActionRealizer(BasicConstructRealizer[Actions]):
+    pass

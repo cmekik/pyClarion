@@ -7,14 +7,16 @@ Tools for programmatically managing construct realizers.
 """
 
 import abc
-from typing import Mapping
-from pyClarion.base.symbols import Agent, Subsystem, Memory
-from pyClarion.base.realizer import (
-    BasicConstructRealizer, SubsystemRealizer, MemoryRealizer
-)
+from typing import Mapping, TypeVar, Dict
+from pyClarion.base.symbols import ConstructSymbol, Agent, Subsystem, Buffer
+from pyClarion.base.realizers.abstract import ConstructRealizer
+from pyClarion.base.realizers.basic import BufferRealizer 
 
 
-class ConstructReviewer(abc.ABC):
+Ct = TypeVar("Ct",bound=ConstructSymbol)
+
+
+class RevisionManager(abc.ABC):
     """
     Manages some class of realizers associated with one or more subsystems.
 
@@ -24,27 +26,17 @@ class ConstructReviewer(abc.ABC):
 
     def __init__(
         self, 
-        agent: Agent, 
-        subsystems: Mapping[Subsystem, SubsystemRealizer], 
-        buffers: Mapping[Memory, MemoryRealizer]
+        agent_dict: Dict[Ct, ConstructRealizer[Ct]], 
     ) -> None:
         
-        self.agent = agent
-        self.subsystems = subsystems
-        self.buffers = buffers
+        self.agent_dict = agent_dict
 
     @abc.abstractmethod
-    def update_knowledge(self) -> None:
+    def revise(self) -> None:
         """
         Updates knowledge given result of current activation cycle.
 
         The API for this is under development. A more specific signature is 
         forthcoming.
         """
-        pass
-    
-    @abc.abstractmethod
-    def initialize_knowledge(self) -> None:
-        '''Create and return channel(s) managed by ``self``.'''
-
         pass
