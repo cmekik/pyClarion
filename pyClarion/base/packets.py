@@ -131,4 +131,11 @@ class DecisionPacket(ActivationPacket[At]):
             ", "
         ]
         return repr_[:-3] + supplement + repr_[-3:]
+
+    def subpacket(self, nodes: Iterable[Node]):
+        """Return a subpacket containing activations for ``nodes``."""
+        
+        output = super().subpacket(nodes)
+        output.chosen = self.chosen
+        return output
         
