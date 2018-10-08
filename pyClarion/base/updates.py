@@ -16,7 +16,7 @@ from pyClarion.base.realizers.basic import BufferRealizer
 Ct = TypeVar("Ct",bound=ConstructSymbol)
 
 
-class RevisionManager(abc.ABC):
+class UpdateManager(abc.ABC):
     """
     Manages some class of realizers associated with one or more subsystems.
 
@@ -32,7 +32,7 @@ class RevisionManager(abc.ABC):
         self.agent_dict = agent_dict
 
     @abc.abstractmethod
-    def revise(self) -> None:
+    def update(self) -> None:
         """
         Updates knowledge given result of current activation cycle.
 
