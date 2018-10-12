@@ -115,6 +115,34 @@ class Effector(Generic[At], abc.ABC):
         pass
 
 
+class Source(Generic[At], abc.ABC):
+    """
+    Outputs some stored or fixed activation pattern.
+
+    ``Source`` instances are callable objects whose ``__call__`` method expects 
+    no input and outputs a single ``ActivationPacket``.
+    """
+    
+    @abc.abstractmethod
+    def __call__(self) -> ActivationPacket[At]:
+        '''
+        Execute actions associated with given output.
+
+        :param selector_packet: The output of an action selection cycle.
+        '''
+        pass
+
+    @abc.abstractmethod
+    def update(self, packet: ActivationPacket[At]) -> None:
+        """Update self with packet"""
+
+        pass
+
+    @abc.abstractmethod
+    def clear(self) -> None:
+        """Clear source."""
+
+
 #################################
 ### ACTIVATION PROCESSOR TYPE ###
 #################################
@@ -252,3 +280,23 @@ class MappingEffector(Effector[At]):
         if selector_packet.chosen:
             for chunk in selector_packet.chosen:
                 self.chunk2callback[chunk]()
+
+
+class FixedSource(Source[At]):
+    """Simple source outputting a constant activation packet."""
+
+    def __init__(self, packet: ActivationPacket[At]) -> None:
+
+        self.packet = packet
+
+    def __call__(self) -> ActivationPacket[At]:
+
+        return self.packet.copy()
+
+    def update(self, packet: ActivationPacket[At]) -> None:
+
+        self.packet.update(packet)
+
+    def clear(self) -> None:
+
+        self.packet.clear()

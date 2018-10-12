@@ -1,12 +1,13 @@
 from typing import List
 from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
-    Microfeature, Chunk, Flow, Appraisal, Subsystem
+    Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent
 )
 from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.realizers.basic import (
     NodeRealizer, FlowRealizer, AppraisalRealizer
 )
+from pyClarion.base.realizers.agent import AgentRealizer
 from pyClarion.base.processors import BoltzmannSelector
 from pyClarion.standard.common import (
     default_activation, StandardMaxJunction, StandardUpdateJunction
@@ -138,7 +139,11 @@ if __name__ == '__main__':
         nacs_realizer[realizer.construct] = realizer
     nacs_realizer.input.watch("external_input", external_input)
 
-    nacs_realizer.propagate()
-    
-    for c in nacs_realizer:
-        print(c, nacs_realizer[c].output.view())
+    alice = AgentRealizer(Agent("Alice"))
+
+    alice[Subsystem("NACS")] = nacs_realizer
+
+    alice.propagate()
+
+    for c in alice[Subsystem("NACS")]:
+        print(c, alice[Subsystem("NACS")][c].output.view())

@@ -99,41 +99,41 @@ class BottomUpChannel(Channel[float]):
 
 class NACSRealizer(SubsystemRealizer):
 
-    def do(self):
+    def propagate(self):
 
         # Update Chunks
         for node in self.nodes:
             if isinstance(node, Chunk):
-                self[node].do()
+                self[node].propagate()
 
         # Propagate Top-down Flows
         for flow in self.flows:
             if flow.flow_type == FlowType.Top2Bot:
-                self[flow].do()
+                self[flow].propagate()
         
         # Update Microfeatures
         for node in self.nodes:
             if isinstance(node, Microfeature):
-                self[node].do()
+                self[node].propagate()
         
         # Simultaneously Process at Both Top and Bottom Levels
         for flow in self.flows:
             if flow.flow_type in (FlowType.Top2Top, FlowType.Bot2Bot):
-                self[flow].do()
+                self[flow].propagate()
         
         # Update All Nodes
         for node in self.nodes:
-            self[node].do()
+            self[node].propagate()
         
         # Propagate Bottom-up Links
         for flow in self.flows:
             if flow.flow_type == FlowType.Bot2Top:
-                self[flow].do()
+                self[flow].propagate()
         
         # Update Chunks
         for node in self.nodes:
             if isinstance(node, Chunk):
-                self[node].do()
+                self[node].propagate()
         
         # Update Appraisal
-        self[self.appraisal].do()
+        self.appraisal.propagate()

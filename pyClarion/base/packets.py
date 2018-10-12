@@ -82,9 +82,9 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
             ", ",
             "origin=",
             repr(self.origin),
-            ", ",
-            "default_factory=",
-            repr(self.default_factory),
+            # ", ",
+            # "default_factory=",
+            # repr(self.default_factory),
             ")"
         ]
         return repr_

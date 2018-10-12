@@ -2,7 +2,7 @@ from typing import Iterable, Set, Type, Any
 from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
     ConstructSymbol, Node, Microfeature, Chunk, Flow, Appraisal, Buffer, 
-    Subsystem, Agent
+    Subsystem, Agent, Behavior
 )
 
 
@@ -36,7 +36,8 @@ def may_contain(container: Any, element: Any) -> bool:
             (
                 isinstance(element, Node) or
                 isinstance(element, Flow) or
-                isinstance(element, Appraisal)
+                isinstance(element, Appraisal) or
+                isinstance(element, Behavior)
             )
         ),
         (
@@ -88,8 +89,8 @@ def may_connect(source: Any, target: Any) -> bool:
             )
         ),
         (
-            isinstance(source, Subsystem) and
-            isinstance(target, Buffer)
+            isinstance(source, Appraisal) and 
+            isinstance(target, Behavior)
         ),
         (
             isinstance(source, Buffer) and

@@ -28,7 +28,7 @@ class ConstructRealizer(Generic[Ct], ABC):
         self.construct = construct
 
     @abstractmethod
-    def do(self) -> None:
+    def propagate(self) -> None:
         pass
 
 
@@ -38,11 +38,13 @@ class BasicConstructRealizer(ConstructRealizer[Bt]):
 
         super().__init__(construct)
 
-    def _init_io(self) -> None:
+    def _init_io(self, has_input: bool = True, has_output: bool = True) -> None:
 
-        self.input = BasicInputMonitor()
-        self.output = BasicOutputView()
-        self.do()
+        if has_input:
+            self.input = BasicInputMonitor()
+        if has_output:
+            self.output = BasicOutputView()
+        self.propagate()
 
 
 class ContainerConstructRealizer(

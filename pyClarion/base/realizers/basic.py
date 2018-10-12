@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from pyClarion.base.symbols import Node, Flow, Appraisal, Actions, Buffer
+from pyClarion.base.symbols import Node, Flow, Appraisal, Behavior, Buffer
 from pyClarion.base.utils import check_construct
-from pyClarion.base.processors import Channel, Junction, Selector
+from pyClarion.base.processors import Channel, Junction, Selector, Effector, Source
 from pyClarion.base.realizers.abstract import BasicConstructRealizer
 
 
@@ -14,7 +14,7 @@ class NodeRealizer(BasicConstructRealizer[Node]):
         self.junction: Junction = junction
         self._init_io()
 
-    def do(self) -> None:
+    def propagate(self) -> None:
 
         inputs = self.input.pull([self.construct])
         output = self.junction(*inputs)
@@ -33,7 +33,7 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
         self.channel: Channel = channel
         self._init_io()
 
-    def do(self):
+    def propagate(self):
 
         inputs = self.input.pull()
         combined = self.junction(*inputs)
@@ -53,7 +53,7 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
         self.selector: Selector = selector
         self._init_io()
 
-    def do(self):
+    def propagate(self):
 
         inputs = self.input.pull()
         combined = self.junction(*inputs)
@@ -62,8 +62,34 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
 
 
 class BufferRealizer(BasicConstructRealizer[Buffer]):
-    pass
+
+    def __init__(
+        self, construct: Buffer, source: Source
+    ) -> None:
+        
+        check_construct(construct, Buffer)
+        super().__init__(construct)
+        self.source: Source = source
+        self._init_io(has_input=False)
+
+    def propagate(self):
+
+        output = self.source()
+        self.output.update(output)
 
 
-class ActionRealizer(BasicConstructRealizer[Actions]):
-    pass
+class BehaviorRealizer(BasicConstructRealizer[Behavior]):
+    
+    def __init__(
+        self, construct: Behavior, effector: Effector
+    ) -> None:
+        
+        check_construct(construct, Behavior)
+        super().__init__(construct)
+        self.effector: Effector = effector
+        self._init_io(has_output=False)
+
+    def propagate(self):
+
+        input_ = self.input.pull()
+        self.effector(*input_)

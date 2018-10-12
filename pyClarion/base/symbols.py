@@ -68,7 +68,7 @@ class Buffer(BasicConstructSymbol):
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
-class Actions(BasicConstructSymbol):
+class Behavior(BasicConstructSymbol):
     """Represents actions available to an agent."""
 
     id: Hashable

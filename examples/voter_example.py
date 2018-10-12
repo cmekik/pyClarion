@@ -204,8 +204,7 @@ if __name__ == '__main__':
     # Suppression of self chunk activation for decision making, lets candidate chunks through.
     nacs_realizer[Appraisal("NACS")].input.watch("Appraisal filter", appraisal_filter)
 
-    nacs_realizer.do()
+    nacs_realizer.propagate()
     
     for c in nacs_realizer:
         print(c, nacs_realizer[c].output.view())
-    print(nacs_realizer[Appraisal("NACS")].output.view().chosen)

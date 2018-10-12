@@ -1,9 +1,10 @@
 from abc import abstractmethod
 from typing import Dict, Any, Iterator, Iterable, Type, Optional, Hashable
-from pyClarion.base.symbols import Node, Flow, Appraisal, Subsystem
+from pyClarion.base.symbols import Node, Flow, Appraisal, Behavior, Subsystem
 from pyClarion.base.utils import check_construct, may_connect
 from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.realizers.abstract import ContainerConstructRealizer
+from pyClarion.base.realizers.basic import AppraisalRealizer, BehaviorRealizer
 from pyClarion.base.links import (
     SubsystemInputMonitor, SubsystemOutputView, PullMethod
 )
@@ -17,6 +18,7 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         check_construct(construct, Subsystem)
         super().__init__(construct)
         self._appraisal: Optional[Appraisal] = None
+        self._behavior: Optional[Behavior] = None
         self.input = SubsystemInputMonitor(self._watch, self._drop)
         self.output = SubsystemOutputView(self._view)        
 
@@ -24,6 +26,9 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
 
         if self._appraisal and isinstance(key, Appraisal):
             raise Exception("Appraisal already set")
+        if self._behavior and isinstance(key, Behavior):
+            raise Exception("Behavior already set")
+
         super().__setitem__(key, value)
 
         for construct, realizer in self.dict.items():
@@ -36,6 +41,8 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
                 value.input.watch(buffer, pull_method)
         elif isinstance(key, Appraisal):
             self._appraisal = key
+        elif isinstance(key, Behavior):
+            self._behavior = key
 
     def __delitem__(self, key: Any) -> None:
 
@@ -46,6 +53,8 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
                 realizer.input.drop(key)
         if isinstance(key, Appraisal):
             self._appraisal = None
+        elif isinstance(key, Behavior):
+            self._behavior = None
 
     def _watch(self, identifier: Hashable, pull_method: PullMethod) -> None:
 
@@ -59,11 +68,11 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
 
     def _view(self, keys: Iterable[Node] = None) -> ActivationPacket:
 
-        return self[self.appraisal].view(keys)
+        return self.appraisal.output.view(keys)
 
-    @abstractmethod
-    def do(self) -> None:
-        pass
+    def execute(self) -> None:
+        
+        self.behavior.propagate()
 
     @property
     def nodes(self) -> Iterable[Node]:
@@ -82,9 +91,17 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         }
 
     @property
-    def appraisal(self) -> Appraisal:
+    def appraisal(self) -> AppraisalRealizer:
         
         if self._appraisal:
-            return self._appraisal
+            return self.__getitem__(self._appraisal)
         else:
-            raise AttributeError("Attribute `appraisal` not set.")
+            raise AttributeError("Appraisal not set.")
+
+    @property
+    def behavior(self) -> BehaviorRealizer:
+        
+        if self._behavior:
+            return self.__getitem__(self._behavior)
+        else:
+            raise AttributeError("Behavior not set.")
