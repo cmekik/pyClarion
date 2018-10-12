@@ -1,11 +1,11 @@
-from typing import List
+from typing import List, Iterable
 from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
-    Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent
+    Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent, Buffer, Behavior
 )
 from pyClarion.base.packets import ActivationPacket
 from pyClarion.base.realizers.basic import (
-    NodeRealizer, FlowRealizer, AppraisalRealizer
+    NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, BehaviorRealizer
 )
 from pyClarion.base.realizers.agent import AgentRealizer
 from pyClarion.base.processors import BoltzmannSelector
@@ -73,6 +73,12 @@ if __name__ == '__main__':
         } 
     }
 
+    chunk2callback = {
+        Chunk("APPLE"): None,
+        Chunk("JUICE"): None,
+        Chunk("FRUIT"): None
+    }
+
     nacs_contents: List = [
         NodeRealizer(
             construct=Chunk("APPLE"), 
@@ -132,18 +138,35 @@ if __name__ == '__main__':
         )
     ]
 
-    nacs_realizer = NACSRealizer(
-        construct=Subsystem("NACS")
+    def create_standard_agent(
+        name: str,
+        has_nacs: bool = False,
+        nacs_contents: Iterable = None
+    ):
+
+        agent = AgentRealizer(Agent(name))
+
+        if has_nacs:
+            nacs_symb = Subsystem("NACS")
+            nacs_realizer = NACSRealizer(nacs_symb)
+            agent[nacs_symb] = nacs_realizer
+
+        if nacs_contents:
+            for realizer in nacs_contents:
+                nacs_realizer[realizer.construct] = realizer 
+        
+        return agent
+
+    alice = create_standard_agent(
+        name="Alice",
+        has_nacs=True,
+        nacs_contents=nacs_contents
     )
-    for realizer in nacs_contents:
-        nacs_realizer[realizer.construct] = realizer
-    nacs_realizer.input.watch("external_input", external_input)
 
-    alice = AgentRealizer(Agent("Alice"))
-
-    alice[Subsystem("NACS")] = nacs_realizer
+    alice[Subsystem("NACS")].input.watch("external_input", external_input)
 
     alice.propagate()
+    alice.execute()
 
     for c in alice[Subsystem("NACS")]:
-        print(c, alice[Subsystem("NACS")][c].output.view())
+        print(alice.construct, c, alice[Subsystem("NACS")][c].output.view())

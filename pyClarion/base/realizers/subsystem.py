@@ -10,6 +10,14 @@ from pyClarion.base.links import (
 )
 
 
+class MissingAppraisalError(AttributeError):
+    pass
+
+
+class MissingBehaviorError(AttributeError):
+    pass
+
+
 class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
     """A network of interconnected nodes and flows."""
 
@@ -71,8 +79,10 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         return self.appraisal.output.view(keys)
 
     def execute(self) -> None:
-        
-        self.behavior.propagate()
+        try:
+            self.behavior.propagate()
+        except MissingBehaviorError:
+            pass
 
     @property
     def nodes(self) -> Iterable[Node]:
@@ -96,7 +106,7 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         if self._appraisal:
             return self.__getitem__(self._appraisal)
         else:
-            raise AttributeError("Appraisal not set.")
+            raise MissingAppraisalError()
 
     @property
     def behavior(self) -> BehaviorRealizer:
@@ -104,4 +114,4 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         if self._behavior:
             return self.__getitem__(self._behavior)
         else:
-            raise AttributeError("Behavior not set.")
+            raise MissingBehaviorError()
