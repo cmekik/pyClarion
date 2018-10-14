@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Hashable, Callable, List, Dict, Iterable, Optional
 from pyClarion.base.symbols import Node
-from pyClarion.base.packets import ActivationPacket
+from pyClarion.base.packets import ActivationPacket, DefaultActivation
 
 
 It = TypeVar('It', bound=ActivationPacket)
@@ -54,6 +54,12 @@ class BasicInputMonitor(InputMonitor):
 
 class BasicOutputView(OutputView):
 
+    def __init__(
+        self, default_activation: DefaultActivation = None
+    ) -> None:
+
+        self.default_activation = default_activation
+
     def update(self, output: ActivationPacket) -> None:
         
         self._output_buffer = output
@@ -61,7 +67,7 @@ class BasicOutputView(OutputView):
     def view(self, keys: Iterable[Node] = None) -> ActivationPacket:
         
         if keys:
-            out = self.output_buffer.subpacket(keys)
+            out = self.output_buffer.subpacket(keys, self.default_activation)
         else:
             out = self.output_buffer.copy()
         return out

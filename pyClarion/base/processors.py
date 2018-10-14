@@ -55,10 +55,6 @@ class Junction(Generic[At], abc.ABC):
     nodes.
     """
 
-    def __init__(self, default_activation: Callable = None) -> None:
-
-        self.default_activation = default_activation
-
     @abc.abstractmethod
     def __call__(self, *input_maps: ActivationPacket[At]) -> ActivationPacket:
         """Return a combined mapping from chunks and/or microfeatures to 
@@ -163,9 +159,7 @@ class UpdateJunction(Junction[At]):
         self, *input_maps: ActivationPacket[At]
     ) -> ActivationPacket[At]:
 
-        output: ActivationPacket = ActivationPacket(
-            default_factory=self.default_activation
-        )
+        output: ActivationPacket = ActivationPacket()
         for input_map in input_maps:
             output.update(input_map)
         return output
@@ -186,9 +180,7 @@ class MaxJunction(Junction[At]):
         """
 
         node_set = get_nodes(*input_maps)
-        output : ActivationPacket = ActivationPacket(
-            default_factory=self.default_activation
-        )
+        output : ActivationPacket = ActivationPacket()
         for n in node_set:
             for input_map in input_maps:
                 try :
@@ -282,12 +274,15 @@ class MappingEffector(Effector[At]):
                 self.chunk2callback[chunk]()
 
 
-class FixedSource(Source[At]):
+class ConstantSource(Source[At]):
     """Simple source outputting a constant activation packet."""
 
-    def __init__(self, packet: ActivationPacket[At]) -> None:
+    def __init__(self, packet: ActivationPacket[At] = None) -> None:
 
-        self.packet = packet
+        if packet:
+            self.packet = packet
+        else:
+            self.packet = ActivationPacket()
 
     def __call__(self) -> ActivationPacket[At]:
 

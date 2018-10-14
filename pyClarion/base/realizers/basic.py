@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pyClarion.base.symbols import Node, Flow, Appraisal, Behavior, Buffer
+from pyClarion.base.packets import DefaultActivation
 from pyClarion.base.utils import check_construct
 from pyClarion.base.processors import Channel, Junction, Selector, Effector, Source
 from pyClarion.base.realizers.abstract import BasicConstructRealizer
@@ -24,14 +25,18 @@ class NodeRealizer(BasicConstructRealizer[Node]):
 class FlowRealizer(BasicConstructRealizer[Flow]):
 
     def __init__(
-        self, construct: Flow, junction: Junction, channel: Channel
+        self, 
+        construct: Flow, 
+        junction: Junction, 
+        channel: Channel, 
+        default_activation: DefaultActivation
     ) -> None:
         
         check_construct(construct, Flow)
         super().__init__(construct)
         self.junction: Junction = junction
         self.channel: Channel = channel
-        self._init_io()
+        self._init_io(default_activation=default_activation)
 
     def propagate(self):
 
@@ -64,13 +69,16 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
 class BufferRealizer(BasicConstructRealizer[Buffer]):
 
     def __init__(
-        self, construct: Buffer, source: Source
+        self, 
+        construct: Buffer, 
+        source: Source, 
+        default_activation: DefaultActivation
     ) -> None:
         
         check_construct(construct, Buffer)
         super().__init__(construct)
         self.source: Source = source
-        self._init_io(has_input=False)
+        self._init_io(has_input=False, default_activation=default_activation)
 
     def propagate(self):
 
@@ -92,5 +100,4 @@ class BehaviorRealizer(BasicConstructRealizer[Behavior]):
     def propagate(self):
 
         input_ = self.input.pull()
-        if input_:
-            self.effector(*input_)
+        self.effector(*input_)

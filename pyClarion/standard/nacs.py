@@ -24,7 +24,7 @@ AssociativeRuleSequence = (
 ) 
 
 
-class AssociativeRules(Channel[float]):
+class AssociativeRulesChannel(Channel[float]):
 
     def __init__(self, assoc: AssociativeRuleSequence) -> None:
 
@@ -32,9 +32,7 @@ class AssociativeRules(Channel[float]):
 
     def __call__(self, input_map):
         
-        output = ActivationPacket(
-            default_factory=default_activation, origin=Level.Top
-        )
+        output = ActivationPacket(origin=Level.Top)
         for conclusion, conditions in self.assoc:
             strength = 0.
             for cond in conditions: 
@@ -42,7 +40,11 @@ class AssociativeRules(Channel[float]):
                     conditions[cond] * 
                     input_map.get(cond, default_activation(cond))
                 )
-            output[conclusion] = max(output[conclusion], strength)
+            try:
+                activation = max(output[conclusion], strength)
+            except KeyError:
+                activation = strength
+            output[conclusion] = activation
         return output
 
 
@@ -54,18 +56,18 @@ class TopDownChannel(Channel[float]):
 
     def __call__(self, input_map):
 
-        output = ActivationPacket(
-            default_factory=default_activation, origin=Level.Top
-        )
+        output = ActivationPacket(origin=Level.Top)
         for node in input_map:
             if isinstance(node, Chunk) and node in self.assoc:
                 mfs = self.assoc[node]["microfeatures"]
                 weights = self.assoc[node]["weights"]
                 for mf in mfs:
-                    output[mf] = max(
-                        output[mf],
-                        weights[mf.dim] * input_map[node]
-                    )
+                    new_activation = weights[mf.dim] * input_map[node]
+                    try:
+                        activation = max(output[mf], new_activation)
+                    except KeyError:
+                        activation = new_activation
+                    output[mf] = activation
         return output
 
 
@@ -77,9 +79,7 @@ class BottomUpChannel(Channel[float]):
 
     def __call__(self, input_map):
 
-        output = ActivationPacket(
-            default_factory=default_activation, origin=Level.Bot
-        )
+        output = ActivationPacket(origin=Level.Bot)
         for chunk in self.assoc:
             microfeatures = self.assoc[chunk]["microfeatures"]
             weights = self.assoc[chunk]["weights"]
@@ -89,6 +89,7 @@ class BottomUpChannel(Channel[float]):
                     dim_activations.get(mf.dim, default_activation(mf)),
                     input_map.get(mf, default_activation(mf))
                 )
+            output[chunk] = default_activation(chunk)
             for dim in dim_activations:
                 output[chunk] += (
                     weights[dim] * dim_activations[dim]

@@ -1,3 +1,11 @@
+"""
+A simple pyClarion demo.
+
+Below we simulate an agent, named Alice, doing a cued association task. She will 
+tell us the first thing that comes to her mind upon being presented with the 
+chosen stimulus.
+"""
+
 from typing import List, Iterable
 from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
@@ -8,26 +16,33 @@ from pyClarion.base.realizers.basic import (
     NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, BehaviorRealizer
 )
 from pyClarion.base.realizers.agent import AgentRealizer
-from pyClarion.base.processors import BoltzmannSelector, MappingEffector
-from pyClarion.standard.common import (
-    default_activation, StandardMaxJunction, StandardUpdateJunction
+from pyClarion.base.processors import (
+    UpdateJunction, MaxJunction, BoltzmannSelector, MappingEffector, 
+    ConstantSource
 )
+from pyClarion.standard.common import default_activation
 from pyClarion.standard.nacs import (
-    AssociativeRules, TopDownChannel, BottomUpChannel, NACSRealizer
+    AssociativeRulesChannel, TopDownChannel, BottomUpChannel, NACSRealizer
 )
 
+def create_standard_agent(
+    name: str,
+    has_nacs: bool = False,
+    nacs_contents: Iterable = None
+):
 
-def external_input(nodes):
+    agent = AgentRealizer(Agent(name))
+
+    if has_nacs:
+        nacs_symb = Subsystem("NACS")
+        nacs_realizer = NACSRealizer(nacs_symb)
+        agent[nacs_symb] = nacs_realizer
+
+    if nacs_contents:
+        for realizer in nacs_contents:
+            nacs_realizer[realizer.construct] = realizer 
     
-    output = ActivationPacket(
-        {Chunk("APPLE"): 1.0},
-        default_factory=default_activation
-    )
-    
-    if nodes:
-        return output.subpacket(nodes)
-    else:
-        return output.copy()
+    return agent
 
 class BehaviorRecorder(object):
 
@@ -38,7 +53,22 @@ class BehaviorRecorder(object):
 
 if __name__ == '__main__':
 
+
+    #############
+    ### SETUP ###
+    #############
+
+    ### Environment Setup ###
+    
     behavior_recorder = BehaviorRecorder()
+
+    ### End Environment Setup ###
+
+    ### Agent Setup ###
+        # In this section, we'll create an agent named 'Alice' with some 
+        # knowledge about fruits.
+
+    # Alices's initial top-level knowledge
 
     toplevel_assoc = [
         (
@@ -48,6 +78,8 @@ if __name__ == '__main__':
             )
         )
     ]
+
+    # Alice's initial inter-level associations
 
     interlevel_assoc = {
         Chunk("APPLE"): {
@@ -81,65 +113,67 @@ if __name__ == '__main__':
         } 
     }
 
-    chunk2callback = {
-        Chunk("APPLE"): lambda: behavior_recorder.recorded_actions.append(Chunk("APPLE")),
-        Chunk("JUICE"): lambda: behavior_recorder.recorded_actions.append(Chunk("JUICE")),
-        Chunk("FRUIT"): lambda: behavior_recorder.recorded_actions.append(Chunk("FRUIT"))
-    }
+    # NACS Prep
+        # Here, realizers are created for every initial piece of knowledge that 
+        # alice has in addition to other important functional components of 
+        # Alice's NACS.
 
     nacs_contents: List = [
         NodeRealizer(
             construct=Chunk("APPLE"), 
-            junction=StandardMaxJunction()
+            junction=MaxJunction()
         ),
         NodeRealizer(
             Chunk("JUICE"), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         NodeRealizer(
             Chunk("FRUIT"), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         NodeRealizer(
             Microfeature("color", "#ff0000"), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         NodeRealizer(
             Microfeature("color", "#008000"), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         NodeRealizer(
             Microfeature("tasty", True), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         NodeRealizer(
             Microfeature("state", "liquid"), 
-            StandardMaxJunction()
+            MaxJunction()
         ),
         FlowRealizer(
             Flow("GKS", flow_type=FlowType.Top2Top),
-            StandardUpdateJunction(),
-            AssociativeRules(
+            UpdateJunction(),
+            AssociativeRulesChannel(
                 assoc = toplevel_assoc
-            )
+            ),
+            default_activation=default_activation
         ),
         FlowRealizer(
             Flow("NACS", flow_type=FlowType.Top2Bot),
-            StandardUpdateJunction(),
+            UpdateJunction(),
             TopDownChannel(
                 assoc = interlevel_assoc
-            )
+            ),
+            default_activation=default_activation
         ),
         FlowRealizer(
             Flow("NACS", flow_type=FlowType.Bot2Top),
-            StandardUpdateJunction(),
+            UpdateJunction(),
             BottomUpChannel(
                 assoc = interlevel_assoc
-            )
+            ),
+            default_activation=default_activation
         ),
         AppraisalRealizer(
             Appraisal("NACS"),
-            StandardUpdateJunction(),
+            UpdateJunction(),
             BoltzmannSelector(
                 temperature = .1
             )
@@ -147,42 +181,71 @@ if __name__ == '__main__':
         BehaviorRealizer(
             Behavior("NACS"),
             MappingEffector(
-                chunk2callback=chunk2callback
+                chunk2callback={
+                    Chunk("APPLE"): lambda: behavior_recorder.recorded_actions.append(Chunk("APPLE")),
+                    Chunk("JUICE"): lambda: behavior_recorder.recorded_actions.append(Chunk("JUICE")),
+                    Chunk("FRUIT"): lambda: behavior_recorder.recorded_actions.append(Chunk("FRUIT"))
+                }
             )
         )
     ]
 
-    def create_standard_agent(
-        name: str,
-        has_nacs: bool = False,
-        nacs_contents: Iterable = None
-    ):
+    # We create an AgentRealizer representing alice
+    alice = AgentRealizer(Agent("Alice"))
+    
+    # We add an NACS
+    alice[Subsystem("NACS")] = NACSRealizer(Subsystem("NACS"))
+    
+    # We insert the components defined above into Alice's NACS
+    for realizer in nacs_contents:
+        alice[Subsystem("NACS")][realizer.construct] = realizer 
 
-        agent = AgentRealizer(Agent(name))
-
-        if has_nacs:
-            nacs_symb = Subsystem("NACS")
-            nacs_realizer = NACSRealizer(nacs_symb)
-            agent[nacs_symb] = nacs_realizer
-
-        if nacs_contents:
-            for realizer in nacs_contents:
-                nacs_realizer[realizer.construct] = realizer 
-        
-        return agent
-
-    alice = create_standard_agent(
-        name="Alice",
-        has_nacs=True,
-        nacs_contents=nacs_contents
+    # We add a buffer enabling stimulation Alice's NACS
+    alice[Buffer("NACS Stimulus")] = BufferRealizer(
+        construct=Buffer("NACS Stimulus"),
+        source=ConstantSource(),
+        default_activation=default_activation
     )
 
-    alice[Subsystem("NACS")].input.watch("external_input", external_input)
+    # Next, we connect the stimulus buffer to Alice's NACS
+    alice[Subsystem("NACS")].input.watch(
+        Buffer("NACS Stimulus"), 
+        alice[Buffer("NACS Stimulus")].output.view
+    )
 
+    ### End Agent Setup ###
+
+    ##################
+    ### SIMULATION ###
+    ##################
+
+    ### First Trial ###
+
+    # The stimulus buffer is set to provide constant activation to the Apple 
+    # chunk. This represents presentation of the concept APPLE. Note that there 
+    # are simplifications. For instance, it is assumed that Alice is made to 
+    # understand that the cue is APPLE, the fruit, and not e.g., APPLE, the 
+    # company.
+    alice[Buffer("NACS Stimulus")].source.update(
+        ActivationPacket({Chunk("APPLE"): 1.})
+    )
+
+    # Alice performs one NACS cycle 
     alice.propagate()
+
+    # Alice responds
     alice.execute()
 
+    # The stimulus is removed
+    alice[Buffer("NACS Stimulus")].source.clear()
+
+    ### End First Trial ###
+
+    # We can look at the exact state of Alice's NACS at the end of its 
+    # activation cycle.
     for c in alice[Subsystem("NACS")]:
         if not isinstance(c, Behavior):
             print(alice.construct, c, alice[Subsystem("NACS")][c].output.view())
+
+    # We can also observe her response in the simulation environment.
     print(behavior_recorder.recorded_actions)

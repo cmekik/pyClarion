@@ -9,6 +9,7 @@ from pyClarion.base.symbols import (
     ConstructSymbol, BasicConstructSymbol, ContainerConstructSymbol, 
 )
 from pyClarion.base.utils import may_contain
+from pyClarion.base.packets import DefaultActivation
 from pyClarion.base.links import BasicInputMonitor, BasicOutputView
 
 Ct = TypeVar('Ct', bound=ConstructSymbol)
@@ -38,13 +39,18 @@ class BasicConstructRealizer(ConstructRealizer[Bt]):
 
         super().__init__(construct)
 
-    def _init_io(self, has_input: bool = True, has_output: bool = True) -> None:
+    def _init_io(
+        self, 
+        has_input: bool = True, 
+        has_output: bool = True, 
+        default_activation: DefaultActivation = None
+    ) -> None:
 
         if has_input:
             self.input = BasicInputMonitor()
         if has_output:
-            self.output = BasicOutputView()
-        self.propagate()
+            self.output = BasicOutputView(default_activation)
+            self.propagate()
 
 
 class ContainerConstructRealizer(

@@ -12,26 +12,14 @@ from pyClarion.base.symbols import Node, Chunk, FlowType
 
 
 At = TypeVar("At")
-
+DefaultActivation = Callable[[Optional[Node]], At]
 
 class ActivationPacket(dict, MutableMapping[Node, At]):
-    """
-    A class for representing node activations.
-
-    Default activation values may be implemented by overriding the 
-    ``default_activation`` method. When defined, default activations are handled 
-    similarly to ``collections.defaultdict``.
-
-    The precise type of an ``ActivationPacket`` instance may encode important 
-    metadata, such as information about the source of the packet. 
-
-    See module documentation for further details and examples.
-    """
+    """A class for representing node activations."""
 
     def __init__(
         self, 
         kvpairs: Mapping[Node, At] = None,
-        default_factory: Callable[[Optional[Node]], At] = None,
         origin: Level = None
     ) -> None:
         '''
@@ -44,34 +32,27 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
         super().__init__()
         if kvpairs:
             self.update(kvpairs)
-        self.default_factory = default_factory
         self.origin = origin
 
     def __repr__(self) -> str:
         
         return ''.join(self._repr())
 
-    def __missing__(self, key: Node) -> At:
-
-        if self.default_factory:
-            value : At = self.default_factory(key)
-            self[key] = value
-            return value
-        else:
-            raise KeyError(key)
-
     def copy(self):
 
         return self.subpacket(self.keys())
 
-    def subpacket(self, nodes: Iterable[Node]):
+    def subpacket(
+        self, 
+        nodes: Iterable[Node], 
+        default_activation: DefaultActivation = None
+    ) -> 'ActivationPacket':
         """Return a subpacket containing activations for ``nodes``."""
         
-        return type(self)(
-            {node: self[node] for node in nodes}, 
-            default_factory=self.default_factory, 
-            origin=self.origin
-        )
+        mapping: dict = self._subpacket(nodes, default_activation)
+        origin = self.origin
+        output: 'ActivationPacket[At]' = ActivationPacket(mapping, origin)
+        return output
 
     def _repr(self) -> List[str]:
 
@@ -82,12 +63,28 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
             ", ",
             "origin=",
             repr(self.origin),
-            # ", ",
-            # "default_factory=",
-            # repr(self.default_factory),
             ")"
         ]
         return repr_
+
+    def _subpacket(
+        self, 
+        nodes: Iterable[Node], 
+        default_activation: DefaultActivation = None
+    ) -> dict:
+
+        output: dict = {}
+        for node in nodes:
+            if node in self:
+                activation = self[node]
+            elif default_activation:
+                activation = default_activation(node)
+            else:
+                raise KeyError(
+                    "Node {} not in self".format(str(node))
+                )
+            output[node] = activation
+        return output
 
 
 class DecisionPacket(ActivationPacket[At]):
@@ -101,7 +98,6 @@ class DecisionPacket(ActivationPacket[At]):
     def __init__(
         self, 
         kvpairs: Mapping[Node, At] = None,
-        default_factory: Callable[[Optional[Node]], At] = None,
         origin: Level = None,
         chosen: Set[Chunk] = None
     ) -> None:
@@ -112,7 +108,7 @@ class DecisionPacket(ActivationPacket[At]):
         :param chosen: The set of actions to be fired.
         '''
 
-        super().__init__(kvpairs, default_factory, origin)
+        super().__init__(kvpairs, origin)
         self.chosen = chosen
 
     def __eq__(self, other: Any) -> bool:
@@ -126,16 +122,24 @@ class DecisionPacket(ActivationPacket[At]):
 
         repr_ = super()._repr()
         supplement = [
+            ", ",
             "chosen=",
             repr(self.chosen),
-            ", "
         ]
-        return repr_[:-3] + supplement + repr_[-3:]
+        return repr_[:-1] + supplement + repr_[-1:]
 
-    def subpacket(self, nodes: Iterable[Node]):
+    def subpacket(
+        self, 
+        nodes: Iterable[Node], 
+        default_activation: DefaultActivation = None
+    ) -> 'DecisionPacket[At]':
         """Return a subpacket containing activations for ``nodes``."""
         
-        output = super().subpacket(nodes)
-        output.chosen = self.chosen
+        mapping = self._subpacket(nodes, default_activation)
+        origin = self.origin
+        chosen = self.chosen
+        output: 'DecisionPacket[At]' = DecisionPacket(
+            mapping, origin, chosen
+        )
         return output
         
