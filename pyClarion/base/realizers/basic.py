@@ -92,4 +92,5 @@ class BehaviorRealizer(BasicConstructRealizer[Behavior]):
     def propagate(self):
 
         input_ = self.input.pull()
-        self.effector(*input_)
+        if input_:
+            self.effector(*input_)

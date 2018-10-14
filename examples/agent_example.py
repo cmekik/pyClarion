@@ -8,7 +8,7 @@ from pyClarion.base.realizers.basic import (
     NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, BehaviorRealizer
 )
 from pyClarion.base.realizers.agent import AgentRealizer
-from pyClarion.base.processors import BoltzmannSelector
+from pyClarion.base.processors import BoltzmannSelector, MappingEffector
 from pyClarion.standard.common import (
     default_activation, StandardMaxJunction, StandardUpdateJunction
 )
@@ -29,8 +29,16 @@ def external_input(nodes):
     else:
         return output.copy()
 
+class BehaviorRecorder(object):
+
+    def __init__(self):
+
+        self.recorded_actions = []
+
 
 if __name__ == '__main__':
+
+    behavior_recorder = BehaviorRecorder()
 
     toplevel_assoc = [
         (
@@ -74,9 +82,9 @@ if __name__ == '__main__':
     }
 
     chunk2callback = {
-        Chunk("APPLE"): None,
-        Chunk("JUICE"): None,
-        Chunk("FRUIT"): None
+        Chunk("APPLE"): lambda: behavior_recorder.recorded_actions.append(Chunk("APPLE")),
+        Chunk("JUICE"): lambda: behavior_recorder.recorded_actions.append(Chunk("JUICE")),
+        Chunk("FRUIT"): lambda: behavior_recorder.recorded_actions.append(Chunk("FRUIT"))
     }
 
     nacs_contents: List = [
@@ -135,6 +143,12 @@ if __name__ == '__main__':
             BoltzmannSelector(
                 temperature = .1
             )
+        ),
+        BehaviorRealizer(
+            Behavior("NACS"),
+            MappingEffector(
+                chunk2callback=chunk2callback
+            )
         )
     ]
 
@@ -169,4 +183,6 @@ if __name__ == '__main__':
     alice.execute()
 
     for c in alice[Subsystem("NACS")]:
-        print(alice.construct, c, alice[Subsystem("NACS")][c].output.view())
+        if not isinstance(c, Behavior):
+            print(alice.construct, c, alice[Subsystem("NACS")][c].output.view())
+    print(behavior_recorder.recorded_actions)
