@@ -7,7 +7,7 @@ Tools for programmatically managing construct realizers.
 """
 
 import abc
-from typing import Mapping, TypeVar, Dict
+from typing import Mapping, TypeVar, Dict, Optional, KeysView, Callable
 from pyClarion.base.symbols import ConstructSymbol, Agent, Subsystem, Buffer
 from pyClarion.base.realizers.abstract import ConstructRealizer
 from pyClarion.base.realizers.basic import BufferRealizer 
@@ -24,12 +24,9 @@ class UpdateManager(abc.ABC):
     subsystem and buffer activity and modify client construct realizers.
     """
 
-    def __init__(
-        self, 
-        agent_dict: Dict[Ct, ConstructRealizer[Ct]], 
-    ) -> None:
+    def __init__(self) -> None:
         
-        self.agent_dict = agent_dict
+        self._constructs: Optional[KeysView] = None
 
     @abc.abstractmethod
     def update(self) -> None:
@@ -40,3 +37,20 @@ class UpdateManager(abc.ABC):
         forthcoming.
         """
         pass
+
+    def get_realizer(self, construct):
+
+        return self._getter(construct)
+
+    def assign(self, constructs: KeysView, getter: Callable) -> None:
+
+        self._constructs = constructs
+        self._getter = getter
+
+    @property
+    def constructs(self) -> KeysView:
+
+        if self._constructs:
+            return self._constructs
+        else:
+            raise AttributeError("No constructs assigned to self.")

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Iterable, cast
+from typing import List, cast
 from pyClarion.base.symbols import Agent, Subsystem, Buffer
 from pyClarion.base.realizers.abstract import ContainerConstructRealizer
 from pyClarion.base.realizers.subsystem import SubsystemRealizer
@@ -13,7 +13,7 @@ class AgentRealizer(ContainerConstructRealizer):
 
         check_construct(construct, Agent)
         super().__init__(construct)
-        self._update_managers : Iterable[UpdateManager] = []
+        self._update_managers : List[UpdateManager] = []
 
     def propagate(self) -> None:
         
@@ -35,7 +35,12 @@ class AgentRealizer(ContainerConstructRealizer):
         for update_manager in self.update_managers:
             update_manager.update()
 
+    def attach(self, update_manager: UpdateManager) -> None:
+
+        self._update_managers.append(update_manager)
+        update_manager.assign(self.dict.keys(), self.get)
+
     @property
-    def update_managers(self) -> Iterable[UpdateManager]:
+    def update_managers(self) -> List[UpdateManager]:
         
         return list(self._update_managers)

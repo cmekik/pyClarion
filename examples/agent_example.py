@@ -24,6 +24,8 @@ from pyClarion.standard.common import default_activation
 from pyClarion.standard.nacs import (
     AssociativeRulesChannel, TopDownChannel, BottomUpChannel, NACSRealizer
 )
+from pyClarion.base.updates import UpdateManager
+
 
 def create_standard_agent(
     name: str,
@@ -44,6 +46,49 @@ def create_standard_agent(
     
     return agent
 
+
+class HeavyHandedUpdateManager(UpdateManager):
+    
+    def update(self) -> None:
+
+        nacs = self.get_realizer(Subsystem("NACS"))
+        nacs[Chunk("ORANGE")] = NodeRealizer(
+            Chunk("ORANGE"),
+            MaxJunction()
+        )
+        nacs[Microfeature("color", "#ffa500")] = NodeRealizer(
+            Microfeature("color", "#ffa500"), # "ORANGE"
+            MaxJunction()
+        )
+        nacs[Flow("GKS", flow_type=FlowType.Top2Top)].channel.assoc.append(
+            [Chunk("FRUIT"), {Chunk("ORANGE"): 1.}]
+        )
+        nacs[
+            Flow("NACS", flow_type=FlowType.Top2Bot)
+        ].channel.assoc[Chunk("ORANGE")] = {
+            "weights": {
+                "color": 1.,
+                "tasty": 1.
+            },
+            "microfeatures": {
+                Microfeature("color", "#ffa500"), # "RED"
+                Microfeature("tasty", True)
+            }
+        }
+        nacs[
+            Flow("NACS", flow_type=FlowType.Bot2Top)
+        ].channel.assoc[Chunk("ORANGE")] = {
+            "weights": {
+                "color": 1.,
+                "tasty": 1.
+            },
+            "microfeatures": {
+                Microfeature("color", "#ffa500"), # "RED"
+                Microfeature("tasty", True)
+            }
+        }
+
+
 class BehaviorRecorder(object):
 
     def __init__(self):
@@ -60,6 +105,7 @@ if __name__ == '__main__':
 
     ### Environment Setup ###
     
+    # The object below allows us to record the agent's response
     behavior_recorder = BehaviorRecorder()
 
     ### End Environment Setup ###
@@ -213,6 +259,11 @@ if __name__ == '__main__':
         alice[Buffer("NACS Stimulus")].output.view
     )
 
+    # Finally, we attach an update manager to handle some heavy-handed learning
+    alice.attach(
+        HeavyHandedUpdateManager()
+    )
+
     ### End Agent Setup ###
 
     ##################
@@ -236,16 +287,32 @@ if __name__ == '__main__':
     # Alice responds
     alice.execute()
 
-    # The stimulus is removed
-    alice[Buffer("NACS Stimulus")].source.clear()
 
     ### End First Trial ###
 
     # We can look at the exact state of Alice's NACS at the end of its 
     # activation cycle.
+    print("TRIAL 1")
     for c in alice[Subsystem("NACS")]:
         if not isinstance(c, Behavior):
-            print(alice.construct, c, alice[Subsystem("NACS")][c].output.view())
+            print(c, alice[Subsystem("NACS")][c].output.view())
 
-    # We can also observe her response in the simulation environment.
+    ### Start Second Trial ###
+
+    # To demonstrate learning, the code below repeats the same task, but only 
+    # after Alice suddenly and inexplicably learns about oranges.
+
+    alice.learn()
+
+    # Now we run through the trial again
+    alice.propagate()
+    alice.execute()
+
+    # Here is Alice's cognitive state at the end of the second trial
+    print("TRIAL 2")
+    for c in alice[Subsystem("NACS")]:
+        if not isinstance(c, Behavior):
+            print(c, alice[Subsystem("NACS")][c].output.view())
+
+    # We can also observe her responses in the simulation environment.
     print(behavior_recorder.recorded_actions)
