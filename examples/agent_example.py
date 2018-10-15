@@ -27,27 +27,11 @@ from pyClarion.standard.nacs import (
 from pyClarion.base.updates import UpdateManager
 
 
-def create_standard_agent(
-    name: str,
-    has_nacs: bool = False,
-    nacs_contents: Iterable = None
-):
-
-    agent = AgentRealizer(Agent(name))
-
-    if has_nacs:
-        nacs_symb = Subsystem("NACS")
-        nacs_realizer = NACSRealizer(nacs_symb)
-        agent[nacs_symb] = nacs_realizer
-
-    if nacs_contents:
-        for realizer in nacs_contents:
-            nacs_realizer[realizer.construct] = realizer 
-    
-    return agent
-
-
 class HeavyHandedUpdateManager(UpdateManager):
+
+    def __init__(self, behavior_recorder):
+
+        self.behavior_recorder = behavior_recorder
     
     def update(self) -> None:
 
@@ -71,7 +55,7 @@ class HeavyHandedUpdateManager(UpdateManager):
                 "tasty": 1.
             },
             "microfeatures": {
-                Microfeature("color", "#ffa500"), # "RED"
+                Microfeature("color", "#ffa500"), # "ORANGE"
                 Microfeature("tasty", True)
             }
         }
@@ -83,10 +67,16 @@ class HeavyHandedUpdateManager(UpdateManager):
                 "tasty": 1.
             },
             "microfeatures": {
-                Microfeature("color", "#ffa500"), # "RED"
+                Microfeature("color", "#ffa500"), # "ORANGE"
                 Microfeature("tasty", True)
             }
         }
+        nacs.behavior.effector.chunk2callback[Chunk("ORANGE")] = (
+            lambda: self.behavior_recorder.recorded_actions.append(
+                Chunk("ORANGE")
+            )
+        )
+        
 
 
 class BehaviorRecorder(object):
@@ -141,8 +131,8 @@ if __name__ == '__main__':
         },
         Chunk("JUICE"): {
             "weights": {
-                "tasty": 1,
-                "state": 1
+                "tasty": 1.,
+                "state": 1.
             },
             "microfeatures": {
                 Microfeature("tasty", True),
@@ -151,10 +141,12 @@ if __name__ == '__main__':
         },
         Chunk("FRUIT"): {
             "weights": {
-                "tasty": 1,
+                "tasty": 1.,
+                "sweet": 1.
             },
             "microfeatures": {
-                Microfeature("tasty", True)
+                Microfeature("tasty", True),
+                Microfeature("sweet", True)
             }
         } 
     }
@@ -187,6 +179,10 @@ if __name__ == '__main__':
         ),
         NodeRealizer(
             Microfeature("tasty", True), 
+            MaxJunction()
+        ),
+        NodeRealizer(
+            Microfeature("sweet", True), 
             MaxJunction()
         ),
         NodeRealizer(
@@ -246,7 +242,7 @@ if __name__ == '__main__':
     for realizer in nacs_contents:
         alice[Subsystem("NACS")][realizer.construct] = realizer 
 
-    # We add a buffer enabling stimulation Alice's NACS
+    # We add a buffer enabling stimulation of Alice's NACS
     alice[Buffer("NACS Stimulus")] = BufferRealizer(
         construct=Buffer("NACS Stimulus"),
         source=ConstantSource(),
@@ -259,9 +255,11 @@ if __name__ == '__main__':
         alice[Buffer("NACS Stimulus")].output.view
     )
 
-    # Finally, we attach an update manager to handle some heavy-handed learning
+    # Finally, we attach an update manager to handle learning.
+    # This update manager is heavy-handed: it simply injects some preset 
+    # knowledge into the NACS.
     alice.attach(
-        HeavyHandedUpdateManager()
+        HeavyHandedUpdateManager(behavior_recorder)
     )
 
     ### End Agent Setup ###
@@ -276,10 +274,15 @@ if __name__ == '__main__':
     # chunk. This represents presentation of the concept APPLE. Note that there 
     # are simplifications. For instance, it is assumed that Alice is made to 
     # understand that the cue is APPLE, the fruit, and not e.g., APPLE, the 
-    # company.
+    # company. 
     alice[Buffer("NACS Stimulus")].source.update(
         ActivationPacket({Chunk("APPLE"): 1.})
     )
+
+    # Another limitation of this model: in cued association, subjects tend not 
+    # to return the cue as their response but this is not the case for Alice. 
+    # Cue suppression requires input/output filtering, which is a function not 
+    # included in the current simulation. 
 
     # Alice performs one NACS cycle 
     alice.propagate()
@@ -308,11 +311,35 @@ if __name__ == '__main__':
     alice.propagate()
     alice.execute()
 
+    ### End Second Trial ###
+
     # Here is Alice's cognitive state at the end of the second trial
     print("TRIAL 2")
     for c in alice[Subsystem("NACS")]:
         if not isinstance(c, Behavior):
             print(c, alice[Subsystem("NACS")][c].output.view())
 
+    # Activations persist, even after we remove the stimulus:
+    alice[Buffer("NACS Stimulus")].source.clear()
+
+    print(alice[Buffer("NACS Stimulus")].source.packet)
+
+    # Residual activations will continue to spread. Activations will eventually 
+    # decay, though slowly.
+    for i in range(100):
+        alice.propagate()
+        alice.execute()
+        print("POST-STIMULUS CYCLE {}".format(str(1 + i)))
+        for c in alice[Subsystem("NACS")]:
+            if not isinstance(c, Behavior):
+                print(c, alice[Subsystem("NACS")][c].output.view())
+
     # We can also observe her responses in the simulation environment.
+    print("RESPONSES") 
     print(behavior_recorder.recorded_actions)
+
+    ###########
+    ### END ###
+    ###########
+
+    # A record of the output of this simulation may be found in agent_example.log.
