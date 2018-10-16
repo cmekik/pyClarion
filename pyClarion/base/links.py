@@ -75,7 +75,7 @@ class BasicOutputView(OutputView):
     @property
     def output_buffer(self) -> ActivationPacket:
 
-        if self._output_buffer:
+        if self._output_buffer is not None:
             return self._output_buffer
         else:
             raise AttributeError()

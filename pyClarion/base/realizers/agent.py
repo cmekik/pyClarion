@@ -35,10 +35,11 @@ class AgentRealizer(ContainerConstructRealizer):
         for update_manager in self.update_managers:
             update_manager.update()
 
-    def attach(self, update_manager: UpdateManager) -> None:
+    def attach(self, *update_managers: UpdateManager) -> None:
 
-        self._update_managers.append(update_manager)
-        update_manager.assign(self.dict.keys(), self.get)
+        for update_manager in update_managers:
+            self._update_managers.append(update_manager)
+            update_manager.assign(self.dict.keys(), self.get)
 
     @property
     def update_managers(self) -> List[UpdateManager]:
