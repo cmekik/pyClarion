@@ -45,7 +45,7 @@ class HeavyHandedUpdateManager(UpdateManager):
             MaxJunction()
         )
         nacs[Flow("GKS", flow_type=FlowType.Top2Top)].channel.assoc.append(
-            [Chunk("FRUIT"), {Chunk("ORANGE"): 1.}]
+            (Chunk("FRUIT"), {Chunk("ORANGE"): 1.})
         )
         nacs[
             Flow("NACS", flow_type=FlowType.Top2Bot)
@@ -76,7 +76,6 @@ class HeavyHandedUpdateManager(UpdateManager):
                 Chunk("ORANGE")
             )
         )
-        
 
 
 class BehaviorRecorder(object):
@@ -109,9 +108,9 @@ if __name__ == '__main__':
     toplevel_assoc = [
         (
             Chunk("FRUIT"),
-            (
-                (Chunk("APPLE"), 1.),
-            )
+            {
+                Chunk("APPLE"): 1.,
+            }
         )
     ]
 
@@ -326,7 +325,7 @@ if __name__ == '__main__':
 
     # Residual activations will continue to spread. Activations will eventually 
     # decay, though slowly.
-    for i in range(100):
+    for i in range(0):
         alice.propagate()
         alice.execute()
         print("POST-STIMULUS CYCLE {}".format(str(1 + i)))
