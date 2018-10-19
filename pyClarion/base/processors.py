@@ -137,6 +137,7 @@ class Source(Generic[At], abc.ABC):
     @abc.abstractmethod
     def clear(self) -> None:
         """Clear source."""
+        pass
 
 
 #################################

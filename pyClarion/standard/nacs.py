@@ -13,12 +13,12 @@ from pyClarion.standard.common import default_activation
 
 
 AssociativeRuleSequence = (
-    Sequence[
+    List[
         Tuple[
             # Conclusion chunk
             Chunk, 
             # Condition chunks and corresponding weights
-            Sequence[Tuple[Chunk, float]]
+            Dict[Chunk, float]
         ]
     ]
 ) 
@@ -28,7 +28,7 @@ class AssociativeRulesChannel(Channel[float]):
 
     def __init__(self, assoc: AssociativeRuleSequence) -> None:
 
-        self.assoc = [[chunk, dict(weights)] for chunk, weights in assoc]
+        self.assoc = assoc
 
     def __call__(self, input_map):
         

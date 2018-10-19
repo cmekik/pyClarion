@@ -7,32 +7,41 @@ from pyClarion.base.enums import FlowType
 
 @dataclass(init=True, repr=True, eq=False, frozen=True)
 class ConstructSymbol(object):
-    """Represents a theoretical construct."""
+    """Generic symbol for a theoretical construct."""
 
     pass
 
 
+@dataclass(init=True, repr=True, eq=False, frozen=True)
 class BasicConstructSymbol(ConstructSymbol):
-    """Represents a basic theoretical construct."""
+    """Symbol for a basic theoretical construct."""
 
     pass
 
 
+@dataclass(init=True, repr=True, eq=False, frozen=True)
 class ContainerConstructSymbol(ConstructSymbol):
-    """Represents a theoretical construct owning other constructs."""
+    """Symbol for a theoretical construct owning other constructs."""
 
     pass
 
 
+@dataclass(init=True, repr=True, eq=False, frozen=True)
 class Node(BasicConstructSymbol):
-    """Represents a generic node."""
+    """Symbol for a generic connectionist node."""
     
     pass
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Microfeature(Node):
-    """Represents a microfeature node."""
+    """
+    Symbol for a microfeature node.
+
+    Microfeature nodes represent implicit knowledge. In Clarion, they are 
+    characterized by a dimension-value pair (dv-pair). Microfeatures that share 
+    the same dimension entry are treated as alternatives. 
+    """
 
     dim: Hashable
     val: Hashable
@@ -40,14 +49,14 @@ class Microfeature(Node):
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Chunk(Node):
-    """Represents a chunk node."""
+    """Symbol for a chunk node."""
 
     id: Hashable
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Flow(BasicConstructSymbol):
-    """Represents a body of knowledge."""
+    """Symbol for an activation flow."""
 
     id: Hashable
     flow_type: FlowType
@@ -55,34 +64,34 @@ class Flow(BasicConstructSymbol):
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Appraisal(BasicConstructSymbol):
-    """Represents a class of judgments and/or decisions."""
-
-    id: Hashable
-
-
-@dataclass(init=True, repr=True, eq=True, frozen=True)
-class Buffer(BasicConstructSymbol):
-    """Represents an activation buffer."""
+    """Symbol for a class of judgments and/or decisions."""
 
     id: Hashable
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Behavior(BasicConstructSymbol):
-    """Represents actions available to an agent."""
+    """Symbol for actions available to an agent."""
+
+    id: Hashable
+
+
+@dataclass(init=True, repr=True, eq=True, frozen=True)
+class Buffer(BasicConstructSymbol):
+    """Symbol for an activation buffer."""
 
     id: Hashable
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Subsystem(ContainerConstructSymbol):
-    """Represents a functionally distinct section of a cognitive apparatus."""
+    """Symbol for a functionally distinct section of a cognitive apparatus."""
 
     id: Hashable
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Agent(ContainerConstructSymbol):
-    """Represents a Clarion agent."""
+    """Symbol for a Clarion agent."""
 
     id: Hashable
