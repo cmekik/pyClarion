@@ -1,3 +1,5 @@
+"""Tools for linking basic construct realizer inputs and outputs."""
+
 from abc import ABC, abstractmethod
 from typing import TypeVar, Generic, Hashable, Callable, List, Dict, Iterable, Optional
 from pyClarion.base.symbols import Node
@@ -86,7 +88,7 @@ class SubsystemInputMonitor(BasicInputMonitor):
     def __init__(
         self, 
         watch: Callable[[Hashable, PullMethod], None], 
-        drop: Callable[[Hashable], None]
+        drop: Callable[[Hashable], None],
     ) -> None:
 
         super().__init__()

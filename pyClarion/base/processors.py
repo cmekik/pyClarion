@@ -121,11 +121,8 @@ class Source(Generic[At], abc.ABC):
     
     @abc.abstractmethod
     def __call__(self) -> ActivationPacket[At]:
-        '''
-        Execute actions associated with given output.
+        '''Return activation pattern stored in self.'''
 
-        :param selector_packet: The output of an action selection cycle.
-        '''
         pass
 
     @abc.abstractmethod
@@ -137,6 +134,7 @@ class Source(Generic[At], abc.ABC):
     @abc.abstractmethod
     def clear(self) -> None:
         """Clear source."""
+        
         pass
 
 

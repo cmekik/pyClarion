@@ -9,8 +9,9 @@ version : 0.11.1
 
 This is a python implementation of the Clarion cognitive architecture. 
 
-Online documentation: https://pyclarion.readthedocs.io
-    
+The package is currently in a highly experimental state. Please consult Can 
+Mekik if you have questions (or ask them on the issue tracker).
+
 ## Implementation Goals
 
 This package aims to satisfy the following goals:
@@ -55,7 +56,8 @@ navigate to the pyClarion folder, then:
 - To install as a regular library, run
 ```pip install .```
 
-WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your installation may fail.
+WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your 
+installation may fail.
 
 Developer mode is recommended due to the experimental status of this library. 
 Installing in this mode means that changes made to the pyClarion folder will be 

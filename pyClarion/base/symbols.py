@@ -7,14 +7,28 @@ from pyClarion.base.enums import FlowType
 
 @dataclass(init=True, repr=True, eq=False, frozen=True)
 class ConstructSymbol(object):
-    """Generic symbol for a theoretical construct."""
+    """
+    Generic symbol for a theoretical construct.
+    
+    Construct symbols are used to identify and carry essential information 
+    about various key theoretical constructs in a lightweight manner. 
+    
+    In general, each construct symbol is associated with at least one construct 
+    realizer, which defines the behavior of the model vis à vis that construct 
+    in some particular context.
+    """
 
     pass
 
 
 @dataclass(init=True, repr=True, eq=False, frozen=True)
 class BasicConstructSymbol(ConstructSymbol):
-    """Symbol for a basic theoretical construct."""
+    """
+    Symbol for a basic theoretical construct.
+    
+    A theoretical construct is considered basic if it is not considered to be a 
+    container of other constructs.
+    """
 
     pass
 
@@ -38,9 +52,9 @@ class Microfeature(Node):
     """
     Symbol for a microfeature node.
 
-    Microfeature nodes represent implicit knowledge. In Clarion, they are 
-    characterized by a dimension-value pair (dv-pair). Microfeatures that share 
-    the same dimension entry are treated as alternatives. 
+    Microfeature nodes represent implicit knowledge. They are characterized by 
+    a dimension-value pair (dv-pair). Microfeatures that share the same 
+    dimension entry are treated as mutual alternatives. 
     """
 
     dim: Hashable
@@ -49,14 +63,30 @@ class Microfeature(Node):
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Chunk(Node):
-    """Symbol for a chunk node."""
+    """
+    Symbol for a chunk node.
+    
+    Chunk nodes represent explicit knowledge. They are characterized by 
+    an id.
+    """
 
     id: Hashable
 
 
 @dataclass(init=True, repr=True, eq=True, frozen=True)
 class Flow(BasicConstructSymbol):
-    """Symbol for an activation flow."""
+    """
+    Symbol for an activation flow.
+    
+    A flow governs how the activation of some set of nodes may drive the 
+    activation of another set of nodes.
+
+    Flows are characterized by an id and a flow type. The flow type describes 
+    what kinds of nodes are connected by a given flow. Typically, flows may 
+    connect chunks to microfeatures (top-down), microfeatures to chunks 
+    (bottom-up), chunks to chunks (top level) and microfeatures to 
+    microfeatures (bottom level).
+    """
 
     id: Hashable
     flow_type: FlowType

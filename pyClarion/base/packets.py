@@ -4,7 +4,7 @@ from abc import abstractmethod
 from enum import Enum, auto
 from typing import (
     MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, 
-    List, Optional, cast
+    List, Optional, cast, Union, Sequence, Tuple
 )
 from collections import UserDict
 from pyClarion.base.enums import Level
@@ -14,19 +14,21 @@ from pyClarion.base.symbols import Node, Chunk, FlowType
 At = TypeVar("At")
 DefaultActivation = Callable[[Optional[Node]], At]
 
+
 class ActivationPacket(dict, MutableMapping[Node, At]):
     """A class for representing node activations."""
 
     def __init__(
         self, 
-        kvpairs: Mapping[Node, At] = None,
-        origin: Level = None
+        kvpairs: Union[Mapping[Node, At], Sequence[Tuple[Node, At]]] = None,
+        origin: Hashable = None
     ) -> None:
         '''
-        Initialize a ``DecisionPacket`` instance.
+        Initialize an ``ActivationPacket`` instance.
 
-        :param kvpairs: Strengths of actionable chunks.
-        :param chosen: The set of actions to be fired.
+        :param kvpairs: Node strengths.
+        :param origin: Contains necessary information about the origin of the 
+            activation pattern.
         '''
 
         super().__init__()
@@ -39,6 +41,7 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
         return ''.join(self._repr())
 
     def copy(self):
+        """Return a shallow copy of self."""
 
         return self.subpacket(self.keys())
 
@@ -46,8 +49,15 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
         self, 
         nodes: Iterable[Node], 
         default_activation: DefaultActivation = None
-    ) -> 'ActivationPacket':
-        """Return a subpacket containing activations for ``nodes``."""
+    ) -> 'ActivationPacket[At]':
+        """
+        Return a subpacket containing activations for chosen nodes.
+
+        :param nodes: Keys for constructed subpacket.
+        :default_activation: Procedure for determining default activations. Used
+            to set activations in output packet if `nodes` contains elements not 
+            contained in self.
+        """
         
         mapping: dict = self._subpacket(nodes, default_activation)
         origin = self.origin
@@ -98,7 +108,7 @@ class DecisionPacket(ActivationPacket[At]):
     def __init__(
         self, 
         kvpairs: Mapping[Node, At] = None,
-        origin: Level = None,
+        origin: Hashable = None,
         chosen: Set[Chunk] = None
     ) -> None:
         '''
@@ -133,7 +143,6 @@ class DecisionPacket(ActivationPacket[At]):
         nodes: Iterable[Node], 
         default_activation: DefaultActivation = None
     ) -> 'DecisionPacket[At]':
-        """Return a subpacket containing activations for ``nodes``."""
         
         mapping = self._subpacket(nodes, default_activation)
         origin = self.origin
