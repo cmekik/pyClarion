@@ -7,8 +7,15 @@ from pyClarion.base.realizers.abstract import BasicConstructRealizer
 
 
 class NodeRealizer(BasicConstructRealizer[Node]):
+    """Realizer for Node constructs."""
 
     def __init__(self, construct: Node, junction: Junction) -> None:
+        """Initialize a new node realizer.
+
+        :param construct: Client node.
+        :param junction: Junction for combining or selecting output value 
+            recommendations for client node.
+        """
         
         check_construct(construct, Node)
         super().__init__(construct)

@@ -12,28 +12,39 @@ PullMethod = Callable[[Optional[Iterable[Node]]], ActivationPacket]
 
 
 class InputMonitor(ABC):
+    """Listens to outputs of construct realizers of interest"""
 
     @abstractmethod
     def pull(self) -> Iterable[ActivationPacket]:
+        """Return activation packets output by constructs of interest."""
+
         pass
 
     @abstractmethod
     def watch(self, identifier: Hashable, pull_method: PullMethod) -> None:
+        """Start listening to a new construct of interest."""
+
         pass
 
     @abstractmethod
     def drop(self, identifier: Hashable):
+        """Stop listening to some construct of interest"""
+
         pass
 
 
 class OutputView(ABC):
+    """Exposes the output state of a client construct"""
 
     @abstractmethod
     def view(self) -> ActivationPacket:
+        """Return current output of client construct."""
+
         pass
 
 
 class BasicInputMonitor(InputMonitor):
+    """Listens for inputs to `BasicConstructRealizer` objects."""
 
     def __init__(self) -> None:
 
@@ -55,6 +66,7 @@ class BasicInputMonitor(InputMonitor):
 
 
 class BasicOutputView(OutputView):
+    """Exposes outputs of `BasicConstructRealizer` objects."""
 
     def __init__(
         self, default_activation: DefaultActivation = None
@@ -84,6 +96,7 @@ class BasicOutputView(OutputView):
 
 
 class SubsystemInputMonitor(BasicInputMonitor):
+    """Listens for inputs to `SubsystemRealizer` objects."""
 
     def __init__(
         self, 
@@ -107,6 +120,7 @@ class SubsystemInputMonitor(BasicInputMonitor):
 
 
 class SubsystemOutputView(OutputView):
+    """Exposes outputs of `SubsystemRealizer` objects."""
 
     def __init__(self, view: PullMethod) -> None:
 

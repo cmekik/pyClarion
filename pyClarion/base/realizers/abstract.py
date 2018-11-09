@@ -1,6 +1,4 @@
-"""
-Tools for defining the behavior of theoretcally relevant constructs.
-"""
+"""Tools for defining the behavior of theoretcally relevant constructs."""
 
 
 from abc import ABC, abstractmethod
@@ -23,17 +21,31 @@ Xt = TypeVar('Xt', bound=ContainerConstructSymbol)
 
 
 class ConstructRealizer(Generic[Ct], ABC):
+    """
+    A generic construct realizer.
+
+    Construct realizers are responsible for implementing the behavior of their 
+    client constructs. As a rule of thumb, every construct can be expected to 
+    have at least one realizer within a model.
+    """
     
     def __init__(self, construct: Ct) -> None:
+        """Initialize a new construct realizer.
+        
+        :param construct: Client construct of self.
+        """
 
         self.construct = construct
 
     @abstractmethod
     def propagate(self) -> None:
+        """Execute any input/output routine associated with client construct."""
+        
         pass
 
 
 class BasicConstructRealizer(ConstructRealizer[Bt]):
+    """Generic construct realizer for basic constructs"""
 
     def __init__(self, construct: Bt) -> None:
 
@@ -56,6 +68,7 @@ class BasicConstructRealizer(ConstructRealizer[Bt]):
 class ContainerConstructRealizer(
     MutableMapping[ConstructSymbol, ConstructRealizer], ConstructRealizer[Xt]
 ):
+    """Generic construct realizer for container constructs."""
 
     def __init__(self, construct: Xt) -> None:
 
