@@ -1,10 +1,4 @@
-"""
-Tools for programmatically managing construct realizers.
-
-.. warning::
-   Module experimental.
-
-"""
+"""Tools for automatically managing construct realizers during simulations."""
 
 import abc
 from typing import Mapping, TypeVar, Dict, Optional, KeysView, Callable
@@ -18,10 +12,10 @@ Ct = TypeVar("Ct",bound=ConstructSymbol)
 
 class UpdateManager(abc.ABC):
     """
-    Manages some class of realizers associated with one or more subsystems.
+    Manages some set of construct realizers.
 
-    Administrators implement learning and forgetting routines. They monitor 
-    subsystem and buffer activity and modify client construct realizers.
+    Manages learning and forgetting routines, monitors subsystem and buffer 
+    activity, and adds, removes or modifies construct realizers.
     """
 
     def __init__(self) -> None:
@@ -31,24 +25,44 @@ class UpdateManager(abc.ABC):
     @abc.abstractmethod
     def update(self) -> None:
         """
-        Updates knowledge given result of current activation cycle.
-
-        The API for this is under development. A more specific signature is 
-        forthcoming.
+        Update client constructs.
+        
+        This method should trigger processes such as weight updates in neural 
+        networks, creation/deletion of chunk nodes, adjustment of parameters, 
+        and other routines associated with the maintenance and management of 
+        simulated constructs.
         """
+
         pass
 
-    def get_realizer(self, construct):
+    def get_realizer(self, construct: ConstructSymbol) -> ConstructRealizer:
+        """
+        Access chosen construct.
+        
+        :param construct: Chosen construct.
+        """
 
         return self._getter(construct)
 
     def assign(self, constructs: KeysView, getter: Callable) -> None:
+        """
+        Assign constructs to self for management.
+
+        .. note:
+           Not intuitive. Multiple calls to this method will reset the set of 
+           managed constructs. Multiple calls to assign should simply expand the 
+           set of managed constructs, not reset it.
+
+        :param constructs: Client constructs.
+        :param getter: Getter method for accessing client constructs.
+        """
 
         self._constructs = constructs
         self._getter = getter
 
     @property
     def constructs(self) -> KeysView:
+        """Constructs managed by self."""
 
         if self._constructs:
             return self._constructs

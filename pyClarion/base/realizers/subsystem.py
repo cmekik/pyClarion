@@ -19,9 +19,19 @@ class MissingBehaviorError(AttributeError):
 
 
 class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
-    """A network of interconnected nodes and flows."""
+    """
+    Realizer for Subsystem constructs.
+    
+    Contains a network of interconnected node, flow, apprasial, and 
+    behavior realizers and controls their activation cycles.
+    """
 
     def __init__(self, construct: Subsystem) -> None:
+        """
+        Initialize a new subsystem realizer.
+        
+        :param construct: Client subsystem.
+        """
 
         check_construct(construct, Subsystem)
         super().__init__(construct)
@@ -79,6 +89,8 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
         return self.appraisal.output.view(keys)
 
     def execute(self) -> None:
+        """Fire all selected actions."""
+
         try:
             self.behavior.propagate()
         except MissingBehaviorError:

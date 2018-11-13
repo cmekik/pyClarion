@@ -30,6 +30,7 @@ class NodeRealizer(BasicConstructRealizer[Node]):
 
 
 class FlowRealizer(BasicConstructRealizer[Flow]):
+    """Realizer for Flow constructs."""
 
     def __init__(
         self, 
@@ -38,7 +39,15 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
         channel: Channel, 
         default_activation: DefaultActivation
     ) -> None:
+        """
+        Initialize a new flow realizer.
         
+        :param construct: Client flow.
+        :param junction: Combines input packets.
+        :param channel: Computes output.
+        :param default_activation: Computes default outputs.
+        """
+
         check_construct(construct, Flow)
         super().__init__(construct)
         self.junction: Junction = junction
@@ -54,11 +63,19 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
 
 
 class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
+    """Realizer for Appraisal constructs."""
 
     def __init__(
         self, construct: Appraisal, junction: Junction, selector: Selector
     ) -> None:
+        """
+        Initialize a new appraisal realizer.
         
+        :param construct: Client appraisal.
+        :param junction: Combines incoming input packets.
+        :param selector: Computes output.
+        """
+
         check_construct(construct, Appraisal)
         super().__init__(construct)
         self.junction: Junction = junction
@@ -74,6 +91,7 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
 
 
 class BufferRealizer(BasicConstructRealizer[Buffer]):
+    """Realizer for Buffer constructs."""
 
     def __init__(
         self, 
@@ -81,7 +99,14 @@ class BufferRealizer(BasicConstructRealizer[Buffer]):
         source: Source, 
         default_activation: DefaultActivation
     ) -> None:
+        """
+        Initialize a new buffer realizer.
         
+        :param construct: Client buffer.
+        :param source: Computes output.
+        :param default_activation: Computes default output.
+        """
+
         check_construct(construct, Buffer)
         super().__init__(construct)
         self.source: Source = source
@@ -94,10 +119,17 @@ class BufferRealizer(BasicConstructRealizer[Buffer]):
 
 
 class BehaviorRealizer(BasicConstructRealizer[Behavior]):
+    """Realizer for a Behavior construct."""
     
     def __init__(
         self, construct: Behavior, effector: Effector
     ) -> None:
+        """
+        Initialize a new behavior realizer.
+        
+        :param construct: Client behavior.
+        :param effector: Executes action callbacks.
+        """
         
         check_construct(construct, Behavior)
         super().__init__(construct)
