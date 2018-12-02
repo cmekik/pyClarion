@@ -6,7 +6,6 @@ from typing import (
     MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, 
     List, Optional, cast, Union, Sequence, Tuple
 )
-from collections import UserDict
 from pyClarion.base.enums import Level
 from pyClarion.base.symbols import Node, Chunk, FlowType
 

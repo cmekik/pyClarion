@@ -9,69 +9,61 @@ chosen stimulus.
 from typing import List, Iterable
 from pyClarion.base.enums import FlowType
 from pyClarion.base.symbols import (
-    Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent, Buffer, Behavior
+    Node, Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent, Buffer, Behavior
 )
 from pyClarion.base.packets import ActivationPacket
-from pyClarion.base.realizers.basic import (
-    NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, BehaviorRealizer
+from pyClarion.base.realizers import (
+    NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, 
+    BehaviorRealizer, SubsystemRealizer , AgentRealizer, UpdateManager
 )
-from pyClarion.base.realizers.agent import AgentRealizer
-from pyClarion.base.processors import (
+from pyClarion.components.processors import (
     UpdateJunction, MaxJunction, BoltzmannSelector, MappingEffector, 
     ConstantSource
 )
-from pyClarion.standard.common import default_activation
-from pyClarion.standard.nacs import (
-    AssociativeRulesChannel, TopDownChannel, BottomUpChannel, NACSRealizer
+from pyClarion.components.nacs import (
+    AssociativeRulesChannel, TopDownChannel, BottomUpChannel, 
+    nacs_propagation_cycle, AssociativeRuleSequence, InterlevelAssociation, 
+    may_connect
 )
-from pyClarion.base.updates import UpdateManager
 
 
 class HeavyHandedUpdateManager(UpdateManager):
 
-    def __init__(self, behavior_recorder):
+    def __init__(self, behavior_recorder, nacs, toplevel_assoc, interlevel_assoc):
 
         self.behavior_recorder = behavior_recorder
+        self.nacs = nacs
+        self.toplevel_assoc = toplevel_assoc
+        self.interlevel_assoc = interlevel_assoc
     
     def update(self) -> None:
 
-        nacs = self.get_realizer(Subsystem("NACS"))
-        nacs[Chunk("ORANGE")] = NodeRealizer(
+        self.nacs[Chunk("ORANGE")] = NodeRealizer(
             Chunk("ORANGE"),
             MaxJunction()
         )
-        nacs[Microfeature("color", "#ffa500")] = NodeRealizer(
+        self.nacs[Microfeature("color", "#ffa500")] = NodeRealizer(
             Microfeature("color", "#ffa500"), # "ORANGE"
             MaxJunction()
         )
-        nacs[Flow("GKS", flow_type=FlowType.Top2Top)].channel.assoc.append(
+        self.toplevel_assoc.append(
             (Chunk("FRUIT"), {Chunk("ORANGE"): 1.})
         )
-        nacs[
-            Flow("NACS", flow_type=FlowType.Top2Bot)
-        ].channel.assoc[Chunk("ORANGE")] = {
-            "weights": {
+        self.interlevel_assoc[Chunk("ORANGE")] = (
+            {
                 "color": 1.,
                 "tasty": 1.
             },
-            "microfeatures": {
+            {
                 Microfeature("color", "#ffa500"), # "ORANGE"
                 Microfeature("tasty", True)
             }
-        }
-        nacs[
-            Flow("NACS", flow_type=FlowType.Bot2Top)
-        ].channel.assoc[Chunk("ORANGE")] = {
-            "weights": {
-                "color": 1.,
-                "tasty": 1.
-            },
-            "microfeatures": {
-                Microfeature("color", "#ffa500"), # "ORANGE"
-                Microfeature("tasty", True)
-            }
-        }
-        nacs.behavior.effector.chunk2callback[Chunk("ORANGE")] = (
+        )
+        top_down = self.nacs[Flow("NACS", flow_type=FlowType.Top2Bot)]
+        bottom_up = self.nacs[Flow("NACS", flow_type=FlowType.Bot2Top)]
+        assert Chunk("ORANGE") in top_down.channel.assoc
+        assert Chunk("ORANGE") in bottom_up.channel.assoc
+        self.nacs[Behavior("NACS")].effector.chunk2callback[Chunk("ORANGE")] = (
             lambda: self.behavior_recorder.recorded_actions.append(
                 Chunk("ORANGE")
             )
@@ -83,6 +75,11 @@ class BehaviorRecorder(object):
     def __init__(self):
 
         self.recorded_actions = []
+
+
+def default_activation(node: Node = None):
+    
+    return 0.0
 
 
 if __name__ == '__main__':
@@ -105,7 +102,7 @@ if __name__ == '__main__':
 
     # Alices's initial top-level knowledge
 
-    toplevel_assoc = [
+    toplevel_assoc: AssociativeRuleSequence = [
         (
             Chunk("FRUIT"),
             {
@@ -116,38 +113,38 @@ if __name__ == '__main__':
 
     # Alice's initial inter-level associations
 
-    interlevel_assoc = {
-        Chunk("APPLE"): {
-            "weights": {
+    interlevel_assoc: InterlevelAssociation = {
+        Chunk("APPLE"): (
+            {
                 "color": 1.,
                 "tasty": 1.
             },
-            "microfeatures": {
+            {
                 Microfeature("color", "#ff0000"), # "RED"
                 Microfeature("color", "#008000"), # "GREEN"
                 Microfeature("tasty", True)
             }
-        },
-        Chunk("JUICE"): {
-            "weights": {
+        ),
+        Chunk("JUICE"): (
+            {
                 "tasty": 1.,
                 "state": 1.
             },
-            "microfeatures": {
+            {
                 Microfeature("tasty", True),
                 Microfeature("state", "liquid")
             }
-        },
-        Chunk("FRUIT"): {
-            "weights": {
+        ),
+        Chunk("FRUIT"): (
+            {
                 "tasty": 1.,
                 "sweet": 1.
             },
-            "microfeatures": {
+            {
                 Microfeature("tasty", True),
                 Microfeature("sweet", True)
             }
-        } 
+        ) 
     }
 
     # NACS Prep
@@ -192,7 +189,8 @@ if __name__ == '__main__':
             Flow("GKS", flow_type=FlowType.Top2Top),
             UpdateJunction(),
             AssociativeRulesChannel(
-                assoc = toplevel_assoc
+                assoc = toplevel_assoc,
+                default_activation = default_activation
             ),
             default_activation=default_activation
         ),
@@ -235,11 +233,13 @@ if __name__ == '__main__':
     alice = AgentRealizer(Agent("Alice"))
     
     # We add an NACS
-    alice[Subsystem("NACS")] = NACSRealizer(Subsystem("NACS"))
+    alice[Subsystem("NACS")] = SubsystemRealizer(
+        Subsystem("NACS"), nacs_propagation_cycle, may_connect
+    )
     
     # We insert the components defined above into Alice's NACS
-    for realizer in nacs_contents:
-        alice[Subsystem("NACS")][realizer.construct] = realizer 
+    for r in nacs_contents:
+        alice[Subsystem("NACS")][r.construct] = r
 
     # We add a buffer enabling stimulation of Alice's NACS
     alice[Buffer("NACS Stimulus")] = BufferRealizer(
@@ -248,17 +248,22 @@ if __name__ == '__main__':
         default_activation=default_activation
     )
 
-    # Next, we connect the stimulus buffer to Alice's NACS
-    alice[Subsystem("NACS")].input.watch(
-        Buffer("NACS Stimulus"), 
-        alice[Buffer("NACS Stimulus")].output.view
-    )
+    # Next, we connect the stimulus buffer to Alice's NACS nodes
+    for construct, realizer in alice[Subsystem("NACS")].items():
+        if may_connect(Buffer("NACS Stimulus"), construct):
+            realizer.input.watch(
+                Buffer("NACS Stimulus"), 
+                alice[Buffer("NACS Stimulus")].output.view
+            )
 
     # Finally, we attach an update manager to handle learning.
     # This update manager is heavy-handed: it simply injects some preset 
     # knowledge into the NACS.
     alice.attach(
-        HeavyHandedUpdateManager(behavior_recorder)
+        HeavyHandedUpdateManager(
+            behavior_recorder, alice[Subsystem("NACS")], 
+            toplevel_assoc, interlevel_assoc
+        )
     )
 
     ### End Agent Setup ###

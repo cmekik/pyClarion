@@ -1,296 +1,79 @@
-"""
-Tools for creating and manipulating activation and decision patterns.
-"""
+"""Abstractions for processing activation packets."""
 
-import abc
-import numpy as np
-from typing import Generic, TypeVar, Iterable, Dict, Mapping, Callable, Union, Set
-from pyClarion.base.symbols import Node, Chunk
-from pyClarion.base.utils import get_nodes
+
+from abc import ABC, abstractmethod
+from typing import Generic
 from pyClarion.base.packets import ActivationPacket, DecisionPacket, At
 
 
-################
-# ABSTRACTIONS #
-################
+class ActivationProcessor(Generic[At], ABC):
+    """Abstract base class for routines that manipulate activation packets."""
+
+    pass
 
 
-class Channel(Generic[At], abc.ABC):
-    """
-    Transforms an activation pattern.
-
-    ``Channel`` instances are callable objects whose ``__call__`` method 
-    expects a single ``ActivationPacket`` and outputs a single 
-    ``ActivationPacket``.
-
-    Channels may be defined to capture various constructs such as activation 
-    flows and buffers.
-    """
+class Channel(ActivationProcessor[At]):
+    """Abstract base class for routines that transform activation patterns."""
     
-    @abc.abstractmethod
-    def __call__(self, input_map: ActivationPacket[At]) -> ActivationPacket[At]:
+    @abstractmethod
+    def __call__(self, packet: ActivationPacket[At]) -> ActivationPacket[At]:
         """Compute and return activations resulting from an input to this 
-        channel.
+        channel. 
 
-        .. note::
-            Assumptions about missing expected nodes in the input map should 
-            be explicitly specified/documented, along with behavior for handling 
-            such cases. 
-
-        :param input_map: An activation packet representing the input to this 
-            channel.
+        :param packet: An activation packet representing the input to self.
         """
 
         pass
 
 
-class Junction(Generic[At], abc.ABC):
-    """Combines activations flows from multiple sources.
+class Junction(ActivationProcessor[At]):
+    """Abstract base class for routines that combine activation packets."""
 
-    ``Junction`` instances are callable objects whose ``__call__`` method 
-    expects multiple ``ActivationPacket``s and outputs a single combined 
-    ``ActivationPacket``.
+    @abstractmethod
+    def __call__(self, *packets: ActivationPacket[At]) -> ActivationPacket:
+        """
+        Construct a combined activation packet from inputs.
 
-    Junctions may be defined to capture constructs such as Chunk or Microfeature 
-    nodes.
-    """
-
-    @abc.abstractmethod
-    def __call__(self, *input_maps: ActivationPacket[At]) -> ActivationPacket:
-        """Return a combined mapping from chunks and/or microfeatures to 
-        activations.
-
-        kwargs:
-            input_maps : Dicts mapping from chunks and/or microfeatures 
-            to input activations.
+        :param packets: A sequence of activation packets representing inputs to 
+            self.
         """
 
         pass
 
 
-class Selector(Generic[At], abc.ABC):
-    """
-    Selects output chunks.
+class Selector(ActivationProcessor[At]):
+    """Abstract base class for routines that construct decision packets."""
 
-    ``Selector`` instances are callable objects whose ``__call__`` method 
-    expects a single ``ActivationPacket``s and outputs a single 
-    ``DecisionPacket``.
-
-    Selectors may be defined to capture Appraisal constructs.
-    """
-
-    @abc.abstractmethod
-    def __call__(self, input_map: ActivationPacket[At]) -> DecisionPacket[At]:
+    @abstractmethod
+    def __call__(self, packet: ActivationPacket[At]) -> DecisionPacket[At]:
         """
-        Select output chunk(s).
+        Construct a decision packet based on input activations.
 
-        :param input_map: Strengths of input nodes.
+        :param packet: An activation packet representing the input to self.
         """
 
         pass
 
 
-class Effector(Generic[At], abc.ABC):
-    """
-    Links output chunks to callbacks.
-
-    ``Effector`` instances are callable objects whose ``__call__`` method 
-    expects a single ``DecisionPacket`` and outputs nothing. The method executes 
-    callbacks according to the contents of its input. 
-
-    Effectors may be defined to capture Behavior constructs.
-    """
+class Effector(ActivationProcessor[At]):
+    """Abstract base class for routines that execute decision packet commands."""
     
-    @abc.abstractmethod
-    def __call__(self, selector_packet : DecisionPacket[At]) -> None:
-        '''
-        Execute actions associated with given output.
+    @abstractmethod
+    def __call__(self, packet : DecisionPacket[At]) -> None:
+        """
+        Execute actions recommended by input decision packet.
 
-        :param selector_packet: The output of an action selection cycle.
-        '''
+        :param packet: A decision packet specifying action recommendations.
+        """
+
         pass
 
 
-class Source(Generic[At], abc.ABC):
-    """
-    Outputs some stored or fixed activation pattern.
-
-    ``Source`` instances are callable objects whose ``__call__`` method expects 
-    no input and outputs a single ``ActivationPacket``.
-    """
+class Source(ActivationProcessor[At]):
+    """Abstract base class for routines that output activations."""
     
-    @abc.abstractmethod
+    @abstractmethod
     def __call__(self) -> ActivationPacket[At]:
-        '''Return activation pattern stored in self.'''
+        """Return activation pattern stored in self."""
 
         pass
-
-    @abc.abstractmethod
-    def update(self, packet: ActivationPacket[At]) -> None:
-        """Update self with packet"""
-
-        pass
-
-    @abc.abstractmethod
-    def clear(self) -> None:
-        """Clear source."""
-        
-        pass
-
-
-#################################
-### ACTIVATION PROCESSOR TYPE ###
-#################################
-
-
-ActivationProcessor = Union[Channel, Junction, Selector, Effector]
-
-
-################
-### GENERICS ###
-################
-
-
-class UpdateJunction(Junction[At]):
-    """Merges input activation packets using the packet ``update`` method."""
-
-    def __call__(
-        self, *input_maps: ActivationPacket[At]
-    ) -> ActivationPacket[At]:
-
-        output: ActivationPacket = ActivationPacket()
-        for input_map in input_maps:
-            output.update(input_map)
-        return output
-
-
-class MaxJunction(Junction[At]):
-    """An activation junction returning max activations for all input nodes.
-    """
-
-    def __call__(
-        self, *input_maps: ActivationPacket[At]
-    ) -> ActivationPacket[At]:
-        """Return the maximum activation value for each input node.
-
-        kwargs:
-            input_maps : A set of mappings from chunks and/or (micro)features 
-            to activations.
-        """
-
-        node_set = get_nodes(*input_maps)
-        output : ActivationPacket = ActivationPacket()
-        for n in node_set:
-            for input_map in input_maps:
-                try :
-                    found_new_max = output[n] < input_map[n]
-                except KeyError:
-                    found_new_max = (n in input_map) and (not n in output)
-                if found_new_max:
-                    output[n] = input_map[n]
-        return output
-
-
-class BoltzmannSelector(Selector[float]):
-    """Select a chunk according to a Boltzmann distribution.
-    """
-
-    def __init__(self, temperature: float) -> None:
-        """Initialize a ``BoltzmannSelector`` instance.
-
-        
-        :param chunks: An iterable of (potentially) actionable chunks.
-        :param temperature: Temperature of the Boltzmann distribution.
-        """
-
-        self.temperature = temperature
-
-    def __call__(
-        self, input_map: ActivationPacket[float]
-    ) -> DecisionPacket[float]:
-        """Select actionable chunks for execution. 
-        
-        Selection probabilities vary with chunk strengths according to a 
-        Boltzmann distribution.
-
-        :param input_map: Strengths of input nodes.
-        """
-
-        choices: Set[Chunk] = set()
-        boltzmann_distribution : Dict[Node, float] = (
-            self.get_boltzmann_distribution(input_map)
-        )
-        if boltzmann_distribution:
-            chunk_list, probabilities = zip(*list(boltzmann_distribution.items()))
-            choices = self.choose(chunk_list, probabilities)
-        return DecisionPacket(boltzmann_distribution, chosen=choices)
-
-    def get_boltzmann_distribution(
-        self, input_map: ActivationPacket[float]
-    ) -> Dict[Node, float]:
-        """Construct and return a boltzmann distribution.
-        """
-
-        terms = dict()
-        divisor = 0.
-        chunks = [node for node in input_map if isinstance(node, Chunk)]
-        for chunk in chunks:
-            terms[chunk] = np.exp(input_map[chunk] / self.temperature)
-            divisor += terms[chunk]
-        probabilities = [
-            terms[chunk] / divisor for chunk in chunks
-        ]
-        return dict(zip(chunks, probabilities))
-
-    def choose(self, chunks, probabilities):
-        '''Choose a chunk given some selection probabilities.'''
-
-        choice = np.random.choice(chunks, p=probabilities)
-        return {choice}
-
-
-class MappingEffector(Effector[At]):
-    '''A simple effector built on a map from actionable chunks to callbacks.'''
-
-    def __init__(self, chunk2callback : Mapping[Chunk, Callable]) -> None:
-        '''Initialize a ``MappingEffector`` instance.
-
-        :param chunk2callback: Defines mapping from actionable chunks to 
-            callbacks.
-        '''
-
-        self.chunk2callback = dict(chunk2callback)
-
-    def __call__(self, selector_packet : DecisionPacket[At]) -> None:
-        '''
-        Execute callbacks associated with each chosen chunk.
-
-        :param selector_packet: The output of an action selection cycle.
-        '''
-        
-        if selector_packet.chosen:
-            for chunk in selector_packet.chosen:
-                self.chunk2callback[chunk]()
-
-
-class ConstantSource(Source[At]):
-    """Simple source outputting a constant activation packet."""
-
-    def __init__(self, packet: ActivationPacket[At] = None) -> None:
-
-        if packet:
-            self.packet = packet
-        else:
-            self.packet = ActivationPacket()
-
-    def __call__(self) -> ActivationPacket[At]:
-
-        return self.packet.copy()
-
-    def update(self, packet: ActivationPacket[At]) -> None:
-
-        self.packet.update(packet)
-
-    def clear(self) -> None:
-
-        self.packet.clear()

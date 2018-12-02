@@ -1,7 +1,9 @@
 """Tools for linking basic construct realizer inputs and outputs."""
 
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic, Hashable, Callable, List, Dict, Iterable, Optional
+from typing import (
+    TypeVar, Generic, Hashable, Callable, List, Dict, Iterable, Optional
+)
 from pyClarion.base.symbols import Node
 from pyClarion.base.packets import ActivationPacket, DefaultActivation
 
@@ -93,39 +95,3 @@ class BasicOutputView(OutputView):
             return self._output_buffer
         else:
             raise AttributeError()
-
-
-class SubsystemInputMonitor(BasicInputMonitor):
-    """Listens for inputs to `SubsystemRealizer` objects."""
-
-    def __init__(
-        self, 
-        watch: Callable[[Hashable, PullMethod], None], 
-        drop: Callable[[Hashable], None],
-    ) -> None:
-
-        super().__init__()
-        self._watch = watch
-        self._drop = drop
-
-    def watch(self, identifier: Hashable, pull_method: PullMethod) -> None:
-
-        super().watch(identifier, pull_method)
-        self._watch(identifier, pull_method)
-
-    def drop(self, identifier: Hashable):
-
-        super().drop(identifier)
-        self._drop(identifier)
-
-
-class SubsystemOutputView(OutputView):
-    """Exposes outputs of `SubsystemRealizer` objects."""
-
-    def __init__(self, view: PullMethod) -> None:
-
-        self._view = view
-
-    def view(self, keys: Iterable[Node] = None) -> ActivationPacket:
-        
-        return self._view(keys)
