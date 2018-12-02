@@ -7,15 +7,7 @@ chosen stimulus.
 """
 
 from typing import List, Iterable
-from pyClarion.base.enums import FlowType
-from pyClarion.base.symbols import (
-    Node, Microfeature, Chunk, Flow, Appraisal, Subsystem, Agent, Buffer, Behavior
-)
-from pyClarion.base.packets import ActivationPacket
-from pyClarion.base.realizers import (
-    NodeRealizer, FlowRealizer, AppraisalRealizer, BufferRealizer, 
-    BehaviorRealizer, SubsystemRealizer , AgentRealizer, UpdateManager
-)
+from pyClarion.base import *
 from pyClarion.components.processors import (
     UpdateJunction, MaxJunction, BoltzmannSelector, MappingEffector, 
     ConstantSource
@@ -40,11 +32,13 @@ class HeavyHandedUpdateManager(UpdateManager):
 
         self.nacs[Chunk("ORANGE")] = NodeRealizer(
             Chunk("ORANGE"),
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         )
         self.nacs[Microfeature("color", "#ffa500")] = NodeRealizer(
             Microfeature("color", "#ffa500"), # "ORANGE"
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         )
         self.toplevel_assoc.append(
             (Chunk("FRUIT"), {Chunk("ORANGE"): 1.})
@@ -59,8 +53,8 @@ class HeavyHandedUpdateManager(UpdateManager):
                 Microfeature("tasty", True)
             }
         )
-        top_down = self.nacs[Flow("NACS", flow_type=FlowType.Top2Bot)]
-        bottom_up = self.nacs[Flow("NACS", flow_type=FlowType.Bot2Top)]
+        top_down = self.nacs[Flow("NACS", flow_type=FlowType.TB)]
+        bottom_up = self.nacs[Flow("NACS", flow_type=FlowType.BT)]
         assert Chunk("ORANGE") in top_down.channel.assoc
         assert Chunk("ORANGE") in bottom_up.channel.assoc
         self.nacs[Behavior("NACS")].effector.chunk2callback[Chunk("ORANGE")] = (
@@ -155,38 +149,46 @@ if __name__ == '__main__':
     nacs_contents: List = [
         NodeRealizer(
             construct=Chunk("APPLE"), 
-            junction=MaxJunction()
+            junction=MaxJunction(),
+            default_activation=default_activation
         ),
         NodeRealizer(
             Chunk("JUICE"), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Chunk("FRUIT"), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Microfeature("color", "#ff0000"), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Microfeature("color", "#008000"), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Microfeature("tasty", True), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Microfeature("sweet", True), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         NodeRealizer(
             Microfeature("state", "liquid"), 
-            MaxJunction()
+            MaxJunction(),
+            default_activation
         ),
         FlowRealizer(
-            Flow("GKS", flow_type=FlowType.Top2Top),
+            Flow("GKS", flow_type=FlowType.TT),
             UpdateJunction(),
             AssociativeRulesChannel(
                 assoc = toplevel_assoc,
@@ -195,7 +197,7 @@ if __name__ == '__main__':
             default_activation=default_activation
         ),
         FlowRealizer(
-            Flow("NACS", flow_type=FlowType.Top2Bot),
+            Flow("NACS", flow_type=FlowType.TB),
             UpdateJunction(),
             TopDownChannel(
                 assoc = interlevel_assoc
@@ -203,7 +205,7 @@ if __name__ == '__main__':
             default_activation=default_activation
         ),
         FlowRealizer(
-            Flow("NACS", flow_type=FlowType.Bot2Top),
+            Flow("NACS", flow_type=FlowType.BT),
             UpdateJunction(),
             BottomUpChannel(
                 assoc = interlevel_assoc

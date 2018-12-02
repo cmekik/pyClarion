@@ -1,26 +1,38 @@
-"""Tools for representing information about Clarion nodes."""
-
-from abc import abstractmethod
-from enum import Enum, auto
-from typing import (
-    MutableMapping, TypeVar, Hashable, Mapping, Set, Any, Iterable, Callable, 
-    List, Optional, cast, Union, Sequence, Tuple
-)
-from pyClarion.base.enums import Level
-from pyClarion.base.symbols import Node, Chunk, FlowType
+"""Tools for representing information about node activations and decisions."""
 
 
-At = TypeVar("At")
-DefaultActivation = Callable[[Optional[Node]], At]
+###############
+### IMPORTS ###
+###############
 
 
-class ActivationPacket(dict, MutableMapping[Node, At]):
-    """A class for representing node activations."""
+import typing as typ
+import pyClarion.base.symbols as sym
+
+
+#####################
+### TYPE ALIASES ####
+#####################
+
+
+At = typ.TypeVar("At")
+DefaultActivation = typ.Callable[[typ.Optional[sym.Node]], At]
+
+
+###################
+### DEFINITIONS ###
+###################
+
+
+class ActivationPacket(dict, typ.MutableMapping[sym.Node, At]):
+    """Represents node activations."""
 
     def __init__(
         self, 
-        kvpairs: Union[Mapping[Node, At], Sequence[Tuple[Node, At]]] = None,
-        origin: Hashable = None
+        kvpairs: typ.Union[
+            typ.Mapping[sym.Node, At], typ.Sequence[typ.Tuple[sym.Node, At]]
+        ] = None,
+        origin: typ.Hashable = None
     ) -> None:
         '''
         Initialize an ``ActivationPacket`` instance.
@@ -46,7 +58,7 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
 
     def subpacket(
         self, 
-        nodes: Iterable[Node], 
+        nodes: typ.Iterable[sym.Node], 
         default_activation: DefaultActivation = None
     ) -> 'ActivationPacket[At]':
         """
@@ -63,7 +75,7 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
         output: 'ActivationPacket[At]' = ActivationPacket(mapping, origin)
         return output
 
-    def _repr(self) -> List[str]:
+    def _repr(self) -> typ.List[str]:
 
         repr_ = [
             type(self).__name__,
@@ -78,7 +90,7 @@ class ActivationPacket(dict, MutableMapping[Node, At]):
 
     def _subpacket(
         self, 
-        nodes: Iterable[Node], 
+        nodes: typ.Iterable[sym.Node], 
         default_activation: DefaultActivation = None
     ) -> dict:
 
@@ -106,9 +118,9 @@ class DecisionPacket(ActivationPacket[At]):
 
     def __init__(
         self, 
-        kvpairs: Mapping[Node, At] = None,
-        origin: Hashable = None,
-        chosen: Set[Chunk] = None
+        kvpairs: typ.Mapping[sym.Node, At] = None,
+        origin: typ.Hashable = None,
+        chosen: typ.Set[sym.Chunk] = None
     ) -> None:
         '''
         Initialize a ``DecisionPacket`` instance.
@@ -120,14 +132,14 @@ class DecisionPacket(ActivationPacket[At]):
         super().__init__(kvpairs, origin)
         self.chosen = chosen
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: typ.Any) -> bool:
 
         return (
             super().__eq__(other) and
             self.chosen == other.chosen
         )
 
-    def _repr(self) -> List[str]:
+    def _repr(self) -> typ.List[str]:
 
         repr_ = super()._repr()
         supplement = [
@@ -139,7 +151,7 @@ class DecisionPacket(ActivationPacket[At]):
 
     def subpacket(
         self, 
-        nodes: Iterable[Node], 
+        nodes: typ.Iterable[sym.Node], 
         default_activation: DefaultActivation = None
     ) -> 'DecisionPacket[At]':
         

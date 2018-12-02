@@ -1,36 +1,53 @@
-"""Tools for defining the behavior of theoretcally relevant constructs."""
+"""Tools for defining the behavior of constructs within simulations."""
 
 
-from abc import ABC, abstractmethod
-from typing import (
-    TypeVar, Generic, MutableMapping, Dict, Any, Iterator, Iterable, List, 
-    Callable, cast
-)
-from pyClarion.base.symbols import (
-    ConstructSymbol, BasicConstructSymbol, ContainerConstructSymbol, 
-    Node, Flow, Appraisal, Behavior, Buffer, Subsystem, Agent
-)
-from pyClarion.base.processors import (
-    Channel, Junction, Selector, Effector, Source
-)
-from pyClarion.base.utils import may_contain, check_construct
-from pyClarion.base.packets import DefaultActivation
-from pyClarion.base.links import BasicInputMonitor, BasicOutputView
+# ATTN READERS:
+#   Here is some general information that may help reading. Imports and type 
+#   aliases are grouped at the head of the file, followed by an abstract base 
+#   class for all construct realizers. Broadly, there are two types of construct 
+#   realizer, reflecting the two major construct types: basic construct 
+#   realizers and container construct realizers. Definitions for each major 
+#   realizer type are grouped together in marked sections; within sections, 
+#   helper classes (if they exist) are immediately prior to their use.
 
 
-Ct = TypeVar('Ct', bound=ConstructSymbol)
-Bt = TypeVar('Bt', bound=BasicConstructSymbol)
-Xt = TypeVar('Xt', bound=ContainerConstructSymbol)
+###############
+### IMPORTS ###
+###############
+
+
+import abc
+import typing as typ
+import pyClarion.base.symbols as sym
+import pyClarion.base.packets as pkt
+import pyClarion.base.processors as proc
 
 
 ####################
-### ABSTRACTIONS ###
+### TYPE ALIASES ###
 ####################
 
 
-class ConstructRealizer(Generic[Ct], ABC):
+Ct = typ.TypeVar('Ct', bound=sym.ConstructSymbol)
+Bt = typ.TypeVar('Bt', bound=sym.BasicConstructSymbol)
+Xt = typ.TypeVar('Xt', bound=sym.ContainerConstructSymbol)
+
+PullMethod = typ.Callable[
+    [typ.Optional[typ.Iterable[sym.Node]]], pkt.ActivationPacket
+]
+
+PropagationRule = typ.Callable[['SubsystemRealizer'], None]
+ConnectivityPredicate = typ.Callable[[typ.Any, typ.Any], bool]
+
+
+###################################################
+### ABSTRACT BASE CLASS FOR CONSTRUCT REALIZERS ###
+###################################################
+
+
+class ConstructRealizer(typ.Generic[Ct], abc.ABC):
     """
-    A generic construct realizer.
+    Abstract base class for construct realizers.
 
     Construct realizers are responsible for implementing the behavior of their 
     client constructs. As a rule of thumb, every construct can be expected to 
@@ -45,15 +62,105 @@ class ConstructRealizer(Generic[Ct], ABC):
 
         self.construct = construct
 
-    @abstractmethod
+    @abc.abstractmethod
     def propagate(self) -> None:
         """Execute input/output routine associated with client construct."""
         
         pass
 
+    @staticmethod
+    def check_construct(construct: sym.ConstructSymbol, type_: typ.Type):
+        """Check if construct matches given type."""
 
+        if not isinstance(construct, type_):
+            raise TypeError("Unexpected construct type {}".format(str(construct)))
+
+
+#################################
+### BASIC CONSTRUCT REALIZERS ### 
+#################################
+
+
+# This section has three parts:
+#    1. Some helper classes are defined for handling communication between 
+#       various basic constructs. 
+#    2. An abstract base class for basic construct realizers is defined.
+#    3. A construct realizer is defined for every major type of basic construct: 
+#       Node, Flow, Appraisal, Behavior, and Buffer
+
+
+### HELPER CLASSES FOR BASIC CONSTRUCT REALIZERS ###
+
+
+# The classes defined below support networking of basic construct realizers. 
+# These classes allow basic construct realizers to listen for and emit 
+# activation packets. These classes are used in the private initialization 
+# method BasicConstructRealizer._init_io(), defined further below.
+
+
+class InputMonitor(object):
+    """Listens for inputs to `BasicConstructRealizer` objects."""
+
+    def __init__(self) -> None:
+
+        self.input_links: typ.Dict[typ.Hashable, PullMethod] = dict()
+
+    def pull(
+        self, keys: typ.Iterable[sym.Node] = None
+    ) -> typ.Iterable[pkt.ActivationPacket]:
+        
+        return [
+            pull_method(keys) for pull_method in self.input_links.values()
+        ] 
+
+    def watch(self, identifier: typ.Hashable, pull_method: PullMethod) -> None:
+
+        self.input_links[identifier] = pull_method
+
+    def drop(self, identifier: typ.Hashable):
+
+        del self.input_links[identifier]
+
+
+class OutputView(object):
+    """Exposes outputs of `BasicConstructRealizer` objects."""
+
+    def __init__(
+        self, default_activation: pkt.DefaultActivation = None
+    ) -> None:
+
+        self.default_activation = default_activation
+
+    def update(self, output: pkt.ActivationPacket) -> None:
+        
+        self._output_buffer = output
+
+    def view(self, keys: typ.Iterable[sym.Node] = None) -> pkt.ActivationPacket:
+        
+        if keys:
+            out = self.output_buffer.subpacket(keys, self.default_activation)
+        else:
+            out = self.output_buffer.copy()
+        return out
+
+    @property
+    def output_buffer(self) -> pkt.ActivationPacket:
+
+        if self._output_buffer is not None:
+            return self._output_buffer
+        else:
+            raise AttributeError()
+
+
+### BASE CLASS FOR BASIC CONSTRUCT REALIZERS ###
+    
+    
 class BasicConstructRealizer(ConstructRealizer[Bt]):
-    """Generic construct realizer for basic constructs"""
+    """
+    Base class for basic construct realizers.
+
+    Provides initialization routines common to all basic construct realizers.
+    """
 
     def __init__(self, construct: Bt) -> None:
 
@@ -63,66 +170,28 @@ class BasicConstructRealizer(ConstructRealizer[Bt]):
         self, 
         has_input: bool = True, 
         has_output: bool = True, 
-        default_activation: DefaultActivation = None
+        default_activation: pkt.DefaultActivation = None
     ) -> None:
 
         if has_input:
-            self.input = BasicInputMonitor()
+            self.input = InputMonitor()
         if has_output:
-            self.output = BasicOutputView(default_activation)
+            self.output = OutputView(default_activation)
             self.propagate()
 
 
-class ContainerConstructRealizer(
-    MutableMapping[ConstructSymbol, ConstructRealizer], ConstructRealizer[Xt]
-):
-    """Generic construct realizer for container constructs."""
-
-    def __init__(self, construct: Xt) -> None:
-
-        super().__init__(construct)
-        self.dict: Dict = dict()
-
-    def __len__(self) -> int:
-
-        return len(self.dict)
-
-    def __contains__(self, obj: Any) -> bool:
-
-        return obj in self.dict
-
-    def __iter__(self) -> Iterator:
-
-        return self.dict.__iter__()
-
-    def __getitem__(self, key: Any) -> Any:
-
-        return self.dict[key]
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-
-        if not may_contain(self.construct, key):
-            raise TypeError("Unexpected type {}".format(type(key)))
-
-        if key != value.construct:
-            raise ValueError("Mismatch between key and realizer construct.")
-
-        self.dict[key] = value
-
-    def __delitem__(self, key: Any) -> None:
-
-        del self.dict[key]
+### CONCRETE BASIC CONSTRUCT REALIZER DEFINITIONS ###
 
 
-#################################
-### BASIC CONSTRUCT REALIZERS ### 
-#################################
-
-
-class NodeRealizer(BasicConstructRealizer[Node]):
+class NodeRealizer(BasicConstructRealizer[sym.Node]):
     """Realizer for Node constructs."""
 
-    def __init__(self, construct: Node, junction: Junction) -> None:
+    def __init__(
+        self, 
+        construct: sym.Node, 
+        junction: proc.Junction, 
+        default_activation: pkt.DefaultActivation
+    ) -> None:
         """Initialize a new node realizer.
 
         :param construct: Client node.
@@ -130,10 +199,10 @@ class NodeRealizer(BasicConstructRealizer[Node]):
             recommendations for client node.
         """
         
-        check_construct(construct, Node)
+        self.check_construct(construct, sym.Node)
         super().__init__(construct)
-        self.junction: Junction = junction
-        self._init_io()
+        self.junction: proc.Junction = junction
+        self._init_io(default_activation=default_activation)
 
     def propagate(self) -> None:
         """
@@ -145,18 +214,19 @@ class NodeRealizer(BasicConstructRealizer[Node]):
 
         inputs = self.input.pull([self.construct])
         output = self.junction(*inputs)
+        output.origin = self.construct
         self.output.update(output)
 
 
-class FlowRealizer(BasicConstructRealizer[Flow]):
+class FlowRealizer(BasicConstructRealizer[sym.Flow]):
     """Realizer for Flow constructs."""
 
     def __init__(
         self, 
-        construct: Flow, 
-        junction: Junction, 
-        channel: Channel, 
-        default_activation: DefaultActivation
+        construct: sym.Flow, 
+        junction: proc.Junction, 
+        channel: proc.Channel, 
+        default_activation: pkt.DefaultActivation
     ) -> None:
         """
         Initialize a new flow realizer.
@@ -167,10 +237,10 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
         :param default_activation: Computes default outputs.
         """
 
-        check_construct(construct, Flow)
+        self.check_construct(construct, sym.Flow)
         super().__init__(construct)
-        self.junction: Junction = junction
-        self.channel: Channel = channel
+        self.junction: proc.Junction = junction
+        self.channel: proc.Channel = channel
         self._init_io(default_activation=default_activation)
 
     def propagate(self):
@@ -184,14 +254,18 @@ class FlowRealizer(BasicConstructRealizer[Flow]):
         inputs = self.input.pull()
         combined = self.junction(*inputs)
         output = self.channel(combined)
+        output.origin = self.construct
         self.output.update(output)
 
 
-class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
+class AppraisalRealizer(BasicConstructRealizer[sym.Appraisal]):
     """Realizer for Appraisal constructs."""
 
     def __init__(
-        self, construct: Appraisal, junction: Junction, selector: Selector
+        self, 
+        construct: sym.Appraisal, 
+        junction: proc.Junction, 
+        selector: proc.Selector
     ) -> None:
         """
         Initialize a new appraisal realizer.
@@ -201,10 +275,10 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
         :param selector: Computes output.
         """
 
-        check_construct(construct, Appraisal)
+        self.check_construct(construct, sym.Appraisal)
         super().__init__(construct)
-        self.junction: Junction = junction
-        self.selector: Selector = selector
+        self.junction: proc.Junction = junction
+        self.selector: proc.Selector = selector
         self._init_io()
 
     def propagate(self):
@@ -218,17 +292,18 @@ class AppraisalRealizer(BasicConstructRealizer[Appraisal]):
         inputs = self.input.pull()
         combined = self.junction(*inputs)
         output = self.selector(combined)
+        output.origin = self.construct
         self.output.update(output)
 
 
-class BufferRealizer(BasicConstructRealizer[Buffer]):
+class BufferRealizer(BasicConstructRealizer[sym.Buffer]):
     """Realizer for Buffer constructs."""
 
     def __init__(
         self, 
-        construct: Buffer, 
-        source: Source, 
-        default_activation: DefaultActivation
+        construct: sym.Buffer, 
+        source: proc.Source, 
+        default_activation: pkt.DefaultActivation
     ) -> None:
         """
         Initialize a new buffer realizer.
@@ -238,9 +313,9 @@ class BufferRealizer(BasicConstructRealizer[Buffer]):
         :param default_activation: Computes default output.
         """
 
-        check_construct(construct, Buffer)
+        self.check_construct(construct, sym.Buffer)
         super().__init__(construct)
-        self.source: Source = source
+        self.source: proc.Source = source
         self._init_io(has_input=False, default_activation=default_activation)
 
     def propagate(self):
@@ -251,14 +326,15 @@ class BufferRealizer(BasicConstructRealizer[Buffer]):
         """
 
         output = self.source()
+        output.origin = self.construct
         self.output.update(output)
 
 
-class BehaviorRealizer(BasicConstructRealizer[Behavior]):
+class BehaviorRealizer(BasicConstructRealizer[sym.Behavior]):
     """Realizer for a Behavior construct."""
     
     def __init__(
-        self, construct: Behavior, effector: Effector
+        self, construct: sym.Behavior, effector: proc.Effector
     ) -> None:
         """
         Initialize a new behavior realizer.
@@ -267,9 +343,9 @@ class BehaviorRealizer(BasicConstructRealizer[Behavior]):
         :param effector: Executes action callbacks.
         """
         
-        check_construct(construct, Behavior)
+        self.check_construct(construct, sym.Behavior)
         super().__init__(construct)
-        self.effector: Effector = effector
+        self.effector: proc.Effector = effector
         self._init_io(has_output=False)
 
     def propagate(self):
@@ -288,11 +364,74 @@ class BehaviorRealizer(BasicConstructRealizer[Behavior]):
 #####################################
 
 
-PropagationRule = Callable[['SubsystemRealizer'], None]
-ConnectivityPredicate = Callable[[Any, Any], bool]
+class ContainerConstructRealizer(
+    typ.MutableMapping[sym.ConstructSymbol, ConstructRealizer], 
+    ConstructRealizer[Xt]
+):
+    """Generic construct realizer for container constructs."""
+
+    def __init__(self, construct: Xt) -> None:
+
+        super().__init__(construct)
+        self.dict: typ.Dict = dict()
+
+    def __len__(self) -> int:
+
+        return len(self.dict)
+
+    def __contains__(self, obj: typ.Any) -> bool:
+
+        return obj in self.dict
+
+    def __iter__(self) -> typ.Iterator:
+
+        return self.dict.__iter__()
+
+    def __getitem__(self, key: typ.Any) -> typ.Any:
+
+        return self.dict[key]
+
+    def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
+
+        if not self.may_contain(self.construct, key):
+            raise TypeError("Unexpected type {}".format(type(key)))
+
+        if key != value.construct:
+            raise ValueError("Mismatch between key and realizer construct.")
+
+        self.dict[key] = value
+
+    def __delitem__(self, key: typ.Any) -> None:
+
+        del self.dict[key]
+
+    @staticmethod
+    def may_contain(container: typ.Any, element: typ.Any) -> bool:
+        """Return true if container construct may contain element."""
+        
+        possibilities = [
+            (
+                isinstance(container, sym.Subsystem) and
+                (
+                    isinstance(element, sym.Node) or
+                    isinstance(element, sym.Flow) or
+                    isinstance(element, sym.Appraisal) or
+                    isinstance(element, sym.Behavior)
+                )
+            ),
+            (
+                isinstance(container, sym.Agent) and
+                (
+                    isinstance(element, sym.Subsystem) or
+                    isinstance(element, sym.Buffer)
+                )
+            )
+        ]
+        return any(possibilities)
 
 
-class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
+
+class SubsystemRealizer(ContainerConstructRealizer[sym.Subsystem]):
     """
     Realizer for Subsystem constructs.
     
@@ -302,7 +441,7 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
 
     def __init__(
         self, 
-        construct: Subsystem, 
+        construct: sym.Subsystem, 
         propagation_rule: PropagationRule, 
         may_connect: ConnectivityPredicate
     ) -> None:
@@ -322,12 +461,12 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
             source construct and the second argument to be the target construct.
         """
 
-        check_construct(construct, Subsystem)
+        self.check_construct(construct, sym.Subsystem)
         super().__init__(construct)
         self.propagation_rule = propagation_rule
         self.may_connect = may_connect
 
-    def __setitem__(self, key: Any, value: Any) -> None:
+    def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
         """
         Add given construct, realizer pair to self.
         
@@ -343,7 +482,7 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
             if self.may_connect(key, construct):
                 realizer.input.watch(key, value.output.view)
 
-    def __delitem__(self, key: Any) -> None:
+    def __delitem__(self, key: typ.Any) -> None:
         """
         Remove given construct from self.
         
@@ -373,119 +512,57 @@ class SubsystemRealizer(ContainerConstructRealizer[Subsystem]):
             self.__getitem__(behavior).propagate()
 
     @property
-    def nodes(self) -> Iterable[Node]:
+    def nodes(self) -> typ.Iterable[sym.Node]:
         """Node constructs in self."""
         
         return {
             construct for construct in self.dict 
-            if isinstance(construct, Node)
+            if isinstance(construct, sym.Node)
         }
 
     @property
-    def flows(self) -> Iterable[Flow]:
+    def flows(self) -> typ.Iterable[sym.Flow]:
         """Flow constructs in self."""
         
         return {
             construct for construct in self.dict 
-            if isinstance(construct, Flow)
+            if isinstance(construct, sym.Flow)
         }
 
     @property
-    def appraisals(self) -> Iterable[Appraisal]:
+    def appraisals(self) -> typ.Iterable[sym.Appraisal]:
         """Appraisal constructs in self."""
         
         return {
             construct for construct in self.dict 
-            if isinstance(construct, Appraisal)
+            if isinstance(construct, sym.Appraisal)
         }
 
     @property
-    def behaviors(self) -> Iterable[Behavior]:
+    def behaviors(self) -> typ.Iterable[sym.Behavior]:
         """Behavior constructs in self."""
         
         return {
             construct for construct in self.dict 
-            if isinstance(construct, Behavior)
+            if isinstance(construct, sym.Behavior)
         }
 
 
-class AgentRealizer(ContainerConstructRealizer):
-    """Realizer for Agent constructs."""
-
-    def __init__(self, construct: Agent) -> None:
-        """
-        Initialize a new agent realizer.
-        
-        :param construct: Client agent.
-        """
-
-        check_construct(construct, Agent)
-        super().__init__(construct)
-        self._update_managers : List[UpdateManager] = []
-
-    def propagate(self) -> None:
-        """
-        Propagate activations among realizers owned by self.
-        
-        First propagates activations of buffers, then propagates activations 
-        within each constituent subsystem.
-        """
-        
-        for construct, realizer in self.items():
-            if isinstance(construct, Buffer):
-                realizer.propagate()
-        for construct, realizer in self.items():
-            if isinstance(construct, Subsystem):
-                realizer.propagate()
-
-    def execute(self) -> None:
-        """Execute all selected actions in all subsystems."""
-
-        for construct, realizer in self.items():
-            if isinstance(construct, Subsystem):
-                cast(SubsystemRealizer, realizer).execute()
-
-    def learn(self) -> None:
-        """
-        Update knowledge in all subsystems and all buffers.
-        
-        Issues update calls to each update manager in ``self.update_managers``.  
-        """
-
-        for update_manager in self.update_managers:
-            update_manager.update()
-
-    def attach(self, *update_managers: 'UpdateManager') -> None:
-        """
-        Add update managers to self.
-        
-        :param update_managers: Update managers for dynamic knowledge 
-            components.
-        """
-
-        for update_manager in update_managers:
-            self._update_managers.append(update_manager)
-
-    @property
-    def update_managers(self) -> List['UpdateManager']:
-        """Update managers attached to self."""
-        
-        return list(self._update_managers)
-
-
-class UpdateManager(ABC):
+class UpdateManager(abc.ABC):
     """
-    Manages updates to constructs owned by an agent.
+    Abstract base class for management of updates to agent owned constructs.
 
-    Monitors subsystem and buffer activity and directs learning and forgetting 
-    routines. May add, remove or modify construct realizers owned by client 
-    agent.
+    Supports the ``AgentRealizer`` class.
 
-    All client constructs should be passed to UpdateManager at initialization 
-    time.
+    Provides an interface for routines that monitor the activity of agent 
+    constructs and that direct learning and forgetting. These routines may add, 
+    remove or modify construct realizers owned by client agent.
+
+    All client constructs should be passed to ``UpdateManager`` instances at 
+    initialization time. This recommendation is not enforced.
     """
 
-    @abstractmethod
+    @abc.abstractmethod
     def update(self) -> None:
         """
         Update client constructs.
@@ -497,3 +574,79 @@ class UpdateManager(ABC):
         """
 
         pass
+
+
+class AgentRealizer(ContainerConstructRealizer):
+    """Realizer for Agent constructs."""
+
+    def __init__(self, construct: sym.Agent) -> None:
+        """
+        Initialize a new agent realizer.
+        
+        :param construct: Client agent.
+        """
+
+        self.check_construct(construct, sym.Agent)
+        super().__init__(construct)
+        self._update_managers : typ.List[UpdateManager] = []
+
+    def propagate(self) -> None:
+        """
+        Propagate activations among realizers owned by self.
+        
+        First propagates activations from buffers, then propagates activations 
+        within each constituent subsystem.
+        """
+        
+        for construct, realizer in self.items():
+            if isinstance(construct, sym.Buffer):
+                realizer.propagate()
+        for construct, realizer in self.items():
+            if isinstance(construct, sym.Subsystem):
+                realizer.propagate()
+
+    def execute(self) -> None:
+        """Execute all selected actions in all subsystems."""
+
+        for construct, realizer in self.items():
+            if isinstance(construct, sym.Subsystem):
+                # Casting necessary below b/c, although it is expected, it is 
+                # not guaranteed that: 
+                #   isinstance(construct, Subsystem) iff 
+                #   isinstance(realizer, SubsystemRealizer)
+                # This is indirectly and partially enforced by may_contain() 
+                # and self.__setitem__(). self.__setitem__() only accepts 
+                # Subsystem or Buffer instances as keys, and the only provided 
+                # realizer definition that accepts Subsystem instances as 
+                # constructs is SubsystemRealizer. Unless a custom realizer 
+                # class accepting Subsystem instances as constructs but not 
+                # providing an execute() method is in use, the call to 
+                # realizer.execute() should succeed.
+                typ.cast(SubsystemRealizer, realizer).execute()
+
+    def learn(self) -> None:
+        """
+        Update knowledge in all subsystems and all buffers.
+        
+        Issues update calls to each update manager in ``self.update_managers``.  
+        """
+
+        for update_manager in self.update_managers:
+            update_manager.update()
+
+    def attach(self, *update_managers: UpdateManager) -> None:
+        """
+        Add update managers to self.
+        
+        :param update_managers: Update managers for dynamic knowledge 
+            components.
+        """
+
+        for update_manager in update_managers:
+            self._update_managers.append(update_manager)
+
+    @property
+    def update_managers(self) -> typ.List[UpdateManager]:
+        """Update managers attached to self."""
+        
+        return list(self._update_managers)

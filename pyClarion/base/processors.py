@@ -1,22 +1,34 @@
 """Abstractions for processing activation packets."""
 
 
-from abc import ABC, abstractmethod
-from typing import Generic
-from pyClarion.base.packets import ActivationPacket, DecisionPacket, At
+###############
+### IMPORTS ###
+###############
 
 
-class ActivationProcessor(Generic[At], ABC):
+import abc
+import typing as typ
+import pyClarion.base.packets as pkt
+
+
+###################
+### DEFINITIONS ###
+###################
+
+
+class ActivationProcessor(typ.Generic[pkt.At], abc.ABC):
     """Abstract base class for routines that manipulate activation packets."""
 
     pass
 
 
-class Channel(ActivationProcessor[At]):
+class Channel(ActivationProcessor[pkt.At]):
     """Abstract base class for routines that transform activation patterns."""
     
-    @abstractmethod
-    def __call__(self, packet: ActivationPacket[At]) -> ActivationPacket[At]:
+    @abc.abstractmethod
+    def __call__(
+        self, packet: pkt.ActivationPacket[pkt.At]
+    ) -> pkt.ActivationPacket[pkt.At]:
         """Compute and return activations resulting from an input to this 
         channel. 
 
@@ -26,11 +38,13 @@ class Channel(ActivationProcessor[At]):
         pass
 
 
-class Junction(ActivationProcessor[At]):
+class Junction(ActivationProcessor[pkt.At]):
     """Abstract base class for routines that combine activation packets."""
 
-    @abstractmethod
-    def __call__(self, *packets: ActivationPacket[At]) -> ActivationPacket:
+    @abc.abstractmethod
+    def __call__(
+        self, *packets: pkt.ActivationPacket[pkt.At]
+    ) -> pkt.ActivationPacket[pkt.At]:
         """
         Construct a combined activation packet from inputs.
 
@@ -41,11 +55,13 @@ class Junction(ActivationProcessor[At]):
         pass
 
 
-class Selector(ActivationProcessor[At]):
+class Selector(ActivationProcessor[pkt.At]):
     """Abstract base class for routines that construct decision packets."""
 
-    @abstractmethod
-    def __call__(self, packet: ActivationPacket[At]) -> DecisionPacket[At]:
+    @abc.abstractmethod
+    def __call__(
+        self, packet: pkt.ActivationPacket[pkt.At]
+    ) -> pkt.DecisionPacket[pkt.At]:
         """
         Construct a decision packet based on input activations.
 
@@ -55,11 +71,11 @@ class Selector(ActivationProcessor[At]):
         pass
 
 
-class Effector(ActivationProcessor[At]):
+class Effector(ActivationProcessor[pkt.At]):
     """Abstract base class for routines that execute decision packet commands."""
     
-    @abstractmethod
-    def __call__(self, packet : DecisionPacket[At]) -> None:
+    @abc.abstractmethod
+    def __call__(self, packet : pkt.DecisionPacket[pkt.At]) -> None:
         """
         Execute actions recommended by input decision packet.
 
@@ -69,11 +85,11 @@ class Effector(ActivationProcessor[At]):
         pass
 
 
-class Source(ActivationProcessor[At]):
+class Source(ActivationProcessor[pkt.At]):
     """Abstract base class for routines that output activations."""
     
-    @abstractmethod
-    def __call__(self) -> ActivationPacket[At]:
+    @abc.abstractmethod
+    def __call__(self) -> pkt.ActivationPacket[pkt.At]:
         """Return activation pattern stored in self."""
 
         pass

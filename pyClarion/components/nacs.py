@@ -4,11 +4,7 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 
 from typing import Dict, Hashable, Set, Tuple, List, Sequence, Any
-from pyClarion.base.enums import FlowType, Level
-from pyClarion.base.symbols import Node, Chunk, Microfeature, Flow, Appraisal, Behavior, Buffer
-from pyClarion.base.packets import ActivationPacket, DefaultActivation
-from pyClarion.base.processors import Channel
-from pyClarion.base.realizers import SubsystemRealizer
+from pyClarion.base import *
 
 
 AssociativeRuleSequence = (
@@ -49,7 +45,7 @@ class AssociativeRulesChannel(Channel[float]):
 
     def __call__(self, input_map):
         
-        output = ActivationPacket(origin=Level.Top)
+        output = ActivationPacket()
         for conclusion, conditions in self.assoc:
             strength = 0.
             for cond in conditions: 
@@ -73,7 +69,7 @@ class TopDownChannel(Channel[float]):
 
     def __call__(self, input_map):
 
-        output = ActivationPacket(origin=Level.Top)
+        output = ActivationPacket()
         for node in input_map:
             if isinstance(node, Chunk) and node in self.assoc:
                 weights, mfs = self.assoc[node]
@@ -95,7 +91,7 @@ class BottomUpChannel(Channel[float]):
 
     def __call__(self, input_map):
 
-        output = ActivationPacket(origin=Level.Bot)
+        output = ActivationPacket()
         for chunk in self.assoc:
             weights, microfeatures = self.assoc[chunk]
             dim_activations = dict()
@@ -127,32 +123,32 @@ def may_connect(source: Any, target: Any) -> bool:
             isinstance(source, Microfeature) and 
             isinstance(target, Flow) and
             (
-                target.flow_type == FlowType.Bot2Top or
-                target.flow_type == FlowType.Bot2Bot
+                target.flow_type == FlowType.BT or
+                target.flow_type == FlowType.BB
             )
         ),
         (
             isinstance(source, Chunk) and 
             isinstance(target, Flow) and
             (
-                target.flow_type == FlowType.Top2Bot or
-                target.flow_type == FlowType.Top2Top
+                target.flow_type == FlowType.TB or
+                target.flow_type == FlowType.TT
             )
         ),
         (
             isinstance(source, Flow) and
             isinstance(target, Microfeature) and
             (
-                source.flow_type == FlowType.Top2Bot or 
-                source.flow_type == FlowType.Bot2Bot
+                source.flow_type == FlowType.TB or 
+                source.flow_type == FlowType.BB
             )
         ),
         (
             isinstance(source, Flow) and
             isinstance(target, Chunk) and
             (
-                source.flow_type == FlowType.Bot2Top or 
-                source.flow_type == FlowType.Top2Top
+                source.flow_type == FlowType.BT or 
+                source.flow_type == FlowType.TT
             )
         ),
         (
@@ -177,7 +173,7 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
 
     # Propagate Top-down Flows
     for flow in realizer.flows:
-        if flow.flow_type == FlowType.Top2Bot:
+        if flow.flow_type == FlowType.TB:
             realizer[flow].propagate()
     
     # Update Microfeatures
@@ -187,7 +183,7 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     
     # Simultaneously Process at Both Top and Bottom Levels
     for flow in realizer.flows:
-        if flow.flow_type in (FlowType.Top2Top, FlowType.Bot2Bot):
+        if flow.flow_type in (FlowType.TT, FlowType.BB):
             realizer[flow].propagate()
     
     # Update All Nodes
@@ -196,7 +192,7 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     
     # Propagate Bottom-up Links
     for flow in realizer.flows:
-        if flow.flow_type == FlowType.Bot2Top:
+        if flow.flow_type == FlowType.BT:
             realizer[flow].propagate()
     
     # Update Chunks

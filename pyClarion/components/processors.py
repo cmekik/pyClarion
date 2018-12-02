@@ -30,7 +30,8 @@ class MaxJunction(Junction[At]):
             to activations.
         """
 
-        node_set = get_nodes(*input_maps)
+        node_set: Set[Node] = set()
+        node_set.update(*input_maps)
         output : ActivationPacket = ActivationPacket()
         for n in node_set:
             for input_map in input_maps:
