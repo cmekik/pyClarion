@@ -304,7 +304,7 @@ if __name__ == '__main__':
     print("TRIAL 1")
     for c in alice[Subsystem("NACS")]:
         if not isinstance(c, Behavior):
-            print(c, alice[Subsystem("NACS")][c].output.view())
+            print(alice[Subsystem("NACS")][c].output.view())
 
     ### Start Second Trial ###
 
@@ -323,7 +323,7 @@ if __name__ == '__main__':
     print("TRIAL 2")
     for c in alice[Subsystem("NACS")]:
         if not isinstance(c, Behavior):
-            print(c, alice[Subsystem("NACS")][c].output.view())
+            print(alice[Subsystem("NACS")][c].output.view())
 
     # Activations persist, even after we remove the stimulus:
     alice[Buffer("NACS Stimulus")].source.clear()
@@ -338,7 +338,7 @@ if __name__ == '__main__':
         print("POST-STIMULUS CYCLE {}".format(str(1 + i)))
         for c in alice[Subsystem("NACS")]:
             if not isinstance(c, Behavior):
-                print(c, alice[Subsystem("NACS")][c].output.view())
+                print(alice[Subsystem("NACS")][c].output.view())
 
     # We can also observe her responses in the simulation environment.
     print("RESPONSES") 

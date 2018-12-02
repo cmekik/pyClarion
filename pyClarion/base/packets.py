@@ -1,4 +1,11 @@
-"""Tools for representing information about node activations and decisions."""
+"""
+Tools for representing information about node activations and decisions.
+
+This module provides classes for constructing activation and decision packets, 
+which are essentially dicts with node symbols as keys and activations as values 
+that also contain additional useful metadata as to the origin of the packet, 
+and, in decision packets, as to the selected node(s).
+"""
 
 
 ###############
@@ -8,6 +15,19 @@
 
 import typing as typ
 import pyClarion.base.symbols as sym
+
+
+##############
+### PUBLIC ###
+##############
+
+
+__all__ = [
+    "At",
+    "DefaultActivation",
+    "ActivationPacket",
+    "DecisionPacket"
+]
 
 
 #####################
@@ -110,9 +130,9 @@ class ActivationPacket(dict, typ.MutableMapping[sym.Node, At]):
 
 class DecisionPacket(ActivationPacket[At]):
     """
-    Represents the output of an action selection routine.
+    Represents the output of an appraisal routine.
 
-    Contains information about the selected actions and strengths of actionable
+    Contains information about selected actions and strengths of actionable
     chunks.
     """
 

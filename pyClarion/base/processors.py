@@ -1,4 +1,11 @@
-"""Abstractions for processing activation packets."""
+"""
+Abstractions for processing activation packets.
+
+This module provides abstract base classes for each kind of activation 
+processor that may be used in a construct realizer. Activation processors 
+encapsulate details of processing within construct realizers and they provide 
+the main interface by which construct realizer behavior may be customized. 
+"""
 
 
 ###############
@@ -9,6 +16,21 @@
 import abc
 import typing as typ
 import pyClarion.base.packets as pkt
+
+
+##############
+### PUBLIC ###
+##############
+
+
+__all__ = [
+    "ActivationProcessor",
+    "Channel",
+    "Junction",
+    "Selector",
+    "Effector",
+    "Source"
+]
 
 
 ###################
@@ -86,7 +108,13 @@ class Effector(ActivationProcessor[pkt.At]):
 
 
 class Source(ActivationProcessor[pkt.At]):
-    """Abstract base class for routines that output activations."""
+    """
+    Abstract base class for routines that output steady activation patterns.
+
+    Output activations may be modified by external processes (e.g., internal 
+    cognitive actions, environmental stimulus etc.), but do not directly depend 
+    on activation flows within an agent's cognitive apparatus. 
+    """
     
     @abc.abstractmethod
     def __call__(self) -> pkt.ActivationPacket[pkt.At]:

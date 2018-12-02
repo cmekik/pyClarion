@@ -1,4 +1,19 @@
-"""Tools for naming and indexing simulated constructs."""
+"""
+Tools for naming and indexing simulated constructs.
+
+This module defines construct symbols, which are symbolic tokens that may be 
+used to name, index, and reference simulated constructs. 
+
+The construct symbol class hierarchy reflects the different kinds of constructs 
+that may be in use within a simulation. Each distinct kind of construct symbol 
+is implemented as a frozen dataclass. 
+
+When a construct symbol class has data fields, symbol equality is based on the 
+equality of data field values, otherwise construct symbol equality is instance 
+based. Construct symbol classes that do not have data fields are intended as 
+base classes and are not expected to be directly instantiated within 
+simulations.
+"""
 
 
 ###############
@@ -9,6 +24,28 @@
 import typing as typ
 import dataclasses 
 import enum 
+
+
+##############
+### PUBLIC ###
+##############
+
+
+__all__ = [
+    "ConstructSymbol",
+    "BasicConstructSymbol",
+    "Node",
+    "Microfeature",
+    "Chunk",
+    "FlowType",
+    "Flow",
+    "Appraisal",
+    "Behavior",
+    "Buffer",
+    "ContainerConstructSymbol",
+    "Subsystem",
+    "Agent"
+]
 
 
 ########################################
@@ -41,7 +78,7 @@ class ConstructSymbol(object):
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class BasicConstructSymbol(ConstructSymbol):
     """
-    Base class for symbols for basic constructs.
+    Base class for symbols representing basic constructs.
     
     A construct is basic iff it may not contain other constructs.
     """
@@ -51,7 +88,14 @@ class BasicConstructSymbol(ConstructSymbol):
 
 @dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
 class Node(BasicConstructSymbol):
-    """Symbol for a generic connectionist node."""
+    """
+    Base class for symbols representing node constructs.
+    
+    The term node may be interpreted in the classical connectionist sense. 
+    However, Clarion posits the existence of two fundamentally different kinds 
+    of node. See ``pyClarion.base.symbols.Microfeature`` and 
+    ``pyClarion.base.symbols.Chunk`` for details.
+    """
     
     pass
 
@@ -88,7 +132,7 @@ class FlowType(enum.Flag):
 
     Supports the ``Flow`` class.
     
-    May take on four basic value:
+    May take on four basic values:
         TT: Activation flows within the top-level.
         BB: Activation flows within the bottom-level.
         TB: Top-down activation flows.

@@ -1,4 +1,14 @@
-"""Tools for defining the behavior of constructs within simulations."""
+"""
+Tools for defining the behavior of constructs within simulations.
+
+This module defines construct realizers for every major construct type. 
+Construct realizer behavior is designed to be as uniform as possible, but two 
+major types may be distinguished: basic construct realizers and container 
+construct realizers. The former generally act as nodes within a network 
+propagating and processing activation packets. The latter act as dictionaries 
+containing basic and container construct realizers and control the behavior of 
+their contents.
+"""
 
 
 # ATTN READERS:
@@ -8,7 +18,7 @@
 #   realizer, reflecting the two major construct types: basic construct 
 #   realizers and container construct realizers. Definitions for each major 
 #   realizer type are grouped together in marked sections; within sections, 
-#   helper classes (if they exist) are immediately prior to their use.
+#   helper classes (if they exist) are defined immediately prior to their use.
 
 
 ###############
@@ -21,6 +31,33 @@ import typing as typ
 import pyClarion.base.symbols as sym
 import pyClarion.base.packets as pkt
 import pyClarion.base.processors as proc
+import pyClarion.base.exceptions as expt
+
+
+##############
+### PUBLIC ###
+##############
+
+
+__all__ = [
+    "Ct",
+    "Bt",
+    "Xt",
+    "PullMethod",
+    "PropagationRule",
+    "ConnectivityPredicate",
+    "ConstructRealizer",
+    "BasicConstructRealizer",
+    "NodeRealizer",
+    "FlowRealizer",
+    "AppraisalRealizer",
+    "BehaviorRealizer",
+    "BufferRealizer",
+    "ContainerConstructRealizer",
+    "SubsystemRealizer",
+    "UpdateManager",
+    "AgentRealizer"
+]
 
 
 ####################
@@ -62,18 +99,33 @@ class ConstructRealizer(typ.Generic[Ct], abc.ABC):
 
         self.construct = construct
 
+    def __repr__(self) -> typ.Text:
+
+        return "{}({})".format(type(self).__name__, repr(self.construct))
+
     @abc.abstractmethod
     def propagate(self) -> None:
         """Execute input/output routine associated with client construct."""
         
         pass
 
-    @staticmethod
-    def check_construct(construct: sym.ConstructSymbol, type_: typ.Type):
+    def check_construct(
+        self, construct: sym.ConstructSymbol, type_: typ.Type
+    ) -> None:
         """Check if construct matches given type."""
 
         if not isinstance(construct, type_):
-            raise TypeError("Unexpected construct type {}".format(str(construct)))
+            raise expt.UnexpectedConstructError(
+                " ".join(
+                    [
+                        "{} expects construct of type {}".format(
+                            type(self).__name__, type_.__name__
+                        ),
+                        "but was given construct {}.".format(repr(construct))
+                    ]
+                )
+                 
+            )
 
 
 #################################
@@ -84,7 +136,7 @@ class ConstructRealizer(typ.Generic[Ct], abc.ABC):
 # This section has three parts:
 #    1. Some helper classes are defined for handling communication between 
 #       various basic constructs. 
-#    2. An abstract base class for basic construct realizers is defined.
+#    2. A base class for basic construct realizers is defined.
 #    3. A construct realizer is defined for every major type of basic construct: 
 #       Node, Flow, Appraisal, Behavior, and Buffer
 
@@ -364,6 +416,13 @@ class BehaviorRealizer(BasicConstructRealizer[sym.Behavior]):
 #####################################
 
 
+# This section defines four classes (in order):
+#    1. A base class for container construct realizers. 
+#    2. Subsystem realizers.
+#    3. An interface for managing updates to agent knowledge.
+#    4. Agent realizers.
+
+
 class ContainerConstructRealizer(
     typ.MutableMapping[sym.ConstructSymbol, ConstructRealizer], 
     ConstructRealizer[Xt]
@@ -394,10 +453,19 @@ class ContainerConstructRealizer(
     def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
 
         if not self.may_contain(self.construct, key):
-            raise TypeError("Unexpected type {}".format(type(key)))
-
+            raise expt.ForbiddenConstructError(
+                "{} may not contain {}; forbidden type.".format(
+                    repr(self), repr(key)
+                )
+            )
+            
         if key != value.construct:
-            raise ValueError("Mismatch between key and realizer construct.")
+            raise expt.ConstructMismatchError(
+                "{} given key {} does not match value {}".format(
+                    repr(self), repr(key), repr(value)
+                )
+            )
+            ValueError("Mismatch between key and realizer construct.")
 
         self.dict[key] = value
 
