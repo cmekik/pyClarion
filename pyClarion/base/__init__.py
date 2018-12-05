@@ -1,10 +1,9 @@
 """
 Basic computational constructs for building Clarion agents.
 
-This module is an umbrella for four submodules:
+This module is an umbrella for three submodules:
     ``pyClarion.base.symbols``, 
-    ``pyClarion.base.packets``, 
-    ``pyClarion.base.processors``, and 
+    ``pyClarion.base.packets``, and 
     ``pyClarion.base.realizers`` 
 
 For a deeper understanding of the basic infrastructure of pyClarion, submodules 
@@ -40,5 +39,4 @@ realizations of the same construct.
 
 from pyClarion.base.symbols import *
 from pyClarion.base.packets import *
-from pyClarion.base.processors import *
 from pyClarion.base.realizers import *

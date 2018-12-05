@@ -2,184 +2,133 @@
 Tools for representing information about node activations and decisions.
 
 This module provides classes for constructing activation and decision packets, 
-which are essentially dicts with node symbols as keys and activations as values 
-that also contain additional useful metadata as to the origin of the packet, 
-and, in decision packets, as to the selected node(s).
+which are mapping objects with node symbols as keys and activations as values. 
+Additional useful metadata as to packet origin and, in decision packets, as to 
+selected node(s) is also included.
 """
 
 
-###############
-### IMPORTS ###
-###############
+# Notes For Readers 
+
+#   - Type hints signal intended usage.
 
 
 import typing as typ
 import pyClarion.base.symbols as sym
 
 
-##############
-### PUBLIC ###
-##############
-
-
 __all__ = [
-    "At",
-    "DefaultActivation",
     "ActivationPacket",
     "DecisionPacket"
 ]
 
 
 #####################
-### TYPE ALIASES ####
+### Type Aliases ####
 #####################
 
 
-At = typ.TypeVar("At")
-DefaultActivation = typ.Callable[[typ.Optional[sym.Node]], At]
+DefaultActivation = typ.Callable[[typ.Optional[sym.ConstructSymbol]], typ.Any]
+StrengthSequence = typ.Sequence[typ.Tuple[sym.ConstructSymbol, typ.Any]]
+StrengthMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
 
 
 ###################
-### DEFINITIONS ###
+### Definitions ###
 ###################
 
 
-class ActivationPacket(dict, typ.MutableMapping[sym.Node, At]):
-    """Represents node activations."""
+class ActivationPacket(typ.Mapping[sym.ConstructSymbol, typ.Any]):
+    """
+    A datastructure for representing node activations and related info.
+    
+    It is expected that keys to `ActivationPacket` will be construct symbols 
+    representing chunk or microfeature nodes.
+    """
 
     def __init__(
         self, 
-        kvpairs: typ.Union[
-            typ.Mapping[sym.Node, At], typ.Sequence[typ.Tuple[sym.Node, At]]
-        ] = None,
-        origin: typ.Hashable = None
+        strengths: typ.Union[StrengthMapping, StrengthSequence],
+        origin: sym.ConstructSymbol = None
     ) -> None:
         '''
         Initialize an ``ActivationPacket`` instance.
 
         :param kvpairs: Node strengths.
-        :param origin: Contains necessary information about the origin of the 
-            activation pattern.
+        :param origin: Origin of the activation packet.
         '''
 
-        super().__init__()
-        if kvpairs:
-            self.update(kvpairs)
+        self._mapping = dict(strengths)
         self.origin = origin
+
+    def __iter__(self):
+
+        return iter(self._mapping)
+
+    def __len__(self):
+
+        return len(self._mapping)
+
+    def __getitem__(self, key):
+
+        return self._mapping[key]
 
     def __repr__(self) -> str:
         
         return ''.join(self._repr())
 
-    def copy(self):
+    def copy(self) -> 'ActivationPacket':
         """Return a shallow copy of self."""
 
-        return self.subpacket(self.keys())
-
-    def subpacket(
-        self, 
-        nodes: typ.Iterable[sym.Node], 
-        default_activation: DefaultActivation = None
-    ) -> 'ActivationPacket[At]':
-        """
-        Return a subpacket containing activations for chosen nodes.
-
-        :param nodes: Keys for constructed subpacket.
-        :default_activation: Procedure for determining default activations. Used
-            to set activations in output packet if `nodes` contains elements not 
-            contained in self.
-        """
-        
-        mapping: dict = self._subpacket(nodes, default_activation)
-        origin = self.origin
-        output: 'ActivationPacket[At]' = ActivationPacket(mapping, origin)
-        return output
+        return type(self)(self._mapping, self.origin)
 
     def _repr(self) -> typ.List[str]:
 
-        repr_ = [
-            type(self).__name__,
-            '(',
-            super().__repr__(),
-            ", ",
-            "origin=",
-            repr(self.origin),
-            ")"
-        ]
-        return repr_
-
-    def _subpacket(
-        self, 
-        nodes: typ.Iterable[sym.Node], 
-        default_activation: DefaultActivation = None
-    ) -> dict:
-
-        output: dict = {}
-        for node in nodes:
-            if node in self:
-                activation = self[node]
-            elif default_activation:
-                activation = default_activation(node)
-            else:
-                raise KeyError(
-                    "Node {} not in self".format(str(node))
-                )
-            output[node] = activation
-        return output
+        pieces = [type(self).__name__, '(', repr(self._mapping)]
+        if self.origin:
+            pieces.extend((', origin=', repr(self.origin)))
+        pieces.append(')')
+        return pieces
 
 
-class DecisionPacket(ActivationPacket[At]):
+class DecisionPacket(ActivationPacket):
     """
-    Represents the output of an appraisal routine.
+    A datastructure for representing the output of an appraisal routine.
 
-    Contains information about selected actions and strengths of actionable
-    chunks.
+    Contains information about selected chunks and strengths of actionable
+    chunks. Keys are expected to represent chunk nodes.
     """
 
     def __init__(
         self, 
-        kvpairs: typ.Mapping[sym.Node, At] = None,
-        origin: typ.Hashable = None,
-        chosen: typ.Set[sym.Chunk] = None
+        strengths: typ.Union[StrengthMapping, StrengthSequence],
+        chosen: typ.Sequence[sym.ConstructSymbol],
+        origin: sym.ConstructSymbol = None
     ) -> None:
         '''
         Initialize a ``DecisionPacket`` instance.
 
-        :param kvpairs: Strengths of actionable chunks.
-        :param chosen: The set of actions to be fired.
+        :param strengths: Strengths of actionable chunks.
+        :param chosen: Selected chunks.
+        :param origin: Origin of the decision.
         '''
 
-        super().__init__(kvpairs, origin)
-        self.chosen = chosen
+        super().__init__(strengths, origin)
+        self._chosen = chosen
 
-    def __eq__(self, other: typ.Any) -> bool:
+    def copy(self) -> 'DecisionPacket':
 
-        return (
-            super().__eq__(other) and
-            self.chosen == other.chosen
-        )
+        return type(self)(self._mapping, self.chosen, self.origin) 
 
     def _repr(self) -> typ.List[str]:
 
-        repr_ = super()._repr()
-        supplement = [
-            ", ",
-            "chosen=",
-            repr(self.chosen),
-        ]
-        return repr_[:-1] + supplement + repr_[-1:]
+        pieces = super()._repr()
+        start, end = pieces[:3], pieces[3:]
+        middle = [", ", "chosen=", repr(self._chosen)]
+        return start + middle + end
 
-    def subpacket(
-        self, 
-        nodes: typ.Iterable[sym.Node], 
-        default_activation: DefaultActivation = None
-    ) -> 'DecisionPacket[At]':
-        
-        mapping = self._subpacket(nodes, default_activation)
-        origin = self.origin
-        chosen = self.chosen
-        output: 'DecisionPacket[At]' = DecisionPacket(
-            mapping, origin, chosen
-        )
-        return output
-        
+    @property
+    def chosen(self) -> typ.Sequence[sym.ConstructSymbol]:
+        """Selected chunks."""
+
+        return self._chosen

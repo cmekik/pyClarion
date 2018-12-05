@@ -2,135 +2,111 @@
 Tools for naming and indexing simulated constructs.
 
 This module defines construct symbols, which are symbolic tokens that may be 
-used to name, index, and reference simulated constructs. 
-
-The construct symbol class hierarchy reflects the different kinds of constructs 
-that may be in use within a simulation. Each distinct kind of construct symbol 
-is implemented as a frozen dataclass. 
-
-When a construct symbol class has data fields, symbol equality is based on the 
-equality of data field values, otherwise construct symbol equality is instance 
-based. Construct symbol classes that do not have data fields are intended as 
-base classes and are not expected to be directly instantiated within 
-simulations.
+used to name, index, and reference simulated constructs.
 """
 
 
-###############
-### IMPORTS ###
-###############
+# Notes For Readers
+
+#   - Type hints signal intended usage.
+#   - This file consists of two major sections. The first major section contains 
+#     class definitions, the second major section contains construct symbol 
+#     factory functions.
 
 
 import typing as typ
-import dataclasses 
 import enum 
-
-
-##############
-### PUBLIC ###
-##############
 
 
 __all__ = [
     "ConstructSymbol",
-    "BasicConstructSymbol",
-    "Node",
+    "ConstructType",
+    "FlowType",
+    "DVPair",
+    "FlowID",
     "Microfeature",
     "Chunk",
-    "FlowType",
     "Flow",
     "Appraisal",
     "Behavior",
     "Buffer",
-    "ContainerConstructSymbol",
     "Subsystem",
     "Agent"
 ]
 
 
-########################################
-### BASE CLASS FOR CONSTRUCT SYMBOLS ###
-########################################
+#########################
+### Class Definitions ###
+#########################
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class ConstructSymbol(object):
+class ConstructSymbol(typ.NamedTuple):
     """
     General base class for symbols representing simulation constructs.
     
     Construct symbols are used to identify and carry essential information 
-    about key simulated constructs in a lightweight manner. 
+    about key simulated constructs in a lightweight manner.
+
+    Every construct symbol is expected to present a construct type in its 
+    `type` field, and a construct id in its `id` field. Construct types are 
+    used in the control of activation flows, construct ids serve to disambiguate 
+    and identify construct symbols of a given type. 
     
     In general, each construct symbol is associated with at least one construct 
     realizer, which defines the behavior of the model vis à vis that construct 
     in some particular context. For information on construct realizers see
     ``pyClarion.base.realizers``.
-    """
 
-    pass
-
-
-##########################################
-### BASIC CONSTRUCT SYMBOL DEFINITIONS ###
-##########################################
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class BasicConstructSymbol(ConstructSymbol):
-    """
-    Base class for symbols representing basic constructs.
-    
-    A construct is basic iff it may not contain other constructs.
-    """
-
-    pass
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class Node(BasicConstructSymbol):
-    """
-    Base class for symbols representing node constructs.
-    
-    The term node may be interpreted in the classical connectionist sense. 
-    However, Clarion posits the existence of two fundamentally different kinds 
-    of node. See ``pyClarion.base.symbols.Microfeature`` and 
-    ``pyClarion.base.symbols.Chunk`` for details.
+    :param ctype: Construct type.
+    :param cid: Construct ID.
     """
     
-    pass
+    ctype: 'ConstructType'
+    cid: typ.Hashable
+
+    def __str__(self):
+        """
+        Pretty print construct symbol.
+
+        Output has form:
+            ConstructName(id)
+        """
+
+        return "".join([str(self.ctype), "(", repr(self.cid), ")"])
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Microfeature(Node):
-    """
-    Symbol for a microfeature node.
+class ConstructType(enum.Flag):
+    """Flag for signaling the construct type of a construct symbol."""
 
-    Microfeature nodes represent implicit knowledge. They are characterized by 
-    a dimension-value pair (dv-pair). Microfeatures that share the same 
-    dimension entry are treated as mutual alternatives. 
-    """
+    Microfeature = enum.auto()
+    Chunk = enum.auto()
+    Flow = enum.auto()
+    Appraisal = enum.auto()
+    Behavior = enum.auto()
+    Buffer = enum.auto()
+    Subsystem = enum.auto()
+    Agent = enum.auto()
 
-    dim: typ.Hashable
-    val: typ.Hashable
+    Node = Microfeature | Chunk
+    BasicConstruct = Microfeature | Chunk | Flow | Appraisal | Behavior | Buffer
+    ContainerConstruct = Subsystem | Agent
 
+    def __str__(self):
+        """
+        Return the construct name. 
+        
+        If no construct name is available, falls back on repr.
+        """
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Chunk(Node):
-    """
-    Symbol for a chunk node.
-    
-    Chunk nodes represent explicit knowledge. They are characterized by 
-    an id.
-    """
-
-    id: typ.Hashable
+        if self.name:
+            return self.name
+        else:
+            return repr(self)
 
 
 class FlowType(enum.Flag):
     """
-    Flag for signaling the direction(s) of an activation flow construct.
-
-    Supports the ``Flow`` class.
+    Flag for signaling the direction(s) of an activation flow.
     
     May take on four basic values:
         TT: Activation flows within the top-level.
@@ -145,75 +121,112 @@ class FlowType(enum.Flag):
     BT = enum.auto()
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Flow(BasicConstructSymbol):
-    """
-    Symbol for an activation flow.
+class DVPair(typ.NamedTuple):
+    """Represents a microfeature dimension-value pair."""
     
-    A flow governs how the activation of some set of nodes may drive the 
-    activation of another set of nodes.
+    dim: typ.Hashable
+    val: typ.Hashable
 
-    Flows are characterized by an id and a flow type. The flow type describes 
-    what kinds of nodes are connected by a given flow. Typically, flows may 
-    connect chunks to microfeatures (top-down), microfeatures to chunks 
-    (bottom-up), chunks to chunks (top level) and microfeatures to 
-    microfeatures (bottom level).
+
+class FlowID(typ.NamedTuple):
+    """Represents the name and type of a flow."""
+
+    name: typ.Hashable
+    ftype: FlowType
+
+
+##################################
+### Construct Symbol Factories ###
+##################################
+
+
+# Construct symbol factory names mimic class naming style to free up namespace 
+# for simulation variables. For instance, the chunk factory is named `Chunk()` 
+# not `chunk()` to allow use of `chunk` as a variable name by the user.
+
+
+def Microfeature(dim: typ.Hashable, val: typ.Hashable):
     """
-
-    id: typ.Hashable
-    flow_type: FlowType
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Appraisal(BasicConstructSymbol):
-    """Symbol for a class of judgments and/or decisions."""
-
-    id: typ.Hashable
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Behavior(BasicConstructSymbol):
-    """Symbol for a collection of performable actions."""
-
-    id: typ.Hashable
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Buffer(BasicConstructSymbol):
-    """Symbol for a temporary store of cognitive information."""
-
-    id: typ.Hashable
-
-
-##############################################
-### CONTAINER CONSTRUCT SYMBOL DEFINITIONS ###
-##############################################
-
-
-@dataclasses.dataclass(init=True, repr=True, eq=False, frozen=True)
-class ContainerConstructSymbol(ConstructSymbol):
-    """
-    Base class for symbols representing container constructs. 
+    Return a new microfeature symbol.
     
-    Container constructs may own other basic or container constructs.
+    Assumes microfeature is in dv-pair form.
+
+    :param dim: Dimension of microfeature.
+    :param val: Value of microfeature.
     """
 
-    pass
+    return ConstructSymbol(ConstructType.Microfeature, DVPair(dim, val))
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Subsystem(ContainerConstructSymbol):
-    """Symbol for a cognitive subsystem.
-    
-    A cognitive subsystem is a large, functionally distinct section of a 
-    complete cognitive apparatus.
+def Chunk(cid: typ.Hashable):
+    """
+    Return a new chunk symbol.
+
+    :param cid: Chunk identifier.
     """
 
-    id: typ.Hashable
+    return ConstructSymbol(ConstructType.Chunk, cid)
 
 
-@dataclasses.dataclass(init=True, repr=True, eq=True, frozen=True)
-class Agent(ContainerConstructSymbol):
-    """Symbol for an agent."""
+def Flow(name: typ.Hashable, ftype: FlowType):
+    """
+    Return a new flow symbol.
 
-    id: typ.Hashable
+    Assumes flow is in name-ftype form.
+
+    :param name: Name of flow.
+    :param ftype: Flow type.
+    """
+
+    return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
+
+
+def Appraisal(cid: typ.Hashable):
+    """
+    Return a new appraisal symbol.
+
+    :param cid: Appraisal identifier.
+    """
+
+    return ConstructSymbol(ConstructType.Appraisal, cid)
+
+
+def Behavior(cid: typ.Hashable):
+    """
+    Return a new behavior symbol.
+
+    :param cid: Behavior identifier.
+    """
+
+    return ConstructSymbol(ConstructType.Behavior, cid)
+
+
+def Buffer(cid: typ.Hashable):
+    """
+    Return a new buffer symbol.
+
+    :param cid: Buffer identifier.
+    """
+
+    return ConstructSymbol(ConstructType.Buffer, cid)
+
+
+
+def Subsystem(cid: typ.Hashable):
+    """
+    Return a new subsystem symbol.
+
+    :param cid: Subsystem identifier.
+    """
+
+    return ConstructSymbol(ConstructType.Subsystem, cid)
+
+
+def Agent(cid: typ.Hashable):
+    """
+    Return a new agent symbol.
+
+    :param cid: Agent identifier.
+    """
+
+    return ConstructSymbol(ConstructType.Agent, cid)
