@@ -76,12 +76,12 @@ class InputMonitor(object):
 
     def __init__(self) -> None:
 
-        self._input_links: InputBase = {}
+        self.input_links: InputBase = {}
 
     def pull(self) -> Packets:
         """Pull activations from input constructs."""
 
-        for view in self._input_links.values():
+        for view in self.input_links.values():
             v = view()
             if v is not None: yield v
 
@@ -90,18 +90,12 @@ class InputMonitor(object):
     ) -> None:
         """Connect given construct as input to client."""
 
-        self._input_links[csym] = pull_method
+        self.input_links[csym] = pull_method
 
     def drop(self, csym: sym.ConstructSymbol):
         """Disconnect given construct from client."""
 
-        del self._input_links[csym]
-
-    @property
-    def inputs(self) -> typ.Iterable[sym.ConstructSymbol]:
-        """Inputs to client construct."""
-
-        return (csym for csym in self._input_links)
+        del self.input_links[csym]
 
 
 class OutputView(object):
@@ -119,6 +113,40 @@ class OutputView(object):
             return self._buffer
         except AttributeError:
             return None        
+
+
+class SubsystemInputMonitor(InputMonitor):
+    """Listens for buffer outputs."""
+
+    def __init__(
+        self, 
+        watch: typ.Callable[[sym.ConstructSymbol, PullMethod], None], 
+        drop: typ.Callable[[sym.ConstructSymbol], None]
+    ) -> None:
+        """
+        Initialize a SubsystemInputMonitor.
+
+        :param watch: Callable for informing client subsystem members to watch  
+            a new input to client.
+        :param drop: Callable for informing client subsystem members to drop an 
+            input to client.
+        """
+
+        super().__init__()
+        self._watch = watch
+        self._drop = drop
+
+    def watch(
+        self, csym: sym.ConstructSymbol, pull_method: PullMethod
+    ) -> None:
+
+        super().watch(csym, pull_method)
+        self._watch(csym, pull_method)
+
+    def drop(self, csym: sym.ConstructSymbol):
+
+        super().drop(csym)
+        self._drop(csym)
 
 
 ######################################
@@ -340,6 +368,15 @@ class ContainerConstructRealizer(
 
         return (csym for csym in self._dict if csym.ctype in ctype)
 
+    def csym_items_iterable(
+        self, ctype: sym.ConstructType
+    ) -> typ.Iterable[typ.Tuple[sym.ConstructSymbol, ConstructRealizer]]:
+        """Return an iterator over all csym-realizer pairs matching ctype."""
+
+        return (
+            (csym, realizer) for csym, realizer in self._dict.items() 
+            if csym.ctype in ctype
+        )
 
     def _check_kv_pair(self, key: typ.Any, value: typ.Any) -> None:
 
@@ -362,6 +399,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
     """A network of node, flow, apprasial, and behavior realizers."""
 
     ctype = sym.ConstructType.Subsystem
+    itype = SubsystemInputMonitor
 
     def __init__(
         self, 
@@ -387,6 +425,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
         super().__init__(csym)
         self.propagation_rule = propagation_rule
         self.may_connect = may_connect
+        self.input = type(self).itype(self._watch, self._drop)
 
     def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
         """
@@ -402,6 +441,10 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 value.input.watch(csym, realizer.output.view)
             if self.may_connect(key, csym):
                 realizer.input.watch(key, value.output.view)
+
+        if key.ctype in sym.ConstructType.Node:
+            for buffer, pull_method in self.input.input_links.items():
+                value.input.watch(buffer, pull_method)
 
     def __delitem__(self, key: typ.Any) -> None:
         """
@@ -439,6 +482,22 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 sym.ConstructType.Behavior
             )            
         )
+
+    def _watch(
+        self, identifier: typ.Hashable, pull_method: PullMethod
+    ) -> None:
+        """Informs members of a new input to self."""
+
+        for _, realizer in self.csym_items_iterable(sym.ConstructType.Node):
+            typ.cast(BasicConstructRealizer, realizer).input.watch(
+                identifier, pull_method
+            )
+
+    def _drop(self, identifier: typ.Hashable) -> None:
+        """Informs members of a dropped input to self."""
+
+        for _, realizer in self.csym_items_iterable(sym.ConstructType.Node):
+            typ.cast(BasicConstructRealizer, realizer).input.drop(identifier)
 
     @property
     def nodes(self) -> typ.Iterable[sym.ConstructSymbol]:

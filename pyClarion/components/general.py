@@ -1,9 +1,10 @@
-import typing as typ
+"""Generally useful non-basic pyClarion components."""
+
 from pyClarion.base import *
 import numpy as np
 
 
-class UpdateJunction(object):
+class SimpleJunction(object):
     """Merges input activation packets using the packet ``update`` method."""
 
     def __call__(self, packets):
@@ -35,23 +36,36 @@ class MaxJunction(object):
         return d
 
 
-class NodeMaxJunction(object):
+class SimpleNodeJunction(object):
+    """Determines node output based on given recommendations."""
 
     def __init__(self, csym, default_strength):
+        """
+        Initialize a SimpleNodeJunction instance.
+
+        :param csym: Client node.
+        :param default_strength: Callable taking a single construct symbol. 
+            Returns default strength of given construct.
+        """
 
         self.csym = csym
         self.default_strength = default_strength
 
     def __call__(self, packets):
+        """
+        Output maximum recommended strength for client node.
+        
+        :param packets: An iterable of activation packets.
+        """
 
         d = {}
-        for s in self.iter_packets(packets):
+        for s in self._iter_packets(packets):
             d[self.csym] = max(
                 s, d.get(self.csym, self.default_strength(self.csym))
             )
         return d
 
-    def iter_packets(self, packets):
+    def _iter_packets(self, packets):
 
         for packet in packets:
             for n, s in packet.strengths.items():
@@ -59,8 +73,8 @@ class NodeMaxJunction(object):
                     yield s
 
 
-class BoltzmannSelector(object):
-    """Select a chunk according to a Boltzmann distribution."""
+class SimpleBoltzmannSelector(object):
+    """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature):
         """Initialize a ``BoltzmannSelector`` instance.
@@ -89,22 +103,22 @@ class BoltzmannSelector(object):
         """Construct and return a boltzmann distribution."""
 
         terms, divisor = {}, 0
-        for ck, s in self.iter_chunk_strengths(strengths):
+        for ck, s in self._iter_chunk_strengths(strengths):
             terms[ck] = np.exp(s / self.temperature)
             divisor += terms[ck]
         probabilities = {ck: s / divisor for ck, s in terms.items()}
         return probabilities
 
     def choose(self, chunks, probabilities):
-        '''Choose a chunk given some selection probabilities.'''
+        """Choose a chunk given some selection probabilities."""
 
-        # Numpy complains that chunks is not 1-dimensional since it is nested 
-        # tuples. So use range(len()) instead.
+        # Numpy complains that chunks is not 1-dimensional since it is a nested 
+        # tuple. Using range(len()) instead.
         choice = np.random.choice(range(len(chunks)), p=probabilities)
         return (chunks[choice],)
 
     @staticmethod
-    def iter_chunk_strengths(strengths):
+    def _iter_chunk_strengths(strengths):
 
         for csym, s in strengths.items():
             if csym.ctype is ConstructType.Chunk:
@@ -112,42 +126,46 @@ class BoltzmannSelector(object):
 
 
 class MappingEffector(object):
-    '''A simple effector built on a map from actionable chunks to callbacks.'''
+    """Links actionable chunks to callbacks."""
 
     def __init__(self, chunk2callback) -> None:
-        '''Initialize a ``MappingEffector`` instance.
+        """
+        Initialize a MappingEffector.
 
         :param chunk2callback: Mapping from actionable chunks to callbacks.
-        '''
+        """
 
         self.chunk2callback = chunk2callback
 
     def __call__(self, dpacket) -> None:
-        '''
+        """
         Execute callbacks associated with each chosen chunk.
 
         :param dpacket: A decision packet.
-        '''
+        """
         
         for chunk in dpacket.chosen:
             self.chunk2callback[chunk]()
 
 
 class ConstantSource(object):
-    """Simple source outputting a constant activation packet."""
+    """Outputs a stored activation packet."""
 
     def __init__(self, strengths = None) -> None:
 
         self.strengths = strengths or dict()
 
     def __call__(self):
+        """Return stored strengths."""
 
         return self.strengths
 
     def update(self, strengths):
+        """Update self with contents of dict-like strengths."""
 
         self.strengths.update(strengths)
 
     def clear(self) -> None:
+        """Clear stored node strengths."""
 
         self.strengths.clear()

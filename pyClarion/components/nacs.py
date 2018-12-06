@@ -31,6 +31,7 @@ InterlevelAssociation = (
 
 
 class AssociativeRuleCollection(object):
+    """Propagates activations among chunks."""
 
     def __init__(self, assoc = None, default_strength = None):
 
@@ -40,7 +41,7 @@ class AssociativeRuleCollection(object):
     def __call__(self, strengths):
         
         d = dict()
-        for conc, conds in self.iter_assoc():
+        for conc, conds in self._iter_assoc():
             s = sum(
                 w * strengths.get(c, self.default_strength(c)) 
                 for c, w in conds.items()
@@ -49,7 +50,7 @@ class AssociativeRuleCollection(object):
                 d[conc] = s
         return d
 
-    def iter_assoc(self):
+    def _iter_assoc(self):
 
         for conc, cond_list in self.assoc.items():
             for conds in cond_list:
@@ -57,6 +58,7 @@ class AssociativeRuleCollection(object):
 
 
 class TopDownLinks(object):
+    """Propagates activations in a top-down manner."""
 
     def __init__(self, assoc = None, default_strength = None):
 
@@ -66,12 +68,12 @@ class TopDownLinks(object):
     def __call__(self, strengths):
 
         d = {}
-        for chunk, weight, mf in self.iter_assoc():
+        for chunk, weight, mf in self._iter_assoc():
             s = weight * strengths.get(chunk, self.default_strength(chunk))
             d[mf] = max(s, d.get(mf, self.default_strength(mf)))
         return d
 
-    def iter_assoc(self):
+    def _iter_assoc(self):
 
         for chunk, dim_dict in self.assoc.items():
             for dim, (weight, mfs) in dim_dict.items():
@@ -80,6 +82,7 @@ class TopDownLinks(object):
 
 
 class BottomUpLinks(object):
+    """Propagates activations in a bottom-up manner."""
 
     def __init__(self, assoc = None, default_strength = None):
 
@@ -89,7 +92,7 @@ class BottomUpLinks(object):
     def __call__(self, strengths):
 
         d = {}
-        for chunk, n_dim, weight, mfs in self.iter_assoc():
+        for chunk, n_dim, weight, mfs in self._iter_assoc():
             s_mf = max(
                 strengths.get(mf, self.default_strength(mf)) for mf in mfs
             )
@@ -99,7 +102,7 @@ class BottomUpLinks(object):
             )
         return d
 
-    def iter_assoc(self):
+    def _iter_assoc(self):
 
         for chunk, dim_dict in self.assoc.items():
             n_dim = len(dim_dict)
@@ -107,8 +110,8 @@ class BottomUpLinks(object):
                 yield chunk, n_dim, weight, mfs
 
 
-def may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
-    """Return true if source may send output to target."""
+def nacs_may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
+    """Return true if source may send output to target in NACS."""
     
     possibilities = [
         (
@@ -144,7 +147,7 @@ def may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
 
 
 def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
-    """Execute NACS activation propagation cycle on given realizer."""
+    """Execute NACS activation cycle on given subsystem realizer."""
 
     for node in realizer.nodes:
         if node.ctype is ConstructType.Chunk:
