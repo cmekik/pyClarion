@@ -1,14 +1,8 @@
-"""
-Tools for naming and indexing simulated constructs.
-
-This module defines construct symbols, which are symbolic tokens that may be 
-used to name, index, and reference simulated constructs.
-"""
+"""Tools for naming, indexing, and referencing simulated constructs."""
 
 
 # Notes For Readers
 
-#   - Type hints signal intended usage.
 #   - This file consists of two major sections. The first major section contains 
 #     class definitions, the second major section contains construct symbol 
 #     factory functions.
@@ -42,20 +36,10 @@ __all__ = [
 
 class ConstructSymbol(typ.NamedTuple):
     """
-    General base class for symbols representing simulation constructs.
+    Symbolically represents simulation constructs.
     
-    Construct symbols are used to identify and carry essential information 
-    about key simulated constructs in a lightweight manner.
-
-    Every construct symbol is expected to present a construct type in its 
-    `type` field, and a construct id in its `id` field. Construct types are 
-    used in the control of activation flows, construct ids serve to disambiguate 
-    and identify construct symbols of a given type. 
-    
-    In general, each construct symbol is associated with at least one construct 
-    realizer, which defines the behavior of the model vis à vis that construct 
-    in some particular context. For information on construct realizers see
-    ``pyClarion.base.realizers``.
+    Construct symbols identify and carry essential information about simulated 
+    constructs.
 
     :param ctype: Construct type.
     :param cid: Construct ID.
@@ -68,15 +52,14 @@ class ConstructSymbol(typ.NamedTuple):
         """
         Pretty print construct symbol.
 
-        Output has form:
-            ConstructName(id)
+        Output has form: 'ConstructName(id)'
         """
 
         return "".join([str(self.ctype), "(", repr(self.cid), ")"])
 
 
 class ConstructType(enum.Flag):
-    """Flag for signaling the construct type of a construct symbol."""
+    """Represents construct types for processing logic."""
 
     Microfeature = enum.auto()
     Chunk = enum.auto()
@@ -93,9 +76,9 @@ class ConstructType(enum.Flag):
 
     def __str__(self):
         """
-        Return the construct name. 
+        Returns the construct type name. 
         
-        If no construct name is available, falls back on repr.
+        If no construct type name is available, falls back on repr.
         """
 
         if self.name:
@@ -106,7 +89,7 @@ class ConstructType(enum.Flag):
 
 class FlowType(enum.Flag):
     """
-    Flag for signaling the direction(s) of an activation flow.
+    Signals the direction(s) of an activation flow.
     
     May take on four basic values:
         TT: Activation flows within the top-level.

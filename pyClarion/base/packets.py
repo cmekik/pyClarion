@@ -1,16 +1,4 @@
-"""
-Tools for representing information about node activations and decisions.
-
-This module provides classes for constructing activation and decision packets, 
-which are mapping objects with node symbols as keys and activations as values. 
-Additional useful metadata as to packet origin and, in decision packets, as to 
-selected node(s) is also included.
-"""
-
-
-# Notes For Readers 
-
-#   - Type hints signal intended usage.
+"""Tools for representing information about node strengths and decisions."""
 
 
 import typing as typ
@@ -45,7 +33,7 @@ AppraisalData = typ.Tuple[
 
 class ActivationPacket(typ.NamedTuple):
     """
-    Represents node activations and related info.
+    Represents node strengths.
     
     :param strengths: Mapping of node strengths.
     :param origin: Construct symbol identifying source of activation packet.
@@ -91,12 +79,10 @@ def make_packet(
     ):  
         smap = types.MappingProxyType(typ.cast(ConstructSymbolMapping, data))
         packet = ActivationPacket(strengths=smap, origin=csym)
-    
     elif csym.ctype is sym.ConstructType.Appraisal:
         strengths, chosen = typ.cast(AppraisalData, data)
         smap = types.MappingProxyType(strengths)
         packet = DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
-    
     else:
         raise ValueError(
             "Unexpected ctype {} in argument `csym` to make_packet".format(
