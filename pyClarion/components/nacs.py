@@ -3,161 +3,141 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 '''
 
 
-from typing import Dict, Hashable, Set, Tuple, List, Sequence, Any
+import typing as typ
 from pyClarion.base import *
 
 
-AssociativeRuleSequence = (
-    List[
-        Tuple[
-            # Conclusion chunk
-            Chunk, 
-            # Condition chunks and corresponding weights
-            Dict[Chunk, float]
-        ]
+AssociativeRuleDict = (
+    typ.Dict[
+        # Conclusion chunk
+        ConstructSymbol, 
+        # Condition chunks and corresponding weights for each rule associated 
+        # with given conclusion
+        typ.List[typ.Dict[ConstructSymbol, typ.Any]]
     ]
 ) 
-
-
-InterlevelAssociation =(
-    Dict[
-        Chunk,
-        Tuple[
-            # Dimensional weights
-            Dict[Hashable, float],
-            # Microfeatures 
-            Set[Microfeature]
-        ]
-    ]
+InterlevelAssociation = (
+    typ.Dict[
+        ConstructSymbol,
+        typ.Dict[
+            typ.Hashable, # Dimension 
+            typ.Tuple[
+                typ.Any, # Dimensional weight
+                typ.Set[ConstructSymbol] # Dimensional microfeatures
+            ]
+        ],
+     ]
 )
 
 
-class AssociativeRulesChannel(Channel[float]):
+class AssociativeRuleCollection(object):
 
-    def __init__(
-        self, 
-        assoc: AssociativeRuleSequence, 
-        default_activation: DefaultActivation
-    ) -> None:
+    def __init__(self, assoc = None, default_strength = None):
 
-        self.assoc = assoc
-        self.default_activation = default_activation
+        self.assoc: AssociativeRuleDict = assoc or dict()
+        self.default_strength = default_strength
 
-    def __call__(self, input_map):
+    def __call__(self, strengths):
         
-        output = ActivationPacket()
-        for conclusion, conditions in self.assoc:
-            strength = 0.
-            for cond in conditions: 
-                strength += (
-                    conditions[cond] * 
-                    input_map.get(cond, self.default_activation(cond))
-                )
-            try:
-                activation = max(output[conclusion], strength)
-            except KeyError:
-                activation = strength
-            output[conclusion] = activation
-        return output
+        d = dict()
+        for conc, conds in self.iter_assoc():
+            s = sum(
+                w * strengths.get(c, self.default_strength(c)) 
+                for c, w in conds.items()
+            )
+            if d.get(conc, self.default_strength(conc)) < s:
+                d[conc] = s
+        return d
+
+    def iter_assoc(self):
+
+        for conc, cond_list in self.assoc.items():
+            for conds in cond_list:
+                yield conc, conds
 
 
-class TopDownChannel(Channel[float]):
+class TopDownLinks(object):
 
-    def __init__(self, assoc: InterlevelAssociation) -> None:
+    def __init__(self, assoc = None, default_strength = None):
 
-        self.assoc = assoc
+        self.assoc: InterlevelAssociation = assoc or {}
+        self.default_strength = default_strength
 
-    def __call__(self, input_map):
+    def __call__(self, strengths):
 
-        output = ActivationPacket()
-        for node in input_map:
-            if isinstance(node, Chunk) and node in self.assoc:
-                weights, mfs = self.assoc[node]
+        d = {}
+        for chunk, weight, mf in self.iter_assoc():
+            s = weight * strengths.get(chunk, self.default_strength(chunk))
+            d[mf] = max(s, d.get(mf, self.default_strength(mf)))
+        return d
+
+    def iter_assoc(self):
+
+        for chunk, dim_dict in self.assoc.items():
+            for dim, (weight, mfs) in dim_dict.items():
                 for mf in mfs:
-                    new_activation = weights[mf.dim] * input_map[node]
-                    try:
-                        activation = max(output[mf], new_activation)
-                    except KeyError:
-                        activation = new_activation
-                    output[mf] = activation
-        return output
+                    yield chunk, weight, mf
 
 
-class BottomUpChannel(Channel[float]):
+class BottomUpLinks(object):
 
-    def __init__(self, assoc: InterlevelAssociation) -> None:
+    def __init__(self, assoc = None, default_strength = None):
 
-        self.assoc = assoc
+        self.assoc: InterlevelAssociation = assoc or {}
+        self.default_strength = default_strength
 
-    def __call__(self, input_map):
+    def __call__(self, strengths):
 
-        output = ActivationPacket()
-        for chunk in self.assoc:
-            weights, microfeatures = self.assoc[chunk]
-            dim_activations = dict()
-            for mf in microfeatures:
-                dim_activations[mf.dim] = max(
-                    dim_activations.get(mf.dim, self.default_activation(mf)),
-                    input_map.get(mf, self.default_activation(mf))
-                )
-            output[chunk] = self.default_activation()
-            for dim in dim_activations:
-                output[chunk] += (
-                    weights[dim] * dim_activations[dim]
-                )
-            output[chunk] /= len(weights) ** 1.1
-        return output
+        d = {}
+        for chunk, n_dim, weight, mfs in self.iter_assoc():
+            s_mf = max(
+                strengths.get(mf, self.default_strength(mf)) for mf in mfs
+            )
+            d[chunk] = (
+                d.get(chunk, self.default_strength(chunk)) + 
+                (weight * s_mf) / (n_dim ** 1.1)
+            )
+        return d
 
-    @staticmethod
-    def default_activation(node: Node = None):
+    def iter_assoc(self):
 
-        return 0.
+        for chunk, dim_dict in self.assoc.items():
+            n_dim = len(dim_dict)
+            for dim, (weight, mfs) in dim_dict.items():
+                yield chunk, n_dim, weight, mfs
 
 
-def may_connect(source: Any, target: Any) -> bool:
+def may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
     """Return true if source may send output to target."""
     
     possibilities = [
-        isinstance(source, Node) and isinstance(target, Appraisal),
         (
-            isinstance(source, Microfeature) and 
-            isinstance(target, Flow) and
-            (
-                target.flow_type == FlowType.BT or
-                target.flow_type == FlowType.BB
-            )
+            source.ctype in ConstructType.Node and 
+            target.ctype is ConstructType.Appraisal
         ),
         (
-            isinstance(source, Chunk) and 
-            isinstance(target, Flow) and
-            (
-                target.flow_type == FlowType.TB or
-                target.flow_type == FlowType.TT
-            )
+            source.ctype is ConstructType.Microfeature and
+            target.ctype is ConstructType.Flow and
+            typ.cast(FlowID, target.cid).ftype in FlowType.BB | FlowType.BT
         ),
         (
-            isinstance(source, Flow) and
-            isinstance(target, Microfeature) and
-            (
-                source.flow_type == FlowType.TB or 
-                source.flow_type == FlowType.BB
-            )
+            source.ctype is ConstructType.Chunk and
+            target.ctype is ConstructType.Flow and
+            typ.cast(FlowID, target.cid).ftype in FlowType.TT | FlowType.TB
         ),
         (
-            isinstance(source, Flow) and
-            isinstance(target, Chunk) and
-            (
-                source.flow_type == FlowType.BT or 
-                source.flow_type == FlowType.TT
-            )
+            source.ctype is ConstructType.Flow and
+            target.ctype is ConstructType.Microfeature and
+            typ.cast(FlowID, source.cid).ftype in FlowType.BB | FlowType.TB
         ),
         (
-            isinstance(source, Appraisal) and 
-            isinstance(target, Behavior)
+            source.ctype is ConstructType.Flow and
+            target.ctype is ConstructType.Chunk and
+            typ.cast(FlowID, source.cid).ftype in FlowType.TT | FlowType.BT
         ),
         (
-            isinstance(source, Buffer) and
-            isinstance(target, Node)
+            source.ctype is ConstructType.Appraisal and
+            target.ctype is ConstructType.Behavior 
         )
     ]
     return any(possibilities)
@@ -166,40 +146,32 @@ def may_connect(source: Any, target: Any) -> bool:
 def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     """Execute NACS activation propagation cycle on given realizer."""
 
-    # Update Chunks
     for node in realizer.nodes:
-        if isinstance(node, Chunk):
+        if node.ctype is ConstructType.Chunk:
             realizer[node].propagate()
 
-    # Propagate Top-down Flows
     for flow in realizer.flows:
-        if flow.flow_type == FlowType.TB:
+        if typ.cast(FlowID, flow.cid).ftype is FlowType.TB:
             realizer[flow].propagate()
     
-    # Update Microfeatures
     for node in realizer.nodes:
-        if isinstance(node, Microfeature):
+        if node.ctype is ConstructType.Microfeature:
             realizer[node].propagate()
     
-    # Simultaneously Process at Both Top and Bottom Levels
     for flow in realizer.flows:
-        if flow.flow_type in (FlowType.TT, FlowType.BB):
+        if typ.cast(FlowID, flow.cid).ftype in FlowType.TT | FlowType.BB:
             realizer[flow].propagate()
     
-    # Update All Nodes
     for node in realizer.nodes:
         realizer[node].propagate()
     
-    # Propagate Bottom-up Links
     for flow in realizer.flows:
-        if flow.flow_type == FlowType.BT:
+        if typ.cast(FlowID, flow.cid).ftype is FlowType.BT:
             realizer[flow].propagate()
     
-    # Update Chunks
     for node in realizer.nodes:
-        if isinstance(node, Chunk):
+        if node.ctype is ConstructType.Chunk:
             realizer[node].propagate()
     
-    # Update Appraisal(s)
     for appraisal in realizer.appraisals:
         realizer[appraisal].propagate()

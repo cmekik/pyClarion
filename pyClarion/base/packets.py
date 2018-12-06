@@ -14,23 +14,28 @@ selected node(s) is also included.
 
 
 import typing as typ
+import types
 import pyClarion.base.symbols as sym
 
 
 __all__ = [
     "ActivationPacket",
-    "DecisionPacket"
+    "DecisionPacket",
+    "make_packet"
 ]
 
 
-#####################
-### Type Aliases ####
-#####################
+####################
+### Type Aliases ###
+####################
 
 
-DefaultActivation = typ.Callable[[typ.Optional[sym.ConstructSymbol]], typ.Any]
-StrengthSequence = typ.Sequence[typ.Tuple[sym.ConstructSymbol, typ.Any]]
-StrengthMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
+ConstructSymbolMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
+ConstructSymbolCollection = typ.Collection[sym.ConstructSymbol]
+AppraisalData = typ.Tuple[
+    ConstructSymbolMapping, 
+    ConstructSymbolCollection
+]
 
 
 ###################
@@ -38,97 +43,65 @@ StrengthMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
 ###################
 
 
-class ActivationPacket(typ.Mapping[sym.ConstructSymbol, typ.Any]):
+class ActivationPacket(typ.NamedTuple):
     """
-    A datastructure for representing node activations and related info.
+    Represents node activations and related info.
     
-    It is expected that keys to `ActivationPacket` will be construct symbols 
-    representing chunk or microfeature nodes.
+    :param strengths: Mapping of node strengths.
+    :param origin: Construct symbol identifying source of activation packet.
     """
 
-    def __init__(
-        self, 
-        strengths: typ.Union[StrengthMapping, StrengthSequence],
-        origin: sym.ConstructSymbol = None
-    ) -> None:
-        '''
-        Initialize an ``ActivationPacket`` instance.
-
-        :param kvpairs: Node strengths.
-        :param origin: Origin of the activation packet.
-        '''
-
-        self._mapping = dict(strengths)
-        self.origin = origin
-
-    def __iter__(self):
-
-        return iter(self._mapping)
-
-    def __len__(self):
-
-        return len(self._mapping)
-
-    def __getitem__(self, key):
-
-        return self._mapping[key]
-
-    def __repr__(self) -> str:
-        
-        return ''.join(self._repr())
-
-    def copy(self) -> 'ActivationPacket':
-        """Return a shallow copy of self."""
-
-        return type(self)(self._mapping, self.origin)
-
-    def _repr(self) -> typ.List[str]:
-
-        pieces = [type(self).__name__, '(', repr(self._mapping)]
-        if self.origin:
-            pieces.extend((', origin=', repr(self.origin)))
-        pieces.append(')')
-        return pieces
+    strengths: ConstructSymbolMapping
+    origin: sym.ConstructSymbol
 
 
-class DecisionPacket(ActivationPacket):
+class DecisionPacket(typ.NamedTuple):
     """
-    A datastructure for representing the output of an appraisal routine.
+    Represents the result of an appraisal.
 
-    Contains information about selected chunks and strengths of actionable
-    chunks. Keys are expected to represent chunk nodes.
+    :param strengths: Mapping of node strengths.
+    :param chosen: Collection of selected actionable nodes.
+    :param origin: Construct symbol identifying source of activation packet.
     """
 
-    def __init__(
-        self, 
-        strengths: typ.Union[StrengthMapping, StrengthSequence],
-        chosen: typ.Sequence[sym.ConstructSymbol],
-        origin: sym.ConstructSymbol = None
-    ) -> None:
-        '''
-        Initialize a ``DecisionPacket`` instance.
+    strengths: ConstructSymbolMapping
+    chosen: ConstructSymbolCollection
+    origin: sym.ConstructSymbol
 
-        :param strengths: Strengths of actionable chunks.
-        :param chosen: Selected chunks.
-        :param origin: Origin of the decision.
-        '''
 
-        super().__init__(strengths, origin)
-        self._chosen = chosen
+def make_packet(
+        csym: sym.ConstructSymbol, 
+        data: typ.Union[ConstructSymbolMapping, AppraisalData]
+    ):
+    """
+    Create an activation or decision packet for a client construct.
+    
+    Assumes csym.ctype in Construct.BasicConstruct.
 
-    def copy(self) -> 'DecisionPacket':
+    :param csym: Client construct.
+    :param data: Output of an activation processor.
+    """
 
-        return type(self)(self._mapping, self.chosen, self.origin) 
+    packet: typ.Union[ActivationPacket, DecisionPacket]
 
-    def _repr(self) -> typ.List[str]:
-
-        pieces = super()._repr()
-        start, end = pieces[:3], pieces[3:]
-        middle = [", ", "chosen=", repr(self._chosen)]
-        return start + middle + end
-
-    @property
-    def chosen(self) -> typ.Sequence[sym.ConstructSymbol]:
-        """Selected chunks."""
-
-        return self._chosen
+    if csym.ctype in (
+        sym.ConstructType.Node | 
+        sym.ConstructType.Flow | 
+        sym.ConstructType.Buffer
+    ):  
+        smap = types.MappingProxyType(typ.cast(ConstructSymbolMapping, data))
+        packet = ActivationPacket(strengths=smap, origin=csym)
+    
+    elif csym.ctype is sym.ConstructType.Appraisal:
+        strengths, chosen = typ.cast(AppraisalData, data)
+        smap = types.MappingProxyType(strengths)
+        packet = DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
+    
+    else:
+        raise ValueError(
+            "Unexpected ctype {} in argument `csym` to make_packet".format(
+                str(csym.ctype)
+            )
+        )
+    
+    return packet

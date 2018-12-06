@@ -21,7 +21,7 @@ construct realizers and control their behavior.
 
 
 import typing as typ
-import enum
+import weakref
 import pyClarion.base.symbols as sym
 import pyClarion.base.packets as pkt
 
@@ -45,13 +45,23 @@ __all__ = [
 ####################
 
 
-Channel = typ.Callable[[pkt.ActivationPacket], pkt.ActivationPacket]
-Junction = typ.Callable[[typ.Iterable[pkt.ActivationPacket]], pkt.ActivationPacket]
-Selector = typ.Callable[[pkt.ActivationPacket], pkt.DecisionPacket]
+Channel = typ.Callable[[pkt.ConstructSymbolMapping], pkt.ConstructSymbolMapping]
+Junction = typ.Callable[
+    [typ.Iterable[pkt.ActivationPacket]], 
+    pkt.ConstructSymbolMapping
+]
+Selector = typ.Callable[[pkt.ConstructSymbolMapping], pkt.DecisionPacket]
 Effector = typ.Callable[[pkt.DecisionPacket], None]
-Source = typ.Callable[[], pkt.ActivationPacket]
+Source = typ.Callable[[], pkt.ConstructSymbolMapping]
 
-PullMethod = typ.Callable[[], pkt.ActivationPacket]
+PullMethod = typ.Callable[[], typ.Union[pkt.ActivationPacket, pkt.DecisionPacket]]
+InputBase = typ.MutableMapping[sym.ConstructSymbol, PullMethod]
+PacketMaker = typ.Callable[[sym.ConstructSymbol, typ.Any], typ.Any]
+Packets = typ.Union[
+    typ.Iterable[pkt.ActivationPacket],
+    typ.Iterable[pkt.DecisionPacket]
+]
+
 PropagationRule = typ.Callable[['SubsystemRealizer'], None]
 ConnectivityPredicate = typ.Callable[
     [sym.ConstructSymbol, sym.ConstructSymbol], bool
@@ -73,12 +83,15 @@ class InputMonitor(object):
 
     def __init__(self) -> None:
 
-        self._input_links: typ.Dict[sym.ConstructSymbol, PullMethod] = dict()
+        self._input_links: InputBase = {}
 
-    def pull(self) -> typ.Iterable[pkt.ActivationPacket]:
+    def pull(self) -> Packets:
         """Pull activations from input constructs."""
 
-        return (view() for view in self._input_links.values())
+        for view in self._input_links.values():
+            v = view()
+            if v:
+                yield v
 
     def watch(
         self, csym: sym.ConstructSymbol, pull_method: PullMethod
@@ -148,19 +161,18 @@ class ConstructRealizer(object):
     def check_csym(self, csym: sym.ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
 
-        if csym.ctype & type(self).ctype:
+        if csym.ctype not in type(self).ctype:
             raise ValueError(
                 " ".join(
                     [   
                         type(self).__name__,
-                        " expects construct symbol with ctype ",
+                        "expects construct symbol with ctype",
                         repr(type(self).ctype),
                         "but received symbol of ctype {}.".format(
                             repr(csym.ctype)
                         )
                     ]
                 )
-                 
             )
 
 
@@ -174,6 +186,7 @@ class BasicConstructRealizer(ConstructRealizer):
     otype: typ.Type = OutputView
     has_input: bool = True
     has_output: bool = True
+    make_packet: PacketMaker = pkt.make_packet
 
     def __init__(self, csym: sym.ConstructSymbol) -> None:
 
@@ -199,8 +212,8 @@ class NodeRealizer(BasicConstructRealizer):
     def propagate(self) -> None:
         """Output current strength of node."""
 
-        packet = self.junction(self.input.pull())
-        packet.origin = self.csym
+        smap = self.junction(self.input.pull())
+        packet = type(self).make_packet(self.csym, smap)
         self.output.update(packet)
 
 
@@ -221,8 +234,8 @@ class FlowRealizer(BasicConstructRealizer):
         """Compute new node activations."""
 
         combined = self.junction(self.input.pull())
-        packet = self.channel(combined)
-        packet.origin = self.csym
+        strengths = self.channel(combined)
+        packet = type(self).make_packet(self.csym, strengths)
         self.output.update(packet)
 
 
@@ -243,9 +256,9 @@ class AppraisalRealizer(BasicConstructRealizer):
         """Make and output a decision."""
 
         combined = self.junction(self.input.pull())
-        decision = self.selector(combined)
-        decision.origin = self.csym
-        self.output.update(decision)
+        appraisal_data = self.selector(combined)
+        decision_packet = type(self).make_packet(self.csym, appraisal_data)
+        self.output.update(decision_packet)
 
 
 class BehaviorRealizer(BasicConstructRealizer):
@@ -279,8 +292,8 @@ class BufferRealizer(BasicConstructRealizer):
     def propagate(self) -> None:
         """Output activation pattern in buffer."""
 
-        packet = self.source()
-        packet.origin = self.csym
+        strengths = self.source()
+        packet = type(self).make_packet(self.csym, strengths)
         self.output.update(packet)
 
 
@@ -316,20 +329,7 @@ class ContainerConstructRealizer(
 
     def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
 
-        if not self.may_contain(key):
-            raise ValueError(
-                "{} may not contain {}; forbidden construct type.".format(
-                    repr(self), repr(key)
-                )
-            )
-            
-        if key != value.construct:
-            raise ValueError(
-                "{} given key {} does not match value {}".format(
-                    repr(self), repr(key), repr(value)
-                )
-            )
-
+        self._check_kv_pair(key, value)
         self._dict[key] = value
 
     def __delitem__(self, key: typ.Any) -> None:
@@ -341,11 +341,33 @@ class ContainerConstructRealizer(
         
         return False
 
+    def insert_realizers(self, *realizers: ConstructRealizer) -> None:
+        """Add pre-initialized realizers to self."""
+
+        for realizer in realizers:
+            self[realizer.csym] = realizer
+
+    def _check_kv_pair(self, key: typ.Any, value: typ.Any) -> None:
+
+        if not self.may_contain(key):
+            raise ValueError(
+                "{} may not contain {}; forbidden construct type.".format(
+                    repr(self), repr(key)
+                )
+            )
+            
+        if key != value.csym:
+            raise ValueError(
+                "{} given key {} does not match value {}".format(
+                    repr(self), repr(key), repr(value)
+                )
+            )
+
     def _make_csym_iterable(
         self, ctype: sym.ConstructType
     ) -> typ.Iterable[sym.ConstructSymbol]:
 
-        return (csym for csym in self._dict if csym.ctype is ctype)
+        return (csym for csym in self._dict if csym.ctype in ctype)
 
 
 class SubsystemRealizer(ContainerConstructRealizer):
@@ -392,24 +414,24 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
         super().__setitem__(key, value)
 
-        for construct, realizer in self._dict.items():
-            if self.may_connect(construct, key):
-                value.input.watch(construct, realizer.output.view)
-            if self.may_connect(key, construct):
+        for csym, realizer in self._dict.items():
+            if self.may_connect(csym, key):
+                value.input.watch(csym, realizer.output.view)
+            if self.may_connect(key, csym):
                 realizer.input.watch(key, value.output.view)
 
     def __delitem__(self, key: typ.Any) -> None:
         """
         Remove given construct from self.
         
-        Any links to/from deleted construct will be dropped (uses 
-        ``self.may_connect``).
+        Any links within self to/from deleted construct will be dropped (uses 
+        ``self.may_connect``). External links will not be touched.
         """
 
         super().__delitem__(key)
 
-        for construct, realizer in self._dict.items():
-            if self.may_connect(key, construct):
+        for csym, realizer in self._dict.items():
+            if self.may_connect(key, csym):
                 realizer.input.drop(key)
 
     def propagate(self):
@@ -441,31 +463,33 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
     @property
     def nodes(self) -> typ.Iterable[sym.ConstructSymbol]:
-        """Subsystem nodes."""
+        """Iterable of subsystem nodes."""
         
         return self._make_csym_iterable(sym.ConstructType.Node)
 
     @property
     def flows(self) -> typ.Iterable[sym.ConstructSymbol]:
-        """Subsystem flows."""
+        """Iterable of subsystem flows."""
         
         return self._make_csym_iterable(sym.ConstructType.Flow)
 
     @property
     def appraisals(self) -> typ.Iterable[sym.ConstructSymbol]:
-        """Subsystem appraisals."""
+        """Iterable of subsystem appraisals."""
         
         return self._make_csym_iterable(sym.ConstructType.Appraisal)
 
     @property
     def behaviors(self) -> typ.Iterable[sym.ConstructSymbol]:
-        """Subsystem behaviors."""
+        """Iterable of subsystem behaviors."""
         
         return self._make_csym_iterable(sym.ConstructType.Behavior)
 
 
 class AgentRealizer(ContainerConstructRealizer):
     """Realizer for Agent constructs."""
+
+    ctype = sym.ConstructType.Agent
 
     def __init__(self, csym: sym.ConstructSymbol) -> None:
         """

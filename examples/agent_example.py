@@ -6,346 +6,243 @@ tell us the first thing that comes to her mind upon being presented with the
 chosen stimulus.
 """
 
-from typing import List, Iterable
 from pyClarion.base import *
 from pyClarion.components.processors import (
-    UpdateJunction, MaxJunction, BoltzmannSelector, MappingEffector, 
-    ConstantSource
+    UpdateJunction, MaxJunction, NodeMaxJunction, BoltzmannSelector, 
+    MappingEffector, ConstantSource
 )
 from pyClarion.components.nacs import (
-    AssociativeRulesChannel, TopDownChannel, BottomUpChannel, 
-    nacs_propagation_cycle, AssociativeRuleSequence, InterlevelAssociation, 
-    may_connect
+    AssociativeRuleCollection, TopDownLinks, BottomUpLinks, 
+    nacs_propagation_cycle, may_connect
 )
 
 
-class HeavyHandedUpdateManager(UpdateManager):
+#############
+### Setup ###
+#############
 
-    def __init__(self, behavior_recorder, nacs, toplevel_assoc, interlevel_assoc):
-
-        self.behavior_recorder = behavior_recorder
-        self.nacs = nacs
-        self.toplevel_assoc = toplevel_assoc
-        self.interlevel_assoc = interlevel_assoc
-    
-    def update(self) -> None:
-
-        self.nacs[Chunk("ORANGE")] = NodeRealizer(
-            Chunk("ORANGE"),
-            MaxJunction(),
-            default_activation
-        )
-        self.nacs[Microfeature("color", "#ffa500")] = NodeRealizer(
-            Microfeature("color", "#ffa500"), # "ORANGE"
-            MaxJunction(),
-            default_activation
-        )
-        self.toplevel_assoc.append(
-            (Chunk("FRUIT"), {Chunk("ORANGE"): 1.})
-        )
-        self.interlevel_assoc[Chunk("ORANGE")] = (
-            {
-                "color": 1.,
-                "tasty": 1.
-            },
-            {
-                Microfeature("color", "#ffa500"), # "ORANGE"
-                Microfeature("tasty", True)
-            }
-        )
-        top_down = self.nacs[Flow("NACS", flow_type=FlowType.TB)]
-        bottom_up = self.nacs[Flow("NACS", flow_type=FlowType.BT)]
-        assert Chunk("ORANGE") in top_down.channel.assoc
-        assert Chunk("ORANGE") in bottom_up.channel.assoc
-        self.nacs[Behavior("NACS")].effector.chunk2callback[Chunk("ORANGE")] = (
-            lambda: self.behavior_recorder.recorded_actions.append(
-                Chunk("ORANGE")
-            )
-        )
-
+### Simulation Environment ###
 
 class BehaviorRecorder(object):
 
     def __init__(self):
 
-        self.recorded_actions = []
+        self.actions = []
 
+# The object below allows us to record the agent's response
+recorder = BehaviorRecorder()
 
-def default_activation(node: Node = None):
+### Agent Setup ###
+
+# In this section, we'll create an agent named 'Alice' with some knowledge 
+# about fruits.
+
+# Constructs
+
+fruit_ck = Chunk("FRUIT")
+apple_ck = Chunk("APPLE")
+juice_ck = Chunk("JUICE")
+
+red_mf = Microfeature("color", "#ff0000")
+green_mf = Microfeature("color", "#008000")
+tasty_mf = Microfeature("tasty", True)
+liquid_mf = Microfeature("state", "liquid")
+sweet_mf = Microfeature("sweet", True)
+
+appraisal_nacs = Appraisal("NACS")
+
+nacs = Subsystem("NACS")
+stim_buf = Buffer("NACS Stimulus")
+
+# Alices's initial top-level knowledge
+
+toplevel_assoc = {fruit_ck: [{apple_ck: 1.}]}
+
+# Alice's initial inter-level associations
+
+interlevel_assoc = {
+    apple_ck: {
+        "color": (1., set([red_mf, green_mf])),
+        "tasty": (1., set([tasty_mf]))
+    },
+    juice_ck: {
+        "tasty": (1., set([tasty_mf])),
+        "state": (1., set([liquid_mf]))
+    },
+    fruit_ck: {
+        "tasty": (1., set([tasty_mf])),
+        "sweet": (1., set([sweet_mf]))
+    }
+}
+
+actions = {
+    apple_ck: lambda: recorder.actions.append(apple_ck),
+    juice_ck: lambda: recorder.actions.append(juice_ck),
+    fruit_ck: lambda: recorder.actions.append(fruit_ck)
+}
+
+def default_strength(node = None):
     
     return 0.0
 
+# NACS Prep
 
-if __name__ == '__main__':
+# Here, realizers are created for every initial piece of knowledge that alice 
+# has in addition to other important functional components of Alice's NACS.
+
+nacs_contents = [
+    NodeRealizer(apple_ck, NodeMaxJunction(apple_ck, default_strength)),
+    NodeRealizer(juice_ck, NodeMaxJunction(juice_ck, default_strength)),
+    NodeRealizer(fruit_ck, NodeMaxJunction(fruit_ck, default_strength)),
+    NodeRealizer(red_mf, NodeMaxJunction(red_mf, default_strength)),
+    NodeRealizer(green_mf, NodeMaxJunction(green_mf, default_strength)),
+    NodeRealizer(tasty_mf, NodeMaxJunction(tasty_mf, default_strength)),
+    NodeRealizer(sweet_mf, NodeMaxJunction(sweet_mf, default_strength)),
+    NodeRealizer(liquid_mf, NodeMaxJunction(liquid_mf, default_strength)),
+    FlowRealizer(
+        Flow("Associative Rules", FlowType.TT), 
+        UpdateJunction(),
+        AssociativeRuleCollection(toplevel_assoc, default_strength)
+    ),
+    FlowRealizer(
+        Flow("NACS", FlowType.TB),
+        UpdateJunction(),
+        TopDownLinks(interlevel_assoc, default_strength)
+    ),
+    FlowRealizer(
+        Flow("NACS", FlowType.BT),
+        UpdateJunction(),
+        BottomUpLinks(interlevel_assoc, default_strength)
+    ),
+    AppraisalRealizer(
+        appraisal_nacs,
+        UpdateJunction(),
+        BoltzmannSelector(temperature = .1)
+    ),
+    BehaviorRealizer(Behavior("NACS"), MappingEffector(actions))
+]
+
+# We create an AgentRealizer representing alice
+alice = AgentRealizer(Agent("Alice"))
+
+# We add an NACS
+alice[nacs] = SubsystemRealizer(nacs, nacs_propagation_cycle, may_connect)
+
+# We insert the components defined above into Alice's NACS
+alice[nacs].insert_realizers(*nacs_contents)
+
+# We add a buffer enabling stimulation of Alice's NACS
+alice[stim_buf] = BufferRealizer(stim_buf, ConstantSource())
+
+# Next, we connect the stimulus buffer to Alice's NACS nodes
+for csym, realizer in alice[nacs].items():
+    if csym.ctype in ConstructType.Node:
+        realizer.input.watch(stim_buf, alice[stim_buf].output.view)
 
 
-    #############
-    ### SETUP ###
-    #############
+##################
+### Simulation ###
+##################
 
-    ### Environment Setup ###
+# The stimulus buffer is set to provide constant activation to the Apple 
+# chunk. This represents presentation of the concept APPLE. Note that there 
+# are simplifications. For instance, it is assumed that Alice is made to 
+# understand that the cue is APPLE, the fruit, and not e.g., APPLE, the 
+# company. 
+alice[stim_buf].source.update({apple_ck: 1.})
+
+# Another limitation of this model: in cued association, subjects tend not 
+# to return the cue as their response but this is not the case for Alice. 
+# Cue suppression requires input/output filtering, which is a function not 
+# included in the current simulation. 
+
+# Alice performs one NACS cycle. 
+alice.propagate()
+
+# Alice responds.
+alice.execute()
+
+
+# We can look at the exact state of Alice's NACS at the end of its 
+# activation cycle.
+
+print("Initial Trial")
+for c in alice[nacs]:
+    if c.ctype in ConstructType.Node:
+        print(" ", c, round(alice[nacs][c].output.view().strengths[c], 3))
+print(" ", "Appraisal:")
+for c, s in alice[nacs][appraisal_nacs].output.view().strengths.items():
+    print("   ", c, round(s, 3))
+print(" ", "Response:", recorder.actions.pop())
+
+################
+### Learning ###
+################
+
+# Learning is an essential part of Clarion, so a simple example below 
+# demonstrates learning in pyClarion. Note that we will simply be modifying 
+# Alice on the fly to enable learning. 
+
+# First, we must define a learning routine. This will do:
+
+class HeavyHandedLearningRoutine(object):
+    # This routine simply injects some preset knowledge into the NACS.
+
+    def __init__(self, recorder, nacs, toplevel_assoc, interlevel_assoc):
+
+        self.recorder = recorder
+        self.nacs = nacs
+        self.toplevel_assoc = toplevel_assoc
+        self.interlevel_assoc = interlevel_assoc
     
-    # The object below allows us to record the agent's response
-    behavior_recorder = BehaviorRecorder()
+    def __call__(self) -> None:
 
-    ### End Environment Setup ###
+        fruit_ck = Chunk("FRUIT")
+        orange_ck = Chunk("ORANGE")
+        orange_color_mf = Microfeature("color", "#ffa500")
+        tasty_mf = Microfeature("tasty", True)
+        top_down_flow = Flow("NACS", ftype=FlowType.TB)
+        bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
+        behavior = Behavior("NACS")
 
-    ### Agent Setup ###
-        # In this section, we'll create an agent named 'Alice' with some 
-        # knowledge about fruits.
-
-    # Alices's initial top-level knowledge
-
-    toplevel_assoc: AssociativeRuleSequence = [
-        (
-            Chunk("FRUIT"),
-            {
-                Chunk("APPLE"): 1.,
-            }
+        self.nacs[orange_ck] = NodeRealizer(
+            orange_ck, NodeMaxJunction(orange_ck, default_strength)
         )
-    ]
-
-    # Alice's initial inter-level associations
-
-    interlevel_assoc: InterlevelAssociation = {
-        Chunk("APPLE"): (
-            {
-                "color": 1.,
-                "tasty": 1.
-            },
-            {
-                Microfeature("color", "#ff0000"), # "RED"
-                Microfeature("color", "#008000"), # "GREEN"
-                Microfeature("tasty", True)
-            }
-        ),
-        Chunk("JUICE"): (
-            {
-                "tasty": 1.,
-                "state": 1.
-            },
-            {
-                Microfeature("tasty", True),
-                Microfeature("state", "liquid")
-            }
-        ),
-        Chunk("FRUIT"): (
-            {
-                "tasty": 1.,
-                "sweet": 1.
-            },
-            {
-                Microfeature("tasty", True),
-                Microfeature("sweet", True)
-            }
-        ) 
-    }
-
-    # NACS Prep
-        # Here, realizers are created for every initial piece of knowledge that 
-        # alice has in addition to other important functional components of 
-        # Alice's NACS.
-
-    nacs_contents: List = [
-        NodeRealizer(
-            construct=Chunk("APPLE"), 
-            junction=MaxJunction(),
-            default_activation=default_activation
-        ),
-        NodeRealizer(
-            Chunk("JUICE"), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Chunk("FRUIT"), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Microfeature("color", "#ff0000"), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Microfeature("color", "#008000"), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Microfeature("tasty", True), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Microfeature("sweet", True), 
-            MaxJunction(),
-            default_activation
-        ),
-        NodeRealizer(
-            Microfeature("state", "liquid"), 
-            MaxJunction(),
-            default_activation
-        ),
-        FlowRealizer(
-            Flow("GKS", flow_type=FlowType.TT),
-            UpdateJunction(),
-            AssociativeRulesChannel(
-                assoc = toplevel_assoc,
-                default_activation = default_activation
-            ),
-            default_activation=default_activation
-        ),
-        FlowRealizer(
-            Flow("NACS", flow_type=FlowType.TB),
-            UpdateJunction(),
-            TopDownChannel(
-                assoc = interlevel_assoc
-            ),
-            default_activation=default_activation
-        ),
-        FlowRealizer(
-            Flow("NACS", flow_type=FlowType.BT),
-            UpdateJunction(),
-            BottomUpChannel(
-                assoc = interlevel_assoc
-            ),
-            default_activation=default_activation
-        ),
-        AppraisalRealizer(
-            Appraisal("NACS"),
-            UpdateJunction(),
-            BoltzmannSelector(
-                temperature = .1
-            )
-        ),
-        BehaviorRealizer(
-            Behavior("NACS"),
-            MappingEffector(
-                chunk2callback={
-                    Chunk("APPLE"): lambda: behavior_recorder.recorded_actions.append(Chunk("APPLE")),
-                    Chunk("JUICE"): lambda: behavior_recorder.recorded_actions.append(Chunk("JUICE")),
-                    Chunk("FRUIT"): lambda: behavior_recorder.recorded_actions.append(Chunk("FRUIT"))
-                }
-            )
+        self.nacs[orange_color_mf] = NodeRealizer(
+            orange_color_mf, NodeMaxJunction(orange_color_mf, default_strength)
         )
-    ]
-
-    # We create an AgentRealizer representing alice
-    alice = AgentRealizer(Agent("Alice"))
-    
-    # We add an NACS
-    alice[Subsystem("NACS")] = SubsystemRealizer(
-        Subsystem("NACS"), nacs_propagation_cycle, may_connect
-    )
-    
-    # We insert the components defined above into Alice's NACS
-    for r in nacs_contents:
-        alice[Subsystem("NACS")][r.construct] = r
-
-    # We add a buffer enabling stimulation of Alice's NACS
-    alice[Buffer("NACS Stimulus")] = BufferRealizer(
-        construct=Buffer("NACS Stimulus"),
-        source=ConstantSource(),
-        default_activation=default_activation
-    )
-
-    # Next, we connect the stimulus buffer to Alice's NACS nodes
-    for construct, realizer in alice[Subsystem("NACS")].items():
-        if may_connect(Buffer("NACS Stimulus"), construct):
-            realizer.input.watch(
-                Buffer("NACS Stimulus"), 
-                alice[Buffer("NACS Stimulus")].output.view
-            )
-
-    # Finally, we attach an update manager to handle learning.
-    # This update manager is heavy-handed: it simply injects some preset 
-    # knowledge into the NACS.
-    alice.attach(
-        HeavyHandedUpdateManager(
-            behavior_recorder, alice[Subsystem("NACS")], 
-            toplevel_assoc, interlevel_assoc
+        self.toplevel_assoc[fruit_ck].append({orange_ck: 1.})
+        self.interlevel_assoc[orange_ck] = {
+                "color": (1., set([orange_color_mf])),
+                "tasty": (1., set([tasty_mf]))
+            }
+        self.nacs[behavior].effector.chunk2callback[orange_ck] = (
+            lambda: self.recorder.actions.append(orange_ck)
         )
+
+# Once we have a routine, we simply attach it to Alice. That's it!
+alice.attach(
+    HeavyHandedLearningRoutine(
+        recorder, alice[nacs], toplevel_assoc, interlevel_assoc
     )
+)
 
-    ### End Agent Setup ###
+# The code below repeats the same task, but only after Alice suddenly and 
+# inexplicably learns about oranges!
 
-    ##################
-    ### SIMULATION ###
-    ##################
+# Here is the learning part.
+alice.learn()
 
-    ### First Trial ###
+# Now we run through the trial again (previous activations persist).
+alice.propagate()
+alice.execute()
 
-    # The stimulus buffer is set to provide constant activation to the Apple 
-    # chunk. This represents presentation of the concept APPLE. Note that there 
-    # are simplifications. For instance, it is assumed that Alice is made to 
-    # understand that the cue is APPLE, the fruit, and not e.g., APPLE, the 
-    # company. 
-    alice[Buffer("NACS Stimulus")].source.update(
-        ActivationPacket({Chunk("APPLE"): 1.})
-    )
-
-    # Another limitation of this model: in cued association, subjects tend not 
-    # to return the cue as their response but this is not the case for Alice. 
-    # Cue suppression requires input/output filtering, which is a function not 
-    # included in the current simulation. 
-
-    # Alice performs one NACS cycle 
-    alice.propagate()
-
-    # Alice responds
-    alice.execute()
-
-
-    ### End First Trial ###
-
-    # We can look at the exact state of Alice's NACS at the end of its 
-    # activation cycle.
-    print("TRIAL 1")
-    for c in alice[Subsystem("NACS")]:
-        if not isinstance(c, Behavior):
-            print(alice[Subsystem("NACS")][c].output.view())
-
-    ### Start Second Trial ###
-
-    # To demonstrate learning, the code below repeats the same task, but only 
-    # after Alice suddenly and inexplicably learns about oranges.
-
-    alice.learn()
-
-    # Now we run through the trial again
-    alice.propagate()
-    alice.execute()
-
-    ### End Second Trial ###
-
-    # Here is Alice's cognitive state at the end of the second trial
-    print("TRIAL 2")
-    for c in alice[Subsystem("NACS")]:
-        if not isinstance(c, Behavior):
-            print(alice[Subsystem("NACS")][c].output.view())
-
-    # Activations persist, even after we remove the stimulus:
-    alice[Buffer("NACS Stimulus")].source.clear()
-
-    print(alice[Buffer("NACS Stimulus")].source.packet)
-
-    # Residual activations will continue to spread. Activations will eventually 
-    # decay, though slowly.
-    for i in range(0):
-        alice.propagate()
-        alice.execute()
-        print("POST-STIMULUS CYCLE {}".format(str(1 + i)))
-        for c in alice[Subsystem("NACS")]:
-            if not isinstance(c, Behavior):
-                print(alice[Subsystem("NACS")][c].output.view())
-
-    # We can also observe her responses in the simulation environment.
-    print("RESPONSES") 
-    print(behavior_recorder.recorded_actions)
-
-    ###########
-    ### END ###
-    ###########
-
-    # A record of the output of this simulation may be found in agent_example.log.
+# Here is Alice's cognitive state at the end of the trial.
+print("With Learning")
+for c in alice[nacs]:
+    if c.ctype in ConstructType.Node:
+        print(" ", c, round(alice[nacs][c].output.view().strengths[c], 3))
+print(" ", "Appraisal:")
+for c, s in alice[nacs][appraisal_nacs].output.view().strengths.items():
+    print("   ", c, round(s, 3))
+print(" ", "Response:", recorder.actions.pop())

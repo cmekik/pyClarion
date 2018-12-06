@@ -145,7 +145,7 @@ class FlowID(typ.NamedTuple):
 # not `chunk()` to allow use of `chunk` as a variable name by the user.
 
 
-def Microfeature(dim: typ.Hashable, val: typ.Hashable):
+def Microfeature(dim: typ.Hashable, val: typ.Hashable) -> ConstructSymbol:
     """
     Return a new microfeature symbol.
     
@@ -158,7 +158,7 @@ def Microfeature(dim: typ.Hashable, val: typ.Hashable):
     return ConstructSymbol(ConstructType.Microfeature, DVPair(dim, val))
 
 
-def Chunk(cid: typ.Hashable):
+def Chunk(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new chunk symbol.
 
@@ -168,7 +168,7 @@ def Chunk(cid: typ.Hashable):
     return ConstructSymbol(ConstructType.Chunk, cid)
 
 
-def Flow(name: typ.Hashable, ftype: FlowType):
+def Flow(name: typ.Hashable, ftype: FlowType) -> ConstructSymbol:
     """
     Return a new flow symbol.
 
@@ -181,7 +181,7 @@ def Flow(name: typ.Hashable, ftype: FlowType):
     return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
 
 
-def Appraisal(cid: typ.Hashable):
+def Appraisal(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new appraisal symbol.
 
@@ -191,7 +191,7 @@ def Appraisal(cid: typ.Hashable):
     return ConstructSymbol(ConstructType.Appraisal, cid)
 
 
-def Behavior(cid: typ.Hashable):
+def Behavior(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new behavior symbol.
 
@@ -201,7 +201,7 @@ def Behavior(cid: typ.Hashable):
     return ConstructSymbol(ConstructType.Behavior, cid)
 
 
-def Buffer(cid: typ.Hashable):
+def Buffer(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new buffer symbol.
 
@@ -212,7 +212,7 @@ def Buffer(cid: typ.Hashable):
 
 
 
-def Subsystem(cid: typ.Hashable):
+def Subsystem(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new subsystem symbol.
 
@@ -222,7 +222,7 @@ def Subsystem(cid: typ.Hashable):
     return ConstructSymbol(ConstructType.Subsystem, cid)
 
 
-def Agent(cid: typ.Hashable):
+def Agent(cid: typ.Hashable) -> ConstructSymbol:
     """
     Return a new agent symbol.
 
