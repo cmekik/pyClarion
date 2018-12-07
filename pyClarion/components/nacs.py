@@ -110,42 +110,6 @@ class BottomUpLinks(object):
                 yield chunk, n_dim, weight, mfs
 
 
-def nacs_may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
-    """Return true if source may send output to target in NACS."""
-    
-    possibilities = [
-        (
-            source.ctype in ConstructType.Node and 
-            target.ctype is ConstructType.Appraisal
-        ),
-        (
-            source.ctype is ConstructType.Microfeature and
-            target.ctype is ConstructType.Flow and
-            typ.cast(FlowID, target.cid).ftype in FlowType.BB | FlowType.BT
-        ),
-        (
-            source.ctype is ConstructType.Chunk and
-            target.ctype is ConstructType.Flow and
-            typ.cast(FlowID, target.cid).ftype in FlowType.TT | FlowType.TB
-        ),
-        (
-            source.ctype is ConstructType.Flow and
-            target.ctype is ConstructType.Microfeature and
-            typ.cast(FlowID, source.cid).ftype in FlowType.BB | FlowType.TB
-        ),
-        (
-            source.ctype is ConstructType.Flow and
-            target.ctype is ConstructType.Chunk and
-            typ.cast(FlowID, source.cid).ftype in FlowType.TT | FlowType.BT
-        ),
-        (
-            source.ctype is ConstructType.Appraisal and
-            target.ctype is ConstructType.Behavior 
-        )
-    ]
-    return any(possibilities)
-
-
 def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     """Execute NACS activation cycle on given subsystem realizer."""
 

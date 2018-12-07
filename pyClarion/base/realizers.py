@@ -59,7 +59,13 @@ PropagationRule = typ.Callable[['SubsystemRealizer'], None]
 ConnectivityPredicate = typ.Callable[
     [sym.ConstructSymbol, sym.ConstructSymbol], bool
 ]
-
+HasInput = typ.Union[
+    'NodeRealizer', 'FlowRealizer', 'AppraisalRealizer', 'BehaviorRealizer', 
+    'SubsystemRealizer'
+]
+HasOutput = typ.Union[
+    'NodeRealizer', 'FlowRealizer', 'AppraisalRealizer', 'BufferRealizer', 
+]
 
 ######################
 ### Helper Classes ###
@@ -176,6 +182,10 @@ class ConstructRealizer(object):
     def __repr__(self) -> typ.Text:
 
         return "{}({})".format(type(self).__name__, repr(self.csym))
+
+    def propagate(self) -> None:
+
+        raise NotImplementedError()
 
     def _check_csym(self, csym: sym.ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
@@ -345,14 +355,24 @@ class ContainerConstructRealizer(
 
         self._check_kv_pair(key, value)
         self._dict[key] = value
+        self._connect(key, value)
 
     def __delitem__(self, key: typ.Any) -> None:
 
         del self._dict[key]
 
+        for csym, realizer in self.items():
+            if self.may_connect(key, csym):
+                typ.cast(HasInput, realizer).input.drop(key)
+
     def may_contain(self, csym: sym.ConstructSymbol) -> bool:
         """Return true if container construct may contain csym."""
         
+        return False
+
+    def may_connect(self, source, target):
+        """Return true if source may send output to target."""
+
         return False
 
     def insert_realizers(self, *realizers: ConstructRealizer) -> None:
@@ -361,20 +381,20 @@ class ContainerConstructRealizer(
         for realizer in realizers:
             self[realizer.csym] = realizer
 
-    def csym_iterable(
+    def iter_ctype(
         self, ctype: sym.ConstructType
     ) -> typ.Iterable[sym.ConstructSymbol]:
         """Return an iterator over all members matching ctype."""
 
-        return (csym for csym in self._dict if csym.ctype in ctype)
+        return (csym for csym in self if csym.ctype in ctype)
 
-    def csym_items_iterable(
+    def items_ctype(
         self, ctype: sym.ConstructType
     ) -> typ.Iterable[typ.Tuple[sym.ConstructSymbol, ConstructRealizer]]:
         """Return an iterator over all csym-realizer pairs matching ctype."""
 
         return (
-            (csym, realizer) for csym, realizer in self._dict.items() 
+            (csym, realizer) for csym, realizer in self.items() 
             if csym.ctype in ctype
         )
 
@@ -394,6 +414,18 @@ class ContainerConstructRealizer(
                 )
             )
 
+    def _connect(self, key: typ.Any, value: typ.Any):
+
+        for csym, realizer in self.items():
+            if self.may_connect(csym, key):
+                value = typ.cast(HasInput, value)
+                realizer = typ.cast(HasOutput, realizer)
+                value.input.watch(csym, realizer.output.view)
+            if self.may_connect(key, csym):
+                value = typ.cast(HasOutput, value)
+                realizer = typ.cast(HasInput, realizer)
+                realizer.input.watch(key, value.output.view)
+
 
 class SubsystemRealizer(ContainerConstructRealizer):
     """A network of node, flow, apprasial, and behavior realizers."""
@@ -402,10 +434,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
     itype = SubsystemInputMonitor
 
     def __init__(
-        self, 
-        csym: sym.ConstructSymbol, 
-        propagation_rule: PropagationRule, 
-        may_connect: ConnectivityPredicate
+        self, csym: sym.ConstructSymbol, propagation_rule: PropagationRule, 
     ) -> None:
         """
         Initialize a new subsystem realizer.
@@ -414,51 +443,20 @@ class SubsystemRealizer(ContainerConstructRealizer):
         :param propagation_rule: Function implementing desired activation 
             propagation sequence. Should expect a single SubsystemRealizer as 
             argument. 
-        :param may_connect: Predicate determining whether a source construct 
-            may send activation packets to a target construct. Used to 
-            automatically connect new constructs to existing constructs. Must 
-            be a callable accepting two arguments, where the first argument is 
-            the source construct and the second argument is the target 
-            construct.
         """
 
         super().__init__(csym)
         self.propagation_rule = propagation_rule
-        self.may_connect = may_connect
         self.input = type(self).itype(self._watch, self._drop)
 
     def __setitem__(self, key: typ.Any, value: typ.Any) -> None:
-        """
-        Add given construct and realizer pair to self.
-        
-        Automatically integrates realizer I/O into existing network. 
-        """
+        """Add given construct and realizer pair to self."""
 
         super().__setitem__(key, value)
-
-        for csym, realizer in self._dict.items():
-            if self.may_connect(csym, key):
-                value.input.watch(csym, realizer.output.view)
-            if self.may_connect(key, csym):
-                realizer.input.watch(key, value.output.view)
 
         if key.ctype in sym.ConstructType.Node:
             for buffer, pull_method in self.input.input_links.items():
                 value.input.watch(buffer, pull_method)
-
-    def __delitem__(self, key: typ.Any) -> None:
-        """
-        Remove given construct from self.
-        
-        Any links within self to/from deleted construct will be dropped. 
-        External links will not be touched.
-        """
-
-        super().__delitem__(key)
-
-        for csym, realizer in self._dict.items():
-            if self.may_connect(key, csym):
-                realizer.input.drop(key)
 
     def propagate(self):
         """Propagate activations among realizers owned by self."""
@@ -483,12 +481,52 @@ class SubsystemRealizer(ContainerConstructRealizer):
             )            
         )
 
+    def may_connect(
+        self, source: sym.ConstructSymbol, target: sym.ConstructSymbol
+    ) -> bool:
+        
+        possibilities = [
+            (
+                target.ctype is sym.ConstructType.Appraisal and
+                source.ctype & typ.cast(sym.AppraisalID, target.cid).itype
+            ),
+            (
+                target.ctype is sym.ConstructType.Behavior and
+                source is typ.cast(sym.BehaviorID, target.cid).appraisal
+            ),
+            (
+                source.ctype is sym.ConstructType.Microfeature and
+                target.ctype is sym.ConstructType.Flow and
+                typ.cast(sym.FlowID, target.cid).ftype & 
+                sym.FlowType.BB | sym.FlowType.BT
+            ),
+            (
+                source.ctype is sym.ConstructType.Chunk and
+                target.ctype is sym.ConstructType.Flow and
+                typ.cast(sym.FlowID, target.cid).ftype & 
+                sym.FlowType.TT | sym.FlowType.TB
+            ),
+            (
+                source.ctype is sym.ConstructType.Flow and
+                target.ctype is sym.ConstructType.Microfeature and
+                typ.cast(sym.FlowID, source.cid).ftype & 
+                sym.FlowType.BB | sym.FlowType.TB
+            ),
+            (
+                source.ctype is sym.ConstructType.Flow and
+                target.ctype is sym.ConstructType.Chunk and
+                typ.cast(sym.FlowID, source.cid).ftype & 
+                sym.FlowType.TT | sym.FlowType.BT
+            )
+        ]
+        return any(possibilities)
+
     def _watch(
         self, identifier: typ.Hashable, pull_method: PullMethod
     ) -> None:
         """Informs members of a new input to self."""
 
-        for _, realizer in self.csym_items_iterable(sym.ConstructType.Node):
+        for _, realizer in self.items_ctype(sym.ConstructType.Node):
             typ.cast(BasicConstructRealizer, realizer).input.watch(
                 identifier, pull_method
             )
@@ -496,28 +534,28 @@ class SubsystemRealizer(ContainerConstructRealizer):
     def _drop(self, identifier: typ.Hashable) -> None:
         """Informs members of a dropped input to self."""
 
-        for _, realizer in self.csym_items_iterable(sym.ConstructType.Node):
+        for _, realizer in self.items_ctype(sym.ConstructType.Node):
             typ.cast(BasicConstructRealizer, realizer).input.drop(identifier)
 
     @property
     def nodes(self) -> typ.Iterable[sym.ConstructSymbol]:
         
-        return self.csym_iterable(sym.ConstructType.Node)
+        return self.iter_ctype(sym.ConstructType.Node)
 
     @property
     def flows(self) -> typ.Iterable[sym.ConstructSymbol]:
         
-        return self.csym_iterable(sym.ConstructType.Flow)
+        return self.iter_ctype(sym.ConstructType.Flow)
 
     @property
     def appraisals(self) -> typ.Iterable[sym.ConstructSymbol]:
         
-        return self.csym_iterable(sym.ConstructType.Appraisal)
+        return self.iter_ctype(sym.ConstructType.Appraisal)
 
     @property
     def behaviors(self) -> typ.Iterable[sym.ConstructSymbol]:
         
-        return self.csym_iterable(sym.ConstructType.Behavior)
+        return self.iter_ctype(sym.ConstructType.Behavior)
 
 
 class AgentRealizer(ContainerConstructRealizer):
@@ -578,6 +616,20 @@ class AgentRealizer(ContainerConstructRealizer):
             sym.ConstructType.Buffer
         )
 
+    def may_connect(
+        self, source: sym.ConstructSymbol, target: sym.ConstructSymbol
+    ) -> bool:
+        
+        possibilities = [
+            (
+                source.ctype is sym.ConstructType.Buffer and
+                target.ctype is sym.ConstructType.Subsystem and
+                target in typ.cast(sym.BufferID, source.cid).outputs
+            )
+        ]
+
+        return any(possibilities)
+
     @property
     def updaters(self) -> typ.Iterable[typ.Callable[[], None]]:
         
@@ -586,9 +638,9 @@ class AgentRealizer(ContainerConstructRealizer):
     @property
     def buffers(self) -> typ.Iterable[sym.ConstructSymbol]:
 
-        return self.csym_iterable(sym.ConstructType.Buffer)
+        return self.iter_ctype(sym.ConstructType.Buffer)
 
     @property
     def subsystems(self) -> typ.Iterable[sym.ConstructSymbol]:
 
-        return self.csym_iterable(sym.ConstructType.Subsystem)
+        return self.iter_ctype(sym.ConstructType.Subsystem)

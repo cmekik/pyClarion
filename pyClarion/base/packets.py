@@ -60,17 +60,15 @@ class DecisionPacket(typ.NamedTuple):
 def make_packet(
         csym: sym.ConstructSymbol, 
         data: typ.Union[ConstructSymbolMapping, AppraisalData]
-    ):
+    ) -> typ.Union[ActivationPacket, DecisionPacket]:
     """
     Create an activation or decision packet for a client construct.
     
-    Assumes csym.ctype in Construct.BasicConstruct.
+    Assumes csym.ctype in ConstructType.BasicConstruct.
 
     :param csym: Client construct.
     :param data: Output of an activation processor.
     """
-
-    packet: typ.Union[ActivationPacket, DecisionPacket]
 
     if csym.ctype in (
         sym.ConstructType.Node | 
@@ -78,16 +76,14 @@ def make_packet(
         sym.ConstructType.Buffer
     ):  
         smap = types.MappingProxyType(typ.cast(ConstructSymbolMapping, data))
-        packet = ActivationPacket(strengths=smap, origin=csym)
+        return ActivationPacket(strengths=smap, origin=csym)
     elif csym.ctype is sym.ConstructType.Appraisal:
         strengths, chosen = typ.cast(AppraisalData, data)
         smap = types.MappingProxyType(strengths)
-        packet = DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
+        return DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
     else:
         raise ValueError(
             "Unexpected ctype {} in argument `csym` to make_packet".format(
                 str(csym.ctype)
             )
         )
-    
-    return packet

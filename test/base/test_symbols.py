@@ -30,7 +30,7 @@ class ConstructSymbolTest(unittest.TestCase):
 class ConstructTypeTest(unittest.TestCase):
 
     def test_str(self):
-        """Str should pretty print for named flag states, otherwise use repr."""
+        "Str should pretty print for named flag states, otherwise use repr."
 
         with self.subTest(i="named state"):
             ctype = ConstructType.Node
@@ -41,3 +41,79 @@ class ConstructTypeTest(unittest.TestCase):
             ctype = ConstructType.Chunk | ConstructType.Subsystem
             s = str(ctype)
             self.assertEqual(s, repr(ctype))
+
+
+class ConstructFactoryTest(unittest.TestCase):
+    """Sanity checks for construct symbol factories."""
+
+    def assertCtypeIs(self, csym, ctype):
+        """Assert csym.ctype is ctype."""
+
+        self.assertIs(csym.ctype, ctype)
+
+    def assertCidTypeIs(self, csym, cidtype):
+        """Assert type(csym.cid) is cidtype"""
+
+        self.assertIs(type(csym.cid), cidtype)
+
+    def setUp(self):
+
+        self.data = [
+            (
+                Microfeature, 
+                ("dim", "val"), 
+                ConstructType.Microfeature, 
+                DVPair
+            ),
+            (
+                Chunk,
+                ("name",),
+                ConstructType.Chunk,
+                None
+            ),
+            (
+                Flow, 
+                ("name", FlowType.TT), 
+                ConstructType.Flow, 
+                FlowID
+            ),
+            (
+                Appraisal, 
+                ("name", ConstructType.Chunk), 
+                ConstructType.Appraisal, 
+                AppraisalID
+            ),
+            (
+                Behavior,
+                ("name", Appraisal("name", ConstructType.Chunk)),
+                ConstructType.Behavior,
+                BehaviorID
+            ),
+            (
+                Buffer,
+                ("name", (Subsystem("name1"), Subsystem("name2"))),
+                ConstructType.Buffer,
+                BufferID
+            ),
+            (
+                Subsystem,
+                ("name",),
+                ConstructType.Subsystem,
+                None
+            ),
+            (
+                Agent,
+                ("name",),
+                ConstructType.Agent,
+                None
+            )
+        ]
+
+    def test_factories(self):
+
+        for factory, params, ctype, cid_type in self.data:
+            with self.subTest(i = "{} factory".format(factory.__name__)):
+                csym = factory(*params)
+                self.assertCtypeIs(csym, ctype)
+                if cid_type is not None:
+                    self.assertCidTypeIs(csym, cid_type)

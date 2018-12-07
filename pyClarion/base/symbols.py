@@ -3,9 +3,9 @@
 
 # Notes For Readers
 
-#   - This file consists of two major sections. The first major section contains 
-#     class definitions, the second major section contains construct symbol 
-#     factory functions.
+# - This file consists of two major sections. The first major section 
+#   contains class definitions, the second major section contains construct 
+#   symbol factory functions.
 
 
 import typing as typ
@@ -18,6 +18,9 @@ __all__ = [
     "FlowType",
     "DVPair",
     "FlowID",
+    "AppraisalID",
+    "BehaviorID",
+    "BufferID",
     "Microfeature",
     "Chunk",
     "Flow",
@@ -118,6 +121,27 @@ class FlowID(typ.NamedTuple):
     ftype: FlowType
 
 
+class AppraisalID(typ.NamedTuple):
+    """Represents name, input construct type, and outputs of an appraisal."""
+
+    name: typ.Hashable
+    itype: ConstructType
+
+
+class BehaviorID(typ.NamedTuple):
+    """Represents the name and client appraisal of a behavior."""
+
+    name: typ.Hashable
+    appraisal: ConstructSymbol
+
+
+class BufferID(typ.NamedTuple):
+    """Represents the name and output destinations of a buffer."""
+
+    name: typ.Hashable
+    outputs: typ.Sequence[ConstructSymbol]
+
+
 ##################################
 ### Construct Symbol Factories ###
 ##################################
@@ -164,34 +188,39 @@ def Flow(name: typ.Hashable, ftype: FlowType) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
 
 
-def Appraisal(cid: typ.Hashable) -> ConstructSymbol:
+def Appraisal(name: typ.Hashable, itype: ConstructType) -> ConstructSymbol:
     """
     Return a new appraisal symbol.
 
     :param cid: Appraisal identifier.
     """
 
-    return ConstructSymbol(ConstructType.Appraisal, cid)
+    return ConstructSymbol(ConstructType.Appraisal, AppraisalID(name, itype))
 
 
-def Behavior(cid: typ.Hashable) -> ConstructSymbol:
+def Behavior(
+    name: typ.Hashable, appraisal: ConstructSymbol
+) -> ConstructSymbol:
     """
     Return a new behavior symbol.
 
-    :param cid: Behavior identifier.
+    :param name: Behavior identifier.
+    :param appraisal: Client appraisal.
     """
 
-    return ConstructSymbol(ConstructType.Behavior, cid)
+    return ConstructSymbol(ConstructType.Behavior, BehaviorID(name, appraisal))
 
 
-def Buffer(cid: typ.Hashable) -> ConstructSymbol:
+def Buffer(
+    name: typ.Hashable, outputs: typ.Sequence[ConstructSymbol]
+) -> ConstructSymbol:
     """
     Return a new buffer symbol.
 
     :param cid: Buffer identifier.
     """
 
-    return ConstructSymbol(ConstructType.Buffer, cid)
+    return ConstructSymbol(ConstructType.Buffer, BufferID(name, outputs))
 
 
 

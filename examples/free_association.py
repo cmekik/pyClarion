@@ -42,10 +42,15 @@ tasty_mf = Microfeature("tasty", True)
 liquid_mf = Microfeature("state", "liquid")
 sweet_mf = Microfeature("sweet", True)
 
-appraisal_nacs = Appraisal("NACS")
+associative_rules_flow = Flow("Associative Rules", FlowType.TT) 
+top_down_flow = Flow("NACS", ftype=FlowType.TB)
+bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
+
+appraisal_nacs = Appraisal("NACS", ConstructType.Chunk)
+behavior_nacs = Behavior("Respond", appraisal_nacs)
 
 nacs = Subsystem("NACS")
-stim_buf = Buffer("NACS Stimulus")
+stim_buf = Buffer("Stimulus", (Subsystem("NACS"),))
 
 # Alices's initial top-level knowledge
 
@@ -113,17 +118,17 @@ nacs_contents = [
     NodeRealizer(sweet_mf, SimpleNodeJunction(sweet_mf, default_strength)),
     NodeRealizer(liquid_mf, SimpleNodeJunction(liquid_mf, default_strength)),
     FlowRealizer(
-        csym=Flow("Associative Rules", FlowType.TT), 
+        csym=associative_rules_flow, 
         junction=SimpleJunction(),
         channel=AssociativeRuleCollection(toplevel_assoc, default_strength)
     ),
     FlowRealizer(
-        Flow("NACS", FlowType.TB),
+        top_down_flow,
         SimpleJunction(),
         TopDownLinks(interlevel_assoc, default_strength)
     ),
     FlowRealizer(
-        Flow("NACS", FlowType.BT),
+        bottom_up_flow,
         SimpleJunction(),
         BottomUpLinks(interlevel_assoc, default_strength)
     ),
@@ -132,7 +137,7 @@ nacs_contents = [
         SimpleJunction(),
         SimpleBoltzmannSelector(temperature = .1)
     ),
-    BehaviorRealizer(Behavior("NACS"), MappingEffector(actions))
+    BehaviorRealizer(behavior_nacs, MappingEffector(actions))
 ]
 
 # Agent Assembly
@@ -143,8 +148,7 @@ alice = AgentRealizer(Agent("Alice"))
 # We add an NACS.
 alice[nacs] = SubsystemRealizer(
     csym=nacs, 
-    propagation_rule=nacs_propagation_cycle, 
-    may_connect=nacs_may_connect
+    propagation_rule=nacs_propagation_cycle
 )
 
 # We insert the components defined above into Alice's NACS. The constructs are 
@@ -154,9 +158,6 @@ alice[nacs].insert_realizers(*nacs_contents)
 
 # We add a buffer enabling stimulation of Alice's NACS.
 alice[stim_buf] = BufferRealizer(stim_buf, ConstantSource())
-
-# Next, we connect the stimulus buffer to Alice's NACS. 
-alice[nacs].input.watch(stim_buf, alice[stim_buf].output.view)
 
 # Done!
 
@@ -173,12 +174,12 @@ def summarize_nacs_cycle(nacs, recorder, title, digits=3):
     print(title)
 
     print(" ", "Strengths:")
-    for c, r in nacs.csym_items_iterable(ConstructType.Node):
+    for c, r in nacs.items_ctype(ConstructType.Node):
         strength = round(r.output.view().strengths[c], digits)
         print("   ", c, strength)
 
     print(" ", "Appraisal:")
-    for _, realizer in nacs.csym_items_iterable(ConstructType.Appraisal):
+    for _, realizer in nacs.items_ctype(ConstructType.Appraisal):
         for c, s in realizer.output.view().strengths.items():
             print("   ", c, round(s, 3))
     # We could just get responses from the appraisal decision packet, but why 
@@ -275,9 +276,7 @@ class HeavyHandedLearningRoutine(object):
         orange_ck = Chunk("ORANGE")
         orange_color_mf = Microfeature("color", "#ffa500")
         tasty_mf = Microfeature("tasty", True)
-        top_down_flow = Flow("NACS", ftype=FlowType.TB)
-        bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
-        behavior = Behavior("NACS")
+        behavior = Behavior("Respond", Appraisal("NACS", ConstructType.Chunk))
 
         self.nacs[orange_ck] = NodeRealizer(
             orange_ck, SimpleNodeJunction(orange_ck, default_strength)
