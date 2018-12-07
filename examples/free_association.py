@@ -42,15 +42,16 @@ tasty_mf = Microfeature("tasty", True)
 liquid_mf = Microfeature("state", "liquid")
 sweet_mf = Microfeature("sweet", True)
 
-associative_rules_flow = Flow("Associative Rules", FlowType.TT) 
+associative_rules_flow = Flow("Associative Rules", ftype=FlowType.TT) 
 top_down_flow = Flow("NACS", ftype=FlowType.TB)
 bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
 
-appraisal_nacs = Appraisal("NACS", ConstructType.Chunk)
-behavior_nacs = Behavior("Respond", appraisal_nacs)
+appraisal_nacs = Appraisal("NACS", itype=ConstructType.Chunk)
+behavior_nacs = Behavior("Respond", appraisal=appraisal_nacs)
 
 nacs = Subsystem("NACS")
-stim_buf = Buffer("Stimulus", (Subsystem("NACS"),))
+stim_buf = Buffer("Stimulus", outputs=(Subsystem("NACS"),))
+
 
 # Alices's initial top-level knowledge
 
@@ -80,8 +81,8 @@ interlevel_assoc = {
 
 # interlevel_assoc defines how activations may propagate from chunks to 
 # microfeatures and vice-versa. interlevel_assoc keys are chunks, which are 
-# each linked to several microfeatures. Linked microfeatures are grouped by 
-# dimension, as inter-level activation propagation applies a 
+# each linked to zero or more microfeatures. Linked microfeatures are grouped 
+# by dimension, as inter-level activation propagation applies a 
 # dimension-dependent weight to strengths.
 
 # Below, actions represents the set of responses that the agent may give during 
@@ -102,7 +103,7 @@ def default_strength(node = None):
 
 # NACS Prep
 
-# Here, realizers are created for every initial piece of knowledge that alice 
+# Here, realizers are created for every initial piece of knowledge that Alice 
 # has in addition to other important functional components of Alice's NACS.
 
 nacs_contents = [
@@ -152,8 +153,7 @@ alice[nacs] = SubsystemRealizer(
 )
 
 # We insert the components defined above into Alice's NACS. The constructs are 
-# automatically linked! (Uses the may_connect argument passed at NACS 
-# initialization)
+# automatically linked! 
 alice[nacs].insert_realizers(*nacs_contents)
 
 # We add a buffer enabling stimulation of Alice's NACS.
@@ -167,7 +167,7 @@ alice[stim_buf] = BufferRealizer(stim_buf, ConstantSource())
 #########################
 
 # We are almost ready to start simulating. Let us first give ourselves a tool 
-# to summarize an NACS activation cycle.
+# to summarize the results of an NACS activation cycle.
 
 def summarize_nacs_cycle(nacs, recorder, title, digits=3):
 
@@ -211,7 +211,7 @@ summarize_nacs_cycle(alice[nacs], recorder, 'Initial Trial')
 #######################
 
 # A limitation of this model: in free association, subjects do not 
-# return the cue as their response. But, Alice does not do this because cue 
+# return the cue as their response. But, Alice does return the cue because cue 
 # suppression requires input/output filtering (i.e., selective attention), 
 # which is a capability not included in the current model. Let's add it. 
 

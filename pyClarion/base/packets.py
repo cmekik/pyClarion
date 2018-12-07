@@ -1,16 +1,12 @@
 """Tools for representing information about node strengths and decisions."""
 
 
-import typing as typ
-import types
-import pyClarion.base.symbols as sym
+from typing import Any, Mapping, Collection, Tuple, NamedTuple, Union, cast 
+from types import MappingProxyType
+from pyClarion.base.symbols import ConstructSymbol, ConstructType
 
 
-__all__ = [
-    "ActivationPacket",
-    "DecisionPacket",
-    "make_packet"
-]
+__all__ = ["ActivationPacket", "DecisionPacket", "make_packet"]
 
 
 ####################
@@ -18,12 +14,10 @@ __all__ = [
 ####################
 
 
-ConstructSymbolMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
-ConstructSymbolCollection = typ.Collection[sym.ConstructSymbol]
-AppraisalData = typ.Tuple[
-    ConstructSymbolMapping, 
-    ConstructSymbolCollection
-]
+ConstructSymbolMapping = Mapping[ConstructSymbol, Any]
+ConstructSymbolCollection = Collection[ConstructSymbol]
+AppraisalData = Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
+PacketData = Union[ConstructSymbolMapping, AppraisalData]
 
 
 ###################
@@ -31,7 +25,7 @@ AppraisalData = typ.Tuple[
 ###################
 
 
-class ActivationPacket(typ.NamedTuple):
+class ActivationPacket(NamedTuple):
     """
     Represents node strengths.
     
@@ -40,10 +34,10 @@ class ActivationPacket(typ.NamedTuple):
     """
 
     strengths: ConstructSymbolMapping
-    origin: sym.ConstructSymbol
+    origin: ConstructSymbol
 
 
-class DecisionPacket(typ.NamedTuple):
+class DecisionPacket(NamedTuple):
     """
     Represents the result of an appraisal.
 
@@ -54,13 +48,13 @@ class DecisionPacket(typ.NamedTuple):
 
     strengths: ConstructSymbolMapping
     chosen: ConstructSymbolCollection
-    origin: sym.ConstructSymbol
+    origin: ConstructSymbol
 
 
-def make_packet(
-        csym: sym.ConstructSymbol, 
-        data: typ.Union[ConstructSymbolMapping, AppraisalData]
-    ) -> typ.Union[ActivationPacket, DecisionPacket]:
+# Mypy complains if Packet is defined earlier... Should be with type aliases.
+Packet = Union["ActivationPacket", "DecisionPacket"]
+
+def make_packet(csym: ConstructSymbol, data: PacketData) -> Packet:
     """
     Create an activation or decision packet for a client construct.
     
@@ -71,15 +65,14 @@ def make_packet(
     """
 
     if csym.ctype in (
-        sym.ConstructType.Node | 
-        sym.ConstructType.Flow | 
-        sym.ConstructType.Buffer
+        ConstructType.Node | ConstructType.Flow | ConstructType.Buffer
     ):  
-        smap = types.MappingProxyType(typ.cast(ConstructSymbolMapping, data))
+        strengths = cast(ConstructSymbolMapping, data)
+        smap = MappingProxyType(strengths)
         return ActivationPacket(strengths=smap, origin=csym)
-    elif csym.ctype is sym.ConstructType.Appraisal:
-        strengths, chosen = typ.cast(AppraisalData, data)
-        smap = types.MappingProxyType(strengths)
+    elif csym.ctype is ConstructType.Appraisal:
+        dstrengths, chosen = cast(AppraisalData, data)
+        smap = MappingProxyType(dstrengths)
         return DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
     else:
         raise ValueError(

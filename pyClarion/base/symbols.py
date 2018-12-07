@@ -8,28 +8,18 @@
 #   symbol factory functions.
 
 
-import typing as typ
-import enum 
-
-
 __all__ = [
-    "ConstructSymbol",
-    "ConstructType",
-    "FlowType",
-    "DVPair",
-    "FlowID",
-    "AppraisalID",
-    "BehaviorID",
-    "BufferID",
-    "Microfeature",
-    "Chunk",
-    "Flow",
-    "Appraisal",
-    "Behavior",
-    "Buffer",
-    "Subsystem",
-    "Agent"
+    "ConstructSymbol", "ConstructType", "FlowType", "DVPair", "FlowID", 
+    "AppraisalID", "BehaviorID", "BufferID", "Microfeature", "Chunk", "Flow",
+    "Appraisal", "Behavior", "Buffer", "Subsystem", "Agent"
 ]
+
+
+from typing import NamedTuple, Hashable, Sequence
+from enum import Flag, auto
+
+
+ConstructSymbolSequence = Sequence['ConstructSymbol']
 
 
 #########################
@@ -37,44 +27,22 @@ __all__ = [
 #########################
 
 
-class ConstructSymbol(typ.NamedTuple):
-    """
-    Symbolically represents simulation constructs.
-    
-    Construct symbols identify and carry essential information about simulated 
-    constructs.
+class ConstructType(Flag):
+    """Represents various types of construct in Clarion theory."""
 
-    :param ctype: Construct type.
-    :param cid: Construct ID.
-    """
-    
-    ctype: 'ConstructType'
-    cid: typ.Hashable
-
-    def __str__(self):
-        """
-        Pretty print construct symbol.
-
-        Output has form: 'ConstructName(id)'
-        """
-
-        return "".join([str(self.ctype), "(", repr(self.cid), ")"])
-
-
-class ConstructType(enum.Flag):
-    """Represents construct types for processing logic."""
-
-    Microfeature = enum.auto()
-    Chunk = enum.auto()
-    Flow = enum.auto()
-    Appraisal = enum.auto()
-    Behavior = enum.auto()
-    Buffer = enum.auto()
-    Subsystem = enum.auto()
-    Agent = enum.auto()
+    Microfeature = auto()
+    Chunk = auto()
+    Flow = auto()
+    Appraisal = auto()
+    Behavior = auto()
+    Buffer = auto()
+    Subsystem = auto()
+    Agent = auto()
 
     Node = Microfeature | Chunk
-    BasicConstruct = Microfeature | Chunk | Flow | Appraisal | Behavior | Buffer
+    BasicConstruct = (
+        Microfeature | Chunk | Flow | Appraisal | Behavior | Buffer
+    )
     ContainerConstruct = Subsystem | Agent
 
     def __str__(self):
@@ -90,7 +58,38 @@ class ConstructType(enum.Flag):
             return repr(self)
 
 
-class FlowType(enum.Flag):
+class ConstructSymbol(NamedTuple):
+    """
+    Symbolically represents simulation constructs.
+    
+    Construct symbols identify and carry essential information about simulated 
+    constructs.
+
+    :param ctype: Construct type.
+    :param cid: Construct ID.
+    """
+    
+    ctype: ConstructType
+    cid: Hashable
+
+    def __str__(self):
+        """
+        Pretty print construct symbol.
+
+        Output has form: 'ConstructName(id)'
+        """
+
+        return "".join([str(self.ctype), "(", repr(self.cid), ")"])
+
+
+class DVPair(NamedTuple):
+    """Represents a microfeature dimension-value pair."""
+    
+    dim: Hashable
+    val: Hashable
+
+
+class FlowType(Flag):
     """
     Signals the direction(s) of an activation flow.
     
@@ -101,45 +100,38 @@ class FlowType(enum.Flag):
         BT: Bottom-up activation flows.
     """
 
-    TT = enum.auto()
-    BB = enum.auto()
-    TB = enum.auto()
-    BT = enum.auto()
+    TT = auto()
+    BB = auto()
+    TB = auto()
+    BT = auto()
 
 
-class DVPair(typ.NamedTuple):
-    """Represents a microfeature dimension-value pair."""
-    
-    dim: typ.Hashable
-    val: typ.Hashable
-
-
-class FlowID(typ.NamedTuple):
+class FlowID(NamedTuple):
     """Represents the name and type of a flow."""
 
-    name: typ.Hashable
+    name: Hashable
     ftype: FlowType
 
 
-class AppraisalID(typ.NamedTuple):
+class AppraisalID(NamedTuple):
     """Represents name, input construct type, and outputs of an appraisal."""
 
-    name: typ.Hashable
+    name: Hashable
     itype: ConstructType
 
 
-class BehaviorID(typ.NamedTuple):
+class BehaviorID(NamedTuple):
     """Represents the name and client appraisal of a behavior."""
 
-    name: typ.Hashable
+    name: Hashable
     appraisal: ConstructSymbol
 
 
-class BufferID(typ.NamedTuple):
+class BufferID(NamedTuple):
     """Represents the name and output destinations of a buffer."""
 
-    name: typ.Hashable
-    outputs: typ.Sequence[ConstructSymbol]
+    name: Hashable
+    outputs: ConstructSymbolSequence
 
 
 ##################################
@@ -152,7 +144,7 @@ class BufferID(typ.NamedTuple):
 # not `chunk()` to allow use of `chunk` as a variable name by the user.
 
 
-def Microfeature(dim: typ.Hashable, val: typ.Hashable) -> ConstructSymbol:
+def Microfeature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     """
     Return a new microfeature symbol.
     
@@ -165,7 +157,7 @@ def Microfeature(dim: typ.Hashable, val: typ.Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Microfeature, DVPair(dim, val))
 
 
-def Chunk(cid: typ.Hashable) -> ConstructSymbol:
+def Chunk(cid: Hashable) -> ConstructSymbol:
     """
     Return a new chunk symbol.
 
@@ -175,7 +167,7 @@ def Chunk(cid: typ.Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Chunk, cid)
 
 
-def Flow(name: typ.Hashable, ftype: FlowType) -> ConstructSymbol:
+def Flow(name: Hashable, ftype: FlowType) -> ConstructSymbol:
     """
     Return a new flow symbol.
 
@@ -188,7 +180,7 @@ def Flow(name: typ.Hashable, ftype: FlowType) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
 
 
-def Appraisal(name: typ.Hashable, itype: ConstructType) -> ConstructSymbol:
+def Appraisal(name: Hashable, itype: ConstructType) -> ConstructSymbol:
     """
     Return a new appraisal symbol.
 
@@ -199,7 +191,7 @@ def Appraisal(name: typ.Hashable, itype: ConstructType) -> ConstructSymbol:
 
 
 def Behavior(
-    name: typ.Hashable, appraisal: ConstructSymbol
+    name: Hashable, appraisal: ConstructSymbol
 ) -> ConstructSymbol:
     """
     Return a new behavior symbol.
@@ -212,7 +204,7 @@ def Behavior(
 
 
 def Buffer(
-    name: typ.Hashable, outputs: typ.Sequence[ConstructSymbol]
+    name: Hashable, outputs: ConstructSymbolSequence
 ) -> ConstructSymbol:
     """
     Return a new buffer symbol.
@@ -224,7 +216,7 @@ def Buffer(
 
 
 
-def Subsystem(cid: typ.Hashable) -> ConstructSymbol:
+def Subsystem(cid: Hashable) -> ConstructSymbol:
     """
     Return a new subsystem symbol.
 
@@ -234,7 +226,7 @@ def Subsystem(cid: typ.Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Subsystem, cid)
 
 
-def Agent(cid: typ.Hashable) -> ConstructSymbol:
+def Agent(cid: Hashable) -> ConstructSymbol:
     """
     Return a new agent symbol.
 
