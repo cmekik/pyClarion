@@ -16,8 +16,8 @@ __all__ = ["ActivationPacket", "DecisionPacket", "make_packet"]
 
 ConstructSymbolMapping = Mapping[ConstructSymbol, Any]
 ConstructSymbolCollection = Collection[ConstructSymbol]
-AppraisalData = Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
-PacketData = Union[ConstructSymbolMapping, AppraisalData]
+ResponseData = Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
+PacketData = Union[ConstructSymbolMapping, ResponseData]
 
 
 ###################
@@ -52,7 +52,7 @@ class DecisionPacket(NamedTuple):
 
 
 # Mypy complains if Packet is defined earlier... Should be with type aliases.
-Packet = Union["ActivationPacket", "DecisionPacket"]
+Packet = Union[ActivationPacket, DecisionPacket]
 
 def make_packet(csym: ConstructSymbol, data: PacketData) -> Packet:
     """
@@ -70,8 +70,8 @@ def make_packet(csym: ConstructSymbol, data: PacketData) -> Packet:
         strengths = cast(ConstructSymbolMapping, data)
         smap = MappingProxyType(strengths)
         return ActivationPacket(strengths=smap, origin=csym)
-    elif csym.ctype is ConstructType.Appraisal:
-        dstrengths, chosen = cast(AppraisalData, data)
+    elif csym.ctype is ConstructType.Response:
+        dstrengths, chosen = cast(ResponseData, data)
         smap = MappingProxyType(dstrengths)
         return DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
     else:

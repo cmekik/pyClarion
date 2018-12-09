@@ -36,6 +36,9 @@ fruit_ck = Chunk("FRUIT")
 apple_ck = Chunk("APPLE")
 juice_ck = Chunk("JUICE")
 
+# Color microfeature values (below) are hex-codes to emphasize implicitness.
+# In practice, it would be better to give constructs easily intelligible names. 
+
 red_mf = Microfeature(dim="color", val="#ff0000")
 green_mf = Microfeature("color", "#008000")
 tasty_mf = Microfeature("tasty", True)
@@ -46,8 +49,8 @@ associative_rules_flow = Flow("Associative Rules", ftype=FlowType.TT)
 top_down_flow = Flow("NACS", ftype=FlowType.TB)
 bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
 
-appraisal_nacs = Appraisal("NACS", itype=ConstructType.Chunk)
-behavior_nacs = Behavior("Respond", appraisal=appraisal_nacs)
+response_nacs = Response("NACS", itype=ConstructType.Chunk)
+behavior_nacs = Behavior("NACS", response=response_nacs)
 
 nacs = Subsystem("NACS")
 stim_buf = Buffer("Stimulus", outputs=(Subsystem("NACS"),))
@@ -134,7 +137,7 @@ nacs_contents = [
         BottomUpLinks(interlevel_assoc, default_strength)
     ),
     AppraisalRealizer(
-        appraisal_nacs,
+        response_nacs,
         SimpleJunction(),
         SimpleBoltzmannSelector(temperature = .1)
     ),
@@ -178,13 +181,13 @@ def summarize_nacs_cycle(nacs, recorder, title, digits=3):
         strength = round(r.output.view().strengths[c], digits)
         print("   ", c, strength)
 
-    print(" ", "Appraisal:")
-    for _, realizer in nacs.items_ctype(ConstructType.Appraisal):
+    print(" ", "Response:")
+    for _, realizer in nacs.items_ctype(ConstructType.Response):
         for c, s in realizer.output.view().strengths.items():
             print("   ", c, round(s, 3))
-    # We could just get responses from the appraisal decision packet, but why 
+    # We could just get selected from the response decision packet, but why 
     # not demonstrate that the agent has affected its envirnoment?
-    print("   ", "Response:", recorder.actions.pop())
+    print("   ", "Selected:", recorder.actions.pop())
 
 
 # Okay. Let's begin simulation.
@@ -218,7 +221,7 @@ summarize_nacs_cycle(alice[nacs], recorder, 'Initial Trial')
 # First, we'll define a component capable of carrying out the necessary 
 # filtering.
 
-class AppraisalFilterJunction(SimpleJunction):
+class ResponseFilterJunction(SimpleJunction):
 
     def __init__(self, filter_dict = None):
 
@@ -233,12 +236,12 @@ class AppraisalFilterJunction(SimpleJunction):
 
 # We need to replace the existing junction for nacs appraisals with a new one.
 # This is very easy: just assign to buffer.junction!
-alice[nacs][appraisal_nacs].junction = AppraisalFilterJunction()
+alice[nacs][response_nacs].junction = ResponseFilterJunction()
 
 # We assume that alice filters out the cue. The decision to do this and its 
 # execution are not the responsibility of NACS, so they are not explicitly 
 # simulated.
-alice[nacs][appraisal_nacs].junction.fdict[apple_ck] = .0
+alice[nacs][response_nacs].junction.fdict[apple_ck] = .0
 
 # Now we run through the trial again (previous activations persist).
 alice.propagate()
@@ -276,7 +279,7 @@ class HeavyHandedLearningRoutine(object):
         orange_ck = Chunk("ORANGE")
         orange_color_mf = Microfeature("color", "#ffa500")
         tasty_mf = Microfeature("tasty", True)
-        behavior = Behavior("Respond", Appraisal("NACS", ConstructType.Chunk))
+        behavior = Behavior("NACS", Response("NACS", ConstructType.Chunk))
 
         self.nacs[orange_ck] = NodeRealizer(
             orange_ck, SimpleNodeJunction(orange_ck, default_strength)

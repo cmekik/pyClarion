@@ -9,10 +9,10 @@ from pyClarion.base import *
 
 AssociativeRuleDict = (
     typ.Dict[
-        # Conclusion chunk
+        # Conclusion chunk:
         ConstructSymbol, 
         # Condition chunks and corresponding weights for each rule associated 
-        # with given conclusion
+        # with given conclusion:
         typ.List[typ.Dict[ConstructSymbol, typ.Any]]
     ]
 ) 
@@ -140,5 +140,5 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
         if node.ctype is ConstructType.Chunk:
             realizer[node].propagate()
     
-    for appraisal in realizer.appraisals:
+    for appraisal in realizer.responses:
         realizer[appraisal].propagate()

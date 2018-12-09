@@ -10,8 +10,8 @@
 
 __all__ = [
     "ConstructSymbol", "ConstructType", "FlowType", "DVPair", "FlowID", 
-    "AppraisalID", "BehaviorID", "BufferID", "Microfeature", "Chunk", "Flow",
-    "Appraisal", "Behavior", "Buffer", "Subsystem", "Agent"
+    "ResponseID", "BehaviorID", "BufferID", "Microfeature", "Chunk", "Flow",
+    "Response", "Behavior", "Buffer", "Subsystem", "Agent"
 ]
 
 
@@ -33,7 +33,7 @@ class ConstructType(Flag):
     Microfeature = auto()
     Chunk = auto()
     Flow = auto()
-    Appraisal = auto()
+    Response = auto()
     Behavior = auto()
     Buffer = auto()
     Subsystem = auto()
@@ -41,7 +41,7 @@ class ConstructType(Flag):
 
     Node = Microfeature | Chunk
     BasicConstruct = (
-        Microfeature | Chunk | Flow | Appraisal | Behavior | Buffer
+        Microfeature | Chunk | Flow | Response | Behavior | Buffer
     )
     ContainerConstruct = Subsystem | Agent
 
@@ -113,18 +113,18 @@ class FlowID(NamedTuple):
     ftype: FlowType
 
 
-class AppraisalID(NamedTuple):
-    """Represents name, input construct type, and outputs of an appraisal."""
+class ResponseID(NamedTuple):
+    """Represents name and input construct type of a response."""
 
     name: Hashable
     itype: ConstructType
 
 
 class BehaviorID(NamedTuple):
-    """Represents the name and client appraisal of a behavior."""
+    """Represents the name and client response construct of a behavior."""
 
     name: Hashable
-    appraisal: ConstructSymbol
+    response: ConstructSymbol
 
 
 class BufferID(NamedTuple):
@@ -180,27 +180,28 @@ def Flow(name: Hashable, ftype: FlowType) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
 
 
-def Appraisal(name: Hashable, itype: ConstructType) -> ConstructSymbol:
+def Response(name: Hashable, itype: ConstructType) -> ConstructSymbol:
     """
-    Return a new appraisal symbol.
+    Return a new response symbol.
 
-    :param cid: Appraisal identifier.
+    :param name: Name of response.
+    :param itype: Input type to response construct.
     """
 
-    return ConstructSymbol(ConstructType.Appraisal, AppraisalID(name, itype))
+    return ConstructSymbol(ConstructType.Response, ResponseID(name, itype))
 
 
 def Behavior(
-    name: Hashable, appraisal: ConstructSymbol
+    name: Hashable, response: ConstructSymbol
 ) -> ConstructSymbol:
     """
     Return a new behavior symbol.
 
-    :param name: Behavior identifier.
-    :param appraisal: Client appraisal.
+    :param name: Name of behavior.
+    :param response: Client response construct.
     """
 
-    return ConstructSymbol(ConstructType.Behavior, BehaviorID(name, appraisal))
+    return ConstructSymbol(ConstructType.Behavior, BehaviorID(name, response))
 
 
 def Buffer(
@@ -209,11 +210,11 @@ def Buffer(
     """
     Return a new buffer symbol.
 
-    :param cid: Buffer identifier.
+    :param name: Name of buffer.
+    :param outputs: Constructs receiving output of buffer.
     """
 
     return ConstructSymbol(ConstructType.Buffer, BufferID(name, outputs))
-
 
 
 def Subsystem(cid: Hashable) -> ConstructSymbol:

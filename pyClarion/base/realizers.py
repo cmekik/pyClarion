@@ -21,11 +21,12 @@ from typing import (
     Type, Dict, Tuple, Iterator, Hashable, List, cast
 )
 from pyClarion.base.symbols import (
-    ConstructSymbol, ConstructType, FlowType, FlowID, AppraisalID, BehaviorID, 
+    ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
     BufferID
 )
 from pyClarion.base.packets import (
-    ConstructSymbolMapping, ActivationPacket, DecisionPacket, make_packet
+    ConstructSymbolMapping, Packet, ActivationPacket, DecisionPacket, 
+    make_packet
 )
 
 
@@ -33,7 +34,7 @@ from pyClarion.base.packets import (
 
 PullMethod = Callable[[], Union[ActivationPacket, DecisionPacket]]
 InputMapping = MutableMapping[ConstructSymbol, PullMethod]
-Packets = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
+PacketIterable = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
 WatchMethod = Callable[[ConstructSymbol, PullMethod], None]
 DropMethod = Callable[[ConstructSymbol], None]
 
@@ -44,7 +45,7 @@ Junction = Callable[[Iterable[ActivationPacket]], ConstructSymbolMapping]
 Selector = Callable[[ConstructSymbolMapping], DecisionPacket]
 Effector = Callable[[DecisionPacket], None]
 Source = Callable[[], ConstructSymbolMapping]
-PacketMaker = Callable[[ConstructSymbol, Any], Any]
+PacketMaker = Callable[[ConstructSymbol, Any], Packet]
 
 # Types used by ContainerConstructRealizer instances
 
@@ -81,7 +82,7 @@ class InputMonitor(object):
 
         self.input_links: InputMapping = {}
 
-    def pull(self) -> Packets:
+    def pull(self) -> PacketIterable:
         """Pull activations from input constructs."""
 
         for view in self.input_links.values():
@@ -259,7 +260,7 @@ class FlowRealizer(BasicConstructRealizer):
 
 class AppraisalRealizer(BasicConstructRealizer):
 
-    ctype = ConstructType.Appraisal
+    ctype = ConstructType.Response
 
     def __init__(
         self, csym: ConstructSymbol, junction: Junction, selector: Selector
@@ -467,7 +468,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
             csym.ctype & (
                 ConstructType.Node |
                 ConstructType.Flow |
-                ConstructType.Appraisal |
+                ConstructType.Response |
                 ConstructType.Behavior
             )            
         )
@@ -478,12 +479,12 @@ class SubsystemRealizer(ContainerConstructRealizer):
         
         possibilities = [
             (
-                target.ctype is ConstructType.Appraisal and
-                source.ctype & cast(AppraisalID, target.cid).itype
+                target.ctype is ConstructType.Response and
+                source.ctype & cast(ResponseID, target.cid).itype
             ),
             (
                 target.ctype is ConstructType.Behavior and
-                source is cast(BehaviorID, target.cid).appraisal
+                source is cast(BehaviorID, target.cid).response
             ),
             (
                 source.ctype is ConstructType.Microfeature and
@@ -535,9 +536,9 @@ class SubsystemRealizer(ContainerConstructRealizer):
         return self.iter_ctype(ConstructType.Flow)
 
     @property
-    def appraisals(self) -> ConstructSymbolIterable:
+    def responses(self) -> ConstructSymbolIterable:
         
-        return self.iter_ctype(ConstructType.Appraisal)
+        return self.iter_ctype(ConstructType.Response)
 
     @property
     def behaviors(self) -> ConstructSymbolIterable:
