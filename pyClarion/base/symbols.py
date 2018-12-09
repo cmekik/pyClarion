@@ -28,7 +28,25 @@ ConstructSymbolSequence = Sequence['ConstructSymbol']
 
 
 class ConstructType(Flag):
-    """Represents various types of construct in Clarion theory."""
+    """
+    Represents various types of construct in Clarion theory.
+    
+    Basic members (and interpretations):
+        Microfeature: Microfeature node.
+        Chunk: Chunk node.
+        Flow: Links among microfeature and/or chunk nodes.
+        Response: Selected responses.
+        Behavior: Possible actions.
+        Buffer: Temporary store of activations.
+        Subsystem: A Clarion subsystem.
+        Agent: A full Clarion agent.
+
+    Other members:
+        Node: A chunk or microfeature.
+        BasicConstruct: Microfeature or chunk or flow or response or behavior or 
+            buffer. 
+        ContainerConstruct: Subsystem or agent.
+    """
 
     Microfeature = auto()
     Chunk = auto()
