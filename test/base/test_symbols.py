@@ -78,14 +78,14 @@ class ConstructFactoryTest(unittest.TestCase):
                 FlowID
             ),
             (
-                Appraisal, 
+                Response, 
                 ("name", ConstructType.Chunk), 
-                ConstructType.Appraisal, 
-                AppraisalID
+                ConstructType.Response, 
+                ResponseID
             ),
             (
                 Behavior,
-                ("name", Appraisal("name", ConstructType.Chunk)),
+                ("name", Response("name", ConstructType.Chunk)),
                 ConstructType.Behavior,
                 BehaviorID
             ),
