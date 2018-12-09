@@ -67,13 +67,17 @@ def make_packet(csym: ConstructSymbol, data: PacketData) -> Packet:
     if csym.ctype in (
         ConstructType.Node | ConstructType.Flow | ConstructType.Buffer
     ):  
-        strengths = cast(ConstructSymbolMapping, data)
-        smap = MappingProxyType(strengths)
-        return ActivationPacket(strengths=smap, origin=csym)
+        return ActivationPacket(
+            strengths=MappingProxyType(cast(ConstructSymbolMapping, data)), 
+            origin=csym
+        )
     elif csym.ctype is ConstructType.Response:
         dstrengths, chosen = cast(ResponseData, data)
-        smap = MappingProxyType(dstrengths)
-        return DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
+        return DecisionPacket(
+            strengths=MappingProxyType(dstrengths), 
+            chosen=chosen, 
+            origin=csym
+        )
     else:
         raise ValueError(
             "Unexpected ctype {} in argument `csym` to make_packet".format(
