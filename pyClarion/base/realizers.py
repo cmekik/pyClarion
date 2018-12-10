@@ -11,7 +11,7 @@
 
 __all__ = [
     "ConstructRealizer", "BasicConstructRealizer", "NodeRealizer", 
-    "FlowRealizer", "AppraisalRealizer", "BehaviorRealizer", "BufferRealizer",
+    "FlowRealizer", "ResponseRealizer", "BehaviorRealizer", "BufferRealizer",
     "ContainerConstructRealizer", "SubsystemRealizer", "AgentRealizer"
 ]
 
@@ -53,11 +53,11 @@ MutableRealizerMapping = MutableMapping[ConstructSymbol, 'ConstructRealizer']
 ConstructSymbolIterable = Iterable[ConstructSymbol]
 ContainerConstructItems = Iterable[Tuple[ConstructSymbol, 'ConstructRealizer']]
 HasInput = Union[
-    'NodeRealizer', 'FlowRealizer', 'AppraisalRealizer', 'BehaviorRealizer', 
+    'NodeRealizer', 'FlowRealizer', 'ResponseRealizer', 'BehaviorRealizer', 
     'SubsystemRealizer'
 ]
 HasOutput = Union[
-    'NodeRealizer', 'FlowRealizer', 'AppraisalRealizer', 'BufferRealizer', 
+    'NodeRealizer', 'FlowRealizer', 'ResponseRealizer', 'BufferRealizer', 
 ]
 PropagationRule = Callable[['SubsystemRealizer'], None]
 Updater = Callable[[], None]
@@ -258,7 +258,7 @@ class FlowRealizer(BasicConstructRealizer):
         self.output.update(packet)
 
 
-class AppraisalRealizer(BasicConstructRealizer):
+class ResponseRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Response
 
@@ -306,7 +306,15 @@ class BufferRealizer(BasicConstructRealizer):
         self.source = source
 
     def propagate(self) -> None:
-        """Output stored activation pattern."""
+        """
+        Output stored activation pattern.
+        
+        .. warning:
+           Activation packet constructed directly from output of source. If 
+           source output is mutated (e.g., as part of a buffer update), it 
+           *will* be reflected in the output packet. Possible cause of 
+           unexpected behavior.
+        """
 
         strengths = self.source()
         packet = type(self).make_packet(self.csym, strengths)
@@ -477,10 +485,10 @@ class SubsystemRealizer(ContainerConstructRealizer):
         self, source: ConstructSymbol, target: ConstructSymbol
     ) -> bool:
         
-        possibilities = [
+        possibilities: List[bool] = [
             (
                 target.ctype is ConstructType.Response and
-                source.ctype & cast(ResponseID, target.cid).itype
+                bool(source.ctype & cast(ResponseID, target.cid).itype)
             ),
             (
                 target.ctype is ConstructType.Behavior and
@@ -489,22 +497,30 @@ class SubsystemRealizer(ContainerConstructRealizer):
             (
                 source.ctype is ConstructType.Microfeature and
                 target.ctype is ConstructType.Flow and
-                cast(FlowID, target.cid).ftype & FlowType.BB | FlowType.BT
+                bool(
+                    cast(FlowID, target.cid).ftype & (FlowType.BB | FlowType.BT)
+                )
             ),
             (
                 source.ctype is ConstructType.Chunk and
                 target.ctype is ConstructType.Flow and
-                cast(FlowID, target.cid).ftype & FlowType.TT | FlowType.TB
+                bool(
+                    cast(FlowID, target.cid).ftype & (FlowType.TT | FlowType.TB)
+                )
             ),
             (
                 source.ctype is ConstructType.Flow and
                 target.ctype is ConstructType.Microfeature and
-                cast(FlowID, source.cid).ftype & FlowType.BB | FlowType.TB
+                bool(
+                    cast(FlowID, source.cid).ftype & (FlowType.BB | FlowType.TB)
+                )
             ),
             (
                 source.ctype is ConstructType.Flow and
                 target.ctype is ConstructType.Chunk and
-                cast(FlowID, source.cid).ftype & FlowType.TT | FlowType.BT
+                bool(
+                    cast(FlowID, source.cid).ftype & (FlowType.TT | FlowType.BT)
+                )
             )
         ]
         return any(possibilities)

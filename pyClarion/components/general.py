@@ -163,9 +163,10 @@ class ConstantSource(object):
     def update(self, strengths):
         """Update self with contents of dict-like strengths."""
 
+        self.strengths = self.strengths.copy()
         self.strengths.update(strengths)
 
     def clear(self) -> None:
         """Clear stored node strengths."""
 
-        self.strengths.clear()
+        self.strengths = {}
