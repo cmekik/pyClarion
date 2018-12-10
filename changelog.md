@@ -13,7 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SubsystemRealizer` and `AgentRealizer` automatically connect member realizers 
 upon insertion (using data present in members' construct symbols) and disconnect
 them upon deletion. 
+- `BufferRealizer.propagate()` docs now contain a warning about potential unexpected/unwanted behavior.
 
 ### Changed
 
 - `Appraisal` construct renamed `Response` to avoid association with appraisal theory.
+
+### Fixed
+
+- Bug in `SubsystemRealizer` allowing connections between constructs that should not be linked.
+- Bug in `ConstantSource` allowing mutation of output activation packets. 
