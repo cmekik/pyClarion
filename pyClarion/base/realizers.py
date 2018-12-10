@@ -492,7 +492,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
             ),
             (
                 target.ctype is ConstructType.Behavior and
-                source is cast(BehaviorID, target.cid).response
+                source == cast(BehaviorID, target.cid).response
             ),
             (
                 source.ctype is ConstructType.Microfeature and
