@@ -59,8 +59,8 @@ associative_rules_flow = Flow("Associative Rules", ftype=FlowType.TT)
 top_down_flow = Flow("NACS", ftype=FlowType.TB)
 bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
 
-response_nacs = Response("NACS", itype=ConstructType.Chunk)
-behavior_nacs = Behavior("NACS", response=response_nacs)
+response = Response("NACS", itype=ConstructType.Chunk)
+behavior = Behavior("NACS", response=response)
 
 nacs = Subsystem("NACS")
 stim_buf = Buffer("Stimulus", outputs=(Subsystem("NACS"),))
@@ -91,7 +91,7 @@ alice = make_agent(
             fruit_ck, apple_ck, juice_ck,
             red_mf, green_mf, tasty_mf, liquid_mf, sweet_mf,
             associative_rules_flow, top_down_flow, bottom_up_flow,
-            response_nacs, behavior_nacs
+            response, behavior
         }
     },
     buffers = {
@@ -158,7 +158,7 @@ alice[nacs, top_down_flow].channel = TopDownLinks(
 
 alice[nacs, bottom_up_flow].junction = SimpleJunction()
 alice[nacs, bottom_up_flow].channel = BottomUpLinks(
-    assoc=alice[nacs][top_down_flow].channel.assoc,
+    assoc=alice[nacs, top_down_flow].channel.assoc,
     default_strength=default_strength
 )
 
@@ -172,15 +172,15 @@ for node, realizer in alice[nacs].items_ctype(ConstructType.Node):
 # response construct. The junction serves to aggregate activations from afferent 
 # nodes.
 
-alice[nacs, response_nacs].junction = SimpleJunction()
-alice[nacs, response_nacs].selector = SimpleBoltzmannSelector(temperature=.1)
+alice[nacs, response].junction = SimpleJunction()
+alice[nacs, response].selector = SimpleBoltzmannSelector(temperature=.1)
 
 # Effectors link selected chunks to necessary action callbacks. In addition to 
 # behavioral responses, action callbacks may implement non-external actions, 
 # such as goal-setting, attention allocation, working-memory allocation etc., 
 # depending on simulation requirements.
 
-alice[nacs, behavior_nacs].effector = MappingEffector(
+alice[nacs, behavior].effector = MappingEffector(
     chunk2callback={
         apple_ck: lambda: recorder.actions.append(apple_ck),
         juice_ck: lambda: recorder.actions.append(juice_ck),
@@ -266,12 +266,12 @@ class ResponseFilterJunction(SimpleJunction):
 
 # We need to replace the existing junction for nacs appraisals with a new one.
 # This is very easy: just assign to buffer.junction!
-alice[nacs][response_nacs].junction = ResponseFilterJunction()
+alice[nacs, response].junction = ResponseFilterJunction()
 
 # We assume that alice filters out the cue. The decision to do this and its 
 # execution are not the responsibility of NACS, so they are not explicitly 
 # simulated.
-alice[nacs][response_nacs].junction.fdict[apple_ck] = .0
+alice[nacs, response].junction.fdict[apple_ck] = .0
 
 # Now we run through the trial again (previous activations persist).
 alice.propagate()
