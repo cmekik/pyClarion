@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- multiindexing for `AgentRealizer.__getitem__`.
+- functions `make_realizer`, `make_subsystem`, `make_agent` for initializing empty realizers from symbolic templates.
+- `ConstructRealizer.ready()` method signaling whether realizer initalization is complete.
 - `SubsystemRealizer` and `AgentRealizer` automatically connect member realizers 
 upon insertion (using data present in members' construct symbols) and disconnect
 them upon deletion. 
@@ -15,6 +18,7 @@ them upon deletion.
 
 ### Changed
 
+- Additional `ConstructRealizer` subclass initialization methods now optional.
 - `Behavior`, `Buffer` and `Response` factories assign `BehaviorID`, 
 `BufferID`, and `ResponseID` tuples as construct identifiers.
 - `Appraisal` construct renamed `Response` to avoid association with appraisal theory.

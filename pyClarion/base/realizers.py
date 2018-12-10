@@ -12,7 +12,8 @@
 __all__ = [
     "ConstructRealizer", "BasicConstructRealizer", "NodeRealizer", 
     "FlowRealizer", "ResponseRealizer", "BehaviorRealizer", "BufferRealizer",
-    "ContainerConstructRealizer", "SubsystemRealizer", "AgentRealizer"
+    "ContainerConstructRealizer", "SubsystemRealizer", "AgentRealizer",
+    "make_realizer", "make_subsystem", "make_agent"
 ]
 
 
@@ -161,6 +162,7 @@ class ConstructRealizer(object):
     """
 
     ctype: ClassVar[ConstructType]
+    components: ClassVar[List[str]] = []
     
     def __init__(self, csym: ConstructSymbol) -> None:
         """Initialize a new construct realizer.
@@ -179,6 +181,11 @@ class ConstructRealizer(object):
 
         raise NotImplementedError()
 
+    def ready(self) -> bool:
+        """Return true iff all necessary components have been defined."""
+
+        return all(hasattr(self, component) for component in self.components)
+
     def _check_csym(self, csym: ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
 
@@ -189,8 +196,8 @@ class ConstructRealizer(object):
                         type(self).__name__,
                         "expects construct symbol with ctype",
                         repr(type(self).ctype),
-                        "but received symbol of ctype {}.".format(
-                            repr(csym.ctype)
+                        "but received symbol {} of ctype {}.".format(
+                            str(csym), repr(csym.ctype)
                         )
                     ]
                 )
@@ -223,11 +230,14 @@ class BasicConstructRealizer(ConstructRealizer):
 class NodeRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Node
+    components = ['junction']
 
-    def __init__(self, csym: ConstructSymbol, junction: Junction) -> None:
+    def __init__(
+        self, csym: ConstructSymbol, junction: Junction = None
+    ) -> None:
 
         super().__init__(csym)
-        self.junction = junction
+        if junction is not None: self.junction = junction
 
     def propagate(self) -> None:
         """Output current strength of node."""
@@ -240,14 +250,18 @@ class NodeRealizer(BasicConstructRealizer):
 class FlowRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Flow
+    components = ['junction', 'channel']
 
     def __init__(
-        self, csym: ConstructSymbol, junction: Junction, channel: Channel
+        self, 
+        csym: ConstructSymbol, 
+        junction: Junction = None, 
+        channel: Channel = None
     ) -> None:
 
         super().__init__(csym)
-        self.junction = junction
-        self.channel = channel
+        if junction is not None: self.junction = junction
+        if channel is not None: self.channel = channel
 
     def propagate(self) -> None:
         """Compute new node activations."""
@@ -261,14 +275,18 @@ class FlowRealizer(BasicConstructRealizer):
 class ResponseRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Response
+    components = ['junction', 'selector']
 
     def __init__(
-        self, csym: ConstructSymbol, junction: Junction, selector: Selector
+        self, 
+        csym: ConstructSymbol, 
+        junction: Junction = None, 
+        selector: Selector = None
     ) -> None:
 
         super().__init__(csym)
-        self.junction = junction
-        self.selector = selector
+        if junction is not None: self.junction = junction
+        if selector is not None: self.selector = selector
 
     def propagate(self) -> None:
         """Make and output a decision."""
@@ -283,11 +301,14 @@ class BehaviorRealizer(BasicConstructRealizer):
     
     ctype = ConstructType.Behavior
     has_output = False
+    components = ['effector']
 
-    def __init__(self, csym: ConstructSymbol, effector: Effector) -> None:
+    def __init__(
+        self, csym: ConstructSymbol, effector: Effector = None
+    ) -> None:
 
         super().__init__(csym)
-        self.effector = effector
+        if effector is not None: self.effector = effector
 
     def propagate(self) -> None:
         """Execute selected callbacks."""
@@ -299,21 +320,22 @@ class BufferRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Buffer
     has_input = False
+    components = ['source']
 
-    def __init__(self, csym: ConstructSymbol, source: Source) -> None:
+    def __init__(self, csym: ConstructSymbol, source: Source = None) -> None:
 
         super().__init__(csym)
-        self.source = source
+        if source is not None: self.source = source
 
     def propagate(self) -> None:
         """
         Output stored activation pattern.
         
         .. warning:
-           Activation packet constructed directly from output of source. If 
-           source output is mutated (e.g., as part of a buffer update), it 
-           *will* be reflected in the output packet. Possible cause of 
-           unexpected behavior.
+           Output activation packet is constructed directly from output of 
+           self.source. If source output is mutated (e.g., as part of a buffer 
+           update), it *will* be reflected in the output packet. Possible cause 
+           of unexpected behavior.
         """
 
         strengths = self.source()
@@ -361,6 +383,11 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
         for csym, realizer in self.items():
             if self.may_connect(key, csym):
                 cast(HasInput, realizer).input.drop(key)
+
+    def ready(self) -> bool:
+        "Return true iff all necessary components defined for self and members."
+
+        return super().ready() and all(r.ready() for r in self.values())
 
     def execute(self) -> None:
         """Execute selected actions."""
@@ -432,9 +459,10 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
     ctype = ConstructType.Subsystem
     itype = SubsystemInputMonitor
+    components = ['propagation_rule']
 
     def __init__(
-        self, csym: ConstructSymbol, propagation_rule: PropagationRule, 
+        self, csym: ConstructSymbol, propagation_rule: PropagationRule = None, 
     ) -> None:
         """
         Initialize a new subsystem realizer.
@@ -446,8 +474,9 @@ class SubsystemRealizer(ContainerConstructRealizer):
         """
 
         super().__init__(csym)
-        self.propagation_rule = propagation_rule
         self.input = type(self).itype(self._watch, self._drop)
+        if propagation_rule is not None: 
+            self.propagation_rule = propagation_rule
 
     def __setitem__(self, key: Any, value: Any) -> None:
         """Add given construct and realizer pair to self."""
@@ -577,6 +606,18 @@ class AgentRealizer(ContainerConstructRealizer):
         super().__init__(csym)
         self._updaters: UpdaterList = []
 
+    def __getitem__(self, key):
+
+        if isinstance(key, ConstructSymbol):
+            return super().__getitem__(key)
+        elif len(key) == 2:
+            # if key is len 2, must be subsystem, since buffers are basic
+            # constructs.
+            subsystem, member = key
+            return super().__getitem__(subsystem)[member]
+        else:
+            raise TypeError("Unexpected key {}".format(key))
+
     def propagate(self) -> None:
         """Propagate activations among realizers owned by self."""
         
@@ -645,3 +686,49 @@ class AgentRealizer(ContainerConstructRealizer):
     def subsystems(self) -> ConstructSymbolIterable:
 
         return self.iter_ctype(ConstructType.Subsystem)
+
+
+def make_realizer(csym: ConstructSymbol) -> ConstructRealizer:
+
+    if csym.ctype in ConstructType.Node:
+        return NodeRealizer(csym)
+    elif csym.ctype is ConstructType.Flow:
+        return FlowRealizer(csym)
+    elif csym.ctype is ConstructType.Response:
+        return ResponseRealizer(csym)
+    elif csym.ctype is ConstructType.Behavior:
+        return BehaviorRealizer(csym)
+    elif csym.ctype is ConstructType.Buffer:
+        return BufferRealizer(csym)
+    elif csym.ctype is ConstructType.Subsystem:
+        return SubsystemRealizer(csym)
+    elif csym.ctype is ConstructType.Agent:
+        return AgentRealizer(csym)
+    else:
+        raise ValueError("Unexpected construct type in {}".format(csym))
+
+
+def make_subsystem(
+    csym: ConstructSymbol, members: Iterable[ConstructSymbol]
+) -> SubsystemRealizer:
+
+    subsystem = SubsystemRealizer(csym)
+    subsystem.insert_realizers(*(make_realizer(member) for member in members))
+    return subsystem
+
+
+def make_agent(
+    csym: ConstructSymbol, 
+    subsystems: Dict[ConstructSymbol, Iterable[ConstructSymbol]], 
+    buffers: Iterable[ConstructSymbol]
+) -> AgentRealizer:
+
+    agent = AgentRealizer(csym)
+    agent.insert_realizers(
+        *(
+            make_subsystem(subsystem, members) 
+            for subsystem, members in subsystems.items()
+        )
+    )
+    agent.insert_realizers(*(make_realizer(buffer) for buffer in buffers))
+    return agent
