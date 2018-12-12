@@ -1,7 +1,8 @@
 """Generally useful non-basic pyClarion components."""
 
 from pyClarion.base import *
-import numpy as np
+import math
+import random
 
 
 class SimpleJunction(object):
@@ -104,7 +105,7 @@ class SimpleBoltzmannSelector(object):
 
         terms, divisor = {}, 0
         for ck, s in self._iter_chunk_strengths(strengths):
-            terms[ck] = np.exp(s / self.temperature)
+            terms[ck] = math.exp(s / self.temperature)
             divisor += terms[ck]
         probabilities = {ck: s / divisor for ck, s in terms.items()}
         return probabilities
@@ -114,8 +115,8 @@ class SimpleBoltzmannSelector(object):
 
         # Numpy complains that chunks is not 1-dimensional since it is a nested 
         # tuple. Using range(len()) instead.
-        choice = np.random.choice(range(len(chunks)), p=probabilities)
-        return (chunks[choice],)
+        choice = random.choices(chunks, weights=probabilities)
+        return tuple(choice)
 
     @staticmethod
     def _iter_chunk_strengths(strengths):

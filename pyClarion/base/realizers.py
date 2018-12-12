@@ -19,7 +19,7 @@ __all__ = [
 
 from typing import (
     Any, Callable, Iterable, MutableMapping, Union, Optional, ClassVar, Text, 
-    Type, Dict, Tuple, Iterator, Hashable, List, cast
+    Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast
 )
 from pyClarion.base.symbols import (
     ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
@@ -38,6 +38,10 @@ InputMapping = MutableMapping[ConstructSymbol, PullMethod]
 PacketIterable = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
 WatchMethod = Callable[[ConstructSymbol, PullMethod], None]
 DropMethod = Callable[[ConstructSymbol], None]
+
+# Types used by ConstructRealizer instances
+
+ComponentSpec = Sequence[str] 
 
 # Types used by BasicConstructRealizer instances
 
@@ -162,8 +166,8 @@ class ConstructRealizer(object):
     """
 
     ctype: ClassVar[ConstructType]
-    components: ClassVar[List[str]] = []
-    
+    __slots__: ComponentSpec = ()
+
     def __init__(self, csym: ConstructSymbol) -> None:
         """Initialize a new construct realizer.
         
@@ -184,7 +188,14 @@ class ConstructRealizer(object):
     def ready(self) -> bool:
         """Return true iff all necessary components have been defined."""
 
-        return all(hasattr(self, component) for component in self.components)
+        return all(hasattr(self, component) for component in self.__slots__)
+
+    def missing(self) -> ComponentSpec:
+
+        return list(
+            component for component in self.__slots__ 
+            if not hasattr(self, component)
+        )
 
     def _check_csym(self, csym: ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
@@ -230,7 +241,7 @@ class BasicConstructRealizer(ConstructRealizer):
 class NodeRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Node
-    components = ['junction']
+    __slots__ = ('junction',)
 
     def __init__(
         self, csym: ConstructSymbol, junction: Junction = None
@@ -250,7 +261,7 @@ class NodeRealizer(BasicConstructRealizer):
 class FlowRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Flow
-    components = ['junction', 'channel']
+    __slots__ = ('junction', 'channel')
 
     def __init__(
         self, 
@@ -275,7 +286,7 @@ class FlowRealizer(BasicConstructRealizer):
 class ResponseRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Response
-    components = ['junction', 'selector']
+    __slots__ = ('junction', 'selector')
 
     def __init__(
         self, 
@@ -301,7 +312,7 @@ class BehaviorRealizer(BasicConstructRealizer):
     
     ctype = ConstructType.Behavior
     has_output = False
-    components = ['effector']
+    __slots__ = ('effector',)
 
     def __init__(
         self, csym: ConstructSymbol, effector: Effector = None
@@ -320,7 +331,7 @@ class BufferRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Buffer
     has_input = False
-    components = ['source']
+    __slots__ = ('source',)
 
     def __init__(self, csym: ConstructSymbol, source: Source = None) -> None:
 
@@ -459,7 +470,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
     ctype = ConstructType.Subsystem
     itype = SubsystemInputMonitor
-    components = ['propagation_rule']
+    __slots__ = ('propagation_rule',)
 
     def __init__(
         self, csym: ConstructSymbol, propagation_rule: PropagationRule = None, 
@@ -688,7 +699,13 @@ class AgentRealizer(ContainerConstructRealizer):
         return self.iter_ctype(ConstructType.Subsystem)
 
 
+####################################
+### Construct Realizer Factories ###
+####################################
+
+
 def make_realizer(csym: ConstructSymbol) -> ConstructRealizer:
+    """Initialize empty construct realizer for given construct symbol."""
 
     if csym.ctype in ConstructType.Node:
         return NodeRealizer(csym)
@@ -709,8 +726,9 @@ def make_realizer(csym: ConstructSymbol) -> ConstructRealizer:
 
 
 def make_subsystem(
-    csym: ConstructSymbol, members: Iterable[ConstructSymbol]
+    csym: ConstructSymbol, members: ConstructSymbolIterable
 ) -> SubsystemRealizer:
+    """Initialize empty subsystem realizer with given members."""
 
     subsystem = SubsystemRealizer(csym)
     subsystem.insert_realizers(*(make_realizer(member) for member in members))
@@ -719,9 +737,10 @@ def make_subsystem(
 
 def make_agent(
     csym: ConstructSymbol, 
-    subsystems: Dict[ConstructSymbol, Iterable[ConstructSymbol]], 
-    buffers: Iterable[ConstructSymbol]
+    subsystems: Mapping[ConstructSymbol, ConstructSymbolIterable], 
+    buffers: ConstructSymbolIterable
 ) -> AgentRealizer:
+    """Initialize empty agent realizer with given subsystems and buffers."""
 
     agent = AgentRealizer(csym)
     agent.insert_realizers(
