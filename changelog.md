@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - multiindexing for `AgentRealizer.__getitem__`.
 - functions `make_realizer`, `make_subsystem`, `make_agent` for initializing empty realizers from symbolic templates.
 - `ConstructRealizer.ready()` method signaling whether realizer initalization is complete.
+- `ConstructRealizer.missing()` and `ContainerConstructRealizer.missing_recursive()` for identifying missing realizer components.
 - `SubsystemRealizer` and `AgentRealizer` automatically connect member realizers 
 upon insertion (using data present in members' construct symbols) and disconnect
 them upon deletion. 
@@ -27,3 +28,7 @@ them upon deletion.
 
 - Bug in `SubsystemRealizer` allowing connections between constructs that should not be linked.
 - Bug in `ConstantSource` allowing mutation of output activation packets. 
+
+### Removed
+
+- Dependency on `numpy`.
