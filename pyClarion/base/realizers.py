@@ -7,6 +7,8 @@
 #   - There are two major types of construct realizer: basic construct 
 #     realizers and container construct realizers. Definitions for each major 
 #     realizer type are grouped together in marked sections.
+#   - Last, some factory functions are defined for quick initialization of 
+#     construct realizers.
 
 
 __all__ = [
@@ -191,8 +193,9 @@ class ConstructRealizer(object):
         return all(hasattr(self, component) for component in self.__slots__)
 
     def missing(self) -> ComponentSpec:
+        """Return any missing components of self."""
 
-        return list(
+        return tuple(
             component for component in self.__slots__ 
             if not hasattr(self, component)
         )
@@ -400,6 +403,21 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
 
         return super().ready() and all(r.ready() for r in self.values())
 
+    def missing_recursive(self):
+        """Return missing components in self and all member realizers."""
+
+        missing = (
+            self.missing(), 
+            {
+                construct: (
+                    realizer.missing_recursive() 
+                    if isinstance(realizer, ContainerConstructRealizer) 
+                    else realizer.missing()
+                ) for construct, realizer in self.items()
+            }
+        )
+        return missing
+
     def execute(self) -> None:
         """Execute selected actions."""
 
@@ -524,6 +542,14 @@ class SubsystemRealizer(ContainerConstructRealizer):
     def may_connect(
         self, source: ConstructSymbol, target: ConstructSymbol
     ) -> bool:
+        """
+        Return true iff source may connect to target within self.
+        
+        Connects chunk and microfeature nodes may connect to flows as inputs 
+        or outputs according to flow direction. Connects of response and 
+        behavior constructs according to contents of respective construct 
+        symbols.
+        """
         
         possibilities: List[bool] = [
             (
@@ -672,6 +698,12 @@ class AgentRealizer(ContainerConstructRealizer):
     def may_connect(
         self, source: ConstructSymbol, target: ConstructSymbol
     ) -> bool:
+        """
+        Return true iff source may connect to target within self.
+        
+        Connects buffers to subsystems according to specifications in buffer 
+        construct symbols.
+        """
         
         possibilities = [
             (
