@@ -173,7 +173,7 @@ for node, realizer in alice[nacs].items_ctype(ConstructType.Node):
 # nodes.
 
 alice[nacs, response].junction = SimpleJunction()
-alice[nacs, response].selector = SimpleBoltzmannSelector(temperature=.1)
+alice[nacs, response].selector = BoltzmannSelector(temperature=.1)
 
 # Effectors link selected chunks to necessary action callbacks. In addition to 
 # behavioral responses, action callbacks may implement non-external actions, 

@@ -8,7 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- multiindexing for `AgentRealizer.__getitem__`.
+- `CategoricalSelector` object for categorical choices (essentially a boltzmann selector but on log strengths).
+- `ConstructRealizer.clear_activations()` for resetting agent/construct output state.
+- multiindexing for `AgentRealizer` members.
 - functions `make_realizer`, `make_subsystem`, `make_agent` for initializing empty realizers from symbolic templates.
 - `ConstructRealizer.ready()` method signaling whether realizer initalization is complete.
 - `ConstructRealizer.missing()` and `ContainerConstructRealizer.missing_recursive()` for identifying missing realizer components.
@@ -19,7 +21,8 @@ them upon deletion.
 
 ### Changed
 
-- Additional `ConstructRealizer` subclass initialization methods now optional.
+- `SimpleBoltzmannSelector` renamed `BoltzmannSelector`
+- Additional `ConstructRealizer` subclass initialization arguments now optional.
 - `Behavior`, `Buffer` and `Response` factories assign `BehaviorID`, 
 `BufferID`, and `ResponseID` tuples as construct identifiers.
 - `Appraisal` construct renamed `Response` to avoid association with appraisal theory.

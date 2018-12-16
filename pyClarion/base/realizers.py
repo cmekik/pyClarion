@@ -43,7 +43,16 @@ DropMethod = Callable[[ConstructSymbol], None]
 
 # Types used by ConstructRealizer instances
 
-ComponentSpec = Sequence[str] 
+ComponentSpec = Iterable[str] 
+
+# Below, recursion depth limited to 2 due to construct realizer architecture.
+# type imprecise due to limitations of python recursive types.
+RecursiveComponentSpec = Tuple[
+    ComponentSpec, Dict[
+        ConstructSymbol, 
+        Any # should be Union[RecursiveComponentSpec, ComponentSpec]
+    ]
+]
 
 # Types used by BasicConstructRealizer instances
 
@@ -121,7 +130,12 @@ class OutputView(object):
         try:
             return self._buffer
         except AttributeError:
-            return None        
+            return None
+
+    def clear(self) -> None:
+        """Clear output buffer.""" 
+
+        if hasattr(self, '_buffer'): del self._buffer       
 
 
 class SubsystemInputMonitor(object):
@@ -184,6 +198,12 @@ class ConstructRealizer(object):
         return "{}({})".format(type(self).__name__, repr(self.csym))
 
     def propagate(self) -> None:
+        """Propagate activations."""
+
+        raise NotImplementedError()
+
+    def clear_activations(self) -> None:
+        """Clear activations."""
 
         raise NotImplementedError()
 
@@ -239,6 +259,11 @@ class BasicConstructRealizer(ConstructRealizer):
             self.input = type(self).itype()
         if type(self).has_output:
             self.output = type(self).otype()
+
+    def clear_activations(self) -> None:
+        """Clear activations stored in output view."""
+
+        self.output.clear()
 
 
 class NodeRealizer(BasicConstructRealizer):
@@ -306,8 +331,8 @@ class ResponseRealizer(BasicConstructRealizer):
         """Make and output a decision."""
 
         combined = self.junction(self.input.pull())
-        appraisal_data = self.selector(combined)
-        decision_packet = type(self).make_packet(self.csym, appraisal_data)
+        response_data = self.selector(combined)
+        decision_packet = type(self).make_packet(self.csym, response_data)
         self.output.update(decision_packet)
 
 
@@ -398,26 +423,6 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
             if self.may_connect(key, csym):
                 cast(HasInput, realizer).input.drop(key)
 
-    def ready(self) -> bool:
-        "Return true iff all necessary components defined for self and members."
-
-        return super().ready() and all(r.ready() for r in self.values())
-
-    def missing_recursive(self):
-        """Return missing components in self and all member realizers."""
-
-        missing = (
-            self.missing(), 
-            {
-                construct: (
-                    realizer.missing_recursive() 
-                    if isinstance(realizer, ContainerConstructRealizer) 
-                    else realizer.missing()
-                ) for construct, realizer in self.items()
-            }
-        )
-        return missing
-
     def execute(self) -> None:
         """Execute selected actions."""
 
@@ -434,6 +439,32 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
         """Return true if source may send output to target."""
 
         raise NotImplementedError()
+
+    def ready(self) -> bool:
+        "Return true iff all necessary components defined for self and members."
+
+        return super().ready() and all(r.ready() for r in self.values())
+
+    def clear_activations(self) -> None:
+        """Clear member activations"""
+
+        for realizer in self.values():
+            realizer.clear_activations()
+
+    def missing_recursive(self) -> RecursiveComponentSpec:
+        """Return missing components in self and all member realizers."""
+
+        missing: RecursiveComponentSpec = (
+            self.missing(), 
+            {
+                construct: (
+                    realizer.missing_recursive() 
+                    if isinstance(realizer, ContainerConstructRealizer) 
+                    else realizer.missing()
+                ) for construct, realizer in self.items()
+            }
+        )
+        return missing
 
     def insert_realizers(self, *realizers: ConstructRealizer) -> None:
         """Add pre-initialized realizers to self."""
@@ -646,14 +677,38 @@ class AgentRealizer(ContainerConstructRealizer):
     def __getitem__(self, key):
 
         if isinstance(key, ConstructSymbol):
-            return super().__getitem__(key)
+            return super().__getitem__(key)  
         elif len(key) == 2:
             # if key is len 2, must be subsystem, since buffers are basic
             # constructs.
             subsystem, member = key
-            return super().__getitem__(subsystem)[member]
+            return super().__getitem__(subsystem).__getitem__(member)
         else:
-            raise TypeError("Unexpected key {}".format(key))
+            raise ValueError("Unexpected key {}".format(key))
+
+    def __setitem__(self, key, value):
+
+        if isinstance(key, ConstructSymbol):
+            super().__setitem__(key, value)  
+        elif len(key) == 2:
+            # if key is len 2, must be subsystem, since buffers are basic
+            # constructs.
+            subsystem, member = key
+            super().__getitem__(subsystem).__setitem__(member, value)
+        else:
+            raise ValueError("Unexpected key {}".format(key))
+
+    def __delitem__(self, key):
+
+        if isinstance(key, ConstructSymbol):
+            super().__delitem__(key)  
+        elif len(key) == 2:
+            # if key is len 2, must be subsystem, since buffers are basic
+            # constructs.
+            subsystem, member = key
+            self.__getitem__(subsystem).__delitem__(member)
+        else:
+            raise ValueError("Unexpected key {}".format(key))
 
     def propagate(self) -> None:
         """Propagate activations among realizers owned by self."""
@@ -668,27 +723,6 @@ class AgentRealizer(ContainerConstructRealizer):
 
         for subsystem in self.subsystems:
             self[subsystem].execute()
-
-    def learn(self) -> None:
-        """
-        Update knowledge in all subsystems and all buffers.
-        
-        Issues update calls to each updater attached to self.  
-        """
-
-        for updater in self.updaters:
-            updater()
-
-    def attach(self, *updaters: Updater) -> None:
-        """
-        Add update managers to self.
-        
-        :param update_managers: Callables that manage updates to dynamic 
-            knowledge components. Should take no arguments and return nothing.
-        """
-
-        for updater in updaters:
-            self._updaters.append(updater)
 
     def may_contain(self, csym: ConstructSymbol) -> bool:
         """Return true if agent realizer may contain csym."""
@@ -714,6 +748,27 @@ class AgentRealizer(ContainerConstructRealizer):
         ]
 
         return any(possibilities)
+
+    def learn(self) -> None:
+        """
+        Update knowledge in all subsystems and all buffers.
+        
+        Issues update calls to each updater attached to self.  
+        """
+
+        for updater in self.updaters:
+            updater()
+
+    def attach(self, *updaters: Updater) -> None:
+        """
+        Add update managers to self.
+        
+        :param update_managers: Callables that manage updates to dynamic 
+            knowledge components. Should take no arguments and return nothing.
+        """
+
+        for updater in updaters:
+            self._updaters.append(updater)
 
     @property
     def updaters(self) -> UpdaterIterable:

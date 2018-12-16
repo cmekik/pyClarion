@@ -6,7 +6,7 @@ import random
 
 
 class SimpleJunction(object):
-    """Merges input activation packets using the packet ``update`` method."""
+    """Merges node strengths from multiple packets using pure dict update."""
 
     def __call__(self, packets):
 
@@ -74,7 +74,7 @@ class SimpleNodeJunction(object):
                     yield s
 
 
-class SimpleBoltzmannSelector(object):
+class BoltzmannSelector(object):
     """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature):
@@ -96,8 +96,8 @@ class SimpleBoltzmannSelector(object):
 
         choices = ()
         bd = self.get_boltzmann_distribution(strengths)
-        chunk_list, probabilities = tuple(zip(*bd.items())) or ((), ())
-        chosen = self.choose(chunk_list, probabilities)
+        chunks, probabilities = tuple(zip(*bd.items())) or ((), ())
+        chosen = tuple(random.choices(chunks, weights=probabilities))
         return bd, chosen
 
     def get_boltzmann_distribution(self, strengths):
@@ -110,13 +110,56 @@ class SimpleBoltzmannSelector(object):
         probabilities = {ck: s / divisor for ck, s in terms.items()}
         return probabilities
 
-    def choose(self, chunks, probabilities):
-        """Choose a chunk given some selection probabilities."""
+    @staticmethod
+    def _iter_chunk_strengths(strengths):
 
-        # Numpy complains that chunks is not 1-dimensional since it is a nested 
-        # tuple. Using range(len()) instead.
-        choice = random.choices(chunks, weights=probabilities)
-        return tuple(choice)
+        for csym, s in strengths.items():
+            if csym.ctype is ConstructType.Chunk:
+                yield (csym, s)            
+
+
+class CategoricalSelector(object):
+    """
+    Selects a chunk according to a categorical distribution.
+    
+    May be interpreted as a Boltzmann distribution applied to the log of chunk 
+    strengths.
+    """
+
+    def __init__(self, temperature = 1.):
+        """Initialize a ``CategoricalSelector`` instance.
+
+        :param temperature: Temperature of the categorical distribution. Behaves 
+            similarly to temperature parameter in boltzmann distribution. 
+        """
+
+        self.temperature = temperature
+
+    def __call__(self, strengths):
+        """Select actionable chunks for execution. 
+        
+        Selection probabilities vary with chunk strengths according to a 
+        categorical distribution:
+            p(ch) = strength(ch) ** - temp / (sum_i strength(i) ** - temp)
+
+        :param strengths: Mapping of node strengths.
+        """
+
+        choices = ()
+        bd = self.get_categorical_distribution(strengths)
+        chunks, probabilities = tuple(zip(*bd.items())) or ((), ())
+        chosen = tuple(random.choices(chunks, weights=probabilities))
+        return bd, chosen
+
+    def get_categorical_distribution(self, strengths):
+        """Construct and return a chunk selection distribution."""
+
+        terms, divisor = {}, 0
+        for ck, s in self._iter_chunk_strengths(strengths):
+            terms[ck] = pow(s, -self.temperature)
+            divisor += terms[ck]
+        probabilities = {ck: s / divisor for ck, s in terms.items()}
+        return probabilities
 
     @staticmethod
     def _iter_chunk_strengths(strengths):
