@@ -63,49 +63,6 @@ class ConstructType(Flag):
     )
     ContainerConstruct = Subsystem | Agent
 
-    def __str__(self):
-        """
-        Returns the construct type name. 
-        
-        If no construct type name is available, falls back on repr.
-        """
-
-        if self.name:
-            return self.name
-        else:
-            return repr(self)
-
-
-class ConstructSymbol(NamedTuple):
-    """
-    Symbolically represents simulation constructs.
-    
-    Construct symbols identify and carry essential information about simulated 
-    constructs.
-
-    :param ctype: Construct type.
-    :param cid: Construct ID.
-    """
-    
-    ctype: ConstructType
-    cid: Hashable
-
-    def __str__(self):
-        """
-        Pretty print construct symbol.
-
-        Output has form: 'ConstructName(id)'
-        """
-
-        return "".join([str(self.ctype), "(", repr(self.cid), ")"])
-
-
-class DVPair(NamedTuple):
-    """Represents a microfeature dimension-value pair."""
-    
-    dim: Hashable
-    val: Hashable
-
 
 class FlowType(Flag):
     """
@@ -124,11 +81,60 @@ class FlowType(Flag):
     BT = auto()
 
 
+class ConstructSymbol(NamedTuple):
+    """
+    Symbolically represents simulation constructs.
+    
+    Construct symbols identify and carry essential information about simulated 
+    constructs.
+
+    :param ctype: Construct type.
+    :param cid: Construct ID.
+    """
+    
+    ctype: ConstructType
+    cid: Hashable
+
+    def __repr__(self):
+
+        return ''.join(['<', self.__class__.__name__, ' ', str(self), '>'])
+
+    def __str__(self):
+        """
+        Pretty print construct symbol.
+
+        Output has form: 'ConstructName(id)'
+        """
+
+        if hasattr(self.cid, '_repr_data'):
+            cdata = self.cid._repr_data()
+        else:
+            cdata = repr(self.cid)
+        return "".join(
+            [self.ctype.name or str(self.ctype), "(", cdata, ")"]
+        )
+
+
+class DVPair(NamedTuple):
+    """Represents a microfeature dimension-value pair."""
+    
+    dim: Hashable
+    val: Hashable
+
+    def _repr_data(self):
+
+        return ', '.join([repr(field) for field in self._fields])
+
+
 class FlowID(NamedTuple):
     """Represents the name and type of a flow."""
 
     name: Hashable
     ftype: FlowType
+
+    def _repr_data(self):
+
+        return ', '.join([repr(self.name), str(self.ftype)])
 
 
 class ResponseID(NamedTuple):
@@ -137,6 +143,10 @@ class ResponseID(NamedTuple):
     name: Hashable
     itype: ConstructType
 
+    def _repr_data(self):
+
+        return ', '.join([repr(self.name), self.itype.name or str(self.itype)])
+
 
 class BehaviorID(NamedTuple):
     """Represents the name and client response construct of a behavior."""
@@ -144,12 +154,28 @@ class BehaviorID(NamedTuple):
     name: Hashable
     response: ConstructSymbol
 
+    def _repr_data(self):
+
+        return ', '.join([repr(self.name), str(self.response)])
+
 
 class BufferID(NamedTuple):
     """Represents the name and output destinations of a buffer."""
 
     name: Hashable
     outputs: ConstructSymbolSequence
+
+    def _repr_data(self):
+
+        return ''.join(
+            [
+                repr(self.name), ', '
+                '(', 
+                ', '.join([str(csym) for csym in self.outputs]),
+                '' if len(self.outputs) > 1 else ',', 
+                ')'
+            ]
+        )
 
 
 ##################################

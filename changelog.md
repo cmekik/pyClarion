@@ -21,6 +21,7 @@ them upon deletion.
 
 ### Changed
 
+- Improved `str` and `repr` outputs for construct symbols.
 - `SimpleBoltzmannSelector` renamed `BoltzmannSelector`
 - Additional `ConstructRealizer` subclass initialization arguments now optional.
 - `Behavior`, `Buffer` and `Response` factories assign `BehaviorID`, 
