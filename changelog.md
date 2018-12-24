@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `CategoricalSelector` object for categorical choices (essentially a boltzmann selector but on log strengths).
 - `ConstructRealizer.clear_activations()` for resetting agent/construct output state.
-- multiindexing for `AgentRealizer` members.
+- multiindexing for `ContainerConstructRealizer` members.
 - functions `make_realizer`, `make_subsystem`, `make_agent` for initializing empty realizers from symbolic templates.
 - `ConstructRealizer.ready()` method signaling whether realizer initalization is complete.
 - `ConstructRealizer.missing()` and `ContainerConstructRealizer.missing_recursive()` for identifying missing realizer components.
@@ -21,6 +21,7 @@ them upon deletion.
 
 ### Changed
 
+- `ContainerConstructRealizer` properties now return lists instead of iterables for easier interactive inspection. Generators still acssessible through iterator methods such as `realizer.iter_ctype()` and `realizer.items_ctype()`.
 - Improved `str` and `repr` outputs for construct symbols and realizers.
 - `SimpleBoltzmannSelector` renamed `BoltzmannSelector`
 - Additional `ConstructRealizer` subclass initialization arguments now optional.
@@ -30,7 +31,8 @@ them upon deletion.
 
 ### Fixed
 
-- Bug in `SubsystemRealizer` allowing connections between constructs that should not be linked.
+- Bug in `SubsystemRealizer` allowing connections between constructs that should 
+not be linked.
 - Bug in `ConstantSource` allowing mutation of output activation packets. 
 
 ### Removed

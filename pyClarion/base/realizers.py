@@ -23,6 +23,8 @@ from typing import (
     Any, Callable, Iterable, MutableMapping, Union, Optional, ClassVar, Text, 
     Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast
 )
+from operator import getitem, setitem, delitem
+from functools import partial
 from pyClarion.base.symbols import (
     ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
     BufferID
@@ -47,15 +49,6 @@ DropMethod = Callable[[ConstructSymbol], None]
 
 ComponentSpec = Iterable[str] 
 
-# Below, recursion depth limited to 2 due to construct realizer architecture.
-# type imprecise due to limitations of python recursive types.
-RecursiveComponentSpec = Tuple[
-    ComponentSpec, Dict[
-        ConstructSymbol, 
-        Any # should be Union[RecursiveComponentSpec, ComponentSpec]
-    ]
-]
-
 # Types used by BasicConstructRealizer instances
 
 Channel = Callable[[ConstructSymbolMapping], ConstructSymbolMapping]
@@ -70,7 +63,9 @@ PacketMaker = Callable[[ConstructSymbol, Any], Packet]
 
 ConstructIndex = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = List[Tuple[ConstructIndex, ComponentSpec]]
+ConstructSymbolTuple = Tuple[ConstructSymbol, ...]
 MutableRealizerMapping = MutableMapping[ConstructSymbol, 'ConstructRealizer']
+ConstructSymbolList = List[ConstructSymbol]
 ConstructSymbolIterable = Iterable[ConstructSymbol]
 ContainerConstructItems = Iterable[Tuple[ConstructSymbol, 'ConstructRealizer']]
 HasInput = Union[
@@ -108,7 +103,8 @@ class InputMonitor(object):
 
         for view in self.input_links.values():
             v = view()
-            if v is not None: yield v
+            if v is not None: 
+                yield v
 
     def watch(self, csym: ConstructSymbol, pull_method: PullMethod) -> None:
         """Connect given construct as input to client."""
@@ -410,23 +406,33 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
 
         return iter(self._dict)
 
-    def __getitem__(self, key: Any) -> Any:
+    def __getitem__(self, key: ConstructIndex) -> ConstructRealizer:
 
-        return self._dict[key]
+        if isinstance(key, ConstructSymbol):
+            return self._dict[key]
+        else:
+            return self._consume_multiindex(
+                key[:-1], lambda a: getitem(a, key[-1])
+            )
 
     def __setitem__(self, key: Any, value: Any) -> None:
 
-        self._check_kv_pair(key, value)
-        self._dict[key] = value
-        self._connect(key, value)
+        if isinstance(key, ConstructSymbol):
+            self._check_kv_pair(key, value)
+            self._dict[key] = value
+            self._connect(key, value)
+        else:
+            self._consume_multiindex(
+                key[:-1], lambda a: setitem(a, key[-1], value)
+            )
 
     def __delitem__(self, key: Any) -> None:
 
-        del self._dict[key]
-
-        for csym, realizer in self.items():
-            if self.may_connect(key, csym):
-                cast(HasInput, realizer).input.drop(key)
+        if isinstance(key, ConstructSymbol):
+            del self._dict[key]
+            self._disconnect(key)
+        else:
+            self._consume_multiindex(key[:-1], lambda a: delitem(a, key[-1]))
 
     def execute(self) -> None:
         """Execute selected actions."""
@@ -479,15 +485,16 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
     def iter_ctype(self, ctype: ConstructType) -> ConstructSymbolIterable:
         """Return an iterator over all members matching ctype."""
 
-        return (csym for csym in self if csym.ctype in ctype)
+        for csym in self: 
+            if csym.ctype in ctype:
+                yield csym
 
     def items_ctype(self, ctype: ConstructType) -> ContainerConstructItems:
         """Return an iterator over all csym-realizer pairs matching ctype."""
 
-        return (
-            (csym, realizer) for csym, realizer in self.items() 
-            if csym.ctype in ctype
-        )
+        for csym, realizer in self.items():
+            if csym.ctype in ctype:
+                yield csym, realizer
 
     def _check_kv_pair(self, key: Any, value: Any) -> None:
 
@@ -497,13 +504,22 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
                     repr(self), repr(key)
                 )
             )
-            
         if key != value.csym:
             raise ValueError(
                 "{} given key {} does not match value {}".format(
                     repr(self), repr(key), repr(value)
                 )
             )
+
+    def _consume_multiindex(
+            self, multiindex: ConstructSymbolTuple, func: Callable[[Any], Any]
+        ) -> Any:
+        # type annotations need improvement.
+
+        a = self
+        for csym in multiindex:
+            a = cast(ContainerConstructRealizer, a[csym])
+        return func(a)
 
     def _connect(self, key: Any, value: Any) -> None:
 
@@ -516,6 +532,12 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
                 value = cast(HasOutput, value)
                 realizer = cast(HasInput, realizer)
                 realizer.input.watch(key, value.output.view)
+
+    def _disconnect(self, key: Any) -> None:
+
+        for csym, realizer in self.items():
+            if self.may_connect(key, csym):
+                cast(HasInput, realizer).input.drop(key)
 
     def _make_compound_index(self, index: ConstructIndex) -> ConstructIndex:
         
@@ -548,15 +570,6 @@ class SubsystemRealizer(ContainerConstructRealizer):
         self.input = type(self).itype(self._watch, self._drop)
         if propagation_rule is not None: 
             self.propagation_rule = propagation_rule
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-        """Add given construct and realizer pair to self."""
-
-        super().__setitem__(key, value)
-
-        if key.ctype in ConstructType.Node:
-            for buffer, pull_method in self.input.input_links.items():
-                value.input.watch(buffer, pull_method)
 
     def propagate(self) -> None:
         """Propagate activations among realizers owned by self."""
@@ -633,6 +646,34 @@ class SubsystemRealizer(ContainerConstructRealizer):
         ]
         return any(possibilities)
 
+    @property
+    def nodes(self) -> ConstructSymbolList:
+        
+        return list(self.iter_ctype(ConstructType.Node))
+
+    @property
+    def flows(self) -> ConstructSymbolList:
+        
+        return list(self.iter_ctype(ConstructType.Flow))
+
+    @property
+    def responses(self) -> ConstructSymbolList:
+        
+        return list(self.iter_ctype(ConstructType.Response))
+
+    @property
+    def behaviors(self) -> ConstructSymbolList:
+        
+        return list(self.iter_ctype(ConstructType.Behavior))
+
+    def _connect(self, key: Any, value: Any) -> None:
+
+        super()._connect(key, value)
+
+        if key.ctype in ConstructType.Node:
+            for buffer, pull_method in self.input.input_links.items():
+                value.input.watch(buffer, pull_method)
+
     def _watch(
         self, identifier: Hashable, pull_method: PullMethod
     ) -> None:
@@ -648,26 +689,6 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
         for _, realizer in self.items_ctype(ConstructType.Node):
             cast(BasicConstructRealizer, realizer).input.drop(identifier)
-
-    @property
-    def nodes(self) -> ConstructSymbolIterable:
-        
-        return self.iter_ctype(ConstructType.Node)
-
-    @property
-    def flows(self) -> ConstructSymbolIterable:
-        
-        return self.iter_ctype(ConstructType.Flow)
-
-    @property
-    def responses(self) -> ConstructSymbolIterable:
-        
-        return self.iter_ctype(ConstructType.Response)
-
-    @property
-    def behaviors(self) -> ConstructSymbolIterable:
-        
-        return self.iter_ctype(ConstructType.Behavior)
 
 
 class AgentRealizer(ContainerConstructRealizer):
@@ -685,42 +706,6 @@ class AgentRealizer(ContainerConstructRealizer):
         super().__init__(csym)
         self._updaters: UpdaterList = []
 
-    def __getitem__(self, key):
-
-        if isinstance(key, ConstructSymbol):
-            return super().__getitem__(key)  
-        elif len(key) == 2:
-            # if key is len 2, must be subsystem, since buffers are basic
-            # constructs.
-            subsystem, member = key
-            return super().__getitem__(subsystem).__getitem__(member)
-        else:
-            raise ValueError("Unexpected key {}".format(key))
-
-    def __setitem__(self, key, value):
-
-        if isinstance(key, ConstructSymbol):
-            super().__setitem__(key, value)  
-        elif len(key) == 2:
-            # if key is len 2, must be subsystem, since buffers are basic
-            # constructs.
-            subsystem, member = key
-            super().__getitem__(subsystem).__setitem__(member, value)
-        else:
-            raise ValueError("Unexpected key {}".format(key))
-
-    def __delitem__(self, key):
-
-        if isinstance(key, ConstructSymbol):
-            super().__delitem__(key)  
-        elif len(key) == 2:
-            # if key is len 2, must be subsystem, since buffers are basic
-            # constructs.
-            subsystem, member = key
-            self.__getitem__(subsystem).__delitem__(member)
-        else:
-            raise ValueError("Unexpected key {}".format(key))
-
     def propagate(self) -> None:
         """Propagate activations among realizers owned by self."""
         
@@ -733,7 +718,7 @@ class AgentRealizer(ContainerConstructRealizer):
         """Execute all selected actions in all subsystems."""
 
         for subsystem in self.subsystems:
-            self[subsystem].execute()
+            cast(SubsystemRealizer, self[subsystem]).execute()
 
     def may_contain(self, csym: ConstructSymbol) -> bool:
         """Return true if agent realizer may contain csym."""
@@ -782,19 +767,19 @@ class AgentRealizer(ContainerConstructRealizer):
             self._updaters.append(updater)
 
     @property
-    def updaters(self) -> UpdaterIterable:
+    def updaters(self) -> UpdaterList:
         
-        return (updater for updater in self._updaters)
+        return list(updater for updater in self._updaters)
 
     @property
-    def buffers(self) -> ConstructSymbolIterable:
+    def buffers(self) -> ConstructSymbolList:
 
-        return self.iter_ctype(ConstructType.Buffer)
+        return list(self.iter_ctype(ConstructType.Buffer))
 
     @property
-    def subsystems(self) -> ConstructSymbolIterable:
+    def subsystems(self) -> ConstructSymbolList:
 
-        return self.iter_ctype(ConstructType.Subsystem)
+        return list(self.iter_ctype(ConstructType.Subsystem))
 
 
 ####################################
