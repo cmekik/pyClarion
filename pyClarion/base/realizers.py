@@ -3,7 +3,7 @@
 
 # Notes for Readers:
 
-#   - Type aliases and helper functions are defined first.
+#   - Type aliases and helper functions and classes are defined first.
 #   - There are two major types of construct realizer: basic construct 
 #     realizers and container construct realizers. Definitions for each major 
 #     realizer type are grouped together in marked sections.
@@ -33,9 +33,11 @@ from pyClarion.base.packets import (
 )
 
 
-# Types used by helper classes
+# Types aliases used by helper classes
 
-PullMethod = Callable[[], Union[ActivationPacket, DecisionPacket]]
+PullMethod = Union[
+    Callable[[], ActivationPacket], Callable[[], DecisionPacket]
+]
 InputMapping = MutableMapping[ConstructSymbol, PullMethod]
 PacketIterable = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
 WatchMethod = Callable[[ConstructSymbol, PullMethod], None]
@@ -61,10 +63,13 @@ Junction = Callable[[Iterable[ActivationPacket]], ConstructSymbolMapping]
 Selector = Callable[[ConstructSymbolMapping], DecisionPacket]
 Effector = Callable[[DecisionPacket], None]
 Source = Callable[[], ConstructSymbolMapping]
+
 PacketMaker = Callable[[ConstructSymbol, Any], Packet]
 
 # Types used by ContainerConstructRealizer instances
 
+ConstructIndex = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
+MissingSpec = List[Tuple[ConstructIndex, ComponentSpec]]
 MutableRealizerMapping = MutableMapping[ConstructSymbol, 'ConstructRealizer']
 ConstructSymbolIterable = Iterable[ConstructSymbol]
 ContainerConstructItems = Iterable[Tuple[ConstructSymbol, 'ConstructRealizer']]
@@ -451,19 +456,18 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
         for realizer in self.values():
             realizer.clear_activations()
 
-    def missing_recursive(self) -> RecursiveComponentSpec:
+    def missing_recursive(self) -> MissingSpec:
         """Return missing components in self and all member realizers."""
 
-        missing: RecursiveComponentSpec = (
-            self.missing(), 
-            {
-                construct: (
-                    realizer.missing_recursive() 
-                    if isinstance(realizer, ContainerConstructRealizer) 
-                    else realizer.missing()
-                ) for construct, realizer in self.items()
-            }
-        )
+        missing: MissingSpec = [(self.csym, self.missing())]
+        for csym, realizer in self.items():
+            if isinstance(realizer, ContainerConstructRealizer):
+                missing.extend(
+                    (self._make_compound_index(index), missing_slots) 
+                    for index, missing_slots in realizer.missing_recursive()
+                )
+            elif isinstance(realizer, BasicConstructRealizer):
+                missing.append(((self.csym, csym), realizer.missing()))
         return missing
 
     def insert_realizers(self, *realizers: ConstructRealizer) -> None:
@@ -512,6 +516,13 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
                 value = cast(HasOutput, value)
                 realizer = cast(HasInput, realizer)
                 realizer.input.watch(key, value.output.view)
+
+    def _make_compound_index(self, index: ConstructIndex) -> ConstructIndex:
+        
+        if isinstance(index, ConstructSymbol):
+            return (self.csym, index)
+        else: # index must be a tuple of construct symbols
+            return (self.csym,) + cast(Tuple[ConstructSymbol, ...], index)
 
 
 class SubsystemRealizer(ContainerConstructRealizer):
