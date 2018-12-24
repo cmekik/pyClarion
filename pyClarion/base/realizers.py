@@ -24,7 +24,6 @@ from typing import (
     Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast
 )
 from operator import getitem, setitem, delitem
-from functools import partial
 from pyClarion.base.symbols import (
     ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
     BufferID
@@ -120,12 +119,12 @@ class InputMonitor(object):
 class OutputView(object):
     """Exposes outputs of basic construct realizers."""
 
-    def update(self, packet: ActivationPacket) -> None:
+    def update(self, packet: Packet) -> None:
         """Update reported output of client construct."""
         
         self._buffer = packet
 
-    def view(self) -> Optional[ActivationPacket]:
+    def view(self) -> Optional[Packet]:
         """Emit current output of client construct."""
         
         try:
