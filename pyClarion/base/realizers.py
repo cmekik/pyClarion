@@ -195,7 +195,7 @@ class ConstructRealizer(object):
 
     def __repr__(self) -> Text:
 
-        return "{}({})".format(type(self).__name__, repr(self.csym))
+        return "<{}: {}>".format(self.__class__.__name__, str(self.csym))
 
     def propagate(self) -> None:
         """Propagate activations."""

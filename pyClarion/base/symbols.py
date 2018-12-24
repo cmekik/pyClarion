@@ -97,7 +97,7 @@ class ConstructSymbol(NamedTuple):
 
     def __repr__(self):
 
-        return ''.join(['<', self.__class__.__name__, ' ', str(self), '>'])
+        return ''.join(['<', self.__class__.__name__, ': ', str(self), '>'])
 
     def __str__(self):
         """
