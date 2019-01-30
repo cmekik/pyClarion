@@ -9,10 +9,10 @@ from pyClarion.base import *
 
 AssociativeRuleDict = (
     typ.Dict[
-        # Conclusion chunk
+        # Conclusion chunk:
         ConstructSymbol, 
         # Condition chunks and corresponding weights for each rule associated 
-        # with given conclusion
+        # with given conclusion:
         typ.List[typ.Dict[ConstructSymbol, typ.Any]]
     ]
 ) 
@@ -110,42 +110,6 @@ class BottomUpLinks(object):
                 yield chunk, n_dim, weight, mfs
 
 
-def nacs_may_connect(source: ConstructSymbol, target: ConstructSymbol) -> bool:
-    """Return true if source may send output to target in NACS."""
-    
-    possibilities = [
-        (
-            source.ctype in ConstructType.Node and 
-            target.ctype is ConstructType.Appraisal
-        ),
-        (
-            source.ctype is ConstructType.Microfeature and
-            target.ctype is ConstructType.Flow and
-            typ.cast(FlowID, target.cid).ftype in FlowType.BB | FlowType.BT
-        ),
-        (
-            source.ctype is ConstructType.Chunk and
-            target.ctype is ConstructType.Flow and
-            typ.cast(FlowID, target.cid).ftype in FlowType.TT | FlowType.TB
-        ),
-        (
-            source.ctype is ConstructType.Flow and
-            target.ctype is ConstructType.Microfeature and
-            typ.cast(FlowID, source.cid).ftype in FlowType.BB | FlowType.TB
-        ),
-        (
-            source.ctype is ConstructType.Flow and
-            target.ctype is ConstructType.Chunk and
-            typ.cast(FlowID, source.cid).ftype in FlowType.TT | FlowType.BT
-        ),
-        (
-            source.ctype is ConstructType.Appraisal and
-            target.ctype is ConstructType.Behavior 
-        )
-    ]
-    return any(possibilities)
-
-
 def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     """Execute NACS activation cycle on given subsystem realizer."""
 
@@ -158,7 +122,7 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
             realizer[flow].propagate()
     
     for node in realizer.nodes:
-        if node.ctype is ConstructType.Microfeature:
+        if node.ctype is ConstructType.Feature:
             realizer[node].propagate()
     
     for flow in realizer.flows:
@@ -176,5 +140,5 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
         if node.ctype is ConstructType.Chunk:
             realizer[node].propagate()
     
-    for appraisal in realizer.appraisals:
+    for appraisal in realizer.responses:
         realizer[appraisal].propagate()

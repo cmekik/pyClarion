@@ -1,16 +1,12 @@
 """Tools for representing information about node strengths and decisions."""
 
 
-import typing as typ
-import types
-import pyClarion.base.symbols as sym
+from typing import Any, Mapping, Collection, Tuple, NamedTuple, Union, cast 
+from types import MappingProxyType
+from pyClarion.base.symbols import ConstructSymbol, ConstructType
 
 
-__all__ = [
-    "ActivationPacket",
-    "DecisionPacket",
-    "make_packet"
-]
+__all__ = ["ActivationPacket", "DecisionPacket"]
 
 
 ####################
@@ -18,12 +14,8 @@ __all__ = [
 ####################
 
 
-ConstructSymbolMapping = typ.Mapping[sym.ConstructSymbol, typ.Any]
-ConstructSymbolCollection = typ.Collection[sym.ConstructSymbol]
-AppraisalData = typ.Tuple[
-    ConstructSymbolMapping, 
-    ConstructSymbolCollection
-]
+ConstructSymbolMapping = Mapping[ConstructSymbol, Any]
+ConstructSymbolCollection = Collection[ConstructSymbol]
 
 
 ###################
@@ -31,7 +23,7 @@ AppraisalData = typ.Tuple[
 ###################
 
 
-class ActivationPacket(typ.NamedTuple):
+class ActivationPacket(NamedTuple):
     """
     Represents node strengths.
     
@@ -40,10 +32,10 @@ class ActivationPacket(typ.NamedTuple):
     """
 
     strengths: ConstructSymbolMapping
-    origin: sym.ConstructSymbol
+    origin: ConstructSymbol
 
 
-class DecisionPacket(typ.NamedTuple):
+class DecisionPacket(NamedTuple):
     """
     Represents the result of an appraisal.
 
@@ -54,40 +46,4 @@ class DecisionPacket(typ.NamedTuple):
 
     strengths: ConstructSymbolMapping
     chosen: ConstructSymbolCollection
-    origin: sym.ConstructSymbol
-
-
-def make_packet(
-        csym: sym.ConstructSymbol, 
-        data: typ.Union[ConstructSymbolMapping, AppraisalData]
-    ):
-    """
-    Create an activation or decision packet for a client construct.
-    
-    Assumes csym.ctype in Construct.BasicConstruct.
-
-    :param csym: Client construct.
-    :param data: Output of an activation processor.
-    """
-
-    packet: typ.Union[ActivationPacket, DecisionPacket]
-
-    if csym.ctype in (
-        sym.ConstructType.Node | 
-        sym.ConstructType.Flow | 
-        sym.ConstructType.Buffer
-    ):  
-        smap = types.MappingProxyType(typ.cast(ConstructSymbolMapping, data))
-        packet = ActivationPacket(strengths=smap, origin=csym)
-    elif csym.ctype is sym.ConstructType.Appraisal:
-        strengths, chosen = typ.cast(AppraisalData, data)
-        smap = types.MappingProxyType(strengths)
-        packet = DecisionPacket(strengths=smap, chosen=chosen, origin=csym)
-    else:
-        raise ValueError(
-            "Unexpected ctype {} in argument `csym` to make_packet".format(
-                str(csym.ctype)
-            )
-        )
-    
-    return packet
+    origin: ConstructSymbol
