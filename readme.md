@@ -1,15 +1,16 @@
 ---
 title: "pyClarion Readme"
 author: "Can Serif Mekik"
-date: 2018-12-06
-version : 0.12.0
+date: 2019-01-29
+version : 0.13.0
 ---
 
 # pyClarion Readme
 
 This is a python implementation of the Clarion cognitive architecture. 
 
-The package is highly experimental. 
+The package is highly experimental. Implementation is based on Ron Sun's 
+*Anatomy of the Mind* (2016; OUP).
 
 ## Implementation Goals
 
@@ -48,7 +49,7 @@ These goals are roughly in order from most to least specific.
 
 ## General Architecture
 
-In pyClarion, simulated constructs are named and represented with symbolic 
+In `pyClarion`, simulated constructs are named and represented with symbolic 
 tokens called construct symbols. Each construct symbol may be associated with 
 one or more construct realizers, which define and implement the behavior of the 
 named constructs in a specific context.

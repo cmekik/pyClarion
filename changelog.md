@@ -21,6 +21,7 @@ them upon deletion.
 
 ### Changed
 
+- `Microfeature` renamed to `Feature` for brevity and to better reflect theory.
 - `ContainerConstructRealizer` properties now return lists instead of iterables for easier interactive inspection. Generators still acssessible through iterator methods such as `realizer.iter_ctype()` and `realizer.items_ctype()`.
 - Improved `str` and `repr` outputs for construct symbols and realizers.
 - `SimpleBoltzmannSelector` renamed `BoltzmannSelector`
@@ -31,6 +32,7 @@ them upon deletion.
 
 ### Fixed
 
+- Simplified `BasicConstructRealizer` initialization and data model.
 - Bug in `SubsystemRealizer` allowing connections between constructs that should 
 not be linked.
 - Bug in `ConstantSource` allowing mutation of output activation packets. 

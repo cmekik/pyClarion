@@ -35,14 +35,14 @@ class TestSubsystemRealizerMayConnect(TestMayConnect):
             (Flow(1, FlowType.TB), Chunk(1), False),
             (Flow(1, FlowType.BT), Chunk(1), True),
             (Flow(1, FlowType.BB), Chunk(1), False),
-            (Microfeature('d', 'v'), Flow(1, FlowType.TT), False),
-            (Microfeature('d', 'v'), Flow(1, FlowType.TB), False),
-            (Microfeature('d', 'v'), Flow(1, FlowType.BT), True),
-            (Microfeature('d', 'v'), Flow(1, FlowType.BB), True),
-            (Flow(1, FlowType.TT), Microfeature('d', 'v'), False),
-            (Flow(1, FlowType.TB), Microfeature('d', 'v'), True),
-            (Flow(1, FlowType.BT), Microfeature('d', 'v'), False),
-            (Flow(1, FlowType.BB), Microfeature('d', 'v'), True),
+            (Feature('d', 'v'), Flow(1, FlowType.TT), False),
+            (Feature('d', 'v'), Flow(1, FlowType.TB), False),
+            (Feature('d', 'v'), Flow(1, FlowType.BT), True),
+            (Feature('d', 'v'), Flow(1, FlowType.BB), True),
+            (Flow(1, FlowType.TT), Feature('d', 'v'), False),
+            (Flow(1, FlowType.TB), Feature('d', 'v'), True),
+            (Flow(1, FlowType.BT), Feature('d', 'v'), False),
+            (Flow(1, FlowType.BB), Feature('d', 'v'), True),
         ]
 
         self.assertMayConnect(data)

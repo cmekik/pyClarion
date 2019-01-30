@@ -29,13 +29,14 @@ from pyClarion.base.symbols import (
     BufferID
 )
 from pyClarion.base.packets import (
-    ConstructSymbolMapping, Packet, ActivationPacket, DecisionPacket, 
-    make_packet
+    ConstructSymbolMapping, ActivationPacket, DecisionPacket, 
+    ConstructSymbolCollection
 )
 
 
 # Types aliases used by helper classes
 
+Packet = Union[ActivationPacket, DecisionPacket]
 PullMethod = Union[
     Callable[[], ActivationPacket], Callable[[], DecisionPacket]
 ]
@@ -52,11 +53,12 @@ ComponentSpec = Iterable[str]
 
 Channel = Callable[[ConstructSymbolMapping], ConstructSymbolMapping]
 Junction = Callable[[Iterable[ActivationPacket]], ConstructSymbolMapping]
-Selector = Callable[[ConstructSymbolMapping], DecisionPacket]
+Selector = Callable[
+    [ConstructSymbolMapping], 
+    Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
+]
 Effector = Callable[[DecisionPacket], None]
 Source = Callable[[], ConstructSymbolMapping]
-
-PacketMaker = Callable[[ConstructSymbol, Any], Packet]
 
 # Types used by ContainerConstructRealizer instances
 
@@ -244,21 +246,18 @@ class ConstructRealizer(object):
 class BasicConstructRealizer(ConstructRealizer):
     """Base class for basic construct realizers."""
 
-    itype: Type = InputMonitor
-    otype: Type = OutputView
-    has_input: bool = True
-    has_output: bool = True
-    make_packet: PacketMaker = make_packet
+    itype: Optional[Type] = InputMonitor
+    otype: Optional[Type] = OutputView
 
     def __init__(self, csym: ConstructSymbol) -> None:
 
         super().__init__(csym)
 
         # Initialize I/O
-        if type(self).has_input:
-            self.input = type(self).itype()
-        if type(self).has_output:
-            self.output = type(self).otype()
+        if self.itype is not None:
+            self.input = self.itype()
+        if self.otype is not None:
+            self.output = self.otype()
 
     def clear_activations(self) -> None:
         """Clear activations stored in output view."""
@@ -276,13 +275,14 @@ class NodeRealizer(BasicConstructRealizer):
     ) -> None:
 
         super().__init__(csym)
-        if junction is not None: self.junction = junction
+        if junction is not None: 
+            self.junction = junction
 
     def propagate(self) -> None:
         """Output current strength of node."""
 
-        smap = self.junction(self.input.pull())
-        packet = type(self).make_packet(self.csym, smap)
+        strengths = self.junction(self.input.pull())
+        packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
 
@@ -299,15 +299,17 @@ class FlowRealizer(BasicConstructRealizer):
     ) -> None:
 
         super().__init__(csym)
-        if junction is not None: self.junction = junction
-        if channel is not None: self.channel = channel
+        if junction is not None: 
+            self.junction = junction
+        if channel is not None: 
+            self.channel = channel
 
     def propagate(self) -> None:
         """Compute new node activations."""
 
         combined = self.junction(self.input.pull())
         strengths = self.channel(combined)
-        packet = type(self).make_packet(self.csym, strengths)
+        packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
 
@@ -324,22 +326,26 @@ class ResponseRealizer(BasicConstructRealizer):
     ) -> None:
 
         super().__init__(csym)
-        if junction is not None: self.junction = junction
-        if selector is not None: self.selector = selector
+        if junction is not None: 
+            self.junction = junction
+        if selector is not None: 
+            self.selector = selector
 
     def propagate(self) -> None:
         """Make and output a decision."""
 
         combined = self.junction(self.input.pull())
-        response_data = self.selector(combined)
-        decision_packet = type(self).make_packet(self.csym, response_data)
+        strengths, chosen = self.selector(combined)
+        decision_packet = DecisionPacket(
+            strengths=strengths, chosen=chosen, origin=self.csym
+        )
         self.output.update(decision_packet)
 
 
 class BehaviorRealizer(BasicConstructRealizer):
     
     ctype = ConstructType.Behavior
-    has_output = False
+    otype = None
     __slots__ = ('effector',)
 
     def __init__(
@@ -347,7 +353,8 @@ class BehaviorRealizer(BasicConstructRealizer):
     ) -> None:
 
         super().__init__(csym)
-        if effector is not None: self.effector = effector
+        if effector is not None: 
+            self.effector = effector
 
     def propagate(self) -> None:
         """Execute selected callbacks."""
@@ -358,13 +365,14 @@ class BehaviorRealizer(BasicConstructRealizer):
 class BufferRealizer(BasicConstructRealizer):
 
     ctype = ConstructType.Buffer
-    has_input = False
+    itype = None
     __slots__ = ('source',)
 
     def __init__(self, csym: ConstructSymbol, source: Source = None) -> None:
 
         super().__init__(csym)
-        if source is not None: self.source = source
+        if source is not None: 
+            self.source = source
 
     def propagate(self) -> None:
         """
@@ -378,7 +386,7 @@ class BufferRealizer(BasicConstructRealizer):
         """
 
         strengths = self.source()
-        packet = type(self).make_packet(self.csym, strengths)
+        packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
 
@@ -405,7 +413,7 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
 
         return iter(self._dict)
 
-    def __getitem__(self, key: ConstructIndex) -> ConstructRealizer:
+    def __getitem__(self, key: Any) -> Any:
 
         if isinstance(key, ConstructSymbol):
             return self._dict[key]
@@ -524,6 +532,7 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
 
         for csym, realizer in self.items():
             if self.may_connect(csym, key):
+                # EXPLAIN!!!!!!
                 value = cast(HasInput, value)
                 realizer = cast(HasOutput, realizer)
                 value.input.watch(csym, realizer.output.view)
@@ -599,7 +608,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
         """
         Return true iff source may connect to target within self.
         
-        Connects chunk and microfeature nodes may connect to flows as inputs 
+        Connects chunk and feature nodes may connect to flows as inputs 
         or outputs according to flow direction. Connects of response and 
         behavior constructs according to contents of respective construct 
         symbols.
@@ -615,7 +624,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 source == cast(BehaviorID, target.cid).response
             ),
             (
-                source.ctype is ConstructType.Microfeature and
+                source.ctype is ConstructType.Feature and
                 target.ctype is ConstructType.Flow and
                 bool(
                     cast(FlowID, target.cid).ftype & (FlowType.BB | FlowType.BT)
@@ -630,7 +639,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
             ),
             (
                 source.ctype is ConstructType.Flow and
-                target.ctype is ConstructType.Microfeature and
+                target.ctype is ConstructType.Feature and
                 bool(
                     cast(FlowID, source.cid).ftype & (FlowType.BB | FlowType.TB)
                 )
@@ -674,7 +683,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 value.input.watch(buffer, pull_method)
 
     def _watch(
-        self, identifier: Hashable, pull_method: PullMethod
+        self, identifier: ConstructSymbol, pull_method: PullMethod
     ) -> None:
         """Informs members of a new input to self."""
 
@@ -683,7 +692,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 identifier, pull_method
             )
 
-    def _drop(self, identifier: Hashable) -> None:
+    def _drop(self, identifier: ConstructSymbol) -> None:
         """Informs members of a dropped input to self."""
 
         for _, realizer in self.items_ctype(ConstructType.Node):

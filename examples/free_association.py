@@ -46,14 +46,14 @@ fruit_ck = Chunk("FRUIT")
 apple_ck = Chunk("APPLE")
 juice_ck = Chunk("JUICE")
 
-# Color microfeature values (below) are hex-codes to emphasize implicitness.
+# Color feature values (below) are hex-codes to emphasize implicitness.
 # In practice, it would be better to give constructs easily intelligible names. 
 
-red_mf = Microfeature(dim="color", val="#ff0000")
-green_mf = Microfeature("color", "#008000")
-tasty_mf = Microfeature("tasty", True)
-liquid_mf = Microfeature("state", "liquid")
-sweet_mf = Microfeature("sweet", True)
+red_mf = Feature(dim="color", val="#ff0000")
+green_mf = Feature("color", "#008000")
+tasty_mf = Feature("tasty", True)
+liquid_mf = Feature("state", "liquid")
+sweet_mf = Feature("sweet", True)
 
 associative_rules_flow = Flow("Associative Rules", ftype=FlowType.TT) 
 top_down_flow = Flow("NACS", ftype=FlowType.TB)
@@ -307,8 +307,8 @@ class HeavyHandedLearningRoutine(object):
 
         fruit_ck = Chunk("FRUIT")
         orange_ck = Chunk("ORANGE")
-        orange_color_mf = Microfeature("color", "#ffa500")
-        tasty_mf = Microfeature("tasty", True)
+        orange_color_mf = Feature("color", "#ffa500")
+        tasty_mf = Feature("tasty", True)
         behavior = Behavior("NACS", Response("NACS", ConstructType.Chunk))
 
         self.nacs[orange_ck] = NodeRealizer(

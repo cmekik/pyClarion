@@ -10,7 +10,7 @@
 
 __all__ = [
     "ConstructSymbol", "ConstructType", "FlowType", "DVPair", "FlowID", 
-    "ResponseID", "BehaviorID", "BufferID", "Microfeature", "Chunk", "Flow",
+    "ResponseID", "BehaviorID", "BufferID", "Feature", "Chunk", "Flow",
     "Response", "Behavior", "Buffer", "Subsystem", "Agent"
 ]
 
@@ -29,10 +29,10 @@ ConstructSymbolSequence = Sequence['ConstructSymbol']
 
 class ConstructType(Flag):
     """
-    Represents various types of construct in Clarion theory.
+    Represents construct types within Clarion theory.
     
     Basic members (and interpretations):
-        Microfeature: Microfeature node.
+        Feature: Feature node.
         Chunk: Chunk node.
         Flow: Links among microfeature and/or chunk nodes.
         Response: Selected responses.
@@ -43,12 +43,12 @@ class ConstructType(Flag):
 
     Other members:
         Node: A chunk or microfeature.
-        BasicConstruct: Microfeature or chunk or flow or response or behavior or 
+        BasicConstruct: Feature or chunk or flow or response or behavior or 
             buffer. 
         ContainerConstruct: Subsystem or agent.
     """
 
-    Microfeature = auto()
+    Feature = auto()
     Chunk = auto()
     Flow = auto()
     Response = auto()
@@ -57,9 +57,9 @@ class ConstructType(Flag):
     Subsystem = auto()
     Agent = auto()
 
-    Node = Microfeature | Chunk
+    Node = Feature | Chunk
     BasicConstruct = (
-        Microfeature | Chunk | Flow | Response | Behavior | Buffer
+        Feature | Chunk | Flow | Response | Behavior | Buffer
     )
     ContainerConstruct = Subsystem | Agent
 
@@ -123,7 +123,7 @@ class DVPair(NamedTuple):
 
     def _repr_data(self):
 
-        return ', '.join([repr(field) for field in self._fields])
+        return ', '.join([repr(getattr(self, field)) for field in self._fields])
 
 
 class FlowID(NamedTuple):
@@ -188,17 +188,17 @@ class BufferID(NamedTuple):
 # not `chunk()` to allow use of `chunk` as a variable name by the user.
 
 
-def Microfeature(dim: Hashable, val: Hashable) -> ConstructSymbol:
+def Feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     """
-    Return a new microfeature symbol.
+    Return a new feature symbol.
     
-    Assumes microfeature is in dv-pair form.
+    Assumes feature is in dv-pair form.
 
-    :param dim: Dimension of microfeature.
-    :param val: Value of microfeature.
+    :param dim: Dimension of feature.
+    :param val: Value of feature.
     """
 
-    return ConstructSymbol(ConstructType.Microfeature, DVPair(dim, val))
+    return ConstructSymbol(ConstructType.Feature, DVPair(dim, val))
 
 
 def Chunk(cid: Hashable) -> ConstructSymbol:

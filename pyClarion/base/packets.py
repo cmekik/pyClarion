@@ -6,7 +6,7 @@ from types import MappingProxyType
 from pyClarion.base.symbols import ConstructSymbol, ConstructType
 
 
-__all__ = ["ActivationPacket", "DecisionPacket", "make_packet"]
+__all__ = ["ActivationPacket", "DecisionPacket"]
 
 
 ####################
@@ -16,8 +16,6 @@ __all__ = ["ActivationPacket", "DecisionPacket", "make_packet"]
 
 ConstructSymbolMapping = Mapping[ConstructSymbol, Any]
 ConstructSymbolCollection = Collection[ConstructSymbol]
-ResponseData = Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
-PacketData = Union[ConstructSymbolMapping, ResponseData]
 
 
 ###################
@@ -49,38 +47,3 @@ class DecisionPacket(NamedTuple):
     strengths: ConstructSymbolMapping
     chosen: ConstructSymbolCollection
     origin: ConstructSymbol
-
-
-# Mypy complains if Packet is defined earlier... Should be with type aliases.
-Packet = Union[ActivationPacket, DecisionPacket]
-
-def make_packet(csym: ConstructSymbol, data: PacketData) -> Packet:
-    """
-    Create an activation or decision packet for a client construct.
-    
-    Assumes csym.ctype in ConstructType.BasicConstruct.
-
-    :param csym: Client construct.
-    :param data: Output of an activation processor.
-    """
-
-    if csym.ctype in (
-        ConstructType.Node | ConstructType.Flow | ConstructType.Buffer
-    ):  
-        return ActivationPacket(
-            strengths=MappingProxyType(cast(ConstructSymbolMapping, data)), 
-            origin=csym
-        )
-    elif csym.ctype is ConstructType.Response:
-        dstrengths, chosen = cast(ResponseData, data)
-        return DecisionPacket(
-            strengths=MappingProxyType(dstrengths), 
-            chosen=chosen, 
-            origin=csym
-        )
-    else:
-        raise ValueError(
-            "Unexpected ctype {} in argument `csym` to make_packet".format(
-                str(csym.ctype)
-            )
-        )

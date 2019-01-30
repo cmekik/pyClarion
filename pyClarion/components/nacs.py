@@ -122,7 +122,7 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
             realizer[flow].propagate()
     
     for node in realizer.nodes:
-        if node.ctype is ConstructType.Microfeature:
+        if node.ctype is ConstructType.Feature:
             realizer[node].propagate()
     
     for flow in realizer.flows:
