@@ -6,6 +6,7 @@ the goal is to report the first thing that comes to mind upon presentation of
 a cue.
 """
 
+
 from pyClarion import *
 
 
@@ -277,7 +278,7 @@ alice.clear_activations()
 #######################
 
 # In free association, subjects do not return the cue as their response. This is 
-# called cue suppression. But, Alice does return the cue because cue suppression 
+# called cue suppression. But, Alice may return the cue because cue suppression 
 # requires input/output filtering (i.e., selective attention), which is a 
 # capability not included in the current model. Let's add it. 
 
@@ -308,7 +309,7 @@ alice[nacs, response].junction = ResponseFilterJunction()
 
 alice[nacs, response].junction.fdict[Chunk("APPLE")] = .0
 
-# Now we run through the trial again (previous activations persist).
+# Now we run through the trial again.
 
 alice.propagate()
 alice.execute()
@@ -388,13 +389,16 @@ alice.attach(
 # inexplicably learns about oranges!
 
 # Here is the learning part.
+
 alice.learn()
 
-# Now we run through the trial again (previous activations persist).
+# Now we run through the trial again.
+
 alice.propagate()
 alice.execute()
 
 # Here is Alice's cognitive state at the end of the trial.
+
 summarize_nacs_cycle(alice[nacs], recorder, 'With Learning')
 
 # Finally, we clear Alice's NACS for the sake of completeness.
@@ -406,8 +410,9 @@ alice.clear_activations()
 ### CONCLUSION ###
 ##################
 
-# This simple example sought to demonstrate the following:
-#   - pyClarion agent construction
+# This simple simulation sought to demonstrate the following:
+#
+#   - mechanics of pyClarion agent construction
 #   - basics of running simulations using pyClarion 
-#   - the flexibility and customizability of pyClarion agents
-#   - learning in pyClarion
+#   - flexibility and customizability of pyClarion agents
+#   - basics of learning in pyClarion

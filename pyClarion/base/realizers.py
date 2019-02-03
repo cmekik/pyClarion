@@ -137,7 +137,7 @@ class OutputView(object):
     def clear(self) -> None:
         """Clear output buffer.""" 
 
-        if hasattr(self, '_buffer'): del self._buffer       
+        del self._buffer       
 
 
 class SubsystemInputMonitor(object):
@@ -262,7 +262,10 @@ class BasicConstructRealizer(ConstructRealizer):
     def clear_activations(self) -> None:
         """Clear activations stored in output view."""
 
-        self.output.clear()
+        try:
+            self.output.clear()
+        except AttributeError:
+            pass
 
 
 class NodeRealizer(BasicConstructRealizer):
