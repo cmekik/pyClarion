@@ -114,15 +114,15 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
     """Execute NACS activation cycle on given subsystem realizer."""
 
     for node in realizer.nodes:
-        if node.ctype is ConstructType.Chunk:
+        if node.ctype == ConstructType.Chunk:
             realizer[node].propagate()
 
     for flow in realizer.flows:
-        if typ.cast(FlowID, flow.cid).ftype is FlowType.TB:
+        if typ.cast(FlowID, flow.cid).ftype == FlowType.TB:
             realizer[flow].propagate()
     
     for node in realizer.nodes:
-        if node.ctype is ConstructType.Feature:
+        if node.ctype == ConstructType.Feature:
             realizer[node].propagate()
     
     for flow in realizer.flows:
@@ -133,11 +133,11 @@ def nacs_propagation_cycle(realizer: SubsystemRealizer) -> None:
         realizer[node].propagate()
     
     for flow in realizer.flows:
-        if typ.cast(FlowID, flow.cid).ftype is FlowType.BT:
+        if typ.cast(FlowID, flow.cid).ftype == FlowType.BT:
             realizer[flow].propagate()
     
     for node in realizer.nodes:
-        if node.ctype is ConstructType.Chunk:
+        if node.ctype == ConstructType.Chunk:
             realizer[node].propagate()
     
     for appraisal in realizer.responses:

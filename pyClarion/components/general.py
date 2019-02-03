@@ -70,7 +70,7 @@ class SimpleNodeJunction(object):
 
         for packet in packets:
             for n, s in packet.strengths.items():
-                if n is self.csym:
+                if n == self.csym:
                     yield s
 
 
@@ -114,7 +114,7 @@ class BoltzmannSelector(object):
     def _iter_chunk_strengths(strengths):
 
         for csym, s in strengths.items():
-            if csym.ctype is ConstructType.Chunk:
+            if csym.ctype == ConstructType.Chunk:
                 yield (csym, s)            
 
 
@@ -165,7 +165,7 @@ class CategoricalSelector(object):
     def _iter_chunk_strengths(strengths):
 
         for csym, s in strengths.items():
-            if csym.ctype is ConstructType.Chunk:
+            if csym.ctype == ConstructType.Chunk:
                 yield (csym, s)            
 
 

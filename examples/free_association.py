@@ -30,42 +30,6 @@ recorder = BehaviorRecorder()
 # In this section, we'll create an agent named 'Alice' with some knowledge 
 # about fruits.
 
-# Constructs
-
-# Construct symbols are used to name, identify, and refer to various Clarion 
-# constructs used within a simulation.
-
-# We begin by defining variables for construct symbols that will be used in this 
-# simulation.
-
-# Strictly speaking, this step is not mandatory. Construct symbols really behave 
-# like symbols, so there is no real need to store them in variables; it may only 
-# save us some typing.
-
-fruit_ck = Chunk("FRUIT")
-apple_ck = Chunk("APPLE")
-juice_ck = Chunk("JUICE")
-
-# Color feature values (below) are hex-codes to emphasize implicitness.
-# In practice, it would be better to give constructs easily intelligible names. 
-
-red_mf = Feature(dim="color", val="#ff0000")
-green_mf = Feature("color", "#008000")
-tasty_mf = Feature("tasty", True)
-liquid_mf = Feature("state", "liquid")
-sweet_mf = Feature("sweet", True)
-
-associative_rules_flow = Flow("Associative Rules", ftype=FlowType.TT) 
-top_down_flow = Flow("NACS", ftype=FlowType.TB)
-bottom_up_flow = Flow("NACS", ftype=FlowType.BT)
-
-response = Response("NACS", itype=ConstructType.Chunk)
-behavior = Behavior("NACS", response=response)
-
-nacs = Subsystem("NACS")
-stim_buf = Buffer("Stimulus", outputs=(Subsystem("NACS"),))
-
-
 # Default node strength
 
 # In general, default strengths are not required. But they are useful.
@@ -80,37 +44,81 @@ def default_strength(node = None):
 
 # Agent Architecture
 
-# make_agent constructs an agent realizer from an agent specification.
-# the output is not ready to be run, since its components' behaviors are not yet 
-# defined
+# The initial structure of an agent is specified using construct symbols, which 
+# are basic data structures used to identify and reference different components 
+# of a pyClarion agent.
+
+# The function make_agent() constructs an agent realizer from a structured 
+# collection of construct symbols. This involves initializing an agent realizer 
+# object to represent alice and then initializing and placing a set of construct 
+# realizer objects within this agent realizer according to the given 
+# specifications.
 
 alice = make_agent(
     csym = Agent('Alice'),
     subsystems = {
-        nacs: {
-            fruit_ck, apple_ck, juice_ck,
-            red_mf, green_mf, tasty_mf, liquid_mf, sweet_mf,
-            associative_rules_flow, top_down_flow, bottom_up_flow,
-            response, behavior
+        Subsystem("NACS"): {
+            Chunk("FRUIT"), 
+            Chunk("APPLE"), 
+            Chunk("JUICE"),
+            Feature("color", "#ff0000"), # red
+            Feature("color", "#008000"), # green
+            Feature("tasty", True),
+            Feature("state", "liquid"),
+            Feature("sweet", True),
+            Flow("Associative Rules", ftype=FlowType.TT),
+            Flow("Top Down", ftype=FlowType.TB),
+            Flow("Bottom Up", ftype=FlowType.BT),
+            Response("Output", itype=ConstructType.Chunk),
+            Behavior(
+                "Report Associations", 
+                response=Response("Output", itype=ConstructType.Chunk)
+            )
         }
     },
     buffers = {
-        stim_buf
+        Buffer("Stimulus", outputs=(Subsystem("NACS"),))
     }
 )
+
+# The output of make_agent() is not ready to be run since its components' 
+# behaviors are not yet defined. Only the general structure of the agent has 
+# been defined:
+#   - The agent is called 'Alice'
+#   - Alice has one subsystem called 'NACS' (Non-action-centered subsystem)
+#   - NACS is initialized with some chunks and features representing knowledge 
+#     about fruits
+#   - NACS has three different activation flows implementing associative, 
+#     top-down and bottom-up links
+#   - NACS outputs one response which then gets reported (to the simulation 
+#     environment)
+#   - Alice also has one stimulus buffer which feeds into her NACS 
 
 # Behavioral Specifications
 
 # To specify the behavior of alice, we populate her construct realizers with 
 # appropriate components. These components may be swapped or modified during the 
-# course of a simulation. alice.ready() will let us know if we have forgotten 
-# to define any components.
+# course of a simulation. A call to alice.ready() will let us know if we have 
+# forgotten to define any components.
+
+# Before specifying construct behaviors, let us alias some key construct 
+# symbols for ease of reference:
+
+associative_rules = Flow("Associative Rules", ftype=FlowType.TT) 
+top_down_links = Flow("Top Down", ftype=FlowType.TB)
+bottom_up_links = Flow("Bottom Up", ftype=FlowType.BT)
+
+response = Response("Output", itype=ConstructType.Chunk)
+behavior = Behavior("Report Associations", response=response)
+
+nacs = Subsystem("NACS")
+stimulus = Buffer("Stimulus", outputs=(Subsystem("NACS"),))
 
 # We begin by setting up the stimulus buffer. ConstantSource simply stores an 
 # activation pattern and outputs it every propagation cycle. The stored pattern 
 # may be modified over the course of a simulation.
 
-alice[stim_buf].source = ConstantSource()
+alice[stimulus].source = ConstantSource()
 
 # Next, we define the propagation cycle for alice's NACS. The function 
 # nacs_propagation_cycle() will make sure that all necessary propagation steps 
@@ -120,60 +128,77 @@ alice[nacs].propagation_rule = nacs_propagation_cycle
 
 # Now we define how activations may flow within alice's NACS.
 
-# NACS associative rules govern how activations may propagate among chunks in 
-# NACS. assoc is a dict whose keys represent conclusion chunks, its 
-# values are lists of condition-weight mappings, There is one mapping for each 
-# individual rule about a particular conclusion chunk.
+# Associative rules govern how activations may propagate among chunks in 
+# NACS. 
 
-alice[nacs, associative_rules_flow].junction = SimpleJunction()
-alice[nacs, associative_rules_flow].channel = AssociativeRuleCollection(
-    assoc={fruit_ck: [{apple_ck: 1.}]},
+# For this example, the only association that Alice will initially have is one
+# taking the concept APPLE to the concept FRUIT. This is implemented as a 
+# weighted link between the APPLE and FRUIT chunks. In this particular case, a 
+# weight of 1.0 is assigned to the link. 
+
+alice[nacs, associative_rules].junction = SimpleJunction()
+alice[nacs, associative_rules].channel = AssociativeRuleCollection(
+    assoc={Chunk("FRUIT"): [{Chunk("APPLE"): 1.}]},
     default_strength=default_strength
 )
 
-# Next, we define interlevel flows. These control how chunks may activate 
-# microfeatures and microfeatures may activate chunks. 
-# Here, assoc keys are chunks, which are each linked to zero or more 
-# microfeatures. Linked microfeatures are grouped by dimension, as inter-level 
-# activation propagation applies a dimension-dependent weight to strengths.
+# assoc is a dict whose keys represent conclusion chunks, its 
+# values are lists of condition-weight mappings, There is one mapping for each 
+# individual rule about a particular conclusion chunk.
 
-alice[nacs, top_down_flow].junction = SimpleJunction()
-alice[nacs, top_down_flow].channel = TopDownLinks(
+# Next, we define interlevel flows. These control how chunks may activate 
+# features and features may activate chunks. 
+
+alice[nacs, top_down_links].junction = SimpleJunction()
+alice[nacs, top_down_links].channel = TopDownLinks(
     assoc={
-        apple_ck: {
-            "color": (1., set([red_mf, green_mf])),
-            "tasty": (1., set([tasty_mf]))
+        Chunk("APPLE"): {
+            "color": (
+                1., {Feature("color", "#ff0000"), Feature("color", "#008000")}
+            ),
+            "tasty": (1., {Feature("tasty", True)})
         },
-        juice_ck: {
-            "tasty": (1., set([tasty_mf])),
-            "state": (1., set([liquid_mf]))
+        Chunk("JUICE"): {
+            "tasty": (1., {Feature("tasty", True)}),
+            "state": (1., {Feature("state", "liquid")})
         },
-        fruit_ck: {
-            "tasty": (1., set([tasty_mf])),
-            "sweet": (1., set([sweet_mf]))
+        Chunk("FRUIT"): {
+            "tasty": (1., {Feature("tasty", True)}),
+            "sweet": (1., {Feature("sweet", True)})
         }
     },
     default_strength=default_strength
 )
 
-alice[nacs, bottom_up_flow].junction = SimpleJunction()
-alice[nacs, bottom_up_flow].channel = BottomUpLinks(
-    assoc=alice[nacs, top_down_flow].channel.assoc,
+# Here, assoc keys are chunks, which are each linked to zero or more 
+# features. Linked features are grouped by dimension as inter-level 
+# activation propagation applies a dimension-dependent weight to strengths.
+
+alice[nacs, bottom_up_links].junction = SimpleJunction()
+alice[nacs, bottom_up_links].channel = BottomUpLinks(
+    assoc=alice[nacs, top_down_links].channel.assoc,
     default_strength=default_strength
 )
 
-# Now we define the behavior of individual nodes. Node junctions determine the 
-# final output of a node given recommendations from various afferent flows.
+# Note that top down and bottom up links in this simulation share the same assoc 
+# dict.
+
+# Now we define the behavior of individual nodes (chunks and features). 
 
 for node, realizer in alice[nacs].items_ctype(ConstructType.Node):
     realizer.junction = SimpleNodeJunction(node, default_strength)
 
+# Node junctions determine the final output of a node given recommendations 
+# from various afferent flows.
+
 # To determine how responses are selected, we specify a selector for the 
-# response construct. The junction serves to aggregate activations from afferent 
-# nodes.
+# response construct. 
 
 alice[nacs, response].junction = SimpleJunction()
 alice[nacs, response].selector = BoltzmannSelector(temperature=.1)
+
+# The SimpleJunction attached to the response realizer serves to aggregate 
+# activations from afferent nodes.
 
 # Effectors link selected chunks to necessary action callbacks. In addition to 
 # behavioral responses, action callbacks may implement non-external actions, 
@@ -182,9 +207,9 @@ alice[nacs, response].selector = BoltzmannSelector(temperature=.1)
 
 alice[nacs, behavior].effector = MappingEffector(
     chunk2callback={
-        apple_ck: lambda: recorder.actions.append(apple_ck),
-        juice_ck: lambda: recorder.actions.append(juice_ck),
-        fruit_ck: lambda: recorder.actions.append(fruit_ck)
+        Chunk("APPLE"): lambda: recorder.actions.append(Chunk("APPLE")),
+        Chunk("JUICE"): lambda: recorder.actions.append(Chunk("JUICE")),
+        Chunk("FRUIT"): lambda: recorder.actions.append(Chunk("FRUIT"))
     }
 )
 
@@ -227,26 +252,34 @@ def summarize_nacs_cycle(nacs, recorder, title, digits=3):
 # there are simplifications. For instance, it is assumed that Alice is made to 
 # understand that the cue is APPLE, the fruit, and not e.g., APPLE, the 
 # company. 
-alice[stim_buf].source.update({apple_ck: 1.})
+
+alice[stimulus].source.update({Chunk("APPLE"): 1.})
 
 # Alice performs one NACS cycle. 
+
 alice.propagate()
 
 # Alice responds.
+
 alice.execute()
 
 # Here is Alice's cognitive state at the end of the trial.
+
 summarize_nacs_cycle(alice[nacs], recorder, 'Initial Trial')
+
+# To finish, we clear Alice's NACS in preparation for the next example.
+
+alice.clear_activations()
 
 
 #######################
 ### Cue Suppression ###
 #######################
 
-# A limitation of this model: in free association, subjects do not 
-# return the cue as their response. But, Alice does return the cue because cue 
-# suppression requires input/output filtering (i.e., selective attention), 
-# which is a capability not included in the current model. Let's add it. 
+# In free association, subjects do not return the cue as their response. This is 
+# called cue suppression. But, Alice does return the cue because cue suppression 
+# requires input/output filtering (i.e., selective attention), which is a 
+# capability not included in the current model. Let's add it. 
 
 # First, we'll define a component capable of carrying out the necessary 
 # filtering.
@@ -266,19 +299,27 @@ class ResponseFilterJunction(SimpleJunction):
 
 # We need to replace the existing junction for nacs appraisals with a new one.
 # This is very easy: just assign to buffer.junction!
+
 alice[nacs, response].junction = ResponseFilterJunction()
 
 # We assume that alice filters out the cue. The decision to do this and its 
 # execution are not the responsibility of NACS, so they are not explicitly 
 # simulated.
-alice[nacs, response].junction.fdict[apple_ck] = .0
+
+alice[nacs, response].junction.fdict[Chunk("APPLE")] = .0
 
 # Now we run through the trial again (previous activations persist).
+
 alice.propagate()
 alice.execute()
 
 # Here is Alice's cognitive state at the end of the trial.
+
 summarize_nacs_cycle(alice[nacs], recorder, 'With Cue Suppression')
+
+# Once again, we clear Alice's NACS.
+
+alice.clear_activations()
 
 
 ################
@@ -292,39 +333,44 @@ summarize_nacs_cycle(alice[nacs], recorder, 'With Cue Suppression')
 # First, we must define a learning routine. This will do:
 
 class HeavyHandedLearningRoutine(object):
-    # This routine simply injects some preset knowledge into the NACS.
+    """Injects some preset knowledge about oranges into the NACS."""
 
     def __init__(
-        self, recorder, nacs, toplevel_assoc, interlevel_assoc
+        self, recorder, nacs, toplevel_assoc, interlevel_assoc, behavior
     ):
 
         self.recorder = recorder
         self.nacs = nacs
         self.toplevel_assoc = toplevel_assoc
         self.interlevel_assoc = interlevel_assoc
+        self.behavior = behavior
     
     def __call__(self) -> None:
 
-        fruit_ck = Chunk("FRUIT")
-        orange_ck = Chunk("ORANGE")
-        orange_color_mf = Feature("color", "#ffa500")
-        tasty_mf = Feature("tasty", True)
-        behavior = Behavior("NACS", Response("NACS", ConstructType.Chunk))
+        # Add orange chunk node to NACS
+        self.nacs[Chunk("ORANGE")] = NodeRealizer(
+            Chunk("ORANGE"), 
+            SimpleNodeJunction(Chunk("ORANGE"), default_strength)
+        )
 
-        self.nacs[orange_ck] = NodeRealizer(
-            orange_ck, SimpleNodeJunction(orange_ck, default_strength)
+        # Add orange color feature to NACS
+        self.nacs[Feature("color", "#ffa500")] = NodeRealizer(
+            Feature("color", "#ffa500"), 
+            SimpleNodeJunction(Feature("color", "#ffa500"), default_strength)
         )
-        self.nacs[orange_color_mf] = NodeRealizer(
-            orange_color_mf, 
-            SimpleNodeJunction(orange_color_mf, default_strength)
-        )
-        self.toplevel_assoc[fruit_ck].append({orange_ck: 1.})
-        self.interlevel_assoc[orange_ck] = {
-                "color": (1., set([orange_color_mf])),
-                "tasty": (1., set([tasty_mf]))
+
+        # Add rule associating ORANGE to FRUIT
+        self.toplevel_assoc[Chunk("FRUIT")].append({Chunk("ORANGE"): 1.})
+        
+        # Link ORANGE with tasty and orange color features
+        self.interlevel_assoc[Chunk("ORANGE")] = {
+                "color": (1., {Feature("color", "#ffa500")}),
+                "tasty": (1., {Feature("tasty", True)})
             }
-        self.nacs[behavior].effector.chunk2callback[orange_ck] = (
-            lambda: self.recorder.actions.append(orange_ck)
+
+        # Add ORANGE as possible response
+        self.behavior.effector.chunk2callback[Chunk("ORANGE")] = (
+            lambda: self.recorder.actions.append(Chunk("ORANGE"))
         )
 
 # Once we have a routine, we simply attach it to Alice. That's it!
@@ -332,8 +378,9 @@ alice.attach(
     HeavyHandedLearningRoutine(
         recorder, 
         alice[nacs], 
-        alice[nacs, associative_rules_flow].channel.assoc, 
-        alice[nacs, top_down_flow].channel.assoc
+        alice[nacs, associative_rules].channel.assoc, 
+        alice[nacs, top_down_links].channel.assoc,
+        alice[nacs, behavior]
     )
 )
 
@@ -349,3 +396,18 @@ alice.execute()
 
 # Here is Alice's cognitive state at the end of the trial.
 summarize_nacs_cycle(alice[nacs], recorder, 'With Learning')
+
+# Finally, we clear Alice's NACS for the sake of completeness.
+
+alice.clear_activations()
+
+
+##################
+### CONCLUSION ###
+##################
+
+# This simple example sought to demonstrate the following:
+#   - pyClarion agent construction
+#   - basics of running simulations using pyClarion 
+#   - the flexibility and customizability of pyClarion agents
+#   - learning in pyClarion
