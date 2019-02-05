@@ -183,8 +183,8 @@ class ConstructRealizer(object):
     constructs. 
     """
 
-    ctype: ClassVar[ConstructType]
-    __slots__: ComponentSpec = ()
+    ctype: ClassVar[ConstructType] = ConstructType.NullConstruct
+    __slots__: ComponentSpec = ("csym",)
 
     def __init__(self, csym: ConstructSymbol) -> None:
         """Initialize a new construct realizer.

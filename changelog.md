@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [unreleased]
 
+### Added
+
+- `ConstructType.NullConstruct` alias for empty flag value.
+
 ### Changed
 
 - Reworked `examples/free_association.py` to be more detailed and more clear.
@@ -13,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `ConstructRealizer` could not be initialized due to failing construct symbol check and botched `__slots__` configuration.
 - `BasicConstructRealizer.clear_activations()` may throw attribute errors when realizer has already been cleared or has no output.
 - `SimpleNodeJunction` would not recognize a construct symbol of the same form as its stored construct symbol. This caused nodes to fail to output activations. Due to use of `is` in construct symbol checks (should have used `==`).
 

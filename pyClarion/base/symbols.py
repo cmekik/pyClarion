@@ -42,6 +42,7 @@ class ConstructType(Flag):
         Agent: A full Clarion agent.
 
     Other members:
+        NullConstruct: Empty construct type (corresponds to flag null). 
         Node: A chunk or microfeature.
         BasicConstruct: Feature or chunk or flow or response or behavior or 
             buffer. 
@@ -57,6 +58,7 @@ class ConstructType(Flag):
     Subsystem = auto()
     Agent = auto()
 
+    NullConstruct = 0
     Node = Feature | Chunk
     BasicConstruct = (
         Feature | Chunk | Flow | Response | Behavior | Buffer
