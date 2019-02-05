@@ -348,16 +348,18 @@ class HeavyHandedLearningRoutine(object):
     
     def __call__(self) -> None:
 
-        # Add orange chunk node to NACS
-        self.nacs[Chunk("ORANGE")] = NodeRealizer(
-            Chunk("ORANGE"), 
-            SimpleNodeJunction(Chunk("ORANGE"), default_strength)
-        )
-
-        # Add orange color feature to NACS
-        self.nacs[Feature("color", "#ffa500")] = NodeRealizer(
-            Feature("color", "#ffa500"), 
-            SimpleNodeJunction(Feature("color", "#ffa500"), default_strength)
+        # Add orange chunk node and orange color feature to NACS
+        self.nacs.insert_realizers(
+            NodeRealizer(
+                Chunk("ORANGE"), 
+                SimpleNodeJunction(Chunk("ORANGE"), default_strength)
+            ),
+            NodeRealizer(
+                Feature("color", "#ffa500"), 
+                SimpleNodeJunction(
+                    Feature("color", "#ffa500"), default_strength
+                )
+            )    
         )
 
         # Add rule associating ORANGE to FRUIT
