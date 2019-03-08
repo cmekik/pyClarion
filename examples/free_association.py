@@ -285,7 +285,7 @@ alice.clear_activations()
 # First, we'll define a component capable of carrying out the necessary 
 # filtering.
 
-class ResponseFilterJunction(SimpleJunction):
+class FilteredSimpleJunction(SimpleJunction):
 
     def __init__(self, filter_dict = None):
 
@@ -301,7 +301,7 @@ class ResponseFilterJunction(SimpleJunction):
 # We need to replace the existing junction for nacs appraisals with a new one.
 # This is very easy: just assign to buffer.junction!
 
-alice[nacs, response].junction = ResponseFilterJunction()
+alice[nacs, response].junction = FilteredSimpleJunction()
 
 # We assume that alice filters out the cue. The decision to do this and its 
 # execution are not the responsibility of NACS, so they are not explicitly 

@@ -59,19 +59,34 @@ class SimpleNodeJunction(object):
         :param packets: An iterable of activation packets.
         """
 
-        d = {}
-        for s in self._iter_packets(packets):
-            d[self.csym] = max(
-                s, d.get(self.csym, self.default_strength(self.csym))
-            )
+        strengths = (
+            packet.strengths.get(self.csym, self.default_strength(self.csym)) 
+            for packet in packets
+        )
+        return {self.csym: max(strengths)}
+
+
+class FilteredSimpleJunction(SimpleJunction):
+    """Simple junction with multiplicative filter."""
+
+    def __init__(self, filter_dict = None):
+        """Initialize a new FilteredSimpleJunction instance.
+
+        :param filter_dict: A mapping from nodes to filter coefficients.
+        """
+
+        self.fdict = filter_dict or {}
+
+    def __call__(self, packets):
+        """Merge input packets and apply filtering factor if present.
+
+        :param packets: An iterable of activation packets.
+        """
+
+        d = super().__call__(packets)
+        for node, factor in self.fdict.items():
+            if node in d: d[node] *= factor
         return d
-
-    def _iter_packets(self, packets):
-
-        for packet in packets:
-            for n, s in packet.strengths.items():
-                if n == self.csym:
-                    yield s
 
 
 class BoltzmannSelector(object):
@@ -156,7 +171,7 @@ class CategoricalSelector(object):
 
         terms, divisor = {}, 0
         for ck, s in self._iter_chunk_strengths(strengths):
-            terms[ck] = pow(s, -self.temperature)
+            terms[ck] = pow(s, 1 / self.temperature)
             divisor += terms[ck]
         probabilities = {ck: s / divisor for ck, s in terms.items()}
         return probabilities
