@@ -1,10 +1,3 @@
----
-title: "pyClarion Readme"
-author: "Can Serif Mekik"
-date: 2019-01-29
-version : 0.13.0
----
-
 # pyClarion Readme
 
 This is a python implementation of the Clarion cognitive architecture. 
@@ -47,7 +40,7 @@ type.
 
 These goals are roughly in order from most to least specific. 
 
-## General Architecture
+## Software Architecture Overview
 
 In `pyClarion`, simulated constructs are named and represented with symbolic 
 tokens called construct symbols. Each construct symbol may be associated with 

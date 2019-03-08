@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Python version requirement dropped down to 3.6
+- Python version requirement dropped down to `>=3.6`.
 - Reworked `examples/free_association.py` to be more detailed and more clear.
 - Replaced all `is` checks on flags and construct symbols with `==` checks.
 
