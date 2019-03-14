@@ -125,6 +125,7 @@ alice[stimulus].source = ConstantSource()
 # nacs_propagation_cycle() will make sure that all necessary propagation steps 
 # are executed.
 
+alice[nacs].pull_rule = subsystem_pull_rule
 alice[nacs].propagation_rule = nacs_propagation_cycle
 
 # Now we define how activations may flow within alice's NACS.
@@ -137,6 +138,7 @@ alice[nacs].propagation_rule = nacs_propagation_cycle
 # weighted link between the APPLE and FRUIT chunks. In this particular case, a 
 # weight of 1.0 is assigned to the link. 
 
+alice[nacs, associative_rules].pull_rule = flow_pull_rule
 alice[nacs, associative_rules].junction = SimpleJunction()
 alice[nacs, associative_rules].channel = AssociativeRuleCollection(
     assoc={Chunk("FRUIT"): [{Chunk("APPLE"): 1.}]},
@@ -150,6 +152,7 @@ alice[nacs, associative_rules].channel = AssociativeRuleCollection(
 # Next, we define interlevel flows. These control how chunks may activate 
 # features and features may activate chunks. 
 
+alice[nacs, top_down_links].pull_rule = flow_pull_rule
 alice[nacs, top_down_links].junction = SimpleJunction()
 alice[nacs, top_down_links].channel = TopDownLinks(
     assoc={
@@ -175,6 +178,7 @@ alice[nacs, top_down_links].channel = TopDownLinks(
 # features. Linked features are grouped by dimension as inter-level 
 # activation propagation applies a dimension-dependent weight to strengths.
 
+alice[nacs, bottom_up_links].pull_rule = flow_pull_rule
 alice[nacs, bottom_up_links].junction = SimpleJunction()
 alice[nacs, bottom_up_links].channel = BottomUpLinks(
     assoc=alice[nacs, top_down_links].channel.assoc,
@@ -187,6 +191,7 @@ alice[nacs, bottom_up_links].channel = BottomUpLinks(
 # Now we define the behavior of individual nodes (chunks and features). 
 
 for node, realizer in alice[nacs].items_ctype(ConstructType.Node):
+    realizer.pull_rule = node_pull_rule
     realizer.junction = SimpleNodeJunction(node, default_strength)
 
 # Node junctions determine the final output of a node given recommendations 
@@ -195,6 +200,7 @@ for node, realizer in alice[nacs].items_ctype(ConstructType.Node):
 # To determine how responses are selected, we specify a selector for the 
 # response construct. 
 
+alice[nacs, response].pull_rule = response_pull_rule
 alice[nacs, response].junction = SimpleJunction()
 alice[nacs, response].selector = BoltzmannSelector(temperature=.1)
 
@@ -206,6 +212,7 @@ alice[nacs, response].selector = BoltzmannSelector(temperature=.1)
 # such as goal-setting, attention allocation, working-memory allocation etc., 
 # depending on simulation requirements.
 
+alice[nacs, behavior].pull_rule = behavior_pull_rule
 alice[nacs, behavior].effector = MappingEffector(
     chunk2callback={
         Chunk("APPLE"): lambda: recorder.actions.append(Chunk("APPLE")),
@@ -213,6 +220,10 @@ alice[nacs, behavior].effector = MappingEffector(
         Chunk("FRUIT"): lambda: recorder.actions.append(Chunk("FRUIT"))
     }
 )
+
+# Make sure everything is linked:
+
+alice.make_links()
 
 # Finally, we check if we've missed anything.
 
@@ -345,17 +356,19 @@ class HeavyHandedLearningRoutine(object):
         self.toplevel_assoc = toplevel_assoc
         self.interlevel_assoc = interlevel_assoc
         self.behavior = behavior
-    
+
     def __call__(self) -> None:
 
         # Add orange chunk node and orange color feature to NACS
         self.nacs.insert_realizers(
             NodeRealizer(
-                Chunk("ORANGE"), 
+                Chunk("ORANGE"),
+                node_pull_rule, 
                 SimpleNodeJunction(Chunk("ORANGE"), default_strength)
             ),
             NodeRealizer(
                 Feature("color", "#ffa500"), 
+                node_pull_rule,
                 SimpleNodeJunction(
                     Feature("color", "#ffa500"), default_strength
                 )

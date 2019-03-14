@@ -24,6 +24,7 @@ from typing import (
     Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast
 )
 from operator import getitem, setitem, delitem
+from itertools import combinations
 from pyClarion.base.symbols import (
     ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
     BufferID
@@ -246,7 +247,8 @@ class ConstructRealizer(object):
 
 
 ### Basic Construct Realizer Definitions ###
-    
+
+PullRule = Callable[[ConstructRealizer, ConstructSymbol], bool]    
     
 class BasicConstructRealizer(ConstructRealizer):
     """Base class for basic construct realizers."""
@@ -254,7 +256,9 @@ class BasicConstructRealizer(ConstructRealizer):
     itype: Optional[Type] = InputMonitor
     otype: Optional[Type] = OutputView
 
-    def __init__(self, csym: ConstructSymbol) -> None:
+    def __init__(
+        self, csym: ConstructSymbol, pull_rule: PullRule = None
+    ) -> None:
 
         super().__init__(csym)
 
@@ -263,11 +267,15 @@ class BasicConstructRealizer(ConstructRealizer):
             self.input = self.itype()
         if self.otype is not None:
             self.output = self.otype()
+        self.pull_rule = pull_rule
 
     def pulls_from(self, source: ConstructSymbol) -> bool:
         """Check if self may pull data from given construct."""
 
-        return False
+        if self.pull_rule is not None:
+            return self.pull_rule(self, source)
+        else:
+            return False
 
     def clear_activations(self) -> None:
         """Clear activations stored in output view."""
@@ -284,10 +292,13 @@ class NodeRealizer(BasicConstructRealizer):
     __slots__ = ('junction',)
 
     def __init__(
-        self, csym: ConstructSymbol, junction: Junction = None
+        self, 
+        csym: ConstructSymbol, 
+        pull_rule: PullRule = None, 
+        junction: Junction = None
     ) -> None:
 
-        super().__init__(csym)
+        super().__init__(csym, pull_rule)
         if junction is not None: 
             self.junction = junction
 
@@ -298,28 +309,6 @@ class NodeRealizer(BasicConstructRealizer):
         packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
-        """Check if self may pull data from given construct."""
-
-        possibilities: List[bool] = [
-            (
-                source.ctype == ConstructType.Flow and
-                self.csym.ctype == ConstructType.Feature and
-                bool(
-                    cast(FlowID, source.cid).ftype & (FlowType.BB | FlowType.TB)
-                )
-            ),
-            (
-                source.ctype == ConstructType.Flow and
-                self.csym.ctype == ConstructType.Chunk and
-                bool(
-                    cast(FlowID, source.cid).ftype & (FlowType.TT | FlowType.BT)
-                )
-            )
-        ] 
-
-        return any(possibilities)
-
 
 class FlowRealizer(BasicConstructRealizer):
 
@@ -328,12 +317,13 @@ class FlowRealizer(BasicConstructRealizer):
 
     def __init__(
         self, 
-        csym: ConstructSymbol, 
+        csym: ConstructSymbol,
+        pull_rule: PullRule = None, 
         junction: Junction = None, 
         channel: Channel = None
     ) -> None:
 
-        super().__init__(csym)
+        super().__init__(csym, pull_rule)
         if junction is not None: 
             self.junction = junction
         if channel is not None: 
@@ -347,26 +337,6 @@ class FlowRealizer(BasicConstructRealizer):
         packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
-        """Check if self may pull data from given construct."""
-
-        possibilities: List[bool] = [
-            (
-                source.ctype == ConstructType.Feature and
-                bool(
-                    cast(FlowID, self.csym.cid).ftype & (FlowType.BB | FlowType.BT)
-                )
-            ),
-            (
-                source.ctype == ConstructType.Chunk and
-                bool(
-                    cast(FlowID, self.csym.cid).ftype & (FlowType.TT | FlowType.TB)
-                )
-            ),
-        ]
-
-        return any(possibilities)
-
 
 class ResponseRealizer(BasicConstructRealizer):
 
@@ -376,11 +346,12 @@ class ResponseRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol, 
+        pull_rule: PullRule = None,
         junction: Junction = None, 
         selector: Selector = None
     ) -> None:
 
-        super().__init__(csym)
+        super().__init__(csym, pull_rule)
         if junction is not None: 
             self.junction = junction
         if selector is not None: 
@@ -396,15 +367,6 @@ class ResponseRealizer(BasicConstructRealizer):
         )
         self.output.update(decision_packet)
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
-        """Check if self may pull data from given construct."""
-
-        possibilities: List[bool] = [
-            bool(source.ctype & cast(ResponseID, self.csym.cid).itype)
-        ]
-
-        return any(possibilities)
-
 
 class BehaviorRealizer(BasicConstructRealizer):
     
@@ -413,10 +375,13 @@ class BehaviorRealizer(BasicConstructRealizer):
     __slots__ = ('effector',)
 
     def __init__(
-        self, csym: ConstructSymbol, effector: Effector = None
+        self, 
+        csym: ConstructSymbol, 
+        pull_rule: PullRule = None, 
+        effector: Effector = None
     ) -> None:
 
-        super().__init__(csym)
+        super().__init__(csym, pull_rule)
         if effector is not None: 
             self.effector = effector
 
@@ -424,15 +389,6 @@ class BehaviorRealizer(BasicConstructRealizer):
         """Execute selected callbacks."""
 
         self.effector(*self.input.pull())
-
-    def pulls_from(self, source: ConstructSymbol) -> bool:
-        """Check if self may pull data from given construct."""
-
-        possibilities: List[bool] = [
-            source == cast(BehaviorID, self.csym.cid).response
-        ]
-
-        return any(possibilities)
 
 
 class BufferRealizer(BasicConstructRealizer):
@@ -576,6 +532,19 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
             if csym.ctype in ctype:
                 yield csym, realizer
 
+    def make_links(self) -> None:
+        """Relink all constructs within self."""
+
+        for r1, r2 in combinations(self.values(), 2):
+            if r1.pulls_from(r2.csym):
+                cast(HasInput, r1).input.watch(
+                    r2.csym, cast(HasOutput, r2).output.view
+                )
+            if r2.pulls_from(r1.csym):
+                cast(HasInput, r2).input.watch(
+                    r1.csym, cast(HasOutput, r1).output.view
+                )
+
     def _check_kv_pair(self, key: Any, value: Any) -> None:
 
         if not self.may_contain(key):
@@ -633,10 +602,13 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
     ctype = ConstructType.Subsystem
     itype = SubsystemInputMonitor
-    __slots__ = ('propagation_rule',)
+    __slots__ = ('propagation_rule', 'pull_rule')
 
     def __init__(
-        self, csym: ConstructSymbol, propagation_rule: PropagationRule = None, 
+        self, 
+        csym: ConstructSymbol, 
+        pull_rule: PullRule = None, 
+        propagation_rule: PropagationRule = None, 
     ) -> None:
         """
         Initialize a new subsystem realizer.
@@ -649,6 +621,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
         super().__init__(csym)
         self.input = type(self).itype(self._watch, self._drop)
+        self.pull_rule = pull_rule
         if propagation_rule is not None: 
             self.propagation_rule = propagation_rule
 
@@ -670,15 +643,11 @@ class SubsystemRealizer(ContainerConstructRealizer):
         Connects buffers to subsystems according to specifications in buffer 
         construct symbols.
         """
-        
-        possibilities = [
-            (
-                source.ctype == ConstructType.Buffer and
-                self.csym in cast(BufferID, source.cid).outputs
-            )
-        ]
 
-        return any(possibilities)
+        if self.pull_rule is not None:
+            return self.pull_rule(self, source)
+        else:
+            return False
 
     def may_contain(self, csym: ConstructSymbol) -> bool:
         """Return true if subsystem realizer may contain construct symbol."""
@@ -725,16 +694,18 @@ class SubsystemRealizer(ContainerConstructRealizer):
     ) -> None:
         """Informs members of a new input to self."""
 
-        for _, realizer in self.items_ctype(ConstructType.Node):
-            cast(BasicConstructRealizer, realizer).input.watch(
-                identifier, pull_method
-            )
+        for realizer in self.values():
+            if cast(BasicConstructRealizer, realizer).pulls_from(identifier):
+                cast(BasicConstructRealizer, realizer).input.watch(
+                    identifier, pull_method
+                )
 
     def _drop(self, identifier: ConstructSymbol) -> None:
         """Informs members of a dropped input to self."""
 
-        for _, realizer in self.items_ctype(ConstructType.Node):
-            cast(BasicConstructRealizer, realizer).input.drop(identifier)
+        for realizer in self.values():
+            if cast(BasicConstructRealizer, realizer).pulls_from(identifier):
+                cast(BasicConstructRealizer, realizer).input.drop(identifier)
 
 
 class AgentRealizer(ContainerConstructRealizer):
@@ -791,6 +762,12 @@ class AgentRealizer(ContainerConstructRealizer):
 
         for updater in updaters:
             self._updaters.append(updater)
+
+    def make_links(self) -> None:
+
+        super().make_links()
+        for subsystem in self.subsystems:
+            self[subsystem].make_links() 
 
     @property
     def updaters(self) -> UpdaterList:

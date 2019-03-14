@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `ContainerConstructRealizer.make_links()` to set up construct links after pull rules have been specified.
+- `pyClarion.components.pull_rules` providing some basic pull rules.
+- `pull_rule` attribute to several construct realizers for customizing how 
+construct realizers connect to each other.
+
+
 ### Changed
 
 - `may_connect()` removed from subsystem and agent realizers, connection 
