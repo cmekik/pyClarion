@@ -204,6 +204,11 @@ class ConstructRealizer(object):
 
         raise NotImplementedError()
 
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Return true if self pulls information from source."""
+
+        raise NotImplementedError()
+
     def clear_activations(self) -> None:
         """Clear activations."""
 
@@ -259,6 +264,11 @@ class BasicConstructRealizer(ConstructRealizer):
         if self.otype is not None:
             self.output = self.otype()
 
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Check if self may pull data from given construct."""
+
+        return False
+
     def clear_activations(self) -> None:
         """Clear activations stored in output view."""
 
@@ -288,6 +298,28 @@ class NodeRealizer(BasicConstructRealizer):
         packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
 
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Check if self may pull data from given construct."""
+
+        possibilities: List[bool] = [
+            (
+                source.ctype == ConstructType.Flow and
+                self.csym.ctype == ConstructType.Feature and
+                bool(
+                    cast(FlowID, source.cid).ftype & (FlowType.BB | FlowType.TB)
+                )
+            ),
+            (
+                source.ctype == ConstructType.Flow and
+                self.csym.ctype == ConstructType.Chunk and
+                bool(
+                    cast(FlowID, source.cid).ftype & (FlowType.TT | FlowType.BT)
+                )
+            )
+        ] 
+
+        return any(possibilities)
+
 
 class FlowRealizer(BasicConstructRealizer):
 
@@ -314,6 +346,26 @@ class FlowRealizer(BasicConstructRealizer):
         strengths = self.channel(combined)
         packet = ActivationPacket(strengths=strengths, origin=self.csym)
         self.output.update(packet)
+
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Check if self may pull data from given construct."""
+
+        possibilities: List[bool] = [
+            (
+                source.ctype == ConstructType.Feature and
+                bool(
+                    cast(FlowID, self.csym.cid).ftype & (FlowType.BB | FlowType.BT)
+                )
+            ),
+            (
+                source.ctype == ConstructType.Chunk and
+                bool(
+                    cast(FlowID, self.csym.cid).ftype & (FlowType.TT | FlowType.TB)
+                )
+            ),
+        ]
+
+        return any(possibilities)
 
 
 class ResponseRealizer(BasicConstructRealizer):
@@ -344,6 +396,15 @@ class ResponseRealizer(BasicConstructRealizer):
         )
         self.output.update(decision_packet)
 
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Check if self may pull data from given construct."""
+
+        possibilities: List[bool] = [
+            bool(source.ctype & cast(ResponseID, self.csym.cid).itype)
+        ]
+
+        return any(possibilities)
+
 
 class BehaviorRealizer(BasicConstructRealizer):
     
@@ -363,6 +424,15 @@ class BehaviorRealizer(BasicConstructRealizer):
         """Execute selected callbacks."""
 
         self.effector(*self.input.pull())
+
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """Check if self may pull data from given construct."""
+
+        possibilities: List[bool] = [
+            source == cast(BehaviorID, self.csym.cid).response
+        ]
+
+        return any(possibilities)
 
 
 class BufferRealizer(BasicConstructRealizer):
@@ -534,12 +604,12 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
     def _connect(self, key: Any, value: Any) -> None:
 
         for csym, realizer in self.items():
-            if self.may_connect(csym, key):
+            if value.pulls_from(csym):
                 # EXPLAIN!!!!!!
                 value = cast(HasInput, value)
                 realizer = cast(HasOutput, realizer)
                 value.input.watch(csym, realizer.output.view)
-            if self.may_connect(key, csym):
+            if realizer.pulls_from(key):
                 value = cast(HasOutput, value)
                 realizer = cast(HasInput, realizer)
                 realizer.input.watch(key, value.output.view)
@@ -593,6 +663,23 @@ class SubsystemRealizer(ContainerConstructRealizer):
         for behavior in self.behaviors:
             self[behavior].propagate()
 
+    def pulls_from(self, source: ConstructSymbol) -> bool:
+        """
+        Return true iff source may connect to target within self.
+        
+        Connects buffers to subsystems according to specifications in buffer 
+        construct symbols.
+        """
+        
+        possibilities = [
+            (
+                source.ctype == ConstructType.Buffer and
+                self.csym in cast(BufferID, source.cid).outputs
+            )
+        ]
+
+        return any(possibilities)
+
     def may_contain(self, csym: ConstructSymbol) -> bool:
         """Return true if subsystem realizer may contain construct symbol."""
 
@@ -604,58 +691,6 @@ class SubsystemRealizer(ContainerConstructRealizer):
                 ConstructType.Behavior
             )            
         )
-
-    def may_connect(
-        self, source: ConstructSymbol, target: ConstructSymbol
-    ) -> bool:
-        """
-        Return true iff source may connect to target within self.
-        
-        Connects chunk and feature nodes may connect to flows as inputs 
-        or outputs according to flow direction. Connects of response and 
-        behavior constructs according to contents of respective construct 
-        symbols.
-        """
-        
-        possibilities: List[bool] = [
-            (
-                target.ctype == ConstructType.Response and
-                bool(source.ctype & cast(ResponseID, target.cid).itype)
-            ),
-            (
-                target.ctype == ConstructType.Behavior and
-                source == cast(BehaviorID, target.cid).response
-            ),
-            (
-                source.ctype == ConstructType.Feature and
-                target.ctype == ConstructType.Flow and
-                bool(
-                    cast(FlowID, target.cid).ftype & (FlowType.BB | FlowType.BT)
-                )
-            ),
-            (
-                source.ctype == ConstructType.Chunk and
-                target.ctype == ConstructType.Flow and
-                bool(
-                    cast(FlowID, target.cid).ftype & (FlowType.TT | FlowType.TB)
-                )
-            ),
-            (
-                source.ctype == ConstructType.Flow and
-                target.ctype == ConstructType.Feature and
-                bool(
-                    cast(FlowID, source.cid).ftype & (FlowType.BB | FlowType.TB)
-                )
-            ),
-            (
-                source.ctype == ConstructType.Flow and
-                target.ctype == ConstructType.Chunk and
-                bool(
-                    cast(FlowID, source.cid).ftype & (FlowType.TT | FlowType.BT)
-                )
-            )
-        ]
-        return any(possibilities)
 
     @property
     def nodes(self) -> ConstructSymbolList:
@@ -735,26 +770,6 @@ class AgentRealizer(ContainerConstructRealizer):
         """Return true if agent realizer may contain csym."""
 
         return csym.ctype in ConstructType.Subsystem | ConstructType.Buffer
-
-    def may_connect(
-        self, source: ConstructSymbol, target: ConstructSymbol
-    ) -> bool:
-        """
-        Return true iff source may connect to target within self.
-        
-        Connects buffers to subsystems according to specifications in buffer 
-        construct symbols.
-        """
-        
-        possibilities = [
-            (
-                source.ctype == ConstructType.Buffer and
-                target.ctype == ConstructType.Subsystem and
-                target in cast(BufferID, source.cid).outputs
-            )
-        ]
-
-        return any(possibilities)
 
     def learn(self) -> None:
         """
