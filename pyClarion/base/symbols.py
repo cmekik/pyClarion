@@ -8,18 +8,8 @@
 #   symbol factory functions.
 
 
-__all__ = [
-    "ConstructSymbol", "ConstructType", "FlowType", "DVPair", "FlowID", 
-    "ResponseID", "BehaviorID", "BufferID", "Feature", "Chunk", "Flow",
-    "Response", "Behavior", "Buffer", "Subsystem", "Agent"
-]
-
-
-from typing import NamedTuple, Hashable, Sequence
+from typing import Hashable, Tuple
 from enum import Flag, auto
-
-
-ConstructSymbolSequence = Sequence['ConstructSymbol']
 
 
 #########################
@@ -32,152 +22,129 @@ class ConstructType(Flag):
     Represents construct types within Clarion theory.
     
     Basic members (and interpretations):
+        NullConstruct: Empty construct type (corresponds to flag null).
         Feature: Feature node.
         Chunk: Chunk node.
-        Flow: Links among microfeature and/or chunk nodes.
+        TBFlow: Activation flow from top to bottom level.
+        BTFlow: Activation flow from bottom to top level.
+        TTFlow: Activation flow within top level.
+        BBFlow: Activation flow within bottom level.
         Response: Selected responses.
         Behavior: Possible actions.
         Buffer: Temporary store of activations.
         Subsystem: A Clarion subsystem.
         Agent: A full Clarion agent.
 
-    Other members:
-        NullConstruct: Empty construct type (corresponds to flag null). 
+    Other members: 
         Node: A chunk or microfeature.
+        Flow: Links among microfeature and/or chunk nodes.
         BasicConstruct: Feature or chunk or flow or response or behavior or 
             buffer. 
         ContainerConstruct: Subsystem or agent.
     """
 
-    Feature = auto()
-    Chunk = auto()
-    Flow = auto()
-    Response = auto()
-    Behavior = auto()
-    Buffer = auto()
-    Subsystem = auto()
-    Agent = auto()
-
-    NullConstruct = 0
-    Node = Feature | Chunk
-    BasicConstruct = (
-        Feature | Chunk | Flow | Response | Behavior | Buffer
-    )
-    ContainerConstruct = Subsystem | Agent
-
-
-class FlowType(Flag):
-    """
-    Signals the direction(s) of an activation flow.
-    
-    May take on four basic values:
-        TT: Activation flows within the top-level.
-        BB: Activation flows within the bottom-level.
-        TB: Top-down activation flows.
-        BT: Bottom-up activation flows.
-    """
-
-    TT = auto()
-    BB = auto()
-    TB = auto()
-    BT = auto()
+    null_construct = 0
+    feature = auto()
+    chunk = auto()
+    flow_tb = auto()
+    flow_bt = auto()
+    flow_tt = auto()
+    flow_bb = auto()
+    response = auto()
+    behavior = auto()
+    buffer = auto()
+    subsystem = auto()
+    agent = auto()
+    node = feature | chunk
+    flow = flow_tb | flow_bt | flow_tt | flow_bb
+    basic_construct = node | flow | response | behavior | buffer
+    container_construct = subsystem | agent
 
 
-class ConstructSymbol(NamedTuple):
+class ConstructSymbol:
     """
     Symbolically represents simulation constructs.
     
-    Construct symbols identify and carry essential information about simulated 
-    constructs.
-
-    :param ctype: Construct type.
-    :param cid: Construct ID.
+    Construct symbols are immutable objects that identify simulated constructs.
     """
+
+    __slots__ = ('_data')
     
-    ctype: ConstructType
-    cid: Hashable
+    _data: Tuple[ConstructType, Tuple[Hashable, ...]]
+
+    def __init__(self, ctype: ConstructType, *cid: Hashable):
+        """
+        Initialize a new ConstructSymbol.
+
+        :param ctype: Construct type.
+        :param cid: Hashable sequence serving as Construct ID.
+        """
+
+        super().__setattr__('_data', (ctype, tuple(cid)))
+
+    def __setattr__(self, name, value):
+
+        raise AttributeError(
+            "{} instance is immutable.".format(self.__class__.__name__)
+        )
+    
+    def __hash__(self):
+
+        return hash(self._data)
+
+    def __eq__(self, other):
+
+        if isinstance(other, ConstructSymbol):
+            return self._data == other._data
+        else:
+            return NotImplemented
 
     def __repr__(self):
 
-        return ''.join(['<', self.__class__.__name__, ': ', str(self), '>'])
+        return "<{}: {}>".format(self.__class__.__name__, str(self))
 
     def __str__(self):
-        """
-        Pretty print construct symbol.
 
-        Output has form: 'ConstructName(id)'
-        """
+        ctype_str = self.ctype.name or str(self.ctype)
+        cid_arg_repr = ', '.join(map(repr, self.cid))
+        csym_str = '{}({})'.format(ctype_str, cid_arg_repr)
+        return csym_str
 
-        if hasattr(self.cid, '_repr_data'):
-            cdata = self.cid._repr_data()
-        else:
-            cdata = repr(self.cid)
-        return "".join(
-            [self.ctype.name or str(self.ctype), "(", cdata, ")"]
-        )
+    @property
+    def ctype(self) -> ConstructType:
+        """Construct type associated with self."""
 
+        return self._data[0]
 
-class DVPair(NamedTuple):
-    """Represents a microfeature dimension-value pair."""
-    
-    dim: Hashable
-    val: Hashable
+    @property
+    def cid(self) -> Tuple[Hashable, ...]:
+        """Construct identifier associated with self."""
 
-    def _repr_data(self):
-
-        return ', '.join([repr(getattr(self, field)) for field in self._fields])
+        return self._data[1]
 
 
-class FlowID(NamedTuple):
-    """Represents the name and type of a flow."""
+class FeatureSymbol(ConstructSymbol):
+    """
+    Symbolically represents a feature node.
 
-    name: Hashable
-    ftype: FlowType
+    Extends ConstructSymbol to support accessing dim and val attributes.
+    """
 
-    def _repr_data(self):
+    __slots__ = ()
 
-        return ', '.join([repr(self.name), str(self.ftype)])
+    def __init__(self, dim: Hashable, val: Hashable) -> None:
 
+        super().__init__(ConstructType.feature, dim, val)
 
-class ResponseID(NamedTuple):
-    """Represents name and input construct type of a response."""
+    @property
+    def dim(self) -> Hashable:
 
-    name: Hashable
-    itype: ConstructType
+        return self.cid[0]
 
-    def _repr_data(self):
+    @property
+    def val(self) -> Hashable:
 
-        return ', '.join([repr(self.name), self.itype.name or str(self.itype)])
-
-
-class BehaviorID(NamedTuple):
-    """Represents the name and client response construct of a behavior."""
-
-    name: Hashable
-    response: ConstructSymbol
-
-    def _repr_data(self):
-
-        return ', '.join([repr(self.name), str(self.response)])
-
-
-class BufferID(NamedTuple):
-    """Represents the name and output destinations of a buffer."""
-
-    name: Hashable
-    outputs: ConstructSymbolSequence
-
-    def _repr_data(self):
-
-        return ''.join(
-            [
-                repr(self.name), ', '
-                '(', 
-                ', '.join([str(csym) for csym in self.outputs]),
-                '' if len(self.outputs) > 1 else ',', 
-                ')'
-            ]
-        )
+        return self.cid[1]
 
 
 ##################################
@@ -185,99 +152,112 @@ class BufferID(NamedTuple):
 ##################################
 
 
-# Construct symbol factory names mimic class naming style to free up namespace 
-# for simulation variables. For instance, the chunk factory is named `Chunk()` 
-# not `chunk()` to allow use of `chunk` as a variable name by the user.
-
-
-def Feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
+def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     """
     Return a new feature symbol.
-    
-    Assumes feature is in dv-pair form.
 
     :param dim: Dimension of feature.
     :param val: Value of feature.
     """
 
-    return ConstructSymbol(ConstructType.Feature, DVPair(dim, val))
+    return FeatureSymbol(dim, val)
 
 
-def Chunk(cid: Hashable) -> ConstructSymbol:
+def chunk(name: Hashable) -> ConstructSymbol:
     """
     Return a new chunk symbol.
 
     :param cid: Chunk identifier.
     """
 
-    return ConstructSymbol(ConstructType.Chunk, cid)
+    return ConstructSymbol(ConstructType.chunk, name)
 
 
-def Flow(name: Hashable, ftype: FlowType) -> ConstructSymbol:
+def flow_bt(name: Hashable) -> ConstructSymbol:
     """
-    Return a new flow symbol.
+    Return a new bottom-up flow symbol.
 
-    Assumes flow is in name-ftype form.
-
-    :param name: Name of flow.
-    :param ftype: Flow type.
+    :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.Flow, FlowID(name, ftype))
+    return ConstructSymbol(ConstructType.flow_bt, name)
 
 
-def Response(name: Hashable, itype: ConstructType) -> ConstructSymbol:
+def flow_tb(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new top-down flow symbol.
+
+    :param cid: Name of flow.
+    """
+
+    return ConstructSymbol(ConstructType.flow_tb, name)
+
+
+def flow_tt(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new top-level flow symbol.
+
+    :param cid: Name of flow.
+    """
+
+    return ConstructSymbol(ConstructType.flow_tt, name)
+
+
+def flow_bb(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new bottom-level flow symbol.
+
+    :param cid: Name of flow.
+    """
+
+    return ConstructSymbol(ConstructType.flow_bb, name)
+
+
+def response(name: Hashable) -> ConstructSymbol:
     """
     Return a new response symbol.
 
     :param name: Name of response.
-    :param itype: Input type to response construct.
     """
 
-    return ConstructSymbol(ConstructType.Response, ResponseID(name, itype))
+    return ConstructSymbol(ConstructType.response, name)
 
 
-def Behavior(
-    name: Hashable, response: ConstructSymbol
-) -> ConstructSymbol:
+def behavior(name: Hashable) -> ConstructSymbol:
     """
     Return a new behavior symbol.
 
     :param name: Name of behavior.
-    :param response: Client response construct.
     """
 
-    return ConstructSymbol(ConstructType.Behavior, BehaviorID(name, response))
+    return ConstructSymbol(ConstructType.behavior, name)
 
 
-def Buffer(
-    name: Hashable, outputs: ConstructSymbolSequence
-) -> ConstructSymbol:
+def buffer(name: Hashable) -> ConstructSymbol:
     """
     Return a new buffer symbol.
 
     :param name: Name of buffer.
-    :param outputs: Constructs receiving output of buffer.
     """
 
-    return ConstructSymbol(ConstructType.Buffer, BufferID(name, outputs))
+    return ConstructSymbol(ConstructType.buffer, name)
 
 
-def Subsystem(cid: Hashable) -> ConstructSymbol:
+def subsystem(name: Hashable) -> ConstructSymbol:
     """
     Return a new subsystem symbol.
 
-    :param cid: Subsystem identifier.
+    :param name: Name of subsystem.
     """
 
-    return ConstructSymbol(ConstructType.Subsystem, cid)
+    return ConstructSymbol(ConstructType.subsystem, name)
 
 
-def Agent(cid: Hashable) -> ConstructSymbol:
+def agent(name: Hashable) -> ConstructSymbol:
     """
     Return a new agent symbol.
 
-    :param cid: Agent identifier.
+    :param name: Name of agent.
     """
 
-    return ConstructSymbol(ConstructType.Agent, cid)
+    return ConstructSymbol(ConstructType.agent, name)

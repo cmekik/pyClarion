@@ -129,7 +129,7 @@ class BoltzmannSelector(object):
     def _iter_chunk_strengths(strengths):
 
         for csym, s in strengths.items():
-            if csym.ctype == ConstructType.Chunk:
+            if csym.ctype == ConstructType.chunk:
                 yield (csym, s)            
 
 
@@ -180,7 +180,7 @@ class CategoricalSelector(object):
     def _iter_chunk_strengths(strengths):
 
         for csym, s in strengths.items():
-            if csym.ctype == ConstructType.Chunk:
+            if csym.ctype == ConstructType.chunk:
                 yield (csym, s)            
 
 

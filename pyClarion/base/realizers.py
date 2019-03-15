@@ -21,14 +21,11 @@ __all__ = [
 
 from typing import (
     Any, Callable, Iterable, MutableMapping, Union, Optional, ClassVar, Text, 
-    Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast
+    Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast, Container
 )
 from operator import getitem, setitem, delitem
 from itertools import combinations
-from pyClarion.base.symbols import (
-    ConstructSymbol, ConstructType, FlowType, FlowID, ResponseID, BehaviorID, 
-    BufferID
-)
+from pyClarion.base.symbols import ConstructSymbol, ConstructType
 from pyClarion.base.packets import (
     ConstructSymbolMapping, ActivationPacket, DecisionPacket, 
     ConstructSymbolCollection
@@ -45,6 +42,7 @@ InputMapping = MutableMapping[ConstructSymbol, PullMethod]
 PacketIterable = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
 WatchMethod = Callable[[ConstructSymbol, PullMethod], None]
 DropMethod = Callable[[ConstructSymbol], None]
+PullRule = Union[Container, ConstructType]
 
 # Types used by ConstructRealizer instances
 
@@ -184,7 +182,7 @@ class ConstructRealizer(object):
     constructs. 
     """
 
-    ctype: ClassVar[ConstructType] = ConstructType.NullConstruct
+    ctype: ClassVar[ConstructType] = ConstructType.null_construct
     __slots__: ComponentSpec = ("csym",)
 
     def __init__(self, csym: ConstructSymbol) -> None:
@@ -248,8 +246,7 @@ class ConstructRealizer(object):
 
 ### Basic Construct Realizer Definitions ###
 
-PullRule = Callable[[ConstructRealizer, ConstructSymbol], bool]    
-    
+
 class BasicConstructRealizer(ConstructRealizer):
     """Base class for basic construct realizers."""
 
@@ -272,8 +269,12 @@ class BasicConstructRealizer(ConstructRealizer):
     def pulls_from(self, source: ConstructSymbol) -> bool:
         """Check if self may pull data from given construct."""
 
-        if self.pull_rule is not None:
-            return self.pull_rule(self, source)
+        if self.pull_rule is not None and isinstance(
+            self.pull_rule, ConstructType
+        ):
+            return source.ctype in self.pull_rule
+        elif self.pull_rule is not None:
+            return source in self.pull_rule
         else:
             return False
 
@@ -288,7 +289,7 @@ class BasicConstructRealizer(ConstructRealizer):
 
 class NodeRealizer(BasicConstructRealizer):
 
-    ctype = ConstructType.Node
+    ctype = ConstructType.node
     __slots__ = ('junction',)
 
     def __init__(
@@ -312,7 +313,7 @@ class NodeRealizer(BasicConstructRealizer):
 
 class FlowRealizer(BasicConstructRealizer):
 
-    ctype = ConstructType.Flow
+    ctype = ConstructType.flow
     __slots__ = ('junction', 'channel')
 
     def __init__(
@@ -340,7 +341,7 @@ class FlowRealizer(BasicConstructRealizer):
 
 class ResponseRealizer(BasicConstructRealizer):
 
-    ctype = ConstructType.Response
+    ctype = ConstructType.response
     __slots__ = ('junction', 'selector')
 
     def __init__(
@@ -370,7 +371,7 @@ class ResponseRealizer(BasicConstructRealizer):
 
 class BehaviorRealizer(BasicConstructRealizer):
     
-    ctype = ConstructType.Behavior
+    ctype = ConstructType.behavior
     otype = None
     __slots__ = ('effector',)
 
@@ -393,11 +394,16 @@ class BehaviorRealizer(BasicConstructRealizer):
 
 class BufferRealizer(BasicConstructRealizer):
 
-    ctype = ConstructType.Buffer
+    ctype = ConstructType.buffer
     itype = None
     __slots__ = ('source',)
 
-    def __init__(self, csym: ConstructSymbol, source: Source = None) -> None:
+    def __init__(
+        self, 
+        csym: ConstructSymbol, 
+        pull_rule: PullRule = None, 
+        source: Source = None
+    ) -> None:
 
         super().__init__(csym)
         if source is not None: 
@@ -600,7 +606,7 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
 class SubsystemRealizer(ContainerConstructRealizer):
     """A network of node, flow, apprasial, and behavior realizers."""
 
-    ctype = ConstructType.Subsystem
+    ctype = ConstructType.subsystem
     itype = SubsystemInputMonitor
     __slots__ = ('propagation_rule', 'pull_rule')
 
@@ -644,8 +650,12 @@ class SubsystemRealizer(ContainerConstructRealizer):
         construct symbols.
         """
 
-        if self.pull_rule is not None:
-            return self.pull_rule(self, source)
+        if self.pull_rule is not None and isinstance(
+            self.pull_rule, ConstructType
+        ):
+            return source.ctype in self.pull_rule
+        elif self.pull_rule is not None:
+            return source in self.pull_rule
         else:
             return False
 
@@ -654,38 +664,38 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
         return bool(
             csym.ctype & (
-                ConstructType.Node |
-                ConstructType.Flow |
-                ConstructType.Response |
-                ConstructType.Behavior
+                ConstructType.node |
+                ConstructType.flow |
+                ConstructType.response |
+                ConstructType.behavior
             )            
         )
 
     @property
     def nodes(self) -> ConstructSymbolList:
         
-        return list(self.iter_ctype(ConstructType.Node))
+        return list(self.iter_ctype(ConstructType.node))
 
     @property
     def flows(self) -> ConstructSymbolList:
         
-        return list(self.iter_ctype(ConstructType.Flow))
+        return list(self.iter_ctype(ConstructType.flow))
 
     @property
     def responses(self) -> ConstructSymbolList:
         
-        return list(self.iter_ctype(ConstructType.Response))
+        return list(self.iter_ctype(ConstructType.response))
 
     @property
     def behaviors(self) -> ConstructSymbolList:
         
-        return list(self.iter_ctype(ConstructType.Behavior))
+        return list(self.iter_ctype(ConstructType.behavior))
 
     def _connect(self, key: Any, value: Any) -> None:
 
         super()._connect(key, value)
 
-        if key.ctype in ConstructType.Node:
+        if key.ctype in ConstructType.node:
             for buffer, pull_method in self.input.input_links.items():
                 value.input.watch(buffer, pull_method)
 
@@ -711,7 +721,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
 class AgentRealizer(ContainerConstructRealizer):
     """Realizer for Agent constructs."""
 
-    ctype = ConstructType.Agent
+    ctype = ConstructType.agent
 
     def __init__(self, csym: ConstructSymbol) -> None:
         """
@@ -740,7 +750,7 @@ class AgentRealizer(ContainerConstructRealizer):
     def may_contain(self, csym: ConstructSymbol) -> bool:
         """Return true if agent realizer may contain csym."""
 
-        return csym.ctype in ConstructType.Subsystem | ConstructType.Buffer
+        return csym.ctype in ConstructType.subsystem | ConstructType.buffer
 
     def learn(self) -> None:
         """
@@ -777,12 +787,12 @@ class AgentRealizer(ContainerConstructRealizer):
     @property
     def buffers(self) -> ConstructSymbolList:
 
-        return list(self.iter_ctype(ConstructType.Buffer))
+        return list(self.iter_ctype(ConstructType.buffer))
 
     @property
     def subsystems(self) -> ConstructSymbolList:
 
-        return list(self.iter_ctype(ConstructType.Subsystem))
+        return list(self.iter_ctype(ConstructType.subsystem))
 
 
 ####################################
@@ -793,19 +803,19 @@ class AgentRealizer(ContainerConstructRealizer):
 def make_realizer(csym: ConstructSymbol) -> ConstructRealizer:
     """Initialize empty construct realizer for given construct symbol."""
 
-    if csym.ctype in ConstructType.Node:
+    if csym.ctype in ConstructType.node:
         return NodeRealizer(csym)
-    elif csym.ctype == ConstructType.Flow:
+    elif csym.ctype in ConstructType.flow:
         return FlowRealizer(csym)
-    elif csym.ctype == ConstructType.Response:
+    elif csym.ctype == ConstructType.response:
         return ResponseRealizer(csym)
-    elif csym.ctype == ConstructType.Behavior:
+    elif csym.ctype == ConstructType.behavior:
         return BehaviorRealizer(csym)
-    elif csym.ctype == ConstructType.Buffer:
+    elif csym.ctype == ConstructType.buffer:
         return BufferRealizer(csym)
-    elif csym.ctype == ConstructType.Subsystem:
+    elif csym.ctype == ConstructType.subsystem:
         return SubsystemRealizer(csym)
-    elif csym.ctype == ConstructType.Agent:
+    elif csym.ctype == ConstructType.agent:
         return AgentRealizer(csym)
     else:
         raise ValueError("Unexpected construct type in {}".format(csym))
