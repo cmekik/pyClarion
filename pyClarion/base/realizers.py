@@ -203,7 +203,7 @@ class ConstructRealizer(object):
 
         raise NotImplementedError()
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: ConstructSymbol) -> bool:
         """Return true if self pulls information from source."""
 
         raise NotImplementedError()
@@ -254,7 +254,7 @@ class BasicConstructRealizer(ConstructRealizer):
     otype: Optional[Type] = OutputView
 
     def __init__(
-        self, csym: ConstructSymbol, pull_rule: PullRule = None
+        self, csym: ConstructSymbol, matches: PullRule = None
     ) -> None:
 
         super().__init__(csym)
@@ -264,17 +264,17 @@ class BasicConstructRealizer(ConstructRealizer):
             self.input = self.itype()
         if self.otype is not None:
             self.output = self.otype()
-        self.pull_rule = pull_rule
+        self.matches = matches
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: ConstructSymbol) -> bool:
         """Check if self may pull data from given construct."""
 
-        if self.pull_rule is not None and isinstance(
-            self.pull_rule, ConstructType
+        if self.matches is not None and isinstance(
+            self.matches, ConstructType
         ):
-            return source.ctype in self.pull_rule
-        elif self.pull_rule is not None:
-            return source in self.pull_rule
+            return source.ctype in self.matches
+        elif self.matches is not None:
+            return source in self.matches
         else:
             return False
 
@@ -295,11 +295,11 @@ class NodeRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol, 
-        pull_rule: PullRule = None, 
+        matches: PullRule = None, 
         junction: Junction = None
     ) -> None:
 
-        super().__init__(csym, pull_rule)
+        super().__init__(csym, matches)
         if junction is not None: 
             self.junction = junction
 
@@ -319,12 +319,12 @@ class FlowRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol,
-        pull_rule: PullRule = None, 
+        matches: PullRule = None, 
         junction: Junction = None, 
         channel: Channel = None
     ) -> None:
 
-        super().__init__(csym, pull_rule)
+        super().__init__(csym, matches)
         if junction is not None: 
             self.junction = junction
         if channel is not None: 
@@ -347,12 +347,12 @@ class ResponseRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol, 
-        pull_rule: PullRule = None,
+        matches: PullRule = None,
         junction: Junction = None, 
         selector: Selector = None
     ) -> None:
 
-        super().__init__(csym, pull_rule)
+        super().__init__(csym, matches)
         if junction is not None: 
             self.junction = junction
         if selector is not None: 
@@ -378,11 +378,11 @@ class BehaviorRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol, 
-        pull_rule: PullRule = None, 
+        matches: PullRule = None, 
         effector: Effector = None
     ) -> None:
 
-        super().__init__(csym, pull_rule)
+        super().__init__(csym, matches)
         if effector is not None: 
             self.effector = effector
 
@@ -401,7 +401,7 @@ class BufferRealizer(BasicConstructRealizer):
     def __init__(
         self, 
         csym: ConstructSymbol, 
-        pull_rule: PullRule = None, 
+        matches: PullRule = None, 
         source: Source = None
     ) -> None:
 
@@ -542,11 +542,11 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
         """Relink all constructs within self."""
 
         for r1, r2 in combinations(self.values(), 2):
-            if r1.pulls_from(r2.csym):
+            if r1.accepts(r2.csym):
                 cast(HasInput, r1).input.watch(
                     r2.csym, cast(HasOutput, r2).output.view
                 )
-            if r2.pulls_from(r1.csym):
+            if r2.accepts(r1.csym):
                 cast(HasInput, r2).input.watch(
                     r1.csym, cast(HasOutput, r1).output.view
                 )
@@ -579,12 +579,12 @@ class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
     def _connect(self, key: Any, value: Any) -> None:
 
         for csym, realizer in self.items():
-            if value.pulls_from(csym):
+            if value.accepts(csym):
                 # EXPLAIN!!!!!!
                 value = cast(HasInput, value)
                 realizer = cast(HasOutput, realizer)
                 value.input.watch(csym, realizer.output.view)
-            if realizer.pulls_from(key):
+            if realizer.accepts(key):
                 value = cast(HasOutput, value)
                 realizer = cast(HasInput, realizer)
                 realizer.input.watch(key, value.output.view)
@@ -608,12 +608,12 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
     ctype = ConstructType.subsystem
     itype = SubsystemInputMonitor
-    __slots__ = ('propagation_rule', 'pull_rule')
+    __slots__ = ('propagation_rule', 'matches')
 
     def __init__(
         self, 
         csym: ConstructSymbol, 
-        pull_rule: PullRule = None, 
+        matches: PullRule = None, 
         propagation_rule: PropagationRule = None, 
     ) -> None:
         """
@@ -627,7 +627,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
 
         super().__init__(csym)
         self.input = type(self).itype(self._watch, self._drop)
-        self.pull_rule = pull_rule
+        self.matches = matches
         if propagation_rule is not None: 
             self.propagation_rule = propagation_rule
 
@@ -642,7 +642,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
         for behavior in self.behaviors:
             self[behavior].propagate()
 
-    def pulls_from(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: ConstructSymbol) -> bool:
         """
         Return true iff source may connect to target within self.
         
@@ -650,12 +650,12 @@ class SubsystemRealizer(ContainerConstructRealizer):
         construct symbols.
         """
 
-        if self.pull_rule is not None and isinstance(
-            self.pull_rule, ConstructType
+        if self.matches is not None and isinstance(
+            self.matches, ConstructType
         ):
-            return source.ctype in self.pull_rule
-        elif self.pull_rule is not None:
-            return source in self.pull_rule
+            return source.ctype in self.matches
+        elif self.matches is not None:
+            return source in self.matches
         else:
             return False
 
@@ -705,7 +705,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
         """Informs members of a new input to self."""
 
         for realizer in self.values():
-            if cast(BasicConstructRealizer, realizer).pulls_from(identifier):
+            if cast(BasicConstructRealizer, realizer).accepts(identifier):
                 cast(BasicConstructRealizer, realizer).input.watch(
                     identifier, pull_method
                 )
@@ -714,7 +714,7 @@ class SubsystemRealizer(ContainerConstructRealizer):
         """Informs members of a dropped input to self."""
 
         for realizer in self.values():
-            if cast(BasicConstructRealizer, realizer).pulls_from(identifier):
+            if cast(BasicConstructRealizer, realizer).accepts(identifier):
                 cast(BasicConstructRealizer, realizer).input.drop(identifier)
 
 

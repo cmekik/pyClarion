@@ -11,14 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FeatureSymbol` subclass of `ConstructSymbol` allows direct access to `dim` 
 and `val` attributes.
 - `ContainerConstructRealizer.make_links()` to set up construct links after pull rules have been specified.
-- `pull_rule` attribute to several construct realizers for customizing how 
-construct realizers connect to each other.
+- `matches` attribute to `BasicConstructRealizer` and `SubsystemRealizer` for customizing how construct realizers connect to each other.
 
 ### Changed
 
 - `ConstructSymbol` rewritten; now easily extensible.
 - `may_connect()` removed from subsystem and agent realizers, connection 
-decisions devolved to receivers through `realizer.pulls_from()`.
+decisions devolved to receivers through `realizer.accepts()`.
 
 ## 0.13.1 (2019-03-07)
 

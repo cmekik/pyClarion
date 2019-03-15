@@ -113,7 +113,7 @@ nacs = alice[subsystem("NACS")]
 # nacs_propagation_cycle() will make sure that all necessary propagation steps 
 # are executed.
 
-nacs.pull_rule = ConstructType.buffer
+nacs.matches = ConstructType.buffer
 nacs.propagation_rule = nacs_propagation_cycle
 
 # Now we define how activations may flow within alice's NACS.
@@ -126,7 +126,7 @@ nacs.propagation_rule = nacs_propagation_cycle
 # weighted link between the APPLE and FRUIT chunks. In this particular case, a 
 # weight of 1.0 is assigned to the link. 
 
-nacs[flow_tt("Assoc")].pull_rule = ConstructType.chunk
+nacs[flow_tt("Assoc")].matches = ConstructType.chunk
 nacs[flow_tt("Assoc")].junction = SimpleJunction()
 nacs[flow_tt("Assoc")].channel = AssociativeRuleCollection(
     assoc={chunk("FRUIT"): [{chunk("APPLE"): 1.}]},
@@ -141,7 +141,7 @@ nacs[flow_tt("Assoc")].channel = AssociativeRuleCollection(
 # Next, we define interlevel flows. These control how chunks may activate 
 # features and features may activate chunks. 
 
-nacs[flow_tb(1)].pull_rule = ConstructType.chunk
+nacs[flow_tb(1)].matches = ConstructType.chunk
 nacs[flow_tb(1)].junction = SimpleJunction()
 nacs[flow_tb(1)].channel = TopDownLinks(
     assoc={
@@ -167,7 +167,7 @@ nacs[flow_tb(1)].channel = TopDownLinks(
 # features. Linked features are grouped by dimension as inter-level 
 # activation propagation applies a dimension-dependent weight to strengths.
 
-nacs[flow_bt(1)].pull_rule = ConstructType.feature
+nacs[flow_bt(1)].matches = ConstructType.feature
 nacs[flow_bt(1)].junction = SimpleJunction()
 nacs[flow_bt(1)].channel = BottomUpLinks(
     assoc=nacs[flow_tb(1)].channel.assoc,
@@ -184,7 +184,7 @@ for node, realizer in nacs.items_ctype(ConstructType.node):
         ftype = ConstructType.flow_bb | ConstructType.flow_tb
     elif node.ctype == ConstructType.chunk:
         ftype = ConstructType.flow_tt | ConstructType.flow_bt
-    realizer.pull_rule = ftype | ConstructType.buffer
+    realizer.matches = ftype | ConstructType.buffer
     realizer.junction = SimpleNodeJunction(node, default_strength)
 
 # Node junctions determine the final output of a node given recommendations 
@@ -193,7 +193,7 @@ for node, realizer in nacs.items_ctype(ConstructType.node):
 # To determine how responses are selected, we specify a selector for the 
 # response construct. 
 
-nacs[response("Output")].pull_rule = ConstructType.chunk
+nacs[response("Output")].matches = ConstructType.chunk
 nacs[response("Output")].junction = SimpleJunction()
 nacs[response("Output")].selector = BoltzmannSelector(temperature=.1)
 
@@ -205,7 +205,7 @@ nacs[response("Output")].selector = BoltzmannSelector(temperature=.1)
 # such as goal-setting, attention allocation, working-memory allocation etc., 
 # depending on simulation requirements.
 
-alice[subsystem("NACS"), behavior("Report")].pull_rule = {response("Output")}
+alice[subsystem("NACS"), behavior("Report")].matches = {response("Output")}
 alice[subsystem("NACS"), behavior("Report")].effector = MappingEffector(
     chunk2callback={
         chunk("APPLE"): lambda: recorder.actions.append(chunk("APPLE")),
