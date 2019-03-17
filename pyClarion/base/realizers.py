@@ -3,200 +3,60 @@
 
 # Notes for Readers:
 
-#   - Type aliases and helper functions and classes are defined first.
-#   - There are two major types of construct realizer: basic construct 
-#     realizers and container construct realizers. Definitions for each major 
-#     realizer type are grouped together in marked sections.
-#   - Last, some factory functions are defined for quick initialization of 
-#     construct realizers.
+# There are two major types of construct realizer: basic construct realizers 
+# and container construct realizers. Definitions for each major 
+# realizer type are grouped together in marked sections.
 
 
-__all__ = [
-    "ConstructRealizer", "BasicConstructRealizer", "NodeRealizer", 
-    "FlowRealizer", "ResponseRealizer", "BehaviorRealizer", "BufferRealizer",
-    "ContainerConstructRealizer", "SubsystemRealizer", "AgentRealizer",
-    "make_realizer", "make_subsystem", "make_agent"
-]
-
-
-from typing import (
-    Any, Callable, Iterable, MutableMapping, Union, Optional, ClassVar, Text, 
-    Type, Dict, Tuple, Iterator, Hashable, List, Mapping, Sequence, cast, Container
-)
-from operator import getitem, setitem, delitem
+from pyClarion.base.symbols import *
+from pyClarion.base.packets import *
 from itertools import combinations
-from pyClarion.base.symbols import ConstructSymbol, ConstructType
-from pyClarion.base.packets import (
-    ConstructSymbolMapping, ActivationPacket, DecisionPacket, 
-    ConstructSymbolCollection
+from types import MappingProxyType
+from typing import (
+    ClassVar, Any, Text, Union, Container, Callable, TypeVar, Generic, Dict,
+    Optional, Hashable, List, Iterable, Sequence, MutableMapping, Iterator, 
+    Mapping
 )
 
 
-# Types aliases used by helper classes
-
-Packet = Union[ActivationPacket, DecisionPacket]
-PullMethod = Union[
-    Callable[[], ActivationPacket], Callable[[], DecisionPacket]
-]
-InputMapping = MutableMapping[ConstructSymbol, PullMethod]
-PacketIterable = Union[Iterable[ActivationPacket], Iterable[DecisionPacket]]
-WatchMethod = Callable[[ConstructSymbol, PullMethod], None]
-DropMethod = Callable[[ConstructSymbol], None]
-PullRule = Union[Container, ConstructType]
-
-# Types used by ConstructRealizer instances
-
-ComponentSpec = Iterable[str] 
-
-# Types used by BasicConstructRealizer instances
-
-Channel = Callable[[ConstructSymbolMapping], ConstructSymbolMapping]
-Junction = Callable[[Iterable[ActivationPacket]], ConstructSymbolMapping]
-Selector = Callable[
-    [ConstructSymbolMapping], 
-    Tuple[ConstructSymbolMapping, ConstructSymbolCollection]
-]
-Effector = Callable[[DecisionPacket], None]
-Source = Callable[[], ConstructSymbolMapping]
-
-# Types used by ContainerConstructRealizer instances
-
-ConstructIndex = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
-MissingSpec = List[Tuple[ConstructIndex, ComponentSpec]]
-ConstructSymbolTuple = Tuple[ConstructSymbol, ...]
-MutableRealizerMapping = MutableMapping[ConstructSymbol, 'ConstructRealizer']
-ConstructSymbolList = List[ConstructSymbol]
-ConstructSymbolIterable = Iterable[ConstructSymbol]
-ContainerConstructItems = Iterable[Tuple[ConstructSymbol, 'ConstructRealizer']]
-HasInput = Union[
-    'NodeRealizer', 'FlowRealizer', 'ResponseRealizer', 'BehaviorRealizer', 
-    'SubsystemRealizer'
-]
-HasOutput = Union[
-    'NodeRealizer', 'FlowRealizer', 'ResponseRealizer', 'BufferRealizer', 
-]
-PropagationRule = Callable[['SubsystemRealizer'], None]
-Updater = Callable[[], None]
-UpdaterList = List[Updater]
-UpdaterIterable = Iterable[Callable[[], None]]
+It = TypeVar('It')
+Ot = TypeVar('Ot')
+MatchSpec = Union[ConstructType, Container[ConstructSymbol]]
+ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
+MissingSpec = Dict[ConstructRef, List[str]]
+ProcInput = Mapping[ConstructSymbol, Callable[[], It]]
+Proc = Callable[[ConstructSymbol, ProcInput[It]], Ot]
 
 
-######################
-### Helper Classes ###
-######################
-
-
-# The classes defined below support networking of basic construct realizers. 
-# These classes allow basic construct realizers to listen for and emit 
-# activation packets.
-
-
-class InputMonitor(object):
-    """Listens for basic construct realizer outputs."""
-
-    def __init__(self) -> None:
-
-        self.input_links: InputMapping = {}
-
-    def pull(self) -> PacketIterable:
-        """Pull activations from input constructs."""
-
-        for view in self.input_links.values():
-            v = view()
-            if v is not None: 
-                yield v
-
-    def watch(self, csym: ConstructSymbol, pull_method: PullMethod) -> None:
-        """Connect given construct as input to client."""
-
-        self.input_links[csym] = pull_method
-
-    def drop(self, csym: ConstructSymbol):
-        """Disconnect given construct from client."""
-
-        del self.input_links[csym]
-
-
-class OutputView(object):
-    """Exposes outputs of basic construct realizers."""
-
-    def update(self, packet: Packet) -> None:
-        """Update reported output of client construct."""
-        
-        self._buffer = packet
-
-    def view(self) -> Optional[Packet]:
-        """Emit current output of client construct."""
-        
-        try:
-            return self._buffer
-        except AttributeError:
-            return None
-
-    def clear(self) -> None:
-        """Clear output buffer.""" 
-
-        del self._buffer       
-
-
-class SubsystemInputMonitor(object):
-    """Listens for buffer outputs."""
-
-    def __init__(self, watch: WatchMethod, drop: DropMethod) -> None:
-        """
-        Initialize a SubsystemInputMonitor.
-
-        :param watch: Callable for informing client subsystem members to watch  
-            a new input to client.
-        :param drop: Callable for informing client subsystem members to drop an 
-            input to client.
-        """
-
-        self.input_links: InputMapping = {}
-        self._watch = watch
-        self._drop = drop
-
-    def watch(self, csym: ConstructSymbol, pull_method: PullMethod) -> None:
-        """Connect given construct as input to client."""
-
-        self.input_links[csym] = pull_method
-        self._watch(csym, pull_method)
-
-    def drop(self, csym: ConstructSymbol):
-        """Disconnect given construct from client."""
-
-        del self.input_links[csym]
-        self._drop(csym)
-
-
-######################################
-### Construct Realizer Definitions ###
-######################################
-
-
-class ConstructRealizer(object):
+class ConstructRealizer(Generic[It, Ot]):
     """
     Base class for construct realizers.
 
-    Construct realizers are responsible for implementing the behavior of client 
-    constructs. 
+    Construct realizers are responsible for implementing construct behavior.
     """
 
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
-    __slots__: ComponentSpec = ("csym",)
 
-    def __init__(self, csym: ConstructSymbol) -> None:
-        """Initialize a new construct realizer.
+    def __init__(
+        self, construct: ConstructSymbol, matches: MatchSpec = None
+    ) -> None:
+        """
+        Initialize a new construct realizer.
         
-        :param csym: Symbolic representation of client construct.
+        :param construct: Symbolic representation of client construct.
+        :param matches: Specification of constructs from which self may accept 
+            input.
         """
 
-        self._check_csym(csym)
-        self.csym = csym
+        self._check_construct(construct)
+        self.construct = construct
+        self.matches = matches
+        self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
+        self._output: Optional[Ot] = None
 
     def __repr__(self) -> Text:
 
-        return "<{}: {}>".format(self.__class__.__name__, str(self.csym))
+        return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
 
     def propagate(self) -> None:
         """Propagate activations."""
@@ -206,30 +66,71 @@ class ConstructRealizer(object):
     def accepts(self, source: ConstructSymbol) -> bool:
         """Return true if self pulls information from source."""
 
-        raise NotImplementedError()
+        if self.matches is not None:
+            if isinstance(self.matches, ConstructType):
+                return source.ctype in self.matches
+            else:
+                return source in self.matches
+        else:
+            return False
 
-    def clear_activations(self) -> None:
-        """Clear activations."""
+    def watch(
+        self, construct: ConstructSymbol, callback: Callable[[], It]
+    ) -> None:
+        """Set given construct as an input to self."""
 
-        raise NotImplementedError()
+        self._inputs[construct] = callback
 
-    def ready(self) -> bool:
-        """Return true iff all necessary components have been defined."""
+    def drop(self, construct: ConstructSymbol) -> None:
+        """Disconnect given construct from self."""
 
-        return all(hasattr(self, component) for component in self.__slots__)
+        del self._inputs[construct]
 
-    def missing(self) -> ComponentSpec:
+    def drop_all(self) -> None:
+        """Disconnect self from all linked constructs."""
+
+        self._inputs.clear()
+
+    def view(self) -> Ot:
+        """Return current output of self."""
+        
+        return self.output
+
+    def update_output(self, output: Ot) -> None:
+        """Update output of self."""
+
+        self._output = output
+
+    def clear_output(self) -> None:
+        """Clear output."""
+
+        self._output = None
+
+    @property
+    def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
+        """Mapping from input constructs to pull funcs."""
+
+        return MappingProxyType(self._inputs)
+
+    @property
+    def output(self) -> Ot:
+        """"Current output of self."""
+
+        if self._output is not None:
+            return self._output
+        else:
+            raise AttributeError('Output of {} not set.'.format(repr(self)))
+
+    @property
+    def missing(self) -> MissingSpec:
         """Return any missing components of self."""
 
-        return tuple(
-            component for component in self.__slots__ 
-            if not hasattr(self, component)
-        )
+        return {}
 
-    def _check_csym(self, csym: ConstructSymbol) -> None:
+    def _check_construct(self, construct: ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
 
-        if csym.ctype not in type(self).ctype:
+        if construct.ctype not in type(self).ctype:
             raise ValueError(
                 " ".join(
                     [   
@@ -237,520 +138,535 @@ class ConstructRealizer(object):
                         "expects construct symbol with ctype",
                         repr(type(self).ctype),
                         "but received symbol {} of ctype {}.".format(
-                            str(csym), repr(csym.ctype)
+                            str(construct), repr(construct.ctype)
                         )
                     ]
                 )
             )
 
 
+############################################
 ### Basic Construct Realizer Definitions ###
+############################################
 
 
-class BasicConstructRealizer(ConstructRealizer):
+class BasicConstructRealizer(ConstructRealizer[It, Ot]):
     """Base class for basic construct realizers."""
 
-    itype: Optional[Type] = InputMonitor
-    otype: Optional[Type] = OutputView
-
-    def __init__(
-        self, csym: ConstructSymbol, matches: PullRule = None
-    ) -> None:
-
-        super().__init__(csym)
-
-        # Initialize I/O
-        if self.itype is not None:
-            self.input = self.itype()
-        if self.otype is not None:
-            self.output = self.otype()
-        self.matches = matches
-
-    def accepts(self, source: ConstructSymbol) -> bool:
-        """Check if self may pull data from given construct."""
-
-        if self.matches is not None and isinstance(
-            self.matches, ConstructType
-        ):
-            return source.ctype in self.matches
-        elif self.matches is not None:
-            return source in self.matches
-        else:
-            return False
-
-    def clear_activations(self) -> None:
-        """Clear activations stored in output view."""
-
-        try:
-            self.output.clear()
-        except AttributeError:
-            pass
-
-
-class NodeRealizer(BasicConstructRealizer):
-
-    ctype = ConstructType.node
-    __slots__ = ('junction',)
+    ctype: ClassVar[ConstructType] = ConstructType.basic_construct
 
     def __init__(
         self, 
-        csym: ConstructSymbol, 
-        matches: PullRule = None, 
-        junction: Junction = None
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        proc: Proc[It, Ot] = None,
     ) -> None:
-
-        super().__init__(csym, matches)
-        if junction is not None: 
-            self.junction = junction
-
-    def propagate(self) -> None:
-        """Output current strength of node."""
-
-        strengths = self.junction(self.input.pull())
-        packet = ActivationPacket(strengths=strengths, origin=self.csym)
-        self.output.update(packet)
-
-
-class FlowRealizer(BasicConstructRealizer):
-
-    ctype = ConstructType.flow
-    __slots__ = ('junction', 'channel')
-
-    def __init__(
-        self, 
-        csym: ConstructSymbol,
-        matches: PullRule = None, 
-        junction: Junction = None, 
-        channel: Channel = None
-    ) -> None:
-
-        super().__init__(csym, matches)
-        if junction is not None: 
-            self.junction = junction
-        if channel is not None: 
-            self.channel = channel
-
-    def propagate(self) -> None:
-        """Compute new node activations."""
-
-        combined = self.junction(self.input.pull())
-        strengths = self.channel(combined)
-        packet = ActivationPacket(strengths=strengths, origin=self.csym)
-        self.output.update(packet)
-
-
-class ResponseRealizer(BasicConstructRealizer):
-
-    ctype = ConstructType.response
-    __slots__ = ('junction', 'selector')
-
-    def __init__(
-        self, 
-        csym: ConstructSymbol, 
-        matches: PullRule = None,
-        junction: Junction = None, 
-        selector: Selector = None
-    ) -> None:
-
-        super().__init__(csym, matches)
-        if junction is not None: 
-            self.junction = junction
-        if selector is not None: 
-            self.selector = selector
-
-    def propagate(self) -> None:
-        """Make and output a decision."""
-
-        combined = self.junction(self.input.pull())
-        strengths, chosen = self.selector(combined)
-        decision_packet = DecisionPacket(
-            strengths=strengths, chosen=chosen, origin=self.csym
-        )
-        self.output.update(decision_packet)
-
-
-class BehaviorRealizer(BasicConstructRealizer):
-    
-    ctype = ConstructType.behavior
-    otype = None
-    __slots__ = ('effector',)
-
-    def __init__(
-        self, 
-        csym: ConstructSymbol, 
-        matches: PullRule = None, 
-        effector: Effector = None
-    ) -> None:
-
-        super().__init__(csym, matches)
-        if effector is not None: 
-            self.effector = effector
-
-    def propagate(self) -> None:
-        """Execute selected callbacks."""
-
-        self.effector(*self.input.pull())
-
-
-class BufferRealizer(BasicConstructRealizer):
-
-    ctype = ConstructType.buffer
-    itype = None
-    __slots__ = ('source',)
-
-    def __init__(
-        self, 
-        csym: ConstructSymbol, 
-        matches: PullRule = None, 
-        source: Source = None
-    ) -> None:
-
-        super().__init__(csym)
-        if source is not None: 
-            self.source = source
-
-    def propagate(self) -> None:
         """
-        Output stored activation pattern.
+        Initialize a new construct realizer.
         
-        .. warning:
-           Output activation packet is constructed directly from output of 
-           self.source. If source output is mutated (e.g., as part of a buffer 
-           update), it *will* be reflected in the output packet. Possible cause 
-           of unexpected behavior.
+        :param construct: Symbolic representation of client construct.
+        :param matches: Specification of constructs from which self may accept 
+            input.
+        :param proc: Activation processor associated with client construct.
         """
 
-        strengths = self.source()
-        packet = ActivationPacket(strengths=strengths, origin=self.csym)
-        self.output.update(packet)
+        super().__init__(construct, matches)
+        self.proc = proc
+
+    def propagate(self) -> None:
+        """Update output of self with result of processor on current input."""
+
+        if self.proc is not None:
+            packet: Ot = self.proc(self.construct, self.inputs)
+        else:
+            raise TypeError("'NoneType' object is not callable")
+        self.update_output(packet)
+
+    @property
+    def missing(self) -> MissingSpec:
+
+        d = super().missing
+        if self.proc is None:
+            d.setdefault(self.construct, []).append('proc')
+        return d
 
 
+class NodeRealizer(BasicConstructRealizer[ActivationPacket, ActivationPacket]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.node
+
+
+class FlowRealizer(BasicConstructRealizer[ActivationPacket, ActivationPacket]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.flow
+
+
+class ResponseRealizer(
+    BasicConstructRealizer[ActivationPacket, DecisionPacket]
+):
+
+    ctype: ClassVar[ConstructType] = ConstructType.response
+
+    def __init__(
+        self,
+        construct: ConstructSymbol,
+        matches: MatchSpec = None,
+        proc: Proc[ActivationPacket, DecisionPacket] = None,
+        effector: Callable[[DecisionPacket], None] = None
+    ) -> None:
+        """
+        Initialize a new construct realizer.
+        
+        :param construct: Symbolic representation of client construct.
+        :param matches: Specification of constructs from which self may accept 
+            input.
+        :param proc: Activation processor associated with client construct.
+        :param effector: Routine for executing selected actions.
+        """
+
+        super().__init__(construct, matches, proc)
+        self.effector = effector
+
+    def execute(self) -> None:
+        """Execute any currently selected actions."""
+
+        if self.effector is not None:
+            self.effector(self.view())
+        else:
+            raise TypeError("'NoneType' object is not callable")
+
+    @property
+    def missing(self) -> MissingSpec:
+
+        d = super().missing
+        if self.effector is None:
+            d.setdefault(self.construct, []).append('effector')
+        return d
+
+
+class BufferRealizer(BasicConstructRealizer[None, ActivationPacket]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.buffer
+
+
+class UpdaterRealizer(BasicConstructRealizer[None, None]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.updater
+
+
+#####################################
 ### Container Construct Realizers ###
+#####################################
 
 
-class ContainerConstructRealizer(MutableRealizerMapping, ConstructRealizer):
+class ContainerConstructRealizer(ConstructRealizer[It, None]):
     """Base class for container construct realizers."""
 
-    def __init__(self, csym: ConstructSymbol) -> None:
+    ctype: ClassVar[ConstructType] = ConstructType.container_construct
 
-        super().__init__(csym)
-        self._dict: Dict = dict()
+    def __contains__(self, key: ConstructSymbol) -> bool:
 
-    def __len__(self) -> int:
+        try:
+            self.__getitem__(key)
+        except KeyError:
+            return False
+        return True
 
-        return len(self._dict)
+    def __iter__(self) -> Iterator[ConstructSymbol]:
 
-    def __contains__(self, obj: Any) -> bool:
+        raise NotImplementedError()
 
-        return obj in self._dict
+    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
 
-    def __iter__(self) -> Iterator:
+        raise NotImplementedError()
 
-        return iter(self._dict)
+    def __delitem__(self, key: ConstructSymbol) -> None:
 
-    def __getitem__(self, key: Any) -> Any:
-
-        if isinstance(key, ConstructSymbol):
-            return self._dict[key]
-        else:
-            return self._consume_multiindex(
-                key[:-1], lambda a: getitem(a, key[-1])
-            )
-
-    def __setitem__(self, key: Any, value: Any) -> None:
-
-        if isinstance(key, ConstructSymbol):
-            self._check_kv_pair(key, value)
-            self._dict[key] = value
-            self._connect(key, value)
-        else:
-            self._consume_multiindex(
-                key[:-1], lambda a: setitem(a, key[-1], value)
-            )
-
-    def __delitem__(self, key: Any) -> None:
-
-        if isinstance(key, ConstructSymbol):
-            del self._dict[key]
-            self._disconnect(key)
-        else:
-            self._consume_multiindex(key[:-1], lambda a: delitem(a, key[-1]))
+        raise NotImplementedError()
 
     def execute(self) -> None:
-        """Execute selected actions."""
+        """Execute currently selected actions."""
 
         raise NotImplementedError()
 
-    def may_contain(self, csym: ConstructSymbol) -> bool:
-        """Return true if container construct may contain csym."""
+    def add(self, *realizers: ConstructRealizer) -> None:
+        """Add a set of realizers to self."""
+
+        raise NotImplementedError()
+
+    def remove(self, *constructs: ConstructSymbol) -> None:
+        """Remove a set of constructs from self."""
+
+        for construct in constructs:
+            self.__delitem__(construct)
+
+    def clear(self):
+        """Remove all constructs in self."""
+
+        # make a copy of self.keys() first so as not to modify self during 
+        # iteration over self.
+        keys = tuple(self.keys())
+        for construct in keys:
+            del self[construct]
+
+    def keys(self) -> Iterator[ConstructSymbol]:
+        """Return iterator over all construct symbols in self."""
+
+        for construct in self:
+            yield construct
+
+    def values(self) -> Iterator[ConstructRealizer]:
+        """Return iterator over all construct realizers in self."""
+
+        for construct in self:
+            yield self[construct]
+
+    def items(self) -> Iterator[Tuple[ConstructSymbol, ConstructRealizer]]:
+        """Return iterator over all symbol, realizer pairs in self."""
+
+        for construct in self:
+            yield construct, self[construct]
+
+    def link(self, source: ConstructSymbol, target: ConstructSymbol) -> None:
+        """Link source construct to target construct."""
+
+        self[target].watch(source, self[source].view)
+
+    def unlink(self, source: ConstructSymbol, target: ConstructSymbol) -> None:
+        """Unlink source construct from target construct."""
+
+        self[target].drop(source)
+
+    def watch(
+        self, construct: ConstructSymbol, callback: Callable[[], It]
+    ) -> None:
+        """
+        Add construct as an input to self. 
         
-        raise NotImplementedError()
+        Also adds construct as input to any interested construct in self.
+        """
 
-    def may_connect(
-        self, source: ConstructSymbol, target: ConstructSymbol
-    ) -> bool:
-        """Return true if source may send output to target."""
+        super().watch(construct, callback)
+        for realizer in self.values():
+            if realizer.accepts(construct):
+                realizer.watch(construct, callback)
 
-        raise NotImplementedError()
+    def drop(self, construct: ConstructSymbol) -> None:
+        """
+        Remove construct as an input to self. 
+        
+        Also removes construct as an input from any listening member in self.
+        """
 
-    def ready(self) -> bool:
-        "Return true iff all necessary components defined for self and members."
+        super().drop(construct)
+        for realizer in self.values():
+            if realizer.accepts(construct):
+                realizer.drop(construct)
 
-        return super().ready() and all(r.ready() for r in self.values())
+    def drop_all(self) -> None:
+        """
+        Remove all inputs to self. 
+        
+        Also removes all inputs to self from any constructs in self that may be 
+        listening to them.
+        """
 
-    def clear_activations(self) -> None:
-        """Clear member activations"""
+        for construct in self._inputs:
+            for realizer in self.values():
+                if realizer.accepts(construct):
+                    realizer.drop(construct)
+        super().drop_all()           
+
+    def weave(self) -> None:
+        """
+        Add any acceptable links among constructs in self.
+        
+        A link is considered acceptable by a member construct if 
+        member.accepts() returns True.
+
+        Will also add links from inputs to self to any accepting member 
+        construct.
+        """
+
+        for realizer1, realizer2 in combinations(self.values(), 2):
+            if realizer1.accepts(realizer2.construct):
+                realizer1.watch(realizer2.construct, realizer2.view)
+            if realizer2.accepts(realizer1.construct):
+                realizer2.watch(realizer1.construct, realizer1.view)
+        for construct, callback in self._inputs.items():
+            for realizer in self.values():
+                if realizer.accepts(construct):
+                    realizer.watch(construct, callback)
+
+    def unweave(self) -> None:
+        """
+        Remove all links to and among constructs in self.
+        
+        Will also remove any links from inputs to self to member constructs.
+        """
 
         for realizer in self.values():
-            realizer.clear_activations()
+            realizer.drop_all()
 
-    def missing_recursive(self) -> MissingSpec:
-        """Return missing components in self and all member realizers."""
+    def reweave(self) -> None:
+        """Bring links among constructs in compliance with current specs."""
 
-        missing: MissingSpec = [(self.csym, self.missing())]
-        for csym, realizer in self.items():
-            if isinstance(realizer, ContainerConstructRealizer):
-                missing.extend(
-                    (self._make_compound_index(index), missing_slots) 
-                    for index, missing_slots in realizer.missing_recursive()
-                )
-            elif isinstance(realizer, BasicConstructRealizer):
-                missing.append(((self.csym, csym), realizer.missing()))
-        return missing
+        self.unweave()
+        self.weave()
 
-    def insert_realizers(self, *realizers: ConstructRealizer) -> None:
-        """Add pre-initialized realizers to self."""
+    def clear_output(self) -> None:
+        """Clear output of self and all members."""
 
-        for realizer in realizers:
-            self[realizer.csym] = realizer
+        super().clear_output()
+        for realizer in self.values():
+            realizer.clear_output()
 
-    def iter_ctype(self, ctype: ConstructType) -> ConstructSymbolIterable:
-        """Return an iterator over all members matching ctype."""
+    @property
+    def missing(self) -> MissingSpec:
+        """Return missing components in self or in member constructs."""
 
-        for csym in self: 
-            if csym.ctype in ctype:
-                yield csym
+        d = super().missing
+        for realizer in self.values():
+            d_realizer = realizer.missing
+            for k, v in d_realizer.items():
+                new_k: Tuple[ConstructSymbol, ...]
+                if isinstance(k, ConstructSymbol):
+                    new_k = (self.construct, k)
+                else:
+                    new_k = (self.construct, *k)
+                d[new_k] = v
+        return d
 
-    def items_ctype(self, ctype: ConstructType) -> ContainerConstructItems:
-        """Return an iterator over all csym-realizer pairs matching ctype."""
+    def _update_links(self, new_realizer: ConstructRealizer) -> None:
+        """Add any acceptable links associated with a new realizer."""
 
-        for csym, realizer in self.items():
-            if csym.ctype in ctype:
-                yield csym, realizer
-
-    def make_links(self) -> None:
-        """Relink all constructs within self."""
-
-        for r1, r2 in combinations(self.values(), 2):
-            if r1.accepts(r2.csym):
-                cast(HasInput, r1).input.watch(
-                    r2.csym, cast(HasOutput, r2).output.view
-                )
-            if r2.accepts(r1.csym):
-                cast(HasInput, r2).input.watch(
-                    r1.csym, cast(HasOutput, r1).output.view
-                )
-
-    def _check_kv_pair(self, key: Any, value: Any) -> None:
-
-        if not self.may_contain(key):
-            raise ValueError(
-                "{} may not contain {}; forbidden construct type.".format(
-                    repr(self), repr(key)
-                )
-            )
-        if key != value.csym:
-            raise ValueError(
-                "{} given key {} does not match value {}".format(
-                    repr(self), repr(key), repr(value)
-                )
-            )
-
-    def _consume_multiindex(
-            self, multiindex: ConstructSymbolTuple, func: Callable[[Any], Any]
-        ) -> Any:
-        # type annotations need improvement.
-
-        a = self
-        for csym in multiindex:
-            a = cast(ContainerConstructRealizer, a[csym])
-        return func(a)
-
-    def _connect(self, key: Any, value: Any) -> None:
-
-        for csym, realizer in self.items():
-            if value.accepts(csym):
-                # EXPLAIN!!!!!!
-                value = cast(HasInput, value)
-                realizer = cast(HasOutput, realizer)
-                value.input.watch(csym, realizer.output.view)
-            if realizer.accepts(key):
-                value = cast(HasOutput, value)
-                realizer = cast(HasInput, realizer)
-                realizer.input.watch(key, value.output.view)
-
-    def _disconnect(self, key: Any) -> None:
-
-        for csym, realizer in self.items():
-            if self.may_connect(key, csym):
-                cast(HasInput, realizer).input.drop(key)
-
-    def _make_compound_index(self, index: ConstructIndex) -> ConstructIndex:
-        
-        if isinstance(index, ConstructSymbol):
-            return (self.csym, index)
-        else: # index must be a tuple of construct symbols
-            return (self.csym,) + cast(Tuple[ConstructSymbol, ...], index)
+        for construct, realizer in self.items():
+            if realizer.accepts(new_realizer.construct):
+                realizer.watch(new_realizer.construct, new_realizer.view)
+            if new_realizer.accepts(construct):
+                new_realizer.watch(construct, realizer.view)
 
 
-class SubsystemRealizer(ContainerConstructRealizer):
-    """A network of node, flow, apprasial, and behavior realizers."""
+    def _drop_links(self, construct: ConstructSymbol) -> None:
+        """Remove construct from inputs of any accepting member constructs."""
 
-    ctype = ConstructType.subsystem
-    itype = SubsystemInputMonitor
-    __slots__ = ('propagation_rule', 'matches')
+        for realizer in self.values():
+            if realizer.accepts(construct):
+                realizer.drop(construct)
+
+
+class SubsystemRealizer(ContainerConstructRealizer[ActivationPacket]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.subsystem
 
     def __init__(
         self, 
-        csym: ConstructSymbol, 
-        matches: PullRule = None, 
-        propagation_rule: PropagationRule = None, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        proc: Callable[..., None] = None
     ) -> None:
-        """
-        Initialize a new subsystem realizer.
-        
-        :param construct: Client subsystem.
-        :param propagation_rule: Function implementing desired activation 
-            propagation sequence. Should expect a single SubsystemRealizer as 
-            argument. 
-        """
 
-        super().__init__(csym)
-        self.input = type(self).itype(self._watch, self._drop)
-        self.matches = matches
-        if propagation_rule is not None: 
-            self.propagation_rule = propagation_rule
+        super().__init__(construct, matches)
+        self.proc = proc
+        self._nodes: Dict[ConstructSymbol, NodeRealizer] = {}
+        self._flows: Dict[ConstructSymbol, FlowRealizer] = {}
+        self._responses: Dict[ConstructSymbol, ResponseRealizer] = {}
 
-    def propagate(self) -> None:
-        """Propagate activations among realizers owned by self."""
+    def __iter__(self):
 
-        self.propagation_rule(self)
+        for construct in self._behaviors:
+            yield construct
+        for construct in self._responses:
+            yield construct
+        for construct in self._flows:
+            yield construct
+        for construct in self._nodes:
+            yield construct
 
-    def execute(self) -> None:
-        """Fire all selected actions."""
-
-        for behavior in self.behaviors:
-            self[behavior].propagate()
-
-    def accepts(self, source: ConstructSymbol) -> bool:
-        """
-        Return true iff source may connect to target within self.
-        
-        Connects buffers to subsystems according to specifications in buffer 
-        construct symbols.
-        """
-
-        if self.matches is not None and isinstance(
-            self.matches, ConstructType
-        ):
-            return source.ctype in self.matches
-        elif self.matches is not None:
-            return source in self.matches
-        else:
-            return False
-
-    def may_contain(self, csym: ConstructSymbol) -> bool:
-        """Return true if subsystem realizer may contain construct symbol."""
-
-        return bool(
-            csym.ctype & (
-                ConstructType.node |
-                ConstructType.flow |
-                ConstructType.response |
-                ConstructType.behavior
-            )            
-        )
-
-    @property
-    def nodes(self) -> ConstructSymbolList:
-        
-        return list(self.iter_ctype(ConstructType.node))
-
-    @property
-    def flows(self) -> ConstructSymbolList:
-        
-        return list(self.iter_ctype(ConstructType.flow))
-
-    @property
-    def responses(self) -> ConstructSymbolList:
-        
-        return list(self.iter_ctype(ConstructType.response))
-
-    @property
-    def behaviors(self) -> ConstructSymbolList:
-        
-        return list(self.iter_ctype(ConstructType.behavior))
-
-    def _connect(self, key: Any, value: Any) -> None:
-
-        super()._connect(key, value)
+    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
 
         if key.ctype in ConstructType.node:
-            for buffer, pull_method in self.input.input_links.items():
-                value.input.watch(buffer, pull_method)
+            return self._nodes[key]
+        elif key.ctype in ConstructType.flow:
+            return self._flows[key]
+        elif key.ctype in ConstructType.response:
+            return self._responses[key]
+        else:
+            raise ValueError(
+                "{} does not contain constructs of type {}".format(
+                    self.__class__.__name__, repr(key.ctype)
+                )
+            ) 
 
-    def _watch(
-        self, identifier: ConstructSymbol, pull_method: PullMethod
-    ) -> None:
-        """Informs members of a new input to self."""
+    def __delitem__(self, key: ConstructSymbol) -> None:
 
-        for realizer in self.values():
-            if cast(BasicConstructRealizer, realizer).accepts(identifier):
-                cast(BasicConstructRealizer, realizer).input.watch(
-                    identifier, pull_method
+        if key.ctype in ConstructType.node:
+            del self._nodes[key]
+        elif key.ctype in ConstructType.flow:
+            del self._flows[key]
+        elif key.ctype in ConstructType.response:
+            del self._responses[key]
+        else:
+            raise ValueError(
+                "{} does not contain constructs of type {}".format(
+                    self.__class__.__name__, repr(key.ctype)
+                )
+            )
+
+    def add(self, *realizers: ConstructRealizer) -> None:
+
+        for i, realizer in enumerate(realizers):
+            # Link new realizer with existing realizers
+            self._update_links(realizer)
+            # Store new realizer
+            if isinstance(realizer, NodeRealizer):
+                self._nodes[realizer.construct] = realizer
+            elif isinstance(realizer, FlowRealizer):
+                self._flows[realizer.construct] = realizer
+            elif isinstance(realizer, ResponseRealizer):
+                self._responses[realizer.construct] = realizer
+            else:
+                # Unacceptable realizer type passed to self
+                # Restore self to state prior to call to add() and
+                # raise a TypeError
+                self._drop_links(realizer.construct)
+                for new_realizer in realizers[:i]:
+                    del self[new_realizer.construct]
+                raise TypeError(
+                    "{} may not contain realizer of type {}".format(
+                        self.__class__.__name__, realizer.__class__.__name__
+                    )
                 )
 
-    def _drop(self, identifier: ConstructSymbol) -> None:
-        """Informs members of a dropped input to self."""
-
-        for realizer in self.values():
-            if cast(BasicConstructRealizer, realizer).accepts(identifier):
-                cast(BasicConstructRealizer, realizer).input.drop(identifier)
-
-
-class AgentRealizer(ContainerConstructRealizer):
-    """Realizer for Agent constructs."""
-
-    ctype = ConstructType.agent
-
-    def __init__(self, csym: ConstructSymbol) -> None:
-        """
-        Initialize a new agent realizer.
-        
-        :param construct: Client agent.
-        """
-
-        super().__init__(csym)
-        self._updaters: UpdaterList = []
-
     def propagate(self) -> None:
-        """Propagate activations among realizers owned by self."""
-        
-        for buffer in self.buffers:
-            self[buffer].propagate()
-        for subsystem in self.subsystems:
-            self[subsystem].propagate()
+
+        if self.proc is not None:
+            self.proc(self)
+        else:
+            raise TypeError("'NoneType' object is not callable")
 
     def execute(self) -> None:
-        """Execute all selected actions in all subsystems."""
 
-        for subsystem in self.subsystems:
-            cast(SubsystemRealizer, self[subsystem]).execute()
+        for realizer in self._responses.values():
+            realizer.execute()
 
-    def may_contain(self, csym: ConstructSymbol) -> bool:
-        """Return true if agent realizer may contain csym."""
+    @property
+    def missing(self) -> MissingSpec:
+        """Return missing components of self and all members."""
 
-        return csym.ctype in ConstructType.subsystem | ConstructType.buffer
+        d = super().missing
+        if self.proc is None:
+            d.setdefault(self.construct, []).append('proc')
+        return d
+
+    @property
+    def nodes(self) -> Mapping[ConstructSymbol, NodeRealizer]:
+
+        return MappingProxyType(self._nodes)
+
+    @property
+    def flows(self) -> Mapping[ConstructSymbol, FlowRealizer]:
+
+        return MappingProxyType(self._flows)
+
+    @property
+    def responses(self) -> Mapping[ConstructSymbol, ResponseRealizer]:
+
+        return MappingProxyType(self._responses)
+
+
+class AgentRealizer(ContainerConstructRealizer[None]):
+
+    ctype: ClassVar[ConstructType] = ConstructType.agent
+
+    def __init__(
+        self, construct: ConstructSymbol, matches: MatchSpec = None
+    ) -> None:
+
+        super().__init__(construct, matches)
+        self._buffers: Dict[ConstructSymbol, BufferRealizer] = {}
+        self._subsystems: Dict[ConstructSymbol, SubsystemRealizer] = {}
+        self._updaters: Dict[ConstructSymbol, UpdaterRealizer] = {}
+
+    def __iter__(self) -> Iterator[ConstructSymbol]:
+
+        for construct in self._buffers:
+            yield construct
+        for construct in self._subsystems:
+            yield construct
+        for construct in self._updaters:
+            yield construct
+
+    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
+
+        if key.ctype in ConstructType.buffer:
+            return self._buffers[key]
+        elif key.ctype in ConstructType.subsystem:
+            return self._subsystems[key]
+        elif key.ctype in ConstructType.updater:
+            return self._updaters[key]
+        else:
+            raise ValueError(
+                "{} does not contain constructs of type {}".format(
+                    self.__class__.__name__, repr(key.ctype)
+                )
+            )
+
+    def __delitem__(self, key: ConstructSymbol) -> None:
+
+        if key.ctype in ConstructType.buffer:
+            del self._buffers[key]
+        elif key.ctype in ConstructType.subsystem:
+            del self._subsystems[key]
+        elif key.ctype in ConstructType.updater:
+            del self._updaters[key]
+        else:
+            raise ValueError(
+                "{} does not contain constructs of type {}".format(
+                    self.__class__.__name__, repr(key.ctype)
+                )
+            )
+
+    def add(self, *realizers: ConstructRealizer) -> None:
+        """Add a set of realizers to self or a member of self."""
+
+        for i, realizer in enumerate(realizers):
+            # Link new realizer with existing realizers
+            self._update_links(realizer)
+            # Store new realizer
+            if isinstance(realizer, BufferRealizer):
+                self._buffers[realizer.construct] = realizer
+            elif isinstance(realizer, SubsystemRealizer):
+                self._subsystems[realizer.construct] = realizer
+            elif isinstance(realizer, UpdaterRealizer):
+                self._updaters[realizer.construct] = realizer
+            else:
+                # Unacceptable realizer type passed to self
+                # Restore self to state prior to call to add() and
+                # raise a TypeError
+                self._drop_links(realizer.construct)
+                for new_realizer in realizers[:i]:
+                    del self[new_realizer.construct]
+                raise TypeError(
+                    "{} may not contain realizer of type {}".format(
+                        self.__class__.__name__, realizer.__class__.__name__
+                    )
+                )
+
+    def propagate(self) -> None:
+
+        realizer: ConstructRealizer
+        for realizer in self._buffers.values():
+            realizer.propagate()
+        for realizer in self._subsystems.values():
+            realizer.propagate()
+
+    def execute(self) -> None:
+        """Execute currently selected actions."""
+
+        for subsys in self._subsystems.values():
+            for resp in subsys.responses.values():
+                resp.execute()
 
     def learn(self) -> None:
         """
@@ -759,91 +675,32 @@ class AgentRealizer(ContainerConstructRealizer):
         Issues update calls to each updater attached to self.  
         """
 
-        for updater in self.updaters:
-            updater()
+        for realizer in self._updaters.values():
+            realizer.propagate()
 
-    def attach(self, *updaters: Updater) -> None:
-        """
-        Add update managers to self.
-        
-        :param update_managers: Callables that manage updates to dynamic 
-            knowledge components. Should take no arguments and return nothing.
-        """
+    def weave(self) -> None:
 
-        for updater in updaters:
-            self._updaters.append(updater)
+        super().weave()
+        for realizer in self._subsystems.values():
+            realizer.weave()
 
-    def make_links(self) -> None:
+    def unweave(self) -> None:
 
-        super().make_links()
-        for subsystem in self.subsystems:
-            self[subsystem].make_links() 
+        super().unweave()
+        for realizer in self._subsystems.values():
+            realizer.unweave()
 
     @property
-    def updaters(self) -> UpdaterList:
-        
-        return list(updater for updater in self._updaters)
+    def buffers(self) -> Mapping[ConstructSymbol, BufferRealizer]:
+
+        return MappingProxyType(self._buffers)
 
     @property
-    def buffers(self) -> ConstructSymbolList:
+    def subsystems(self) -> Mapping[ConstructSymbol, SubsystemRealizer]:
 
-        return list(self.iter_ctype(ConstructType.buffer))
+        return MappingProxyType(self._subsystems)
 
     @property
-    def subsystems(self) -> ConstructSymbolList:
+    def updaters(self) -> Mapping[ConstructSymbol, UpdaterRealizer]:
 
-        return list(self.iter_ctype(ConstructType.subsystem))
-
-
-####################################
-### Construct Realizer Factories ###
-####################################
-
-
-def make_realizer(csym: ConstructSymbol) -> ConstructRealizer:
-    """Initialize empty construct realizer for given construct symbol."""
-
-    if csym.ctype in ConstructType.node:
-        return NodeRealizer(csym)
-    elif csym.ctype in ConstructType.flow:
-        return FlowRealizer(csym)
-    elif csym.ctype == ConstructType.response:
-        return ResponseRealizer(csym)
-    elif csym.ctype == ConstructType.behavior:
-        return BehaviorRealizer(csym)
-    elif csym.ctype == ConstructType.buffer:
-        return BufferRealizer(csym)
-    elif csym.ctype == ConstructType.subsystem:
-        return SubsystemRealizer(csym)
-    elif csym.ctype == ConstructType.agent:
-        return AgentRealizer(csym)
-    else:
-        raise ValueError("Unexpected construct type in {}".format(csym))
-
-
-def make_subsystem(
-    csym: ConstructSymbol, members: ConstructSymbolIterable
-) -> SubsystemRealizer:
-    """Initialize empty subsystem realizer with given members."""
-
-    subsystem = SubsystemRealizer(csym)
-    subsystem.insert_realizers(*(make_realizer(member) for member in members))
-    return subsystem
-
-
-def make_agent(
-    csym: ConstructSymbol, 
-    subsystems: Mapping[ConstructSymbol, ConstructSymbolIterable], 
-    buffers: ConstructSymbolIterable
-) -> AgentRealizer:
-    """Initialize empty agent realizer with given subsystems and buffers."""
-
-    agent = AgentRealizer(csym)
-    agent.insert_realizers(
-        *(
-            make_subsystem(subsystem, members) 
-            for subsystem, members in subsystems.items()
-        )
-    )
-    agent.insert_realizers(*(make_realizer(buffer) for buffer in buffers))
-    return agent
+        return MappingProxyType(self._updaters)

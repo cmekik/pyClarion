@@ -51,13 +51,17 @@ class ConstructType(Flag):
     flow_tt = auto()
     flow_bb = auto()
     response = auto()
-    behavior = auto()
     buffer = auto()
+    updater = auto()
     subsystem = auto()
     agent = auto()
     node = feature | chunk
+    flow_bx = flow_bt | flow_bb 
+    flow_tx = flow_tb | flow_tt 
+    flow_xb = flow_tb | flow_bb 
+    flow_xt = flow_bt | flow_tt 
     flow = flow_tb | flow_bt | flow_tt | flow_bb
-    basic_construct = node | flow | response | behavior | buffer
+    basic_construct = node | flow | response | buffer | updater
     container_construct = subsystem | agent
 
 
@@ -223,16 +227,6 @@ def response(name: Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.response, name)
 
 
-def behavior(name: Hashable) -> ConstructSymbol:
-    """
-    Return a new behavior symbol.
-
-    :param name: Name of behavior.
-    """
-
-    return ConstructSymbol(ConstructType.behavior, name)
-
-
 def buffer(name: Hashable) -> ConstructSymbol:
     """
     Return a new buffer symbol.
@@ -241,6 +235,16 @@ def buffer(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.buffer, name)
+
+
+def updater(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new updater symbol.
+
+    :param name: Name of behavior.
+    """
+
+    return ConstructSymbol(ConstructType.updater, name)
 
 
 def subsystem(name: Hashable) -> ConstructSymbol:
