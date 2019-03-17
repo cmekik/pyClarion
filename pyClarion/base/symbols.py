@@ -27,7 +27,7 @@ class ConstructType(Flag):
         chunk: Chunk node.
         flow_tb: Activation flow from top to bottom level.
         flow_bt: Activation flow from bottom to top level.
-        Flow_tt: Activation flow within top level.
+        flow_tt: Activation flow within top level.
         flow_bb: Activation flow within bottom level.
         response: Selected responses.
         updater: Routine for updating constructs.
@@ -167,14 +167,8 @@ class Matcher(object):
 
         self.ctype = ConstructType.null_construct
         self.constructs: MutableSet[ConstructSymbol] = set()
-        self.predicates: List[Callable[[ConstructSymbol], bool]] = []
-
-        if ctype is not None:
-            self.ctype |= ctype
-        if constructs is not None:
-            self.constructs.update(constructs)
-        if predicates is not None:
-            self.predicates.extend(predicates)
+        self.predicates: MutableSet[Callable[[ConstructSymbol], bool]] = set()
+        self.add(ctype, constructs, predicates)
 
     def __contains__(self, key: ConstructSymbol) -> bool:
 
@@ -185,38 +179,33 @@ class Matcher(object):
                 val |= predicate(key)
         return val
 
-    def __iand__(self, other):
+    def add(
+        self, 
+        ctype: ConstructType = None, 
+        constructs: Iterable[ConstructSymbol] = None,
+        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+    ) -> None:
 
-        raise NotImplementedError()
+        if ctype is not None:
+            self.ctype |= ctype
+        if constructs is not None:
+            self.constructs |= set(constructs)
+        if predicates is not None:
+            self.predicates |= set(predicates)
 
-    def __ior__(self, other):
+    def remove(
+        self, 
+        ctype: ConstructType = None, 
+        constructs: Iterable[ConstructSymbol] = None,
+        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+    ) -> None:
 
-        raise NotImplementedError()
-
-    def intersection(self, *others):
-        """
-        Return a new matcher matching the intersection of self with others.
-        
-        Not implemented.
-
-        New matcher instance contains a given construct symbol iff:
-            - the symbol is in self, and 
-            - the symbol is in all matchers in others.
-        """
-
-        raise NotImplementedError()
-
-    def union(self, *others):
-        """
-        Return a new matcher matching the union of self with others.
-
-        Not implemented.
-        
-        New matcher instance contains a given construct symbol iff:
-            - the symbol is in self, or 
-            - the symbol is in any matcher in others.
-        """
-
+        if ctype is not None:
+            self.ctype ^= ctype
+        if constructs is not None:
+            self.constructs ^= set(constructs)
+        if predicates is not None:
+            self.predicates ^= set(predicates)
         raise NotImplementedError()
 
 
