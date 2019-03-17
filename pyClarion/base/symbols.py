@@ -8,7 +8,7 @@
 #   symbol factory functions.
 
 
-from typing import Hashable, Tuple
+from typing import Hashable, Tuple, MutableSet, List, Callable, Iterable
 from enum import Flag, auto
 
 
@@ -22,25 +22,29 @@ class ConstructType(Flag):
     Represents construct types within Clarion theory.
     
     Basic members (and interpretations):
-        NullConstruct: Empty construct type (corresponds to flag null).
-        Feature: Feature node.
-        Chunk: Chunk node.
-        TBFlow: Activation flow from top to bottom level.
-        BTFlow: Activation flow from bottom to top level.
-        TTFlow: Activation flow within top level.
-        BBFlow: Activation flow within bottom level.
-        Response: Selected responses.
-        Behavior: Possible actions.
-        Buffer: Temporary store of activations.
-        Subsystem: A Clarion subsystem.
-        Agent: A full Clarion agent.
+        null_construct: Empty construct type (corresponds to flag null).
+        feature: Feature node.
+        chunk: Chunk node.
+        flow_tb: Activation flow from top to bottom level.
+        flow_bt: Activation flow from bottom to top level.
+        Flow_tt: Activation flow within top level.
+        flow_bb: Activation flow within bottom level.
+        response: Selected responses.
+        updater: Routine for updating constructs.
+        buffer: Temporary store of activations.
+        subsystem: A Clarion subsystem.
+        agent: A full Clarion agent.
 
     Other members: 
-        Node: A chunk or microfeature.
-        Flow: Links among microfeature and/or chunk nodes.
-        BasicConstruct: Feature or chunk or flow or response or behavior or 
+        node: A chunk or microfeature.
+        flow_bx: Flow originating in bottom level.
+        flow_tx: Flow originating in top level.
+        flow_xb: Flow ending in bottom level.
+        flow_xt: Flow ending in top level.
+        flow: Links among microfeature and/or chunk nodes.
+        basic_construct: Feature or chunk or flow or response or behavior or 
             buffer. 
-        ContainerConstruct: Subsystem or agent.
+        container_construct: Subsystem or agent.
     """
 
     null_construct = 0
@@ -149,6 +153,71 @@ class FeatureSymbol(ConstructSymbol):
     def val(self) -> Hashable:
 
         return self.cid[1]
+
+
+class Matcher(object):
+    """Container matching a specified set of construct symbols"""
+
+    def __init__(
+        self, 
+        ctype: ConstructType = None, 
+        constructs: Iterable[ConstructSymbol] = None,
+        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+    ) -> None:
+
+        self.ctype = ConstructType.null_construct
+        self.constructs: MutableSet[ConstructSymbol] = set()
+        self.predicates: List[Callable[[ConstructSymbol], bool]] = []
+
+        if ctype is not None:
+            self.ctype |= ctype
+        if constructs is not None:
+            self.constructs.update(constructs)
+        if predicates is not None:
+            self.predicates.extend(predicates)
+
+    def __contains__(self, key: ConstructSymbol) -> bool:
+
+        val = False
+        val |= key.ctype in self.ctype
+        val |= key in self.constructs
+        for predicate in self.predicates:
+                val |= predicate(key)
+        return val
+
+    def __iand__(self, other):
+
+        raise NotImplementedError()
+
+    def __ior__(self, other):
+
+        raise NotImplementedError()
+
+    def intersection(self, *others):
+        """
+        Return a new matcher matching the intersection of self with others.
+        
+        Not implemented.
+
+        New matcher instance contains a given construct symbol iff:
+            - the symbol is in self, and 
+            - the symbol is in all matchers in others.
+        """
+
+        raise NotImplementedError()
+
+    def union(self, *others):
+        """
+        Return a new matcher matching the union of self with others.
+
+        Not implemented.
+        
+        New matcher instance contains a given construct symbol iff:
+            - the symbol is in self, or 
+            - the symbol is in any matcher in others.
+        """
+
+        raise NotImplementedError()
 
 
 ##################################
