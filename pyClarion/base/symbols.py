@@ -41,6 +41,8 @@ class ConstructType(Flag):
         flow_tx: Flow originating in top level.
         flow_xb: Flow ending in bottom level.
         flow_xt: Flow ending in top level.
+        flow_h: Horizontal (intra-level) flow.
+        flow_v: Vertical (inter-level) flow.
         flow: Links among microfeature and/or chunk nodes.
         basic_construct: Feature or chunk or flow or response or behavior or 
             buffer. 
@@ -64,6 +66,8 @@ class ConstructType(Flag):
     flow_tx = flow_tb | flow_tt 
     flow_xb = flow_tb | flow_bb 
     flow_xt = flow_bt | flow_tt 
+    flow_h = flow_bb | flow_tt
+    flow_v = flow_tb | flow_bt
     flow = flow_tb | flow_bt | flow_tt | flow_bb
     basic_construct = node | flow | response | buffer | updater
     container_construct = subsystem | agent
