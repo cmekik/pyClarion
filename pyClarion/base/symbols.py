@@ -7,7 +7,7 @@
 # definitions; the second section contains construct symbol factory functions.
 
 
-from typing import Hashable, Tuple, MutableSet, List, Callable, Iterable
+from typing import Hashable, Tuple, MutableSet, List, Callable, Iterable, cast
 from enum import Flag, auto
 
 
@@ -167,14 +167,14 @@ class ParameterSymbol(ConstructSymbol):
 
     __slots__ = ()
 
-    def __init__(self, construct: Hashable, name: Hashable) -> None:
+    def __init__(self, construct: ConstructSymbol, name: Hashable) -> None:
 
         super().__init__(ConstructType.feature, construct, name)
 
     @property
-    def construct(self) -> Hashable:
+    def construct(self) -> ConstructSymbol:
 
-        return self.cid[0]
+        return cast(ConstructSymbol, self.cid[0])
 
     @property
     def name(self) -> Hashable:
