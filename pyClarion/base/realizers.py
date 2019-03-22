@@ -19,13 +19,15 @@ from typing import (
 )
 
 
-It = TypeVar('It')
-Ot = TypeVar('Ot')
+It = TypeVar('It') # input type variable
+Ot = TypeVar('Ot') # output type variable
+Rt = TypeVar('Rt') # construct realizer type variable
 MatchSpec = Union[ConstructType, Container[ConstructSymbol]]
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
-ProcInput = Mapping[ConstructSymbol, Callable[[], It]]
-Proc = Callable[[ConstructSymbol, ProcInput[It]], Ot]
+Input = Mapping[ConstructSymbol, Callable[[], It]]
+Proc = Callable[[ConstructSymbol, Input[It]], Ot]
+Updater = Optional[Callable[[Rt], None]]
 
 
 class ConstructRealizer(Generic[It, Ot]):
@@ -38,7 +40,10 @@ class ConstructRealizer(Generic[It, Ot]):
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
 
     def __init__(
-        self, construct: ConstructSymbol, matches: MatchSpec = None
+        self, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        updater: Updater[Any] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -49,10 +54,11 @@ class ConstructRealizer(Generic[It, Ot]):
         """
 
         self._check_construct(construct)
-        self.construct = construct
-        self.matches = matches
+        self._construct = construct
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
+        self.matches = matches
+        self.updater = updater
 
     def __repr__(self) -> Text:
 
@@ -62,6 +68,14 @@ class ConstructRealizer(Generic[It, Ot]):
         """Propagate activations."""
 
         raise NotImplementedError()
+
+    def learn(self) -> None:
+        """Execute learning routines."""
+        
+        if self.updater is not None:
+            self.updater(self)
+        else:
+            pass
 
     def accepts(self, source: ConstructSymbol) -> bool:
         """Return true if self pulls information from source."""
@@ -104,7 +118,22 @@ class ConstructRealizer(Generic[It, Ot]):
     def clear_output(self) -> None:
         """Clear output."""
 
-        self._output = None
+        raise NotImplementedError()
+
+    def initialize(self) -> None:
+        """
+        Set initial (empty) output. 
+        
+        Must be called prior to running simulation cycles.
+        """
+
+        self.clear_output()
+
+    @property
+    def construct(self) -> ConstructSymbol:
+        """Client construct of self."""
+
+        return self._construct
 
     @property
     def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
@@ -123,9 +152,20 @@ class ConstructRealizer(Generic[It, Ot]):
 
     @property
     def missing(self) -> MissingSpec:
-        """Return any missing components of self."""
+        """
+        Return any missing components of self.
+        
+        A component is considered missing iff it is set to None.
+        """
 
-        return {}
+        d: MissingSpec = {}
+        if self.construct is None:
+            d.setdefault(self.construct, []).append('construct')
+        if self.matches is None:
+            d.setdefault(self.construct, []).append('matches')
+        if self.updater is None:
+            d.setdefault(self.construct, []).append('updater')
+        return d
 
     def _check_construct(self, construct: ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
@@ -160,6 +200,7 @@ class BasicConstructRealizer(ConstructRealizer[It, Ot]):
         construct: ConstructSymbol, 
         matches: MatchSpec = None,
         proc: Proc[It, Ot] = None,
+        updater: Updater[Any] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -170,7 +211,7 @@ class BasicConstructRealizer(ConstructRealizer[It, Ot]):
         :param proc: Activation processor associated with client construct.
         """
 
-        super().__init__(construct, matches)
+        super().__init__(construct, matches=matches, updater=updater)
         self.proc = proc
 
     def propagate(self) -> None:
@@ -178,9 +219,9 @@ class BasicConstructRealizer(ConstructRealizer[It, Ot]):
 
         if self.proc is not None:
             packet: Ot = self.proc(self.construct, self.inputs)
+            self.update_output(packet)
         else:
             raise TypeError("'NoneType' object is not callable")
-        self.update_output(packet)
 
     @property
     def missing(self) -> MissingSpec:
@@ -195,10 +236,40 @@ class NodeRealizer(BasicConstructRealizer[ActivationPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.node
 
+    def __init__(
+        self, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        proc: Proc[ActivationPacket, ActivationPacket] = None,
+        updater: Updater['NodeRealizer'] = None,
+    ) -> None:
+        """Initialize a new node realizer."""
+
+        super().__init__(construct, matches=matches, proc=proc, updater=updater)
+
+    def clear_output(self) -> None:
+
+        self._output = ActivationPacket(strengths={})
+
 
 class FlowRealizer(BasicConstructRealizer[ActivationPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.flow
+
+    def __init__(
+        self, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        proc: Proc[ActivationPacket, ActivationPacket] = None,
+        updater: Updater['FlowRealizer'] = None,
+    ) -> None:
+        """Initialize a new flow realizer."""
+
+        super().__init__(construct, matches=matches, proc=proc, updater=updater)
+
+    def clear_output(self) -> None:
+
+        self._output = ActivationPacket(strengths={})
 
 
 class ResponseRealizer(
@@ -212,6 +283,7 @@ class ResponseRealizer(
         construct: ConstructSymbol,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, DecisionPacket] = None,
+        updater: Updater['ResponseRealizer'] = None,
         effector: Callable[[DecisionPacket], None] = None
     ) -> None:
         """
@@ -224,7 +296,7 @@ class ResponseRealizer(
         :param effector: Routine for executing selected actions.
         """
 
-        super().__init__(construct, matches, proc)
+        super().__init__(construct, matches=matches, proc=proc, updater=updater)
         self.effector = effector
 
     def execute(self) -> None:
@@ -234,6 +306,10 @@ class ResponseRealizer(
             self.effector(self.view())
         else:
             raise TypeError("'NoneType' object is not callable")
+
+    def clear_output(self) -> None:
+
+        self._output = DecisionPacket(strengths={}, selection=set())
 
     @property
     def missing(self) -> MissingSpec:
@@ -248,11 +324,20 @@ class BufferRealizer(BasicConstructRealizer[None, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.buffer
 
+    def __init__(
+        self, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None,
+        proc: Proc[None, ActivationPacket] = None,
+        updater: Updater['BufferRealizer'] = None,
+    ) -> None:
+        """Initialize a new buffer realizer."""
 
-class UpdaterRealizer(BasicConstructRealizer[None, None]):
+        super().__init__(construct, matches=matches, proc=proc, updater=updater)
 
-    ctype: ClassVar[ConstructType] = ConstructType.updater
+    def clear_output(self) -> None:
 
+        self._output = ActivationPacket(strengths={})
 
 #####################################
 ### Container Construct Realizers ###
@@ -276,13 +361,24 @@ class ContainerConstructRealizer(ConstructRealizer[It, None]):
 
         raise NotImplementedError()
 
-    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
+    def __getitem__(self, key: ConstructSymbol) -> Any:
 
         raise NotImplementedError()
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
         raise NotImplementedError()
+
+    def learn(self):
+        """
+        Execute learning routines in self and all members.
+        
+        Issues update calls to each updater attached to self.  
+        """
+
+        super().learn()
+        for realizer in self.values():
+            realizer.learn()
 
     def execute(self) -> None:
         """Execute currently selected actions."""
@@ -417,7 +513,7 @@ class ContainerConstructRealizer(ConstructRealizer[It, None]):
     def clear_output(self) -> None:
         """Clear output of self and all members."""
 
-        super().clear_output()
+        self._output = None
         for realizer in self.values():
             realizer.clear_output()
 
@@ -445,7 +541,9 @@ class ContainerConstructRealizer(ConstructRealizer[It, None]):
                 realizer.watch(new_realizer.construct, new_realizer.view)
             if new_realizer.accepts(construct):
                 new_realizer.watch(construct, realizer.view)
-
+        for construct, callback in self._inputs.items():
+            if new_realizer.accepts(construct):
+                new_realizer.watch(construct, callback)
 
     def _drop_links(self, construct: ConstructSymbol) -> None:
         """Remove construct from inputs of any accepting member constructs."""
@@ -463,19 +561,19 @@ class SubsystemRealizer(ContainerConstructRealizer[ActivationPacket]):
         self, 
         construct: ConstructSymbol, 
         matches: MatchSpec = None,
-        proc: Callable[..., None] = None
+        proc: Callable[['SubsystemRealizer'], None] = None,
+        updater: Updater['SubsystemRealizer'] = None
     ) -> None:
 
-        super().__init__(construct, matches)
+        super().__init__(construct, matches, updater)
         self.proc = proc
         self._nodes: Dict[ConstructSymbol, NodeRealizer] = {}
         self._flows: Dict[ConstructSymbol, FlowRealizer] = {}
         self._responses: Dict[ConstructSymbol, ResponseRealizer] = {}
 
-    def __iter__(self):
 
-        for construct in self._behaviors:
-            yield construct
+    def __iter__(self) -> Iterator[ConstructSymbol]:
+
         for construct in self._responses:
             yield construct
         for construct in self._flows:
@@ -483,7 +581,7 @@ class SubsystemRealizer(ContainerConstructRealizer[ActivationPacket]):
         for construct in self._nodes:
             yield construct
 
-    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
+    def __getitem__(self, key: ConstructSymbol) -> Any:
 
         if key.ctype in ConstructType.node:
             return self._nodes[key]
@@ -580,13 +678,15 @@ class AgentRealizer(ContainerConstructRealizer[None]):
     ctype: ClassVar[ConstructType] = ConstructType.agent
 
     def __init__(
-        self, construct: ConstructSymbol, matches: MatchSpec = None
+        self, 
+        construct: ConstructSymbol, 
+        matches: MatchSpec = None, 
+        updater: Updater['AgentRealizer'] = None
     ) -> None:
 
-        super().__init__(construct, matches)
+        super().__init__(construct, matches, updater)
         self._buffers: Dict[ConstructSymbol, BufferRealizer] = {}
         self._subsystems: Dict[ConstructSymbol, SubsystemRealizer] = {}
-        self._updaters: Dict[ConstructSymbol, UpdaterRealizer] = {}
 
     def __iter__(self) -> Iterator[ConstructSymbol]:
 
@@ -594,17 +694,13 @@ class AgentRealizer(ContainerConstructRealizer[None]):
             yield construct
         for construct in self._subsystems:
             yield construct
-        for construct in self._updaters:
-            yield construct
 
-    def __getitem__(self, key: ConstructSymbol) -> ConstructRealizer:
+    def __getitem__(self, key: ConstructSymbol) -> Any:
 
         if key.ctype in ConstructType.buffer:
             return self._buffers[key]
         elif key.ctype in ConstructType.subsystem:
             return self._subsystems[key]
-        elif key.ctype in ConstructType.updater:
-            return self._updaters[key]
         else:
             raise ValueError(
                 "{} does not contain constructs of type {}".format(
@@ -618,8 +714,6 @@ class AgentRealizer(ContainerConstructRealizer[None]):
             del self._buffers[key]
         elif key.ctype in ConstructType.subsystem:
             del self._subsystems[key]
-        elif key.ctype in ConstructType.updater:
-            del self._updaters[key]
         else:
             raise ValueError(
                 "{} does not contain constructs of type {}".format(
@@ -638,8 +732,6 @@ class AgentRealizer(ContainerConstructRealizer[None]):
                 self._buffers[realizer.construct] = realizer
             elif isinstance(realizer, SubsystemRealizer):
                 self._subsystems[realizer.construct] = realizer
-            elif isinstance(realizer, UpdaterRealizer):
-                self._updaters[realizer.construct] = realizer
             else:
                 # Unacceptable realizer type passed to self
                 # Restore self to state prior to call to add() and
@@ -668,16 +760,6 @@ class AgentRealizer(ContainerConstructRealizer[None]):
             for resp in subsys.responses.values():
                 resp.execute()
 
-    def learn(self) -> None:
-        """
-        Update knowledge in all subsystems and all buffers.
-        
-        Issues update calls to each updater attached to self.  
-        """
-
-        for realizer in self._updaters.values():
-            realizer.propagate()
-
     def weave(self) -> None:
 
         super().weave()
@@ -699,8 +781,3 @@ class AgentRealizer(ContainerConstructRealizer[None]):
     def subsystems(self) -> Mapping[ConstructSymbol, SubsystemRealizer]:
 
         return MappingProxyType(self._subsystems)
-
-    @property
-    def updaters(self) -> Mapping[ConstructSymbol, UpdaterRealizer]:
-
-        return MappingProxyType(self._updaters)

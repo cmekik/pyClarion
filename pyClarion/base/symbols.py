@@ -3,9 +3,8 @@
 
 # Notes For Readers
 
-# - This file consists of two major sections. The first major section 
-#   contains class definitions, the second major section contains construct 
-#   symbol factory functions.
+# This file consists of two major sections. The first section contains class 
+# definitions; the second section contains construct symbol factory functions.
 
 
 from typing import Hashable, Tuple, MutableSet, List, Callable, Iterable
@@ -30,7 +29,7 @@ class ConstructType(Flag):
         flow_tt: Activation flow within top level.
         flow_bb: Activation flow within bottom level.
         response: Selected responses.
-        updater: Routine for updating constructs.
+        paramter: A construct parameter.
         buffer: Temporary store of activations.
         subsystem: A Clarion subsystem.
         agent: A full Clarion agent.
@@ -58,7 +57,7 @@ class ConstructType(Flag):
     flow_bb = auto()
     response = auto()
     buffer = auto()
-    updater = auto()
+    parameter = auto()
     subsystem = auto()
     agent = auto()
     node = feature | chunk
@@ -69,7 +68,7 @@ class ConstructType(Flag):
     flow_h = flow_bb | flow_tt
     flow_v = flow_tb | flow_bt
     flow = flow_tb | flow_bt | flow_tt | flow_bb
-    basic_construct = node | flow | response | buffer | updater
+    basic_construct = node | flow | response | buffer
     container_construct = subsystem | agent
 
 
@@ -155,6 +154,30 @@ class FeatureSymbol(ConstructSymbol):
 
     @property
     def val(self) -> Hashable:
+
+        return self.cid[1]
+
+
+class ParameterSymbol(ConstructSymbol):
+    """
+    Symbolically represents a construct parameter.
+
+    Extends ConstructSymbol to support accessing construct and name attributes.
+    """
+
+    __slots__ = ()
+
+    def __init__(self, construct: Hashable, name: Hashable) -> None:
+
+        super().__init__(ConstructType.feature, construct, name)
+
+    @property
+    def construct(self) -> Hashable:
+
+        return self.cid[0]
+
+    @property
+    def name(self) -> Hashable:
 
         return self.cid[1]
 
@@ -299,14 +322,14 @@ def buffer(name: Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.buffer, name)
 
 
-def updater(name: Hashable) -> ConstructSymbol:
+def parameter(construct: ConstructSymbol, name: Hashable) -> ConstructSymbol:
     """
-    Return a new updater symbol.
+    Return a new parameter symbol.
 
     :param name: Name of behavior.
     """
 
-    return ConstructSymbol(ConstructType.updater, name)
+    return ParameterSymbol(construct, name)
 
 
 def subsystem(name: Hashable) -> ConstructSymbol:
@@ -327,3 +350,4 @@ def agent(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.agent, name)
+
