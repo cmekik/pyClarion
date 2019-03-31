@@ -19,6 +19,11 @@ from enum import Flag, auto
 class ConstructType(Flag):
     """
     Represents construct types within Clarion theory.
+
+    Signals the role of a construct for the purposes of controlling processing 
+    logic.
+
+    See ConstructSymbol for usage patterns.
     
     Basic members (and interpretations):
         null_construct: Empty construct type (corresponds to flag null).
@@ -29,7 +34,7 @@ class ConstructType(Flag):
         flow_tt: Activation flow within top level.
         flow_bb: Activation flow within bottom level.
         response: Selected responses.
-        paramter: A construct parameter.
+        parameter: A construct parameter.
         buffer: Temporary store of activations.
         subsystem: A Clarion subsystem.
         agent: A full Clarion agent.
@@ -74,9 +79,16 @@ class ConstructType(Flag):
 
 class ConstructSymbol:
     """
-    Symbolically represents simulation constructs.
+    Symbolically represents Clarion constructs used within a simulation.
     
-    Construct symbols are immutable objects that identify simulated constructs.
+    Construct symbols are immutable objects that identify simulated constructs. 
+    Each symbol has a construct type, which is used to facilitate filtering and 
+    conditional logic on acting categorically on core Clarion constructs. 
+    
+    To disambiguate different constructs of the same type within a given agent, 
+    each construct symbol is associated with a construct id. Construct ids may 
+    be any hashable object. They may also be used to support finer filtering and 
+    logic.
     """
 
     __slots__ = ('_data')
@@ -162,7 +174,8 @@ class ParameterSymbol(ConstructSymbol):
     """
     Symbolically represents a construct parameter.
 
-    Extends ConstructSymbol to support accessing construct and name attributes.
+    Extends ConstructSymbol to support accessing client construct and name 
+    attributes.
     """
 
     __slots__ = ()
@@ -183,7 +196,12 @@ class ParameterSymbol(ConstructSymbol):
 
 
 class Matcher(object):
-    """Container matching a specified set of construct symbols"""
+    """
+    Container matching a specified set of construct symbols.
+
+    Intended primarily for flexibly defining the set of constructs from which a 
+    given construct may pull information (e.g., activations).  
+    """
 
     def __init__(
         self, 
@@ -191,6 +209,14 @@ class Matcher(object):
         constructs: Iterable[ConstructSymbol] = None,
         predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
     ) -> None:
+        """
+        Initialize a new Matcher instance.
+
+        :param ctype: Acceptable construct type(s).
+        :param constructs: Acceptable construct symbols.
+        :param predicates: Custom custom predicates indicating acceptable 
+            constructs. 
+        """
 
         self.ctype = ConstructType.null_construct
         self.constructs: MutableSet[ConstructSymbol] = set()
@@ -198,6 +224,15 @@ class Matcher(object):
         self.add(ctype, constructs, predicates)
 
     def __contains__(self, key: ConstructSymbol) -> bool:
+        """
+        Return true if construct is in the match set.
+        
+        A construct is considered to be in the match set if:
+            - Its construct symbol is in self.ctype OR
+            - It is equal to a member of self.constructs OR
+            - A predicate in self.predicates returns true when called on the 
+              construct.
+        """
 
         val = False
         val |= key.ctype in self.ctype
@@ -212,6 +247,11 @@ class Matcher(object):
         constructs: Iterable[ConstructSymbol] = None,
         predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
     ) -> None:
+        """
+        Extend the set of accepted constructs.
+        
+        See Matcher.__init__ for argument descriptions.
+        """
 
         if ctype is not None:
             self.ctype |= ctype
@@ -226,6 +266,11 @@ class Matcher(object):
         constructs: Iterable[ConstructSymbol] = None,
         predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
     ) -> None:
+        """
+        Contract the set of accepted constructs.
+        
+        See Matcher.__init__ for argument descriptions.
+        """
 
         if ctype is not None:
             self.ctype ^= ctype
