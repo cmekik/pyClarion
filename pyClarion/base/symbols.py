@@ -20,8 +20,7 @@ class ConstructType(Flag):
     """
     Represents construct types within Clarion theory.
 
-    Signals the role of a construct for the purposes of controlling processing 
-    logic.
+    Signals the role of a construct for controlling processing logic.
 
     See ConstructSymbol for usage patterns.
     
@@ -79,11 +78,13 @@ class ConstructType(Flag):
 
 class ConstructSymbol:
     """
-    Symbolically represents Clarion constructs used within a simulation.
+    Symbolic representation of a Clarion construct.
+
+    Abbreviated ConSym.
     
     Construct symbols are immutable objects that identify simulated constructs. 
     Each symbol has a construct type, which is used to facilitate filtering and 
-    conditional logic on acting categorically on core Clarion constructs. 
+    conditional logic acting categorically on core Clarion construct types. 
     
     To disambiguate different constructs of the same type within a given agent, 
     each construct symbol is associated with a construct id. Construct ids may 
@@ -146,9 +147,13 @@ class ConstructSymbol:
         return self._data[1]
 
 
+# Abbreviated handle for ConstructSymbol.
+ConSym = ConstructSymbol
+
+
 class FeatureSymbol(ConstructSymbol):
     """
-    Symbolically represents a feature node.
+    Symbolic representation of a feature node.
 
     Extends ConstructSymbol to support accessing dim and val attributes.
     """
@@ -172,7 +177,7 @@ class FeatureSymbol(ConstructSymbol):
 
 class ParameterSymbol(ConstructSymbol):
     """
-    Symbolically represents a construct parameter.
+    Symbolic representation of a Clarion construct parameter.
 
     Extends ConstructSymbol to support accessing client construct and name 
     attributes.
@@ -182,7 +187,7 @@ class ParameterSymbol(ConstructSymbol):
 
     def __init__(self, construct: ConstructSymbol, name: Hashable) -> None:
 
-        super().__init__(ConstructType.feature, construct, name)
+        super().__init__(ConstructType.parameter, construct, name)
 
     @property
     def construct(self) -> ConstructSymbol:
@@ -195,12 +200,25 @@ class ParameterSymbol(ConstructSymbol):
         return self.cid[1]
 
 
-class Matcher(object):
+class ConstructSymbolPredicate(object):
     """
-    Container matching a specified set of construct symbols.
+    A unary predicate that applies to construct symbols.
 
-    Intended primarily for flexibly defining the set of constructs from which a 
-    given construct may pull information (e.g., activations).  
+    Abbreviated as ConSymPred.
+
+    The predicate may be defined intensionally (with respect to construct types 
+    or arbitrary predicates) or extensionally (by enumeration of matching 
+    constructs). ConstructSymbolPredicate objects are set-like in that they 
+    support __contains__, may be extended (through addition) or contracted 
+    (through removal). However, unlike sets, ConstructSymbolPredicate objects do 
+    not support algebraic operators such as union, intersection, difference etc.
+
+    ConstructSymbolPredicate objects are intended to facilitate checking if 
+    simulated constructs satisfy certain complex conditions. Such checks may be 
+    required, for example, to decide whether or not to connect two construct 
+    realizers (see pyClarion.realizers). In general ConstructSymbolPredicate 
+    objects may be used at any point where a (potentially complex) predicate 
+    must be applied to construct symbols. 
     """
 
     def __init__(
@@ -279,6 +297,10 @@ class Matcher(object):
         if predicates is not None:
             self.predicates ^= set(predicates)
         raise NotImplementedError()
+
+
+# Abbreviated handle for ConstructSymbolPredicate.
+ConSymPred = ConstructSymbolPredicate
 
 
 ##################################
@@ -395,4 +417,3 @@ def agent(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.agent, name)
-

@@ -5,14 +5,38 @@ from typing import Any, Mapping, Set, FrozenSet
 from pyClarion.base.symbols import ConstructSymbol
 
 
-__all__ = ["ActivationPacket", "DecisionPacket"]
+__all__ = ["Packet", "ActivationPacket", "DecisionPacket"]
 
 
-class _Packet(object):
+class Packet(object):
+    """
+    Base container class facilitating communication among simulation constructs.
 
-    def __init__(self, strengths: Mapping[ConstructSymbol, Any]) -> None:
+    Packets are the primary and, ideally, only medium of direct communication 
+    among simulated Clarion constructs belonging to the same agent. 
+    
+    Packet objects present a dict-like API for mapping construct symbols to 
+    arbitrary data structures, but, unlike dicts, they do not support in-place 
+    modification. Typically, a single packet will be accessed by multiple 
+    constructs. In-place modification is discouraged to prevent subtle bugs 
+    arising from shared use.
 
-        self._strengths = dict(strengths)
+    This class may be extended with additional properties if necessary, (see 
+    DecisionPacket for example), but additional properties should not support 
+    in-place modification: they should not have a setters and they should not 
+    return mutable objects. 
+    """
+
+    __slots__ = ("_data")
+
+    def __init__(self, data: Mapping[ConstructSymbol, Any]) -> None:
+        """
+        Initialize a new packet instance.
+
+        :param data: A mapping from construct symbols to related data.
+        """
+
+        self._data = dict(data)
 
     def __repr__(self):
 
@@ -20,55 +44,57 @@ class _Packet(object):
 
     def __contains__(self, key):
 
-        return key in self._strengths
+        return key in self._data
 
     def __iter__(self):
 
-        return iter(self._strengths)
+        return iter(self._data)
 
     def __len__(self):
 
-        return len(self._strengths)
+        return len(self._data)
 
     def __getitem__(self, key: ConstructSymbol):
 
-        return self._strengths[key]
+        return self._data[key]
 
     def get(self, key, default=None):
 
-        return self._strengths.get(key, default)
+        return self._data.get(key, default)
 
     def keys(self):
         """Return a view of keys in self."""
 
-        return self._strengths.keys()
+        return self._data.keys()
 
     def values(self):
         """Return a view of values in self."""
 
-        return self._strengths.values()
+        return self._data.values()
 
     def items(self):
         """Return a view of items in self."""
 
-        return self._strengths.items()
+        return self._data.items()
 
     def _contents_repr(self):
 
-        return "strengths={}".format(repr(self._strengths))
+        return "data={}".format(repr(self._data))
 
 
-class ActivationPacket(_Packet):
+class ActivationPacket(Packet):
     """
-    Represents node strengths.
+    Represents chunk/feature activation strengths.
     
-    :param strengths: Mapping of node strengths.
+    See Packet documentation for details.
     """
 
-    pass
+    def __init__(self, strengths: Mapping[ConstructSymbol, Any]) -> None:
+
+        super().__init__(strengths)
 
 
-class DecisionPacket(_Packet):
+class DecisionPacket(Packet):
     """
     Represents a response.
 

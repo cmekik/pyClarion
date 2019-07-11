@@ -19,10 +19,10 @@ from typing import (
 )
 
 
-It = TypeVar('It') # input type variable
-Ot = TypeVar('Ot') # output type variable
+It = TypeVar('It') # type variable for inputs
+Ot = TypeVar('Ot') # type variable for outputs
 Rt = TypeVar('Rt') # construct realizer type variable
-MatchSpec = Union[ConstructType, Container[ConstructSymbol]]
+MatchSpec = Union[ConstructType, Container[ConstructSymbol]] # explain scope of this type variable
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 Input = Mapping[ConstructSymbol, Callable[[], It]]
@@ -124,7 +124,7 @@ class ConstructRealizer(Generic[It, Ot]):
         """
         Set initial (empty) output. 
         
-        Must be called prior to running simulation cycles.
+        Must be called prior to (re)running simulation cycles.
         """
 
         self.clear_output()
