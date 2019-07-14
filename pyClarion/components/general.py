@@ -6,7 +6,7 @@ from pyClarion.components.utils import *
 class MaxNode(object):
     """Simple node returning maximum strength for given construct."""
 
-    def __call__(self, construct, inputs):
+    def __call__(self, construct, inputs, **kwargs):
 
         packets = (pull_func() for pull_func in inputs.values())
         strengths = max_strength(construct, packets)
@@ -25,7 +25,7 @@ class BoltzmannSelector(object):
         self.temperature = temperature
         self.k = k
 
-    def __call__(self, construct, inputs):
+    def __call__(self, construct, inputs, **kwargs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -45,14 +45,14 @@ class BoltzmannSelector(object):
 class MappingEffector(object):
     """Links actionable chunks to callbacks."""
 
-    def __init__(self, callbacks) -> None:
+    def __init__(self, callbacks = None) -> None:
         """
         Initialize a SimpleEffector instance.
 
         :param chunk2callback: Mapping from actionable chunks to callbacks.
         """
 
-        self.callbacks = callbacks
+        self.callbacks = callbacks if callbacks is not None else dict()
 
     def __call__(self, dpacket) -> None:
         """
@@ -64,6 +64,10 @@ class MappingEffector(object):
         for chunk in dpacket.selection:
             self.callbacks[chunk].__call__()
 
+    def set_action(self, chunk_, callback):
+
+        self.callbacks[chunk_] = callback
+
 
 class ConstantSource(object):
     """Outputs a stored activation packet."""
@@ -72,7 +76,7 @@ class ConstantSource(object):
 
         self.strengths = strengths or dict()
 
-    def __call__(self, construct, inputs):
+    def __call__(self, construct, inputs, **kwargs):
         """Return stored strengths."""
 
         return ActivationPacket(strengths=self.strengths)
@@ -87,3 +91,11 @@ class ConstantSource(object):
         """Clear stored node strengths."""
 
         self.strengths = {}
+
+
+class Stimulus(object):
+
+    def __call__(self, construct, inputs, stimulus=None, **kwargs):
+
+        packet = stimulus or ActivationPacket()
+        return packet

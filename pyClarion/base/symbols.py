@@ -7,7 +7,7 @@
 # definitions; the second section contains construct symbol factory functions.
 
 
-from typing import Hashable, Tuple, MutableSet, List, Callable, Iterable, cast
+from typing import (Optional, Hashable, Tuple, MutableSet, List, Callable, Iterable, cast)
 from enum import Flag, auto
 
 
@@ -71,6 +71,8 @@ class ConstructType(Flag):
     flow_xt = flow_bt | flow_tt 
     flow_h = flow_bb | flow_tt
     flow_v = flow_tb | flow_bt
+    flow_bv = flow_bb | flow_v
+    flow_tv = flow_tt | flow_v
     flow = flow_tb | flow_bt | flow_tt | flow_bb
     basic_construct = node | flow | response | buffer
     container_construct = subsystem | agent
@@ -96,7 +98,7 @@ class ConstructSymbol:
     
     _data: Tuple[ConstructType, Tuple[Hashable, ...]]
 
-    def __init__(self, ctype: ConstructType, *cid: Hashable):
+    def __init__(self, ctype: ConstructType, *cid: Optional[Hashable]):
         """
         Initialize a new ConstructSymbol.
 
@@ -141,7 +143,7 @@ class ConstructSymbol:
         return self._data[0]
 
     @property
-    def cid(self) -> Tuple[Hashable, ...]:
+    def cid(self) -> Tuple[Optional[Hashable], ...]:
         """Construct identifier associated with self."""
 
         return self._data[1]
@@ -160,17 +162,19 @@ class FeatureSymbol(ConstructSymbol):
 
     __slots__ = ()
 
-    def __init__(self, dim: Hashable, val: Hashable) -> None:
+    def __init__(
+        self, dim: Optional[Hashable], val: Optional[Hashable]
+    ) -> None:
 
         super().__init__(ConstructType.feature, dim, val)
 
     @property
-    def dim(self) -> Hashable:
+    def dim(self) -> Optional[Hashable]:
 
         return self.cid[0]
 
     @property
-    def val(self) -> Hashable:
+    def val(self) -> Optional[Hashable]:
 
         return self.cid[1]
 
@@ -185,7 +189,9 @@ class ParameterSymbol(ConstructSymbol):
 
     __slots__ = ()
 
-    def __init__(self, construct: ConstructSymbol, name: Hashable) -> None:
+    def __init__(
+        self, construct: ConstructSymbol, name: Optional[Hashable]
+    ) -> None:
 
         super().__init__(ConstructType.parameter, construct, name)
 
@@ -195,7 +201,7 @@ class ParameterSymbol(ConstructSymbol):
         return cast(ConstructSymbol, self.cid[0])
 
     @property
-    def name(self) -> Hashable:
+    def name(self) -> Optional[Hashable]:
 
         return self.cid[1]
 
@@ -367,6 +373,16 @@ def flow_bb(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.flow_bb, name)
+
+
+def flow_v(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new interlevel (vertical) flow symbol.
+
+    :param cid: Name of flow.
+    """
+
+    return ConstructSymbol(ConstructType.flow_v, name)
 
 
 def response(name: Hashable) -> ConstructSymbol:

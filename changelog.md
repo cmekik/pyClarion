@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an `options` parameter to `ConstructRealizer.propagate()` allowing calls to `propagate()` to modify construct behavior. Extended `BasicConstructRealizer.proc` callback attributes to accept `**kwargs`. Added `Proc` protocol class.
+- Added several new construct realizer constructors (e.g., `Flow.TT`) for convenient initialization.
 - `FeatureSymbol` subclass of `ConstructSymbol` allows direct access to `dim` 
 and `val` attributes.
 - `ContainerConstructRealizer.make_links()` to set up construct links after pull rules have been specified.
@@ -15,6 +17,7 @@ and `val` attributes.
 
 ### Changed
 
+- Simplified construct realizer class names and initalization.
 - `ConstructSymbol` rewritten; now easily extensible.
 - `may_connect()` removed from subsystem and agent realizers, connection 
 decisions devolved to receivers through `realizer.accepts()`.

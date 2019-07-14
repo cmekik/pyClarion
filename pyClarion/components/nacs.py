@@ -39,7 +39,7 @@ class AssociativeRuleCollection(object):
         self.assoc: AssociativeRuleDict = assoc or dict()
         self.default = default
 
-    def __call__(self, construct, inputs):
+    def __call__(self, construct, inputs, **kwargs):
         
         d = dict()
         packets = (pull_func() for pull_func in inputs.values())
@@ -50,14 +50,51 @@ class AssociativeRuleCollection(object):
                 d[conc] = max(s, d.get(conc, self.default))
         return ActivationPacket(strengths=d)
 
+    def add_rule(self, conclusion, *conditions, weights=None):
 
-class InterlevelLinks(object):
+        if weights is not None:
+            rule_body = dict(zip(condition, weights))
+        else:
+            rule_body = {condition: 1. for condition in conditions}
+
+        rule_list = self.assoc.setdefault(conclusion, list())
+        rule_list.append(rule_body)
+
+
+class InterlevelLinkCollection(object):
     """Propagates activations in a top-down manner."""
 
     def __init__(self, assoc=None, default=0):
 
         self.assoc: InterlevelAssociation = assoc or {}
         self.default = default
+
+    def __call__(
+        self, 
+        construct: ConstructSymbol, 
+        inputs: ActivationPacket, 
+        mode: ConstructType = None,
+        **kwargs: Any
+    ) -> ActivationPacket:
+
+        packet: ActivationPacket
+        if mode == ConstructType.flow_bt:
+            packet = self.bottom_up(construct, inputs)
+        elif mode == ConstructType.flow_tb:
+            packet = self.top_down(construct, inputs)
+        else:
+            if isinstance(mode, ConstructType):
+                raise ValueError("Unexpected mode value {}.".format(mode))
+            elif mode is None:
+                raise TypeError(
+                    "{}.__call__() expects a 'mode' option.".format(type(self))
+                )
+            else:
+                raise TypeError(
+                    "Mode must be of type ConstructType, "
+                    "got {} instead.".format(type(mode))
+                )
+        return packet
 
     def top_down(self, construct, inputs):
 
@@ -83,45 +120,61 @@ class InterlevelLinks(object):
                 d[ch] = d.get(ch, self.default) + ((w * s_dim) / divisor)
         return ActivationPacket(strengths=d)
 
+    def link(self, chunk_, *features, weights=None):
 
-def nacs_propagation_cycle(nacs: SubsystemRealizer) -> None:
-    """Execute NACS activation cycle on given subsystem realizer."""
+        link_dict = self.assoc.setdefault(chunk_, dict())
+        for feat in features:
+            w_default = weights.get(feat, 1) if weights is not None else 1
+            w, feature_set = link_dict.setdefault(feat.dim, (1, set()))
+            feature_set.add(feat)
+
+
+
+
+def nacs_propagation_cycle(nacs: Subsystem, args: Dict = None) -> None:
+    """
+    Execute NACS activation cycle on given subsystem realizer.
+    
+    Not designed for use with flow_bt, flow_tb Flow objects.
+    """
+
+    if args is None: args = dict()
 
     # Update chunk strengths
-    for node in nacs.nodes:
-        if node.ctype == ConstructType.chunk:
-            nacs[node].propagate()
+    for chunk_node in nacs.chunks.values():
+        chunk_node.propagate(args=args.get(chunk_node.construct))
 
     # Propagate chunk strengths to bottom level
-    for flow in nacs.flows:
-        if flow.ctype == ConstructType.flow_tb:
-            nacs[flow].propagate()
+    for flow in nacs.flows.values():
+        if flow.construct.ctype == ConstructType.flow_v:
+            flow_args = args.get(flow.construct, dict())
+            flow_args["mode"] = ConstructType.flow_tb
+            flow.propagate(args=flow_args)
     
     # Update feature strengths
-    for node in nacs.nodes:
-        if node.ctype == ConstructType.feature:
-            nacs[node].propagate()
+    for feature_node in nacs.features.values():
+        feature_node.propagate(args=args.get(feature_node.construct))
     
     # Propagate strengths within levels
-    for flow in nacs.flows:
-        if flow.ctype in ConstructType.flow_h:
-            nacs[flow].propagate()
+    for flow in nacs.flows.values():
+        if flow.construct.ctype in ConstructType.flow_h:
+            flow.propagate(args=args.get(flow.construct))
     
     # Update feature strengths (account for signal from any bottom-level flows)
-    for node in nacs.nodes:
-        if node.ctype == ConstructType.feature:
-            nacs[node].propagate()
+    for feature_node in nacs.features.values():
+        feature_node.propagate(args=args.get(feature_node.construct))
     
     # Propagate feature strengths to top level
-    for flow in nacs.flows:
-        if flow.ctype == ConstructType.flow_bt:
-            nacs[flow].propagate()
+    for flow in nacs.flows.values():
+        if flow.construct.ctype == ConstructType.flow_v:
+            flow_args = args.get(flow.construct, dict())
+            flow_args["mode"] = ConstructType.flow_bt
+            flow.propagate(args=flow_args)
     
     # Update chunk strengths (account for bottom-up signal)
-    for node in nacs.nodes:
-        if node.ctype == ConstructType.chunk:
-            nacs[node].propagate()
+    for chunk_node in nacs.chunks.values():
+        chunk_node.propagate(args=args.get(chunk_node.construct))
     
     # Select response
-    for resp in nacs.responses:
-        nacs[resp].propagate()
+    for response_realizer in nacs.responses.values():
+        response_realizer.propagate(args=args.get(response_realizer.construct))
