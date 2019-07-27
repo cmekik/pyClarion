@@ -1,23 +1,25 @@
 from pyClarion.base.symbols import *
 from pyClarion.base.packets import *
 from pyClarion.components.utils import *
+from pyClarion.base.realizers import Proc
 
 
-class MaxNode(object):
+class MaxNode(Proc):
     """Simple node returning maximum strength for given construct."""
 
-    def __call__(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwargs):
 
         packets = (pull_func() for pull_func in inputs.values())
         strengths = max_strength(construct, packets)
         return ActivationPacket(strengths=strengths)
 
 
-class BoltzmannSelector(object):
+class BoltzmannSelector(Proc):
     """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature, k=1):
-        """Initialize a ``BoltzmannSelector`` instance.
+        """
+        Initialize a ``BoltzmannSelector`` instance.
 
         :param temperature: Temperature of the Boltzmann distribution.
         """
@@ -25,7 +27,7 @@ class BoltzmannSelector(object):
         self.temperature = temperature
         self.k = k
 
-    def __call__(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwargs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -69,14 +71,14 @@ class MappingEffector(object):
         self.callbacks[chunk_] = callback
 
 
-class ConstantSource(object):
+class ConstantSource(Proc):
     """Outputs a stored activation packet."""
 
     def __init__(self, strengths = None) -> None:
 
         self.strengths = strengths or dict()
 
-    def __call__(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwargs):
         """Return stored strengths."""
 
         return ActivationPacket(strengths=self.strengths)
@@ -93,9 +95,9 @@ class ConstantSource(object):
         self.strengths = {}
 
 
-class Stimulus(object):
+class Stimulus(Proc):
 
-    def __call__(self, construct, inputs, stimulus=None, **kwargs):
+    def call(self, construct, inputs, stimulus=None, **kwargs):
 
         packet = stimulus or ActivationPacket()
         return packet

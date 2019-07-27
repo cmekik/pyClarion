@@ -31,7 +31,7 @@ InterlevelAssociation = (
 )
 
 
-class AssociativeRuleCollection(object):
+class AssociativeRuleCollection(Proc):
     """Propagates activations among chunks."""
 
     def __init__(self, assoc = None, default = 0):
@@ -39,7 +39,7 @@ class AssociativeRuleCollection(object):
         self.assoc: AssociativeRuleDict = assoc or dict()
         self.default = default
 
-    def __call__(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwargs):
         
         d = dict()
         packets = (pull_func() for pull_func in inputs.values())
@@ -61,7 +61,7 @@ class AssociativeRuleCollection(object):
         rule_list.append(rule_body)
 
 
-class InterlevelLinkCollection(object):
+class InterlevelLinkCollection(Proc):
     """Propagates activations in a top-down manner."""
 
     def __init__(self, assoc=None, default=0):
@@ -69,7 +69,7 @@ class InterlevelLinkCollection(object):
         self.assoc: InterlevelAssociation = assoc or {}
         self.default = default
 
-    def __call__(
+    def call(
         self, 
         construct: ConstructSymbol, 
         inputs: ActivationPacket, 
@@ -127,8 +127,6 @@ class InterlevelLinkCollection(object):
             w_default = weights.get(feat, 1) if weights is not None else 1
             w, feature_set = link_dict.setdefault(feat.dim, (1, set()))
             feature_set.add(feat)
-
-
 
 
 def nacs_propagation_cycle(nacs: Subsystem, args: Dict = None) -> None:

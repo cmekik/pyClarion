@@ -18,7 +18,7 @@ from typing import (
     Optional, Hashable, List, Iterable, Sequence, MutableMapping, Iterator, 
     Mapping, overload
 )
-from typing_extensions import Protocol
+from abc import abstractmethod
 
 
 It = TypeVar('It') # type variable for inputs to construct realizers
@@ -31,35 +31,43 @@ Input = Mapping[ConstructSymbol, Callable[[], It]]
 Updater = Optional[Callable[[Rt], None]]
 
 
-# The Proc protocol class defined below is used by BasicConstructs to specify 
-# the signature of their `proc` attributes (see below). It was necessary to 
-# define It2, Ot2 to satisfy contravariance and covariance requirements for the 
-# protocol class.
+#It was necessary to define It2, Ot2 to satisfy contravariance and covariance 
+# requirements for Proc class.
 It2 = TypeVar('It2', contravariant=True) # type variable for proc inputs
 Ot2 = TypeVar('Ot2', covariant=True) # type variable for proc outputs
-class Proc(Generic[It2, Ot2], Protocol):
+class Proc(Generic[It2, Ot2]):
     """
-    Generic protocol class for BasicConstruct propagation callbacks.
+    Abstract class for BasicConstruct propagation callbacks.
 
-    This class specifies the expected signature of propagation passed to 
-    BasicConstruct instances through the `proc` argument. 
+    BasicConstruct propagation callbacks define how BasicConstruct instances 
+    process inputs and set outputs upon a call to the `propagate()` method.
+
+    This class is a generic class, taking two types It2, Ot2. These types are 
+    fixed by the BasicConstruct owning the propagation callback.
     """
+
     def __call__(
         self, construct: ConstructSymbol, inputs: It2, **kwargs: Any
     ) -> Ot2:
         """
-        Signature for a BasicConstruct propagation callback.
+        Execute basic construct propagation callback on call to self.
 
-        BasicConstruct propagation callbacks define how BasicConstruct instances 
-        process inputs and set outputs upon a call to the `propagate()` method.
+        Delegates to self.call(). See self.call() for argument documentation.
+        """
+        
+        return self.call(construct=construct, inputs=inputs, **kwargs)
+
+    @abstractmethod
+    def call(
+        self, construct: ConstructSymbol, inputs: It2, **kwargs: Any
+    ) -> Ot2:
+        """
+        Execute an activation propagation procedure (i.e., forward pass).
 
         In words, the signature says that propagation callbacks should expect 
         to receive a `construct` argument of type ConstructSymbol, an `inputs` 
         argument of type It2 and a keyword arguments dictionary of value type 
         Any and that they should have a return value of type Ot2.
-
-        The types It2 and Ot2 are fixed by the BasicConstruct owning the 
-        propagation callback.
 
         :param construct: The construct symbol associated with the realizer 
             owning to the propagation callback. 
@@ -75,7 +83,7 @@ class Proc(Generic[It2, Ot2], Protocol):
             the Proc protocol throw errors upon receipt of unexpected keyword 
             arguments.
         """
-        ...
+        pass
     
 
 class ConstructRealizer(Generic[It, Ot]):

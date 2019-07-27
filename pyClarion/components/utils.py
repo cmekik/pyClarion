@@ -2,7 +2,11 @@ import random
 import math
 
 def max_strength(construct, packets):
-    """Map construct to its maximum strength in packets."""
+    """
+    Map construct to its maximum strength in packets.
+    
+    Assumes strength >= 0.
+    """
 
     strength = 0
     for packet in packets:
