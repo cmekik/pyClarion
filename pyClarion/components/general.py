@@ -10,8 +10,8 @@ class MaxNode(Proc):
     def call(self, construct, inputs, **kwargs):
 
         packets = (pull_func() for pull_func in inputs.values())
-        strengths = max_strength(construct, packets)
-        return ActivationPacket(strengths=strengths)
+        strength = max_strength(construct, packets)
+        return ActivationPacket(strengths=strength)
 
 
 class BoltzmannSelector(Proc):

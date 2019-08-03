@@ -32,7 +32,18 @@ InterlevelAssociation = (
 
 
 class AssociativeRuleCollection(Proc):
-    """Propagates activations among chunks."""
+    """
+    Propagates activations among chunks through associative rules.
+    
+    Each rule has the form 
+        conclusion <- condition_1, condition_2, ..., condition_n
+    The strength of the conclusion is calculated as a weighted sum of condition 
+    strengths. In cases when there are multiple rules with the same conclusion, 
+    the maximum is taken. By default, weights are set to 1 / n, where n is the 
+    number of conditions.
+
+    Implementation based on p. 73-74 of Anatomy of the Mind.
+    """
 
     def __init__(self, assoc = None, default = 0):
 
@@ -40,6 +51,13 @@ class AssociativeRuleCollection(Proc):
         self.default = default
 
     def call(self, construct, inputs, **kwargs):
+
+        if len(kwargs) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+            )
         
         d = dict()
         packets = (pull_func() for pull_func in inputs.values())
@@ -53,6 +71,17 @@ class AssociativeRuleCollection(Proc):
     def add_rule(self, conclusion, *conditions, weights=None):
 
         if weights is not None:
+            if len(weights) != len(conditions):
+                raise ValueError(
+                    (
+                        "Number of weights ({}) and conditions ({}) do not "
+                        "match."
+                    ).format(len(weights), len(conditions))
+                )
+            elif sum(weights) > 1:
+                raise ValueError("Weights sum to a value greater than 1.")
+            elif any(w < 0 for w in weights):
+                raise ValueError("Negative condition weights are not allowed.")
             rule_body = dict(zip(condition, weights))
         else:
             rule_body = {condition: 1. for condition in conditions}
@@ -62,7 +91,23 @@ class AssociativeRuleCollection(Proc):
 
 
 class InterlevelLinkCollection(Proc):
-    """Propagates activations in a top-down manner."""
+    """
+    Propagates activations between chunks and features.
+
+    Features are linked to chunks by dimensional weights ranging in (0, 1] 
+    (same dimension = same weight). 
+    
+    During a top-down cycle, chunk strengths are multiplied by dimensional 
+    weights to get dimensional strengths. Dimensional strengths are then 
+    distributed evenly among features of the corresponding dimension that 
+    are linked to the source chunk. 
+    
+    During a bottom-up cycle, chunk strengths are computed as a weighted sum 
+    of the maximum activation of linked features within each dimension. The 
+    weights are simply top-down weights normalized over dimensions. 
+
+    Implementation is based on p. 77-78 of Anatomy of the Mind.
+    """
 
     def __init__(self, assoc=None, default=0):
 
@@ -76,6 +121,13 @@ class InterlevelLinkCollection(Proc):
         mode: ConstructType = None,
         **kwargs: Any
     ) -> ActivationPacket:
+
+        if len(kwargs) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+            )
 
         packet: ActivationPacket
         if mode == ConstructType.flow_bt:
@@ -97,6 +149,13 @@ class InterlevelLinkCollection(Proc):
         return packet
 
     def top_down(self, construct, inputs):
+        """
+        Execute a top-down activation cycle.
+
+        :param construct: Construct symbol for client construct.
+        :param inputs: Dictionary mapping input constructs to their pull 
+            methods.
+        """
 
         d = {}
         packets = (pull_func() for pull_func in inputs.values())
@@ -108,7 +167,14 @@ class InterlevelLinkCollection(Proc):
                     d[feat] = max(s, d.get(feat, self.default))
         return ActivationPacket(strengths=d)
 
-    def bottom_up(self, construct, inputs):
+    def bottom_up(self, construct, inputs): 
+        """
+        Execute a bottom-up activation cycle.
+
+        :param construct: Construct symbol for client construct.
+        :param inputs: Dictionary mapping input constructs to their pull 
+            methods.
+        """
 
         d = {}
         packets = (pull_func() for pull_func in inputs.values())
@@ -116,16 +182,23 @@ class InterlevelLinkCollection(Proc):
         for ch, dim_dict in self.assoc.items():
             divisor = sum(w for w, _ in dim_dict.values())
             for dim, (w, feats) in dim_dict.items():
-                s_dim = max(strengths.get(feat, self.default) for feat in feats)
-                d[ch] = d.get(ch, self.default) + ((w * s_dim) / divisor)
+                s = max(strengths.get(feat, self.default) for feat in feats)
+                d[ch] = d.get(ch, self.default) + w * s / divisor
         return ActivationPacket(strengths=d)
 
     def link(self, chunk_, *features, weights=None):
+        """
+        Link a chunk with some microfeatures.
+
+        :param chunk_: Construct symbol for the chunk.
+        :param features: Construct symbols for the features.
+        :param weights: Dictionary of dimensional weights.
+        """
 
         link_dict = self.assoc.setdefault(chunk_, dict())
         for feat in features:
-            w_default = weights.get(feat, 1) if weights is not None else 1
-            w, feature_set = link_dict.setdefault(feat.dim, (1, set()))
+            w = weights[feat.dim] if weights is not None else 1
+            _, feature_set = link_dict.setdefault(feat.dim, (w, set()))
             feature_set.add(feat)
 
 
