@@ -78,11 +78,7 @@ class AssociativeRuleCollection(Proc):
                         "match."
                     ).format(len(weights), len(conditions))
                 )
-            elif sum(weights) > 1:
-                raise ValueError("Weights sum to a value greater than 1.")
-            elif any(w < 0 for w in weights):
-                raise ValueError("Negative condition weights are not allowed.")
-            rule_body = dict(zip(condition, weights))
+            rule_body = dict(zip(conditions, weights))
         else:
             rule_body = {condition: 1. for condition in conditions}
 
