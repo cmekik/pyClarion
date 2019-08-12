@@ -28,6 +28,7 @@ class Packet(object):
     """
 
     __slots__ = ("_data")
+    _format = {"indent": 4, "digits": 3}
 
     def __init__(self, data: Mapping[ConstructSymbol, Any]) -> None:
         """
@@ -40,7 +41,7 @@ class Packet(object):
 
     def __repr__(self):
 
-        return "<{}: {}>".format(self.__class__.__name__, self._contents_repr())
+        return "{}({})".format(self.__class__.__name__, self._contents_repr())
 
     def __contains__(self, key):
 
@@ -77,9 +78,34 @@ class Packet(object):
 
         return self._data.items()
 
+    def pstr(self):
+        """Pretty print packet contents for inspection and reporting."""
+
+        main = self.__class__.__name__ + "(\n{content}\n)"
+        attr_str = ",\n".join(self._attrs_to_strs())
+        return main.format(content=attr_str)
+
     def _contents_repr(self):
 
         return "data={}".format(repr(self._data))
+
+    def _attrs_to_strs(self):
+
+        idt, rn = self._format["indent"], self._format["digits"]
+
+        if len(self) > 0:
+            delim = "{outer}strengths = {{\n{content}\n{outer}}}" 
+            s_repr = [
+                ": ".join([str(f), str(round(v, rn))]) for f, v in self.items()
+            ]
+            s_repr = ",\n".join(
+                ["{}".format(" "*2*idt) + rep for rep in s_repr]
+            )
+            s_repr = delim.format(outer=" "*idt, content=s_repr)
+        else:
+            s_repr = "{outer}strengths = {{}}".format(outer=" "*idt)
+        
+        return s_repr,
 
 
 class ActivationPacket(Packet):
@@ -120,4 +146,23 @@ class DecisionPacket(Packet):
 
         strengths_repr = super()._contents_repr()
         selection_repr = "selection={}".format(repr(self._selection))
-        return " ".join([strengths_repr, selection_repr])
+        return ", ".join([strengths_repr, selection_repr])
+
+    def _attrs_to_strs(self):
+
+        attr_strs = super()._attrs_to_strs()
+
+        idt = self._format["indent"]
+
+        if len(self.selection) > 0:
+            delim = "{outer}selection = {{\n{content}\n{outer}}}" 
+            selection_str = [str(n) for n in self.selection]
+            selection_str = ",\n".join(
+                ["{}".format(" "*2*idt) + rep for rep in selection_str]
+            )
+            selection_str = delim.format(outer=" "*idt, content=selection_str)
+        else:
+            selection_str = "{outer}selection = set()".format(outer=" "*idt)
+        
+        return attr_strs + (selection_str,)
+
