@@ -330,6 +330,11 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
 
         self._output = ActivationPacket(strengths={})
 
+    @property
+    def output_value(self) -> Any:
+        
+        return self.output[self.construct]
+
     @classmethod
     def Feature(
         cls, 
