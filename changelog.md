@@ -8,9 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `output_value` attribute to node realizers for easy inspection of current activation.
+- Added `ConstructType.from_str()`.
+- Added `Packet.pstr()` returning nicely formatted string representations for reporting and inspection.
 - Added abstract `Proc` class for specifying propagation (i.e., forward-pass) procedures to basic construct realizers.
-- Added dependency `typing-extensions`.
-- Added an `options` parameter to `ConstructRealizer.propagate()` allowing calls to `propagate()` to modify construct behavior. Extended `BasicConstructRealizer.proc` callback attributes to accept `**kwargs`. Added `Proc` protocol class.
+- Added an `options` parameter to `ConstructRealizer.propagate()` allowing calls to `propagate()` to modify construct behavior. Extended `BasicConstructRealizer.proc` callback attributes to accept `**kwargs`. 
 - Added several new construct realizer constructors (e.g., `Flow.TT`) for convenient initialization.
 - `FeatureSymbol` subclass of `ConstructSymbol` allows direct access to `dim` 
 and `val` attributes.
@@ -19,6 +21,10 @@ and `val` attributes.
 
 ### Changed
 
+- Renamed construct realizers to have more succinct names.
+- `ConstructSymbol` now accepts strings and ints to `ctype` argument (values 
+must represent valid ctype).
+- `ConstructSymbol` reprs now return runnable code which will reproduce the same construct symbol. 
 - Simplified construct realizer class names and initalization.
 - `ConstructSymbol` rewritten; now easily extensible.
 - `may_connect()` removed from subsystem and agent realizers, connection 
