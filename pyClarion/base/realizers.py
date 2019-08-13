@@ -525,7 +525,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         return d
 
 
-class Buffer(BasicConstruct[None, ActivationPacket]):
+class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.buffer
 
@@ -544,12 +544,13 @@ class Buffer(BasicConstruct[None, ActivationPacket]):
 
         self._output = ActivationPacket(strengths={})
 
+
 #####################################
 ### Container Construct Realizers ###
 #####################################
 
 
-class ContainerConstruct(ConstructRealizer[It, None]):
+class ContainerConstruct(ConstructRealizer[It, Ot]):
     """Base class for container construct realizers."""
 
     ctype: ClassVar[ConstructType] = ConstructType.container_construct
@@ -758,7 +759,7 @@ class ContainerConstruct(ConstructRealizer[It, None]):
                 realizer.drop(construct)
 
 
-class Subsystem(ContainerConstruct[ActivationPacket]):
+class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
 
@@ -860,11 +861,30 @@ class Subsystem(ContainerConstruct[ActivationPacket]):
             self.proc(self, args)
         else:
             raise TypeError("'NoneType' object is not callable")
+        
+        packet = self._construct_subsystem_packet()
+        self.update_output(packet)
 
     def execute(self) -> None:
 
         for realizer in self._responses.values():
             realizer.execute()
+
+    def clear_output(self) -> None:
+
+        super().clear_output()
+        self._output = SubsystemPacket(strengths={}, decisions={})
+
+    def _construct_subsystem_packet(self) -> SubsystemPacket:
+
+        strengths = {
+            symb: node.output_value for symb, node in self.nodes.items()
+        }
+        decisions = {
+            symb: node.output for symb, node in self.responses.items()
+        }
+
+        return SubsystemPacket(strengths=strengths, decisions=decisions)
 
     @property
     def missing(self) -> MissingSpec:
@@ -901,7 +921,7 @@ class Subsystem(ContainerConstruct[ActivationPacket]):
         return MappingProxyType(self._responses)
 
 
-class Agent(ContainerConstruct[None]):
+class Agent(ContainerConstruct[None, None]):
 
     ctype: ClassVar[ConstructType] = ConstructType.agent
 
