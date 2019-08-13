@@ -1,11 +1,13 @@
 """Tools for representing information about node strengths and decisions."""
 
 
-from typing import Any, Mapping, Set, FrozenSet 
+from typing import Any, Mapping, Set, FrozenSet, Tuple
+from types import MappingProxyType 
 from pyClarion.base.symbols import ConstructSymbol
+from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 
 
-__all__ = ["Packet", "ActivationPacket", "DecisionPacket"]
+__all__ = ["Packet", "ActivationPacket", "DecisionPacket", "SubsystemPacket"]
 
 
 class Packet(object):
@@ -81,31 +83,30 @@ class Packet(object):
     def pstr(self):
         """Pretty print packet contents for inspection and reporting."""
 
-        main = self.__class__.__name__ + "(\n{content}\n)"
+        main = type(self).__name__ + "(\n{content}\n)"
         attr_str = ",\n".join(self._attrs_to_strs())
         return main.format(content=attr_str)
 
-    def _contents_repr(self):
+    def _contents_repr(self) -> str:
 
         return "data={}".format(repr(self._data))
 
-    def _attrs_to_strs(self):
+    def _attrs_to_strs(self) -> Tuple[str, ...]:
 
-        idt, rn = self._format["indent"], self._format["digits"]
-
-        if len(self) > 0:
-            delim = "{outer}strengths = {{\n{content}\n{outer}}}" 
-            s_repr = [
-                ": ".join([str(f), str(round(v, rn))]) for f, v in self.items()
-            ]
-            s_repr = ",\n".join(
-                ["{}".format(" "*2*idt) + rep for rep in s_repr]
-            )
-            s_repr = delim.format(outer=" "*idt, content=s_repr)
-        else:
-            s_repr = "{outer}strengths = {{}}".format(outer=" "*idt)
+        delim = "{outer}strengths = {content}" 
+        content = pstr_iterable(
+            iterable=self._data, 
+            cb=pstr_iterable_cb, 
+            cbargs={"digits": self._format["digits"]},
+            indent=self._format["indent"],
+            level=1
+        )
+        strength_pstr = delim.format(
+            outer=" "*self._format["indent"], 
+            content=content
+        )
         
-        return s_repr,
+        return strength_pstr,
 
 
 class ActivationPacket(Packet):
@@ -118,6 +119,10 @@ class ActivationPacket(Packet):
     def __init__(self, strengths: Mapping[ConstructSymbol, Any]) -> None:
 
         super().__init__(strengths)
+
+    def _contents_repr(self):
+
+        return "strengths={}".format(repr(self._data))
 
 
 class DecisionPacket(Packet):
@@ -144,7 +149,7 @@ class DecisionPacket(Packet):
 
     def _contents_repr(self):
 
-        strengths_repr = super()._contents_repr()
+        strengths_repr = "strengths={}".format(repr(self._data))
         selection_repr = "selection={}".format(repr(self._selection))
         return ", ".join([strengths_repr, selection_repr])
 
@@ -152,17 +157,75 @@ class DecisionPacket(Packet):
 
         attr_strs = super()._attrs_to_strs()
 
-        idt = self._format["indent"]
+        delim = "{outer}selection = {content}" 
+        content = pstr_iterable(
+            iterable=self._selection, 
+            cb=pstr_iterable_cb, 
+            cbargs={"digits": self._format["digits"]},
+            indent=self._format["indent"],
+            level=1
+        )
+        selection_pstr = delim.format(
+            outer=" "*self._format["indent"], 
+            content=content
+        )        
 
-        if len(self.selection) > 0:
-            delim = "{outer}selection = {{\n{content}\n{outer}}}" 
-            selection_str = [str(n) for n in self.selection]
-            selection_str = ",\n".join(
-                ["{}".format(" "*2*idt) + rep for rep in selection_str]
-            )
-            selection_str = delim.format(outer=" "*idt, content=selection_str)
+        return attr_strs + (selection_pstr,)
+
+class SubsystemPacket(Packet):
+    """
+    Represents the current state of a subsystem.
+    """
+
+    def __init__(
+        self, 
+        strengths: Mapping[ConstructSymbol, Any], 
+        decisions: Mapping[ConstructSymbol, DecisionPacket]
+    ) -> None:
+
+        super().__init__(strengths)
+        self._decisions = decisions
+
+    @property
+    def decisions(self) -> Mapping[ConstructSymbol, DecisionPacket]:
+
+        return MappingProxyType(self._decisions)
+
+    def _contents_repr(self):
+
+        strengths_repr = "strengths={}".format(repr(self._data))
+        selection_repr = "decisions={}".format(repr(self._decisions))
+        return ", ".join([strengths_repr, selection_repr])
+
+    def _attrs_to_strs(self):
+
+        attr_strs = super()._attrs_to_strs()
+
+        delim = "{outer}decisions = {content}" 
+        content = pstr_iterable(
+            iterable=self._decisions, 
+            cb=self._pstr_cb, 
+            cbargs={
+                "indent": self._format["indent"],
+                "level": 2,
+                "digits": self._format["digits"]
+            },
+            indent=self._format["indent"],
+            level=1
+        )
+        decisions_pstr = delim.format(
+            outer=" "*self._format["indent"], 
+            content=content
+        )        
+
+        return attr_strs + (decisions_pstr,)
+
+    @staticmethod
+    def _pstr_cb(obj, indent=4, level=0, digits=None):
+
+        if isinstance(obj, DecisionPacket):
+            indent_str = " " * indent * level
+            s = obj.pstr().replace("\n", "\n" + indent_str)
+            return s
         else:
-            selection_str = "{outer}selection = set()".format(outer=" "*idt)
-        
-        return attr_strs + (selection_str,)
-
+            return pstr_iterable_cb(obj, digits)
