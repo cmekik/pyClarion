@@ -28,7 +28,7 @@ MatchSpec = Union[ConstructType, Container[ConstructSymbol]] # explain scope of 
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 Input = Mapping[ConstructSymbol, Callable[[], It]]
-Updater = Optional[Callable[[Rt], None]]
+Updater = Callable[[Rt], None]
 
 
 #It was necessary to define It2, Ot2 to satisfy contravariance and covariance 
@@ -99,7 +99,7 @@ class ConstructRealizer(Generic[It, Ot]):
         self, 
         name: Hashable, 
         matches: MatchSpec = None,
-        updater: Updater[Any] = None
+        updaters: Dict[Hashable, Updater[Any]] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -113,8 +113,10 @@ class ConstructRealizer(Generic[It, Ot]):
         self._construct = self._parse_name(name=name)
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
+        self._updaters: Dict[Hashable, Updater] = (
+            updaters if updaters is not None else dict()
+        )
         self.matches = matches
-        self.updater = updater
 
     def __repr__(self) -> Text:
 
@@ -128,10 +130,8 @@ class ConstructRealizer(Generic[It, Ot]):
     def learn(self) -> None:
         """Execute learning routines."""
         
-        if self.updater is not None:
-            self.updater(self)
-        else:
-            pass
+        for updater in self.updaters.values():
+            updater(self)
 
     def accepts(self, source: ConstructSymbol) -> bool:
         """Return true if self pulls information from source."""
@@ -185,6 +185,14 @@ class ConstructRealizer(Generic[It, Ot]):
 
         self.clear_output()
 
+    def add_updater(self, name: Hashable, updater: Updater):
+
+        self._updaters[name] = updater
+
+    def rm_updater(self, name: Hashable):
+
+        del self._updaters[name]
+
     @property
     def construct(self) -> ConstructSymbol:
         """Client construct of self."""
@@ -207,6 +215,12 @@ class ConstructRealizer(Generic[It, Ot]):
             raise AttributeError('Output of {} not set.'.format(repr(self)))
 
     @property
+    def updaters(self) -> Mapping[Hashable, Updater]:
+        """A view of the updater dictionary."""
+
+        return MappingProxyType(self._updaters)
+
+    @property
     def missing(self) -> MissingSpec:
         """
         Return any missing components of self.
@@ -219,8 +233,6 @@ class ConstructRealizer(Generic[It, Ot]):
             d.setdefault(self.construct, []).append('construct')
         if self.matches is None:
             d.setdefault(self.construct, []).append('matches')
-        if self.updater is None:
-            d.setdefault(self.construct, []).append('updater')
         return d
 
     def _check_construct(self, construct: ConstructSymbol) -> None:
@@ -275,7 +287,7 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Callable = None,
-        updater: Updater[Any] = None,
+        updaters: Dict[Hashable, Updater[Any]] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -286,7 +298,7 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
         :param proc: Activation processor associated with client construct.
         """
 
-        super().__init__(name=name, matches=matches, updater=updater)
+        super().__init__(name=name, matches=matches, updaters=updaters)
         self.proc = proc
 
     def propagate(self, args: Dict = None) -> None:
@@ -320,11 +332,13 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updater: Updater['Node'] = None,
+        updaters: Dict[Hashable, Updater['Node']] = None,
     ) -> None:
         """Initialize a new node realizer."""
 
-        super().__init__(name=name, matches=matches, proc=proc, updater=updater)
+        super().__init__(
+            name=name, matches=matches, proc=proc, updaters=updaters
+        )
 
     def clear_output(self) -> None:
 
@@ -342,11 +356,12 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         val: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updater: Updater['Node'] = None,
+        updaters: Dict[Hashable, Updater['Node']] = None,
     ) -> "Node":
 
         construct = feature(dim=dim, val=val)
-        return cls(name=construct, matches=matches, proc=proc, updater=updater)
+        obj = cls(name=construct, matches=matches, proc=proc, updaters=updaters)
+        return obj
 
     @classmethod
     def Chunk(
@@ -354,11 +369,12 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updater: Updater['Node'] = None,
+        updaters: Dict[Hashable, Updater['Node']] = None,
     ) -> "Node":
 
         construct = chunk(name=name)
-        return cls(name=construct, matches=matches, proc=proc, updater=updater)
+        obj = cls(name=construct, matches=matches, proc=proc, updaters=updaters)
+        return obj
 
 
 class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
@@ -370,11 +386,13 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updater: Updater['Flow'] = None,
+        updaters: Dict[Hashable, Updater['Flow']] = None,
     ) -> None:
         """Initialize a new flow realizer."""
 
-        super().__init__(name=name, matches=matches, proc=proc, updater=updater)
+        super().__init__(
+            name=name, matches=matches, proc=proc, updaters=updaters
+        )
 
     def clear_output(self) -> None:
 
@@ -387,11 +405,11 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         ftype: ConstructType,  
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         name = ConstructSymbol(ftype, name)
-        return cls(name=name, matches=matches, proc=proc, updater=updater)
+        return cls(name=name, matches=matches, proc=proc, updaters=updaters)
 
     @classmethod
     def TT(
@@ -399,7 +417,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -407,7 +425,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
             ftype=ConstructType.flow_tt, 
             matches=matches, 
             proc=proc, 
-            updater=updater
+            updaters=updaters
         )
 
     @classmethod
@@ -416,7 +434,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -424,7 +442,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
             ftype=ConstructType.flow_bb, 
             matches=matches, 
             proc=proc, 
-            updater=updater
+            updaters=updaters
         )
 
     @classmethod
@@ -433,7 +451,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -441,7 +459,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
             ftype=ConstructType.flow_tb, 
             matches=matches, 
             proc=proc, 
-            updater=updater
+            updaters=updaters
         )
 
     @classmethod
@@ -450,7 +468,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -458,7 +476,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
             ftype=ConstructType.flow_bt,
             matches=matches, 
             proc=proc, 
-            updater=updater
+            updaters=updaters
         )
 
     @classmethod
@@ -467,7 +485,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updater: Updater['Flow'] = None
+        updaters: Dict[Hashable, Updater['Flow']] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -475,7 +493,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
             ftype=ConstructType.flow_v, 
             matches=matches, 
             proc=proc, 
-            updater=updater
+            updaters=updaters
         )
 
 
@@ -488,7 +506,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, DecisionPacket] = None,
-        updater: Updater['Response'] = None,
+        updaters: Dict[Hashable, Updater['Response']] = None,
         effector: Callable[[DecisionPacket], None] = None
     ) -> None:
         """
@@ -501,7 +519,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         :param effector: Routine for executing selected actions.
         """
 
-        super().__init__(name=name, matches=matches, proc=proc, updater=updater)
+        super().__init__(name=name, matches=matches, proc=proc, updaters=updaters)
         self.effector = effector
 
     def execute(self) -> None:
@@ -534,11 +552,11 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[None, ActivationPacket] = None,
-        updater: Updater['Buffer'] = None,
+        updaters: Dict[Hashable, Updater['Buffer']] = None,
     ) -> None:
         """Initialize a new buffer realizer."""
 
-        super().__init__(name=name, matches=matches, proc=proc, updater=updater)
+        super().__init__(name=name, matches=matches, proc=proc, updaters=updaters)
 
     def clear_output(self) -> None:
 
@@ -768,10 +786,10 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Callable[['Subsystem', Optional[Dict]], None] = None,
-        updater: Updater['Subsystem'] = None
+        updaters: Dict[Hashable, Updater['Subsystem']] = None
     ) -> None:
 
-        super().__init__(name=name, matches=matches, updater=updater)
+        super().__init__(name=name, matches=matches, updaters=updaters)
         self.proc = proc
         self._features: Dict[ConstructSymbol, Node] = {}
         self._chunks: Dict[ConstructSymbol, Node] = {}
@@ -929,10 +947,10 @@ class Agent(ContainerConstruct[None, None]):
         self, 
         name: Hashable, 
         matches: MatchSpec = None, 
-        updater: Updater['Agent'] = None
+        updaters: Dict[Hashable, Updater['Agent']] = None
     ) -> None:
 
-        super().__init__(name=name, matches=matches, updater=updater)
+        super().__init__(name=name, matches=matches, updaters=updaters)
         self._buffers: Dict[ConstructSymbol, Buffer] = {}
         self._subsystems: Dict[ConstructSymbol, Subsystem] = {}
 
