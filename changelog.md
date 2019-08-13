@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `SubsystemPacket` class for reporting subsystem states.
 - Added `output_value` attribute to node realizers for easy inspection of current activation.
 - Added `ConstructType.from_str()`.
 - Added `Packet.pstr()` returning nicely formatted string representations for reporting and inspection.
@@ -21,6 +22,7 @@ and `val` attributes.
 
 ### Changed
 
+- subsystems emit and buffers expect to receive `SubsystemPacket` objects.
 - Renamed construct realizers to have more succinct names.
 - `ConstructSymbol` now accepts strings and ints to `ctype` argument (values 
 must represent valid ctype).
