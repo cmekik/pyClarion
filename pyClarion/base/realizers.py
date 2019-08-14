@@ -123,13 +123,13 @@ class ConstructRealizer(Generic[It, Ot]):
         self._output: Optional[Ot] = None
 
         # This doesn't seem very safe...
-        self._updaters: OrderedDict[Hashable, Updater[Any]]
+        self.updaters: OrderedDict[Hashable, Updater[Any]]
         if updaters is None:
-            self._updaters = OrderedDict()
+            self.updaters = OrderedDict()
         elif isinstance(updaters, OrderedDict):
-            self._updaters = updaters
+            self.updaters = updaters
         else:
-            self._updaters = OrderedDict(updaters)
+            self.updaters = OrderedDict(updaters)
 
 
     def __repr__(self) -> Text:
@@ -199,14 +199,6 @@ class ConstructRealizer(Generic[It, Ot]):
 
         self.clear_output()
 
-    def add_updater(self, name: Hashable, updater: Updater):
-
-        self._updaters[name] = updater
-
-    def rm_updater(self, name: Hashable):
-
-        del self._updaters[name]
-
     @property
     def construct(self) -> ConstructSymbol:
         """Client construct of self."""
@@ -227,12 +219,6 @@ class ConstructRealizer(Generic[It, Ot]):
             return self._output
         else:
             raise AttributeError('Output of {} not set.'.format(repr(self)))
-
-    @property
-    def updaters(self) -> Mapping[Hashable, Updater]:
-        """A view of the updater dictionary."""
-
-        return MappingProxyType(self._updaters)
 
     @property
     def missing(self) -> MissingSpec:
