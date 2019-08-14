@@ -24,7 +24,7 @@ from abc import abstractmethod
 It = TypeVar('It') # type variable for inputs to construct realizers
 Ot = TypeVar('Ot') # type variable for outputs to construct realizers
 Rt = TypeVar('Rt') # type variable representing a construct realizer 
-MatchSpec = Union[ConstructType, Container[ConstructSymbol]] # explain scope of this type variable
+MatchArg = Union[ConstructType, Container[ConstructSymbol]] # explain scope of this type variable
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 Input = Mapping[ConstructSymbol, Callable[[], It]]
@@ -105,7 +105,7 @@ class ConstructRealizer(Generic[It, Ot]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         updaters: UpdaterArg[Any] = None
     ) -> None:
         """
@@ -285,7 +285,7 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Callable = None,
         updaters: UpdaterArg[Any] = None,
     ) -> None:
@@ -330,7 +330,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
         updaters: UpdaterArg['Node'] = None,
     ) -> None:
@@ -354,7 +354,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         cls, 
         dim: Hashable,
         val: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
         updaters: UpdaterArg['Node'] = None,
     ) -> "Node":
@@ -367,7 +367,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
     def Chunk(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
         updaters: UpdaterArg['Node'] = None,
     ) -> "Node":
@@ -384,7 +384,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def __init__(
         self, 
         name: Hashable,
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
         updaters: UpdaterArg['Flow'] = None,
     ) -> None:
@@ -403,7 +403,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         cls, 
         name: Hashable,
         ftype: ConstructType,  
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -415,7 +415,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def TT(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -432,7 +432,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def BB(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -449,7 +449,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def TB(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -466,7 +466,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def BT(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -483,7 +483,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
     def V(
         cls, 
         name: Hashable,
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
         updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
@@ -504,7 +504,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
     def __init__(
         self,
         name: Hashable,
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[ActivationPacket, DecisionPacket] = None,
         updaters: UpdaterArg['Response'] = None,
         effector: Callable[[DecisionPacket], None] = None
@@ -550,7 +550,7 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Proc[None, ActivationPacket] = None,
         updaters: UpdaterArg['Buffer'] = None,
     ) -> None:
@@ -576,7 +576,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         shared: Dict = None,
         updaters: UpdaterArg[Any] = None,
     ) -> None:
@@ -804,7 +804,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None,
+        matches: MatchArg = None,
         proc: Callable[['Subsystem', Optional[Dict]], None] = None,
         shared: Dict = None,
         updaters: UpdaterArg['Subsystem'] = None
@@ -969,7 +969,7 @@ class Agent(ContainerConstruct[None, None]):
     def __init__(
         self, 
         name: Hashable, 
-        matches: MatchSpec = None, 
+        matches: MatchArg = None, 
         shared: Dict = None,
         updaters: UpdaterArg['Agent'] = None
     ) -> None:
