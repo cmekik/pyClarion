@@ -11,7 +11,7 @@
 from pyClarion.base.symbols import *
 from pyClarion.base.packets import *
 from itertools import combinations
-from collections import ChainMap
+from collections import ChainMap, OrderedDict
 from types import MappingProxyType
 from typing import (
     ClassVar, Any, Text, Union, Container, Callable, TypeVar, Generic, Dict,
@@ -29,6 +29,13 @@ ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 Input = Mapping[ConstructSymbol, Callable[[], It]]
 Updater = Callable[[Rt], None]
+# updater may be a pure ordered dict, or a list of identifier-updater pairs
+UpdaterArg = Union[
+    # This should be an OrderedDict, but in 3.6 generic ordered dicts are not 
+    # supported (only python 3.7 and up).
+    Dict[Hashable, Updater[Rt]], 
+    Sequence[Tuple[Hashable, Updater[Rt]]]
+]
 
 
 #It was necessary to define It2, Ot2 to satisfy contravariance and covariance 
@@ -99,7 +106,7 @@ class ConstructRealizer(Generic[It, Ot]):
         self, 
         name: Hashable, 
         matches: MatchSpec = None,
-        updaters: Dict[Hashable, Updater[Any]] = None
+        updaters: UpdaterArg[Any] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -110,13 +117,20 @@ class ConstructRealizer(Generic[It, Ot]):
             input.
         """
 
+        self.matches = matches
         self._construct = self._parse_name(name=name)
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
-        self._updaters: Dict[Hashable, Updater] = (
-            updaters if updaters is not None else dict()
-        )
-        self.matches = matches
+
+        # This doesn't seem very safe...
+        self._updaters: OrderedDict[Hashable, Updater[Any]]
+        if updaters is None:
+            self._updaters = OrderedDict()
+        elif isinstance(updaters, OrderedDict):
+            self._updaters = updaters
+        else:
+            self._updaters = OrderedDict(updaters)
+
 
     def __repr__(self) -> Text:
 
@@ -287,7 +301,7 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Callable = None,
-        updaters: Dict[Hashable, Updater[Any]] = None,
+        updaters: UpdaterArg[Any] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -332,7 +346,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: Dict[Hashable, Updater['Node']] = None,
+        updaters: UpdaterArg['Node'] = None,
     ) -> None:
         """Initialize a new node realizer."""
 
@@ -356,7 +370,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         val: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: Dict[Hashable, Updater['Node']] = None,
+        updaters: UpdaterArg['Node'] = None,
     ) -> "Node":
 
         construct = feature(dim=dim, val=val)
@@ -369,7 +383,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: Dict[Hashable, Updater['Node']] = None,
+        updaters: UpdaterArg['Node'] = None,
     ) -> "Node":
 
         construct = chunk(name=name)
@@ -386,7 +400,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: Dict[Hashable, Updater['Flow']] = None,
+        updaters: UpdaterArg['Flow'] = None,
     ) -> None:
         """Initialize a new flow realizer."""
 
@@ -405,7 +419,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         ftype: ConstructType,  
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         name = ConstructSymbol(ftype, name)
@@ -417,7 +431,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -434,7 +448,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -451,7 +465,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -468,7 +482,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -485,7 +499,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         name: Hashable,
         matches: MatchSpec = None, 
         proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: Dict[Hashable, Updater['Flow']] = None
+        updaters: UpdaterArg['Flow'] = None
     ) -> "Flow":
 
         return cls._construct_ftype(
@@ -506,7 +520,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         name: Hashable,
         matches: MatchSpec = None,
         proc: Proc[ActivationPacket, DecisionPacket] = None,
-        updaters: Dict[Hashable, Updater['Response']] = None,
+        updaters: UpdaterArg['Response'] = None,
         effector: Callable[[DecisionPacket], None] = None
     ) -> None:
         """
@@ -552,7 +566,7 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Proc[None, ActivationPacket] = None,
-        updaters: Dict[Hashable, Updater['Buffer']] = None,
+        updaters: UpdaterArg['Buffer'] = None,
     ) -> None:
         """Initialize a new buffer realizer."""
 
@@ -786,7 +800,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
         name: Hashable, 
         matches: MatchSpec = None,
         proc: Callable[['Subsystem', Optional[Dict]], None] = None,
-        updaters: Dict[Hashable, Updater['Subsystem']] = None
+        updaters: UpdaterArg['Subsystem'] = None
     ) -> None:
 
         super().__init__(name=name, matches=matches, updaters=updaters)
@@ -947,7 +961,7 @@ class Agent(ContainerConstruct[None, None]):
         self, 
         name: Hashable, 
         matches: MatchSpec = None, 
-        updaters: Dict[Hashable, Updater['Agent']] = None
+        updaters: UpdaterArg['Agent'] = None
     ) -> None:
 
         super().__init__(name=name, matches=matches, updaters=updaters)

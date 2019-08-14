@@ -22,6 +22,7 @@ and `val` attributes.
 
 ### Changed
 
+- construct realizers may be associated multiple updaters instead of just one. Updaters are called in order of insertion (uses ordered dicts to be safe).
 - subsystems emit and buffers expect to receive `SubsystemPacket` objects.
 - Renamed construct realizers to have more succinct names.
 - `ConstructSymbol` now accepts strings and ints to `ctype` argument (values 
