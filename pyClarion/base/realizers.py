@@ -27,7 +27,8 @@ Rt = TypeVar('Rt') # type variable representing a construct realizer
 MatchArg = Union[ConstructType, Container[ConstructSymbol]] # explain scope of this type variable
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
-Input = Mapping[ConstructSymbol, Callable[[], It]]
+PullFuncs = Dict[ConstructSymbol, Callable[[], It]]
+Inputs = Dict[ConstructSymbol, It]
 Updater = Callable[[Rt], None]
 # updater may be a pure ordered dict, or a list of identifier-updater pairs
 UpdaterArg = Union[
@@ -54,19 +55,21 @@ class Proc(Generic[It2, Ot2]):
     """
 
     def __call__(
-        self, construct: ConstructSymbol, inputs: It2, **kwargs: Any
+        self, construct: ConstructSymbol, inputs: PullFuncs[It2], **kwargs: Any
     ) -> Ot2:
         """
         Execute basic construct propagation callback on call to self.
 
-        Delegates to self.call(). See self.call() for argument documentation.
+        Pulls data from input constructs and delegates processing to 
+        self.call().
         """
-        
-        return self.call(construct=construct, inputs=inputs, **kwargs)
+
+        inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
+        return self.call(construct=construct, inputs=inputs_, **kwargs)
 
     @abstractmethod
     def call(
-        self, construct: ConstructSymbol, inputs: It2, **kwargs: Any
+        self, construct: ConstructSymbol, inputs: Inputs[It2], **kwargs: Any
     ) -> Ot2:
         """
         Execute an activation propagation procedure (i.e., forward pass).
@@ -168,7 +171,8 @@ class ConstructRealizer(Generic[It, Ot]):
     def drop(self, construct: ConstructSymbol) -> None:
         """Disconnect given construct from self."""
 
-        del self._inputs[construct]
+        if construct in self._inputs:
+            del self._inputs[construct]
 
     def drop_all(self) -> None:
         """Disconnect self from all linked constructs."""
@@ -206,10 +210,15 @@ class ConstructRealizer(Generic[It, Ot]):
         return self._construct
 
     @property
-    def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
-        """Mapping from input constructs to pull funcs."""
+    def inputs(self) -> Dict[ConstructSymbol, Callable[[], It]]:
+        """
+        Mapping from input constructs to pull funcs.
+        
+        Warning: Direct in-place modification of this dict may result in 
+        corrupted model behavior.
+        """
 
-        return MappingProxyType(self._inputs)
+        return self._inputs
 
     @property
     def output(self) -> Ot:
