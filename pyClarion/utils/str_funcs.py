@@ -44,7 +44,7 @@ def pstr_iterable(iterable, cb, cbargs=None, indent=4, level=0):
             for k, v in iterable.items():
                 k_str = cb(k, **cbargs)
                 if isinstance(v, recursion_targets):
-                        v_str = pstr_iterable2(
+                        v_str = pstr_iterable(
                             iterable=v, 
                             cb=cb, 
                             cbargs=cbargs,
@@ -58,7 +58,7 @@ def pstr_iterable(iterable, cb, cbargs=None, indent=4, level=0):
         elif isinstance(iterable, (list, tuple, abc.Set)):
             for i in iterable:
                 if isinstance(i, recursion_targets):
-                    i_str = pstr_iterable2(
+                    i_str = pstr_iterable(
                         iterable=i, 
                         cb=cb, 
                         cbargs=cbargs,
