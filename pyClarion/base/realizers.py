@@ -536,8 +536,6 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
 
         if self.effector is not None:
             self.effector(self.view())
-        else:
-            raise TypeError("'NoneType' object is not callable")
 
     def clear_output(self) -> None:
 
