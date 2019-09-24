@@ -5,49 +5,24 @@ Implementation of the non-action-centered subsystem in standard Clarion.
 
 import typing as typ
 from pyClarion.base import *
-from pyClarion.components.utils import *
+from pyClarion.components.funcs import *
+from pyClarion.components.datastructures import Chunks, AssociativeRules 
 
 
-AssociativeRuleDict = (
-    typ.Dict[
-        # Conclusion chunk:
-        ConstructSymbol, 
-        # Condition chunks and corresponding weights for each rule associated 
-        # with given conclusion:
-        typ.List[typ.Dict[ConstructSymbol, typ.Any]]
-    ]
-) 
-InterlevelAssociation = (
-    typ.Dict[
-        ConstructSymbol,
-        typ.Dict[
-            typ.Hashable, # Dimension 
-            typ.Tuple[
-                typ.Any, # Dimensional weight
-                typ.Set[ConstructSymbol] # Dimensional microfeatures
-            ]
-        ],
-     ]
-)
-
-
-class AssociativeRuleCollection(Proc):
+class AssociativeRuleProc(Proc):
     """
     Propagates activations among chunks through associative rules.
     
-    Each rule has the form 
-        conclusion <- condition_1, condition_2, ..., condition_n
     The strength of the conclusion is calculated as a weighted sum of condition 
-    strengths. In cases when there are multiple rules with the same conclusion, 
-    the maximum is taken. By default, weights are set to 1 / n, where n is the 
-    number of conditions.
+    strengths. In cases where there are multiple rules with the same conclusion, 
+    the maximum is taken. 
 
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
-    def __init__(self, assoc = None, default = 0):
+    def __init__(self, rules = None, default = 0):
 
-        self.assoc: AssociativeRuleDict = assoc or dict()
+        self.rules: Rules = rules if rules is not None else AssociativeRules()
         self.default = default
 
     def call(self, construct, inputs, **kwargs):
@@ -60,39 +35,18 @@ class AssociativeRuleCollection(Proc):
             )
         
         d = dict()
-        packets = (pull_func() for pull_func in inputs.values())
+        packets = inputs.values()
         strengths = simple_junction(packets)
-        for conc, cond_list in self.assoc.items():
-            for cond in cond_list:
-                s = linear_rule_strength(cond, strengths, self.default) 
-                d[conc] = max(s, d.get(conc, self.default))
+        for conc, cond_dict in self.rules:
+            s = linear_rule_strength(cond_dict, strengths, self.default) 
+            d[conc] = max(s, d.get(conc, self.default))
         return ActivationPacket(strengths=d)
 
-    def add_rule(self, conclusion, *conditions, weights=None):
 
-        if weights is not None:
-            if len(weights) != len(conditions):
-                raise ValueError(
-                    (
-                        "Number of weights ({}) and conditions ({}) do not "
-                        "match."
-                    ).format(len(weights), len(conditions))
-                )
-            rule_body = dict(zip(conditions, weights))
-        else:
-            rule_body = {condition: 1. for condition in conditions}
-
-        rule_list = self.assoc.setdefault(conclusion, list())
-        rule_list.append(rule_body)
-
-
-class InterlevelLinkCollection(Proc):
+class InterlevelProc(Proc):
     """
     Propagates activations between chunks and features.
 
-    Features are linked to chunks by dimensional weights ranging in (0, 1] 
-    (same dimension = same weight). 
-    
     During a top-down cycle, chunk strengths are multiplied by dimensional 
     weights to get dimensional strengths. Dimensional strengths are then 
     distributed evenly among features of the corresponding dimension that 
@@ -105,18 +59,12 @@ class InterlevelLinkCollection(Proc):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, assoc=None, default=0):
+    def __init__(self, chunks=None, default=0):
 
-        self.assoc: InterlevelAssociation = assoc or {}
+        self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
 
-    def call(
-        self, 
-        construct: ConstructSymbol, 
-        inputs: ActivationPacket, 
-        mode: ConstructType = None,
-        **kwargs: Any
-    ) -> ActivationPacket:
+    def call(self, construct, inputs, mode=None, **kwargs):
 
         if len(kwargs) > 0:
             raise ValueError(
@@ -154,12 +102,12 @@ class InterlevelLinkCollection(Proc):
         """
 
         d = {}
-        packets = (pull_func() for pull_func in inputs.values())
+        packets = inputs.values()
         strengths = simple_junction(packets)
-        for ch, dim_dict in self.assoc.items():
-            for dim, (weight, feats) in dim_dict.items():
-                for feat in feats:
-                    s = weight * strengths.get(ch, self.default)
+        for ch, dim_dict in self.chunks.items():
+            for dim, data in dim_dict.items():
+                s = data["weight"] * strengths.get(ch, self.default)
+                for feat in data["values"]:
                     d[feat] = max(s, d.get(feat, self.default))
         return ActivationPacket(strengths=d)
 
@@ -173,32 +121,17 @@ class InterlevelLinkCollection(Proc):
         """
 
         d = {}
-        packets = (pull_func() for pull_func in inputs.values())
+        packets = inputs.values()
         strengths = simple_junction(packets)
-        for ch, dim_dict in self.assoc.items():
-            divisor = sum(w for w, _ in dim_dict.values())
-            for dim, (w, feats) in dim_dict.items():
-                s = max(strengths.get(feat, self.default) for feat in feats)
-                d[ch] = d.get(ch, self.default) + w * s / divisor
+        for ch, dim_dict in self.chunks.items():
+            divisor = sum(data["weight"] for data in dim_dict.values())
+            for dim, data in dim_dict.items():
+                s = max(strengths.get(f, self.default) for f in data["values"])
+                d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
         return ActivationPacket(strengths=d)
 
-    def link(self, chunk_, *features, weights=None):
-        """
-        Link a chunk with some microfeatures.
 
-        :param chunk_: Construct symbol for the chunk.
-        :param features: Construct symbols for the features.
-        :param weights: Dictionary of dimensional weights.
-        """
-
-        link_dict = self.assoc.setdefault(chunk_, dict())
-        for feat in features:
-            w = weights[feat.dim] if weights is not None else 1
-            _, feature_set = link_dict.setdefault(feat.dim, (w, set()))
-            feature_set.add(feat)
-
-
-def nacs_propagation_cycle(nacs: Subsystem, args: Dict = None) -> None:
+def nacs_proc(nacs: Subsystem, args: Dict = None) -> None:
     """
     Execute NACS activation cycle on given subsystem realizer.
     

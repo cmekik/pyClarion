@@ -1,3 +1,4 @@
-from pyClarion.components.general import *
+from pyClarion.components.procs import *
+from pyClarion.components.datastructures import *
 from pyClarion.components.nacs import *
-from pyClarion.components.utils import *
+from pyClarion.components.funcs import *
