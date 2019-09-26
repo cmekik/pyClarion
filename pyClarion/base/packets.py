@@ -32,14 +32,14 @@ class Packet(object):
     __slots__ = ("_data")
     _format = {"indent": 4, "digits": 3}
 
-    def __init__(self, data: Mapping[ConstructSymbol, Any]) -> None:
+    def __init__(self, data: Mapping[ConstructSymbol, Any] = None) -> None:
         """
         Initialize a new packet instance.
 
         :param data: A mapping from construct symbols to related data.
         """
 
-        self._data = dict(data)
+        self._data = dict(data) if data is not None else dict()
 
     def __repr__(self):
 
@@ -116,7 +116,7 @@ class ActivationPacket(Packet):
     See Packet documentation for details.
     """
 
-    def __init__(self, strengths: Mapping[ConstructSymbol, Any]) -> None:
+    def __init__(self, strengths: Mapping[ConstructSymbol, Any] = None) -> None:
 
         super().__init__(strengths)
 
@@ -135,12 +135,14 @@ class DecisionPacket(Packet):
 
     def __init__(
         self, 
-        strengths: Mapping[ConstructSymbol, Any], 
-        selection: Set[ConstructSymbol]
+        strengths: Mapping[ConstructSymbol, Any] = None, 
+        selection: Set[ConstructSymbol] = None
     ) -> None:
 
         super().__init__(strengths)
-        self._selection = frozenset(selection)
+        self._selection = (
+            frozenset(selection) if selection is not None else frozenset()
+        )
 
     @property
     def selection(self) -> FrozenSet[ConstructSymbol]:
@@ -179,16 +181,21 @@ class SubsystemPacket(Packet):
 
     def __init__(
         self, 
-        strengths: Mapping[ConstructSymbol, Any], 
-        decisions: Mapping[ConstructSymbol, DecisionPacket]
+        strengths: Mapping[ConstructSymbol, Any] = None, 
+        decisions: Mapping[ConstructSymbol, DecisionPacket] = None
     ) -> None:
 
         super().__init__(strengths)
-        self._decisions = decisions
+        self._decisions = (
+            decisions if decisions is not None else DecisionPacket()
+        )
 
     @property
     def decisions(self) -> Mapping[ConstructSymbol, DecisionPacket]:
 
+        # Dev Note:
+        # Type annotation not happy for some reason. MappingProxyType not 
+        # considered a mapping? -CSM
         return MappingProxyType(self._decisions)
 
     def _contents_repr(self):

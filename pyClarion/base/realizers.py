@@ -16,7 +16,7 @@ from types import MappingProxyType
 from typing import (
     ClassVar, Any, Text, Union, Container, Callable, TypeVar, Generic, Dict,
     Optional, Hashable, List, Iterable, Sequence, MutableMapping, Iterator, 
-    Mapping, overload
+    Mapping, overload, Type
 )
 from abc import abstractmethod
 
@@ -104,6 +104,7 @@ class ConstructRealizer(Generic[It, Ot]):
     """
 
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
+    packet_constructor: ClassVar[Optional[Type[Ot]]] 
 
     def __init__(
         self, 
@@ -133,7 +134,6 @@ class ConstructRealizer(Generic[It, Ot]):
             self.updaters = updaters
         else:
             self.updaters = OrderedDict(updaters)
-
 
     def __repr__(self) -> Text:
 
@@ -192,16 +192,7 @@ class ConstructRealizer(Generic[It, Ot]):
     def clear_output(self) -> None:
         """Clear output."""
 
-        raise NotImplementedError()
-
-    def initialize(self) -> None:
-        """
-        Set initial (empty) output. 
-        
-        Must be called prior to (re)running simulation cycles.
-        """
-
-        self.clear_output()
+        self._output = None
 
     @property
     def construct(self) -> ConstructSymbol:
@@ -224,10 +215,17 @@ class ConstructRealizer(Generic[It, Ot]):
     def output(self) -> Ot:
         """"Current output of self."""
 
+        # Emit output if available.
         if self._output is not None:
             return self._output
+        # Upon failure, try to construct empty output datastructure, 
+        # if constructor is available.
+        elif self.packet_constructor is not None:
+            self._output = self.packet_constructor()
+            return self._output
+        # Upon a second failure, throw error.
         else:
-            raise AttributeError('Output of {} not set.'.format(repr(self)))
+            raise AttributeError('Output of {} not defined.'.format(repr(self)))
 
     @property
     def missing(self) -> MissingSpec:
@@ -335,6 +333,7 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
 class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.node
+    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
         self, 
@@ -348,10 +347,6 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         super().__init__(
             name=name, matches=matches, proc=proc, updaters=updaters
         )
-
-    def clear_output(self) -> None:
-
-        self._output = ActivationPacket(strengths={})
 
     @property
     def output_value(self) -> Any:
@@ -389,6 +384,7 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
 class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.flow
+    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
         self, 
@@ -402,10 +398,6 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         super().__init__(
             name=name, matches=matches, proc=proc, updaters=updaters
         )
-
-    def clear_output(self) -> None:
-
-        self._output = ActivationPacket(strengths={})
 
     @classmethod
     def _construct_ftype(
@@ -509,6 +501,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
 class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.response
+    packet_constructor: ClassVar[Type[DecisionPacket]] = DecisionPacket
 
     def __init__(
         self,
@@ -537,10 +530,6 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         if self.effector is not None:
             self.effector(self.view())
 
-    def clear_output(self) -> None:
-
-        self._output = DecisionPacket(strengths={}, selection=set())
-
     @property
     def missing(self) -> MissingSpec:
 
@@ -553,6 +542,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
 class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.buffer
+    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
         self, 
@@ -564,10 +554,6 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
         """Initialize a new buffer realizer."""
 
         super().__init__(name=name, matches=matches, proc=proc, updaters=updaters)
-
-    def clear_output(self) -> None:
-
-        self._output = ActivationPacket(strengths={})
 
 
 #####################################
@@ -807,6 +793,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
 class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
 
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
+    packet_constructor: ClassVar[Type[SubsystemPacket]] = SubsystemPacket
 
     def __init__(
         self, 
@@ -918,11 +905,6 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
         for realizer in self._responses.values():
             realizer.execute()
 
-    def clear_output(self) -> None:
-
-        super().clear_output()
-        self._output = SubsystemPacket(strengths={}, decisions={})
-
     def _construct_subsystem_packet(self) -> SubsystemPacket:
 
         strengths = {
@@ -972,6 +954,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
 class Agent(ContainerConstruct[None, None]):
 
     ctype: ClassVar[ConstructType] = ConstructType.agent
+    packet_constructor: ClassVar[None] = None
 
     def __init__(
         self, 
