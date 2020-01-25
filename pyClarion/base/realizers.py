@@ -263,6 +263,9 @@ class ConstructRealizer(Generic[It, Ot]):
 
         construct: ConstructSymbol
 
+        # This implementation seems very wrong. Should simply check for 
+        # hashability instead of complex type set, if input is not a construct 
+        # symbol already. -CSM
         if isinstance(name, ConstructSymbol):
             self._check_construct(name)
             construct = name
