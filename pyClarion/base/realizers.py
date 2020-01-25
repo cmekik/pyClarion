@@ -356,33 +356,6 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         
         return self.output[self.construct]
 
-    @classmethod
-    def Feature(
-        cls, 
-        dim: Hashable,
-        val: Hashable, 
-        matches: MatchArg = None,
-        proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: UpdaterArg['Node'] = None,
-    ) -> "Node":
-
-        construct = feature(dim=dim, val=val)
-        obj = cls(name=construct, matches=matches, proc=proc, updaters=updaters)
-        return obj
-
-    @classmethod
-    def Chunk(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None,
-        proc: Proc[ActivationPacket, ActivationPacket] = None,
-        updaters: UpdaterArg['Node'] = None,
-    ) -> "Node":
-
-        construct = chunk(name=name)
-        obj = cls(name=construct, matches=matches, proc=proc, updaters=updaters)
-        return obj
-
 
 class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
 
@@ -400,104 +373,6 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
 
         super().__init__(
             name=name, matches=matches, proc=proc, updaters=updaters
-        )
-
-    @classmethod
-    def _construct_ftype(
-        cls, 
-        name: Hashable,
-        ftype: ConstructType,  
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        name = ConstructSymbol(ftype, name)
-        return cls(name=name, matches=matches, proc=proc, updaters=updaters)
-
-    @classmethod
-    def TT(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        return cls._construct_ftype(
-            name=name, 
-            ftype=ConstructType.flow_tt, 
-            matches=matches, 
-            proc=proc, 
-            updaters=updaters
-        )
-
-    @classmethod
-    def BB(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        return cls._construct_ftype(
-            name=name, 
-            ftype=ConstructType.flow_bb, 
-            matches=matches, 
-            proc=proc, 
-            updaters=updaters
-        )
-
-    @classmethod
-    def TB(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        return cls._construct_ftype(
-            name=name, 
-            ftype=ConstructType.flow_tb, 
-            matches=matches, 
-            proc=proc, 
-            updaters=updaters
-        )
-
-    @classmethod
-    def BT(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        return cls._construct_ftype(
-            name=name, 
-            ftype=ConstructType.flow_bt,
-            matches=matches, 
-            proc=proc, 
-            updaters=updaters
-        )
-
-    @classmethod
-    def V(
-        cls, 
-        name: Hashable,
-        matches: MatchArg = None, 
-        proc: Proc[ActivationPacket, ActivationPacket] = None, 
-        updaters: UpdaterArg['Flow'] = None
-    ) -> "Flow":
-
-        return cls._construct_ftype(
-            name=name, 
-            ftype=ConstructType.flow_v, 
-            matches=matches, 
-            proc=proc, 
-            updaters=updaters
         )
 
 
