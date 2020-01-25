@@ -8,18 +8,24 @@
 # realizer type are grouped together in marked sections.
 
 
-from pyClarion.base.symbols import *
-from pyClarion.base.packets import *
+from pyClarion.base.symbols import ConstructType, ConstructSymbol
+from pyClarion.base.packets import (
+    ActivationPacket, DecisionPacket, SubsystemPacket
+)
 from itertools import combinations
 from collections import ChainMap, OrderedDict
 from types import MappingProxyType
 from typing import (
-    ClassVar, Any, Text, Union, Container, Callable, TypeVar, Generic, Dict,
-    Optional, Hashable, List, Iterable, Sequence, MutableMapping, Iterator, 
-    Mapping, overload, Type
+    TypeVar, Union, Container, Tuple, Dict, List, Callable, Hashable, Sequence, 
+    Generic, Any, ClassVar, Optional, Type, Text, Iterator, Mapping
 )
 from abc import abstractmethod
 
+__all__ = [
+    "MatchArg", "UpdaterArg", "MissingSpec", "PullFuncs", "Inputs", "Updater",
+    "Proc", "ConstructRealizer", "BasicConstruct", "ContainerConstruct", 
+    "Node", "Flow", "Response", "Buffer", "Subsystem", "Agent"
+]
 
 It = TypeVar('It') # type variable for inputs to construct realizers
 Ot = TypeVar('Ot') # type variable for outputs to construct realizers
@@ -231,8 +237,9 @@ class ConstructRealizer(Generic[It, Ot]):
     def missing(self) -> MissingSpec:
         """
         Return any missing components of self.
-        
-        A component is considered missing iff it is set to None.
+
+        This attribute may be used to check if any important components were 
+        forgotten at setup.
         """
 
         d: MissingSpec = {}

@@ -1,24 +1,13 @@
-"""
-Implementation of the non-action-centered subsystem in standard Clarion.
-
-During a top-down cycle, chunk strengths are multiplied by dimensional 
-weights to get dimensional strengths. Dimensional strengths are then 
-distributed evenly among features of the corresponding dimension that 
-are linked to the source chunk. 
-
-During a bottom-up cycle, chunk strengths are computed as a weighted sum 
-of the maximum activation of linked features within each dimension. The 
-weights are simply top-down weights normalized over dimensions. 
-
-Implementation is based on p. 77-78 of Anatomy of the Mind.
-
-"""
+"""Components for implementing NACS in standard Clarion."""
 
 
-import typing as typ
-from pyClarion.base import *
-from pyClarion.utils.funcs import *
+from typing import Dict
+from pyClarion.base import Proc, ActivationPacket, Subsystem, ConstructType
+from pyClarion.utils.funcs import simple_junction, linear_rule_strength
 from pyClarion.components.datastructures import Chunks, AssociativeRules 
+
+
+__all__ = ["AssociativeRuleProc", "TopDownProc", "BottomUpProc", "nacs_proc"]
 
 
 class AssociativeRuleProc(Proc):
@@ -34,7 +23,9 @@ class AssociativeRuleProc(Proc):
 
     def __init__(self, rules = None, default = 0):
 
-        self.rules: Rules = rules if rules is not None else AssociativeRules()
+        self.rules: AssociativeRules = (
+            rules if rules is not None else AssociativeRules()
+        )
         self.default = default
 
     def call(self, construct, inputs, **kwargs):
@@ -56,6 +47,16 @@ class AssociativeRuleProc(Proc):
 
 
 class TopDownProc(Proc):
+    """
+    Computes a top-down activations in NACS.
+
+    During a top-down cycle, chunk strengths are multiplied by dimensional 
+    weights to get dimensional strengths. Dimensional strengths are then 
+    distributed evenly among features of the corresponding dimension that 
+    are linked to the source chunk.
+
+    Implementation is based on p. 77-78 of Anatomy of the Mind.
+    """
 
     def __init__(self, chunks=None, default=0):
 
@@ -82,7 +83,7 @@ class TopDownProc(Proc):
         packets = inputs.values()
         strengths = simple_junction(packets)
         for ch, dim_dict in self.chunks.items():
-            for dim, data in dim_dict.items():
+            for _, data in dim_dict.items():
                 s = data["weight"] * strengths.get(ch, self.default)
                 for feat in data["values"]:
                     d[feat] = max(s, d.get(feat, self.default))
@@ -90,6 +91,15 @@ class TopDownProc(Proc):
 
 
 class BottomUpProc(Proc):
+    """
+    Computes a bottom-up activations in NACS.
+
+    During a bottom-up cycle, chunk strengths are computed as a weighted sum 
+    of the maximum activation of linked features within each dimension. The 
+    weights are simply top-down weights normalized over dimensions. 
+
+    Implementation is based on p. 77-78 of Anatomy of the Mind.
+    """
 
     def __init__(self, chunks=None, default=0):
 
@@ -117,7 +127,7 @@ class BottomUpProc(Proc):
         strengths = simple_junction(packets)
         for ch, dim_dict in self.chunks.items():
             divisor = sum(data["weight"] for data in dim_dict.values())
-            for dim, data in dim_dict.items():
+            for _, data in dim_dict.items():
                 s = max(strengths.get(f, self.default) for f in data["values"])
                 d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
         return ActivationPacket(strengths=d)

@@ -8,9 +8,13 @@ Includes definitions for:
     - TBD
 """
 
-from pyClarion.base.symbols import *
+from pyClarion.base import ConstructType, ConstructSymbol
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
+from typing import Iterable, Callable, MutableSet
+
+
+__all__ = ["Chunks", "AssociativeRules", "MatchSpec", "Map2VectorEncoder"]
 
 
 class Chunks(object):
@@ -316,7 +320,7 @@ class AssociativeRules(object):
         
         condition_set = set(conditions)
         try:
-            form_index = self._get_index(conclusion, condition_set)
+            self._get_index(conclusion, condition_set)
         except ValueError:
             return False
         else:
@@ -334,7 +338,10 @@ class AssociativeRules(object):
 
         condition_set = set(conditions)
         form_index = self._get_index(conclusion, condition_set)
-        return conclusion, conditions, self[conclusion].pop(index=form_index)
+        output = (
+            conclusion, conditions, self._data[conclusion].pop(index=form_index)
+        )
+        return output
 
     def pstr(self):
         """Return a pretty string a representation of self."""
@@ -437,7 +444,7 @@ class AssociativeRules(object):
                 # Enforce uniqueness of condition sets for current conclusion
                 condition_sets = set()
                 for condition_dict in condition_dicts:
-                    conditions, weights = zip(*condition_dict.items())
+                    conditions, _ = zip(*condition_dict.items())
                     condition_sets.add(frozenset(conditions))
                 if len(condition_dicts) > len(condition_sets):
                     raise ValueError(
@@ -563,7 +570,11 @@ class Map2VectorEncoder(object):
         self.default_strength = default_strength
 
     def encode(self, activation_map):
+        """
+        Encode node activation map into activation vector.
 
+        :param vector: An activation vector.
+        """
         vector = []
         for node in self.encoding:
             vector.append(activation_map.get(node, self.default_strength))
@@ -571,7 +582,7 @@ class Map2VectorEncoder(object):
 
     def decode(self, vector):
         """
-        Decode activation vector into output node activation map.
+        Decode activation vector into node activation map.
 
         :param vector: An activation vector.
         """

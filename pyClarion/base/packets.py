@@ -187,7 +187,7 @@ class SubsystemPacket(Packet):
 
         super().__init__(strengths)
         self._decisions = (
-            decisions if decisions is not None else DecisionPacket()
+            decisions if decisions is not None else dict()
         )
 
     @property

@@ -1,6 +1,13 @@
 import random
 import math
 
+
+__all__ = [
+    "max_strength", "simple_junction", "max_junction", "linear_rule_strength", 
+    "select", "boltzmann_distribution", "multiplicative_filter"
+]
+
+
 def max_strength(construct, packets):
     """
     Map construct to its maximum strength in packets.
@@ -29,7 +36,7 @@ def max_junction(packets, min_val=0):
     d = {}
     for packet in packets:
         for construct, strength in packet.items():
-            d[n] = max(d.get(construct, min_val), strength)
+            d[construct] = max(d.get(construct, min_val), strength)
     return d
 
 

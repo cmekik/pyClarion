@@ -1,5 +1,7 @@
 from pyClarion.base.packets import DecisionPacket
 
+__all__ = ["MappingEffector"]
+
 class MappingEffector(object):
     """Links actionable chunks to callbacks via a direct mapping."""
 
