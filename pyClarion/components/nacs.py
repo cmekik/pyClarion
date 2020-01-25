@@ -17,7 +17,7 @@ Implementation is based on p. 77-78 of Anatomy of the Mind.
 
 import typing as typ
 from pyClarion.base import *
-from pyClarion.components.funcs import *
+from pyClarion.utils.funcs import *
 from pyClarion.components.datastructures import Chunks, AssociativeRules 
 
 

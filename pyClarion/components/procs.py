@@ -1,6 +1,6 @@
 from pyClarion.base.symbols import *
 from pyClarion.base.packets import *
-from pyClarion.components.funcs import *
+from pyClarion.utils.funcs import *
 from pyClarion.base.realizers import Proc
 
 
