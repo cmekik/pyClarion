@@ -81,8 +81,8 @@ class FilteredProc(Proc):
     """
     Filters input and output activations of proc.
 
-    Filters only activation packets. Will throw if other packet types are 
-    encountered.
+    Filters activation packets only. Will throw exception if other packet types 
+    are encountered.
 
     Typically, filters will be applied only to chunk/feature nodes and 
     response realizers.
@@ -142,7 +142,7 @@ class FilteredProc(Proc):
         # is because we rely on `self.__call__()` instead.
         output = self.base_proc.call(construct, inputs, **kwargs)
 
-        # Filter outpus of base_proc
+        # Filter outputs of base_proc
         if self.output_filter is not None:
             if not isinstance(output, ActivationPacket):
                 raise TypeError(
