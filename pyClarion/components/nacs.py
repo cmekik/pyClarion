@@ -1,6 +1,18 @@
-'''
+"""
 Implementation of the non-action-centered subsystem in standard Clarion.
-'''
+
+During a top-down cycle, chunk strengths are multiplied by dimensional 
+weights to get dimensional strengths. Dimensional strengths are then 
+distributed evenly among features of the corresponding dimension that 
+are linked to the source chunk. 
+
+During a bottom-up cycle, chunk strengths are computed as a weighted sum 
+of the maximum activation of linked features within each dimension. The 
+weights are simply top-down weights normalized over dimensions. 
+
+Implementation is based on p. 77-78 of Anatomy of the Mind.
+
+"""
 
 
 import typing as typ
@@ -43,56 +55,14 @@ class AssociativeRuleProc(Proc):
         return ActivationPacket(strengths=d)
 
 
-class InterlevelProc(Proc):
-    """
-    Propagates activations between chunks and features.
-
-    During a top-down cycle, chunk strengths are multiplied by dimensional 
-    weights to get dimensional strengths. Dimensional strengths are then 
-    distributed evenly among features of the corresponding dimension that 
-    are linked to the source chunk. 
-    
-    During a bottom-up cycle, chunk strengths are computed as a weighted sum 
-    of the maximum activation of linked features within each dimension. The 
-    weights are simply top-down weights normalized over dimensions. 
-
-    Implementation is based on p. 77-78 of Anatomy of the Mind.
-    """
+class TopDownProc(Proc):
 
     def __init__(self, chunks=None, default=0):
 
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
 
-    def call(self, construct, inputs, mode=None, **kwargs):
-
-        if len(kwargs) > 0:
-            raise ValueError(
-                (
-                    "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
-            )
-
-        packet: ActivationPacket
-        if mode == ConstructType.flow_bt:
-            packet = self.bottom_up(construct, inputs)
-        elif mode == ConstructType.flow_tb:
-            packet = self.top_down(construct, inputs)
-        else:
-            if isinstance(mode, ConstructType):
-                raise ValueError("Unexpected mode value {}.".format(mode))
-            elif mode is None:
-                raise TypeError(
-                    "{}.__call__() expects a 'mode' option.".format(type(self))
-                )
-            else:
-                raise TypeError(
-                    "Mode must be of type ConstructType, "
-                    "got {} instead.".format(type(mode))
-                )
-        return packet
-
-    def top_down(self, construct, inputs):
+    def call(self, construct, inputs, **kwargs):
         """
         Execute a top-down activation cycle.
 
@@ -100,6 +70,13 @@ class InterlevelProc(Proc):
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
+
+        if len(kwargs) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+            )
 
         d = {}
         packets = inputs.values()
@@ -111,7 +88,15 @@ class InterlevelProc(Proc):
                     d[feat] = max(s, d.get(feat, self.default))
         return ActivationPacket(strengths=d)
 
-    def bottom_up(self, construct, inputs): 
+
+class BottomUpProc(Proc):
+
+    def __init__(self, chunks=None, default=0):
+
+        self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.default = default
+
+    def call(self, construct, inputs, **kwargs): 
         """
         Execute a bottom-up activation cycle.
 
@@ -119,6 +104,13 @@ class InterlevelProc(Proc):
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
+
+        if len(kwargs) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+            )
 
         d = {}
         packets = inputs.values()
@@ -146,9 +138,8 @@ def nacs_proc(nacs: Subsystem, args: Dict = None) -> None:
 
     # Propagate chunk strengths to bottom level
     for flow in nacs.flows.values():
-        if flow.construct.ctype == ConstructType.flow_v:
+        if flow.construct.ctype == ConstructType.flow_tb:
             flow_args = args.get(flow.construct, dict())
-            flow_args["mode"] = ConstructType.flow_tb
             flow.propagate(args=flow_args)
     
     # Update feature strengths
@@ -166,9 +157,8 @@ def nacs_proc(nacs: Subsystem, args: Dict = None) -> None:
     
     # Propagate feature strengths to top level
     for flow in nacs.flows.values():
-        if flow.construct.ctype == ConstructType.flow_v:
+        if flow.construct.ctype == ConstructType.flow_bt:
             flow_args = args.get(flow.construct, dict())
-            flow_args["mode"] = ConstructType.flow_bt
             flow.propagate(args=flow_args)
     
     # Update chunk strengths (account for bottom-up signal)

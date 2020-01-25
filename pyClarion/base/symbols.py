@@ -288,16 +288,6 @@ def flow_bb(name: Hashable) -> ConstructSymbol:
     return ConstructSymbol(ConstructType.flow_bb, name)
 
 
-def flow_v(name: Hashable) -> ConstructSymbol:
-    """
-    Return a new interlevel (vertical) flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return ConstructSymbol(ConstructType.flow_v, name)
-
-
 def response(name: Hashable) -> ConstructSymbol:
     """
     Return a new response symbol.

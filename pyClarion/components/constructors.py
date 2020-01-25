@@ -3,7 +3,6 @@ Convenience functions for constructing construct symbols and realizers.
 """
 
 from typing import Hashable 
-# from collections import namedtuple
 from pyClarion.base import ActivationPacket, MatchArg, UpdaterArg, Proc, Node, Flow
 from pyClarion.base.symbols import *
 
@@ -102,21 +101,6 @@ def FlowBT(
     return _construct_ftype(
         name=name, 
         ftype=ConstructType.flow_bt,
-        matches=matches, 
-        proc=proc, 
-        updaters=updaters
-    )
-
-def FlowV(
-    name: Hashable,
-    matches: MatchArg = None, 
-    proc: Proc[ActivationPacket, ActivationPacket] = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-
-    return _construct_ftype(
-        name=name, 
-        ftype=ConstructType.flow_v, 
         matches=matches, 
         proc=proc, 
         updaters=updaters
