@@ -42,10 +42,11 @@ def linear_rule_strength(conditions, strengths, default=0):
 def select(probabilities, k=1):
     """Sample k keys from probability dict without replacement."""
 
-    cs, ws = tuple(zip(*probabilities.items()))
     selection = set()
-    while len(selection) < k:
-        selection.update(random.choices(cs, weights=ws))
+    if len(probabilities) > 0:
+        cs, ws = tuple(zip(*probabilities.items()))
+        while len(selection) < k:
+            selection.update(random.choices(cs, weights=ws))
     return selection
 
 
