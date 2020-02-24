@@ -8,14 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- attribute `shared` for container construct realizers. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
+- `Map2VectorEncoder`, which encodes activation maps as vectors for processing by neural nets.
+- `FilteredProc`, allowing input/output filtering and source filtering.
+- Attribute `shared` for container construct realizers. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
 - `SubsystemPacket` class for reporting subsystem states.
 - Added `output_value` attribute to node realizers for easy inspection of current activation.
 - Added `ConstructType.from_str()`.
 - Added `Packet.pstr()` returning nicely formatted string representations for reporting and inspection.
 - Added abstract `Proc` class for specifying propagation (i.e., forward-pass) procedures to basic construct realizers.
 - Added an `options` parameter to `ConstructRealizer.propagate()` allowing calls to `propagate()` to modify construct behavior. Extended `BasicConstructRealizer.proc` callback attributes to accept `**kwargs`. 
-- Added several new construct realizer constructors (e.g., `Flow.TT`) for convenient initialization.
+- Added several new construct realizer constructors (e.g., `FlowTT`) for convenient initialization.
 - `FeatureSymbol` subclass of `ConstructSymbol` allows direct access to `dim` 
 and `val` attributes.
 - `ContainerConstructRealizer.make_links()` to set up construct links after pull rules have been specified.
@@ -23,8 +25,10 @@ and `val` attributes.
 
 ### Changed
 
-- construct realizers may be associated multiple updaters instead of just one. Updaters are called in order of insertion (uses ordered dicts to be safe).
-- subsystems emit and buffers expect to receive `SubsystemPacket` objects.
+- `nacs_proc` function converted to `NACSProc` class.
+- `funcs.py` moved into newly minted `utils` subpackage.
+- Construct realizers may be associated with multiple updaters instead of just one. Updaters are called in order of insertion (uses ordered dicts to be safe).
+- Subsystems emit and buffers expect to (optionally) receive `SubsystemPacket` objects.
 - Renamed construct realizers to have more succinct names.
 - `ConstructSymbol` now accepts strings and ints to `ctype` argument (values 
 must represent valid ctype).

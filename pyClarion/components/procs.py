@@ -1,7 +1,7 @@
 from pyClarion.base import ActivationPacket, DecisionPacket
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
-    multiplicative_filter
+    multiplicative_filter, scale_strengths
 )
 from pyClarion.base.realizers import Proc
 
@@ -101,12 +101,18 @@ class FilteredProc(Proc):
     # do this. -CSM
 
     def __init__(
-        self, base_proc, input_filter=None, output_filter=None, fdefault=0
+        self, 
+        base_proc, 
+        source_filter=None, 
+        input_filter=None, 
+        output_filter=None, 
+        fdefault=0
     ):
 
         self.base_proc = base_proc
-        # Expected types for input_filter and output_filter should be same as 
-        # `matches` argument to realizers.
+        # Expected types for source_filter, input_filter and output_filter 
+        # should be construct symbols.
+        self.source_filter = source_filter
         self.input_filter = input_filter
         self.output_filter = output_filter
         self.fdefault = fdefault
@@ -117,10 +123,23 @@ class FilteredProc(Proc):
         # are not processed by self.base_proc
         # Technically filters should be activation packets, but this is not 
         # enforced (for now at least).
+        if self.source_filter is not None:
+            source_weights = inputs.pop(self.source_filter)
         if self.input_filter is not None:
             input_weights = inputs.pop(self.input_filter)
         if self.output_filter is not None:
             output_weights = inputs.pop(self.output_filter)
+
+        # Apply source filtering
+        if self.source_filter is not None:
+            inputs = {
+                source: ActivationPacket(
+                    strengths=scale_strengths(
+                        weight=source_weights.get(source, 1 - self.fdefault), 
+                        strengths=packet, 
+                    )
+                ) for source, packet in inputs.items()
+            }
 
         # Filter inputs to base_proc
         if self.input_filter is not None:

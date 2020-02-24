@@ -4,7 +4,8 @@ import math
 
 __all__ = [
     "max_strength", "simple_junction", "max_junction", "linear_rule_strength", 
-    "select", "boltzmann_distribution", "multiplicative_filter"
+    "select", "boltzmann_distribution", "multiplicative_filter", 
+    "scale_strengths"
 ]
 
 
@@ -67,6 +68,7 @@ def boltzmann_distribution(strengths, temperature):
     probabilities = {c: s / divisor for c, s in terms.items()}
     return probabilities
 
+
 def multiplicative_filter(filter_weights, strengths, fdefault=0):
 
     d = {
@@ -74,3 +76,12 @@ def multiplicative_filter(filter_weights, strengths, fdefault=0):
         for node in strengths
     }
     return d
+
+
+def scale_strengths(weight, strengths):
+
+   scaled_strengths = {
+       construct: weight * strength 
+       for construct, strength in strengths.items()
+   }
+   return scaled_strengths 

@@ -7,7 +7,7 @@ from pyClarion.utils.funcs import simple_junction, linear_rule_strength
 from pyClarion.components.datastructures import Chunks, AssociativeRules 
 
 
-__all__ = ["AssociativeRuleProc", "TopDownProc", "BottomUpProc", "nacs_proc"]
+__all__ = ["AssociativeRuleProc", "TopDownProc", "BottomUpProc", "NACSProc"]
 
 
 class AssociativeRuleProc(Proc):
@@ -133,48 +133,53 @@ class BottomUpProc(Proc):
         return ActivationPacket(strengths=d)
 
 
-def nacs_proc(nacs: Subsystem, args: Dict = None) -> None:
-    """
-    Execute NACS activation cycle on given subsystem realizer.
-    
-    Not designed for use with flow_bt, flow_tb Flow objects.
-    """
+class NACSProc(object):
 
-    if args is None: args = dict()
+    def __call__(self, nacs: Subsystem, args: Dict = None) -> None:
+        """
+        Execute NACS activation cycle on given subsystem realizer.
+        
+        Not designed for use with flow_bt, flow_tb Flow objects.
+        """
 
-    # Update chunk strengths
-    for chunk_node in nacs.chunks.values():
-        chunk_node.propagate(args=args.get(chunk_node.construct))
+        if args is None: args = dict()
 
-    # Propagate chunk strengths to bottom level
-    for flow in nacs.flows.values():
-        if flow.construct.ctype == ConstructType.flow_tb:
-            flow_args = args.get(flow.construct, dict())
-            flow.propagate(args=flow_args)
-    
-    # Update feature strengths
-    for feature_node in nacs.features.values():
-        feature_node.propagate(args=args.get(feature_node.construct))
-    
-    # Propagate strengths within levels
-    for flow in nacs.flows.values():
-        if flow.construct.ctype in ConstructType.flow_h:
-            flow.propagate(args=args.get(flow.construct))
-    
-    # Update feature strengths (account for signal from any bottom-level flows)
-    for feature_node in nacs.features.values():
-        feature_node.propagate(args=args.get(feature_node.construct))
-    
-    # Propagate feature strengths to top level
-    for flow in nacs.flows.values():
-        if flow.construct.ctype == ConstructType.flow_bt:
-            flow_args = args.get(flow.construct, dict())
-            flow.propagate(args=flow_args)
-    
-    # Update chunk strengths (account for bottom-up signal)
-    for chunk_node in nacs.chunks.values():
-        chunk_node.propagate(args=args.get(chunk_node.construct))
-    
-    # Select response
-    for response_realizer in nacs.responses.values():
-        response_realizer.propagate(args=args.get(response_realizer.construct))
+        # Update chunk strengths
+        for chunk_node in nacs.chunks.values():
+            chunk_node.propagate(args=args.get(chunk_node.construct))
+
+        # Propagate chunk strengths to bottom level
+        for flow in nacs.flows.values():
+            if flow.construct.ctype == ConstructType.flow_tb:
+                flow_args = args.get(flow.construct, dict())
+                flow.propagate(args=flow_args)
+        
+        # Update feature strengths
+        for feature_node in nacs.features.values():
+            feature_node.propagate(args=args.get(feature_node.construct))
+        
+        # Propagate strengths within levels
+        for flow in nacs.flows.values():
+            if flow.construct.ctype in ConstructType.flow_h:
+                flow.propagate(args=args.get(flow.construct))
+        
+        # Update feature strengths (account for signal from any 
+        # bottom-level flows)
+        for feature_node in nacs.features.values():
+            feature_node.propagate(args=args.get(feature_node.construct))
+        
+        # Propagate feature strengths to top level
+        for flow in nacs.flows.values():
+            if flow.construct.ctype == ConstructType.flow_bt:
+                flow_args = args.get(flow.construct, dict())
+                flow.propagate(args=flow_args)
+        
+        # Update chunk strengths (account for bottom-up signal)
+        for chunk_node in nacs.chunks.values():
+            chunk_node.propagate(args=args.get(chunk_node.construct))
+        
+        # Select response
+        for response_realizer in nacs.responses.values():
+            response_realizer.propagate(
+                args=args.get(response_realizer.construct)
+            )
