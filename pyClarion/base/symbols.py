@@ -90,7 +90,7 @@ class ConstructType(Flag):
             return cls.__members__[s]
         except KeyError:
             raise ValueError(
-            "%r is not a valid %s name".format(value, cls.__name__)
+            "%r is not a valid %s name".format(s, cls.__name__)
         )
 
 
@@ -203,10 +203,10 @@ class FeatureSymbol(ConstructSymbol):
     __slots__ = ()
 
     def __init__(
-        self, dim: Optional[Hashable], val: Optional[Hashable]
+        self, dim: Optional[Hashable], val: Optional[Hashable], *args
     ) -> None:
 
-        super().__init__(ConstructType.feature, dim, val)
+        super().__init__(ConstructType.feature, dim, val, *args)
 
     def __repr__(self):
 
