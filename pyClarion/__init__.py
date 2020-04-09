@@ -2,3 +2,4 @@
 
 from pyClarion.base import *
 from pyClarion.components import *
+from pyClarion.utils import *
