@@ -178,7 +178,7 @@ class FilteredProc(Proc):
             output = ActivationPacket(
                 strengths=multiplicative_filter(
                     filter_weights=output_weights, 
-                    strengths=output.strengths, 
+                    strengths=output, 
                     fdefault=self.fdefault
                 )
             )
