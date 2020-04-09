@@ -90,7 +90,7 @@ class ConstructType(Flag):
             return cls.__members__[s]
         except KeyError:
             raise ValueError(
-            "%r is not a valid %s name".format(s, cls.__name__)
+            "{} is not a valid {} name".format(s, cls.__name__)
         )
 
 
