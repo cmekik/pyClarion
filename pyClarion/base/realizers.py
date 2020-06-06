@@ -12,7 +12,7 @@ from pyClarion.base.symbols import ConstructType, ConstructSymbol
 from pyClarion.base.packets import (
     ActivationPacket, DecisionPacket, SubsystemPacket
 )
-from itertools import combinations
+from itertools import combinations, combinations_with_replacement
 from collections import ChainMap, OrderedDict
 from types import MappingProxyType
 from typing import (
@@ -606,11 +606,17 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
         construct.
         """
 
+        # self-links
+        for realizer in self.values(): 
+            if realizer.accepts(realizer.construct):
+                realizer.watch(realizer.construct, realizer.view)
+        # pairwise links
         for realizer1, realizer2 in combinations(self.values(), 2):
             if realizer1.accepts(realizer2.construct):
                 realizer1.watch(realizer2.construct, realizer2.view)
             if realizer2.accepts(realizer1.construct):
                 realizer2.watch(realizer1.construct, realizer1.view)
+        # links to subsystem input buffers
         for construct, callback in self._inputs.items():
             for realizer in self.values():
                 if realizer.accepts(construct):
