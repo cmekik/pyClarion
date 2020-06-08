@@ -7,7 +7,7 @@ Includes definitions for:
 """
 
 
-__all__ = ["Chunks", "AssociativeRules", "Map2VectorEncoder"]
+__all__ = ["Chunks", "Rules", "Map2VectorEncoder"]
 
 
 from pyClarion.base import ConstructType, ConstructSymbol
@@ -201,9 +201,9 @@ class Chunks(object):
                     raise TypeError("Value info must be of type set.")
 
 
-class AssociativeRules(object):
+class Rules(object):
     """
-    A simple associative rule database.
+    A simple rule database.
 
     This object provides methods for constructing, maintaining, and inspecting a 
     database of associative links from condition chunk nodes to conclusion chunk 

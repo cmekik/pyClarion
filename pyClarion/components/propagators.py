@@ -2,17 +2,24 @@
 
 
 __all__ = [
-    "MaxNode", "BoltzmannSelector", "ConstantBuffer", "Stimulus", 
-    "FilteredA", "FilteredD"
+    "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
+    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredD"
 ]
 
 
 from pyClarion.base import ConstructSymbol, ActivationPacket, DecisionPacket
 from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorD
+from pyClarion.components.datastructures import Chunks, Rules 
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
-    multiplicative_filter, scale_strengths
+    multiplicative_filter, scale_strengths, linear_rule_strength
 )
+from statistics import mean
+
+
+##############################
+### Activation Propagators ###
+##############################
 
 
 class MaxNode(PropagatorA):
@@ -24,6 +31,145 @@ class MaxNode(PropagatorA):
         strength = max_strength(construct, packets)
         
         return strength
+
+
+class AssociativeRules(PropagatorA):
+    """
+    Propagates activations among chunks through associative rules.
+    
+    The strength of the conclusion is calculated as a weighted sum of condition 
+    strengths. In cases where there are multiple rules with the same conclusion, 
+    the maximum is taken. 
+
+    Implementation based on p. 73-74 of Anatomy of the Mind.
+    """
+
+    def __init__(self, rules: Rules, op=None, default=0.0):
+
+        self.rules = rules
+        self.op = op if op is not None else max
+        self.default = default
+
+    def call(self, construct, inputs, **kwds):
+
+        if len(kwds) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
+            )
+        
+        d = {}
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        for conc, cond_dict in self.rules:
+            s = linear_rule_strength(cond_dict, strengths, self.default)
+            l = d.setdefault(conc, [])
+            l.append(s) 
+        d = {c: self.op(l) for c, l in d.items()}
+        
+        return d
+
+
+class TopDown(PropagatorA):
+    """
+    Computes a top-down activations in NACS.
+
+    During a top-down cycle, chunk strengths are multiplied by dimensional 
+    weights to get dimensional strengths. Dimensional strengths are then 
+    distributed evenly among features of the corresponding dimension that 
+    are linked to the source chunk.
+
+    Implementation is based on p. 77-78 of Anatomy of the Mind.
+    """
+
+    def __init__(self, chunks=None, op=None, default=0):
+
+        self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.op = op if op is not None else max
+        self.default = default
+
+    def call(self, construct, inputs, **kwds):
+        """
+        Execute a top-down activation cycle.
+
+        :param construct: Construct symbol for client construct.
+        :param inputs: Dictionary mapping input constructs to their pull 
+            methods.
+        """
+
+        if len(kwds) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
+            )
+
+        d = {}
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        for ch, dim_dict in self.chunks.items():
+            for _, data in dim_dict.items():
+                s = data["weight"] * strengths.get(ch, self.default)
+                for feat in data["values"]:
+                    l = d.setdefault(feat, [])
+                    l.append(s)
+        d = {f: self.op(l) for f, l in d.items()}
+
+        return d
+
+
+class BottomUp(PropagatorA):
+    """
+    Computes a bottom-up activations in NACS.
+
+    During a bottom-up cycle, chunk strengths are computed as a weighted sum 
+    of the maximum activation of linked features within each dimension. The 
+    weights are simply top-down weights normalized over dimensions. 
+
+    Implementation is based on p. 77-78 of Anatomy of the Mind.
+    """
+
+    default_ops = {"max": max, "min": min, "mean": mean}
+
+    def __init__(self, chunks=None, ops=None, default=0):
+
+        self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.default = default
+        self.ops = ops if ops is not None else self.default_ops.copy()
+
+    def call(self, construct, inputs, **kwds): 
+        """
+        Execute a bottom-up activation cycle.
+
+        :param construct: Construct symbol for client construct.
+        :param inputs: Dictionary mapping input constructs to their pull 
+            methods.
+        """
+
+        if len(kwds) > 0:
+            raise ValueError(
+                (
+                    "Unexpected keyword arguments passed to {}.call(): '{}'."
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
+            )
+
+        d = {}
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        for ch, ch_data in self.chunks.items():
+            divisor = sum(data["weight"] for data in ch_data.values())
+            for dim, data in ch_data.items():
+                op = self.ops[data["op"]]
+                s = op(strengths.get(f, self.default) for f in data["values"])
+                d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
+        
+        return d
+
+
+############################
+### Decision Propagators ###
+############################
 
 
 class BoltzmannSelector(PropagatorD):
@@ -56,6 +202,11 @@ class BoltzmannSelector(PropagatorD):
         return probabilities, selection
 
 
+##########################
+### Buffer Propagators ###
+##########################
+
+
 class ConstantBuffer(PropagatorB):
     """Outputs a stored activation packet."""
 
@@ -86,6 +237,11 @@ class Stimulus(PropagatorB):
     def call(self, construct, inputs, stimulus=None, **kwds):
 
         return stimulus or {}
+
+
+##########################
+### Filtering Wrappers ###
+##########################
 
 
 class FilteredA(PropagatorA):

@@ -12,17 +12,17 @@ from pyClarion import (
     # These are realizer objects, implementing behavior of simulated constructs.
     Agent, Subsystem, Buffer, Flow, Node, Response,
     # Construct types are used in controlling construct behavior
-    ConstructType, 
+    ConstructType, MatchSpec, 
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
     subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
     # These objects are free-standing datastructures handling various important 
     # concerns.
-    Chunks, AssociativeRules, MatchSpec,
+    Chunks, Rules,
     # These objects define how realizers process activations in the forward 
     # direction.
-    Stimulus, AssociativeRulePropagator, BottomUp, TopDown, BoltzmannSelector, 
-    MaxNode, FilteredD, NACSCycle
+    Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
+    FilteredD, NACSCycle
 )
 
 
@@ -114,7 +114,7 @@ nacs = Subsystem(
     name="NACS",
     matches={buffer("WM")},
     propagator=NACSCycle(),
-    assets={"rules": AssociativeRules()}
+    assets={"rules": Rules()}
 )
 
 # The 'matches' argument lets the subsystem know that it should receive input 
@@ -167,7 +167,7 @@ nacs.add(
     Flow(
         name=flow_tt("Associations"),
         matches=ConstructType.chunk,
-        propagator=AssociativeRulePropagator(rules=nacs.assets["rules"])
+        propagator=AssociativeRules(rules=nacs.assets["rules"])
     ),
     Flow(
         name=flow_bt("Main"), 
