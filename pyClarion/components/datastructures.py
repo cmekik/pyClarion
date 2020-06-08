@@ -34,12 +34,9 @@ class Chunks(object):
     _data = {
         chunk(1): {
             "dim1": {
+                "op": "max",
+                "values": {feature("dim1", "val1"), feature("dim1, "val2"), ...},
                 "weight": weight_1_1,
-                "values": {
-                    feature("dim1", "val1")
-                    feature("dim2", "val2")
-                    ... # other values
-                }
             },
             ... # other dimensions
         },
@@ -48,7 +45,7 @@ class Chunks(object):
 
     Under normal cricumstances, this dict should not be directly accessed and/or 
     modified. However, a dict of this form may be passed at initialization time 
-    to set initial rules.
+    to set initial chunks.
     """
 
     _format = {"indent": 4, "digits": 3}
@@ -92,13 +89,13 @@ class Chunks(object):
 
         return self._data.items()
     
-    def link(self, ch, *features, weights=None):
+    def link(self, ch, *features, op=None, weights=None):
         """Link chunk to features."""
 
         # If feature sequence contains duplicates, they will be ignored upon 
         # conversion to a set in update_form().
         d = self._data.setdefault(ch, dict())
-        self.update_form(d, *features, weights=weights)
+        self.update_form(d, *features, op=op, weights=weights)
 
     def remove_chunk(self, ch):
         """Remove chunk from database."""
@@ -114,7 +111,7 @@ class Chunks(object):
         """
         Unlink feature from chunk.
 
-        If no features of the same dim ar linked to chunk after operation, also 
+        If no features of the same dim are linked to chunk after operation, also 
         removes the dimension.
         """
 
@@ -128,10 +125,10 @@ class Chunks(object):
 
         self._data[ch][dim]["weight"] = weight
 
-    def contains_form(self, *features, weights=None):
+    def contains_form(self, *features, op=None, weights=None):
         """Return true if given chunk form matches at least one chunk."""
 
-        test_form = self.update_form(dict(), *features, weights=weights)
+        test_form = self.update_form(dict(), *features, op=op, weights=weights)
         return any([form == test_form for form in self._data.values()]) 
 
     def pstr(self):
@@ -158,7 +155,7 @@ class Chunks(object):
         print(self.pstr())
 
     @staticmethod
-    def update_form(form, *features, weights=None):
+    def update_form(form, *features, op=None, weights=None):
         """
         Update given chunk form.
 
@@ -168,9 +165,10 @@ class Chunks(object):
         """
         
         for feat in features:
+            op = op if op is not None else "max"
             w = weights[feat.dim] if weights is not None else 1.0
             dim_data = form.setdefault(
-                feat.dim, {"weight": w, "values": set()}
+                feat.dim, {"op": op, "weight": w, "values": set()}
             )
             dim_data["values"].add(feat)
         
@@ -193,6 +191,8 @@ class Chunks(object):
             for chunk_form in data.values():
                 if not isinstance(chunk_form, dict):
                     raise TypeError("Chunk form must be of type dict.")
+                if "op" not in chunk_form:
+                    raise ValueError("Dimension data must specify op.")
                 if "weight" not in chunk_form:
                     raise ValueError("Dimension data must contain weight info.")
                 if "values" not in chunk_form:

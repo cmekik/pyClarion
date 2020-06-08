@@ -5,7 +5,8 @@ __all__ = ["AssociativeRulePropagator", "TopDown", "BottomUp", "NACSCycle"]
 
 
 from typing import Dict
-from pyClarion.base import PropagatorA, ActivationPacket, Subsystem, ConstructType
+from statistics import mean
+from pyClarion.base import feature, PropagatorA, ActivationPacket, Subsystem, ConstructType
 from pyClarion.utils.funcs import simple_junction, linear_rule_strength
 from pyClarion.components.datastructures import Chunks, AssociativeRules 
 
@@ -21,9 +22,10 @@ class AssociativeRulePropagator(PropagatorA):
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
-    def __init__(self, rules: AssociativeRules, default=0.0):
+    def __init__(self, rules: AssociativeRules, op=None, default=0.0):
 
         self.rules = rules
+        self.op = op if op is not None else max
         self.default = default
 
     def call(self, construct, inputs, **kwds):
@@ -40,7 +42,7 @@ class AssociativeRulePropagator(PropagatorA):
         strengths = simple_junction(packets)
         for conc, cond_dict in self.rules:
             s = linear_rule_strength(cond_dict, strengths, self.default) 
-            d[conc] = max(s, d.get(conc, self.default))
+            d[conc] = self.op(s, d.get(conc, self.default))
         
         return d
 
@@ -57,9 +59,10 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, chunks=None, default=0):
+    def __init__(self, chunks=None, op=None, default=0):
 
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.op = op if op is not None else max
         self.default = default
 
     def call(self, construct, inputs, **kwds):
@@ -101,10 +104,13 @@ class BottomUp(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, chunks=None, default=0):
+    default_ops = {"max": max, "min": min, "mean": mean}
+
+    def __init__(self, chunks=None, ops=None, default=0):
 
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
+        self.ops = ops if ops is not None else self.default_ops.copy()
 
     def call(self, construct, inputs, **kwds): 
         """
@@ -125,10 +131,11 @@ class BottomUp(PropagatorA):
         d = {}
         packets = inputs.values()
         strengths = simple_junction(packets)
-        for ch, dim_dict in self.chunks.items():
-            divisor = sum(data["weight"] for data in dim_dict.values())
-            for _, data in dim_dict.items():
-                s = max(strengths.get(f, self.default) for f in data["values"])
+        for ch, ch_data in self.chunks.items():
+            divisor = sum(data["weight"] for data in ch_data.values())
+            for dim, data in ch_data.items():
+                op = self.ops[data["op"]]
+                s = op(strengths.get(f, self.default) for f in data["values"])
                 d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
         
         return d

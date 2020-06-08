@@ -48,7 +48,13 @@ class ConstructRealizer(Generic[It, Ot]):
     """
     Base class for construct realizers.
 
-    Construct realizers are responsible for implementing construct behavior.
+    Construct realizers are facilitate communication between constructs by 
+    providing a standard interface for creating, inspecting, modifying and 
+    propagating information across construct networks. 
+
+    Message passing among constructs follows a pull-based architecture. A 
+    realizer decides what constructs to pull information from through its 
+    `matches` attribute, which may be set on initialization.
     """
 
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
