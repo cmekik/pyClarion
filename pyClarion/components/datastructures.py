@@ -1,20 +1,19 @@
 """
-Some basic datastructures for building pyClarion agents.
+Provides basic datastructures for building pyClarion agents.
 
 Includes definitions for:
     - Chunk databases
     - Rule databases
-    - Complex match specifications for controlling construct connectivity
-    - TBD
 """
+
+
+__all__ = ["Chunks", "AssociativeRules", "Map2VectorEncoder"]
+
 
 from pyClarion.base import ConstructType, ConstructSymbol
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
 from typing import Iterable, Callable, MutableSet
-
-
-__all__ = ["Chunks", "AssociativeRules", "MatchSpec", "Map2VectorEncoder"]
 
 
 class Chunks(object):
@@ -451,103 +450,6 @@ class AssociativeRules(object):
                     "Rule database may not contain multiple rules with "
                     "identical rule-forms." 
                 ) 
-
-
-class MatchSpec(object):
-    """
-    A unary predicate that applies to construct symbols.
-
-    MatchSpec objects are intended to facilitate checking if constructs satisfy 
-    complex conditions. Such checks may be required, for example, to decide 
-    whether or not to connect two construct realizers (see pyClarion.realizers). 
-    In general, MatchSpec objects may be used at any point where a (potentially 
-    complex) predicate must be applied to construct symbols. 
-
-    MatchSpec objects support definition with respect to construct types or 
-    arbitrary predicates, and by enumeration of matching constructs. They are 
-    set-like in that they support __contains__, may be extended (through 
-    addition) or contracted (through removal). However, unlike sets, MatchSpec 
-    objects do not support algebraic operators such as union, intersection, 
-    difference etc.
-    """
-
-    # TODO: __repr__
-
-    def __init__(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
-    ) -> None:
-        """
-        Initialize a new Matcher instance.
-
-        :param ctype: Acceptable construct type(s).
-        :param constructs: Acceptable construct symbols.
-        :param predicates: Custom custom predicates indicating acceptable 
-            constructs. 
-        """
-
-        self.ctype = ConstructType.null_construct
-        self.constructs: MutableSet[ConstructSymbol] = set()
-        self.predicates: MutableSet[Callable[[ConstructSymbol], bool]] = set()
-        self.add(ctype, constructs, predicates)
-
-    def __contains__(self, key: ConstructSymbol) -> bool:
-        """
-        Return true if construct is in the match set.
-        
-        A construct is considered to be in the match set if:
-            - Its construct type is in self.ctype OR
-            - It is equal to a member of self.constructs OR
-            - A predicate in self.predicates returns true when called on its 
-              construct symbol.
-        """
-
-        val = False
-        val |= key.ctype in self.ctype
-        val |= key in self.constructs
-        for predicate in self.predicates:
-                val |= predicate(key)
-        return val
-
-    def add(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
-    ) -> None:
-        """
-        Extend the set of accepted constructs.
-        
-        See Predicate.__init__() for argument descriptions.
-        """
-
-        if ctype is not None:
-            self.ctype |= ctype
-        if constructs is not None:
-            self.constructs |= set(constructs)
-        if predicates is not None:
-            self.predicates |= set(predicates)
-
-    def remove(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
-    ) -> None:
-        """
-        Contract the set of accepted constructs.
-        
-        See Predicate.__init__() for argument descriptions.
-        """
-
-        if ctype is not None:
-            self.ctype ^= ctype
-        if constructs is not None:
-            self.constructs ^= set(constructs)
-        if predicates is not None:
-            self.predicates ^= set(predicates)
 
 
 class Map2VectorEncoder(object):

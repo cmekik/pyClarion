@@ -1,16 +1,16 @@
-"""Components for implementing NACS in standard Clarion."""
+"""Provides components for implementing NACS in standard Clarion."""
+
+
+__all__ = ["AssociativeRulePropagator", "TopDown", "BottomUp", "NACSCycle"]
 
 
 from typing import Dict
-from pyClarion.base import Proc, ActivationPacket, Subsystem, ConstructType
+from pyClarion.base import PropagatorA, ActivationPacket, Subsystem, ConstructType
 from pyClarion.utils.funcs import simple_junction, linear_rule_strength
 from pyClarion.components.datastructures import Chunks, AssociativeRules 
 
 
-__all__ = ["AssociativeRuleProc", "TopDownProc", "BottomUpProc", "NACSProc"]
-
-
-class AssociativeRuleProc(Proc):
+class AssociativeRulePropagator(PropagatorA):
     """
     Propagates activations among chunks through associative rules.
     
@@ -21,32 +21,31 @@ class AssociativeRuleProc(Proc):
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
-    def __init__(self, rules = None, default = 0):
+    def __init__(self, rules: AssociativeRules, default=0.0):
 
-        self.rules: AssociativeRules = (
-            rules if rules is not None else AssociativeRules()
-        )
+        self.rules = rules
         self.default = default
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
 
-        if len(kwargs) > 0:
+        if len(kwds) > 0:
             raise ValueError(
                 (
                     "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
             )
         
-        d = dict()
+        d = {}
         packets = inputs.values()
         strengths = simple_junction(packets)
         for conc, cond_dict in self.rules:
             s = linear_rule_strength(cond_dict, strengths, self.default) 
             d[conc] = max(s, d.get(conc, self.default))
-        return ActivationPacket(strengths=d)
+        
+        return d
 
 
-class TopDownProc(Proc):
+class TopDown(PropagatorA):
     """
     Computes a top-down activations in NACS.
 
@@ -63,7 +62,7 @@ class TopDownProc(Proc):
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
         """
         Execute a top-down activation cycle.
 
@@ -72,11 +71,11 @@ class TopDownProc(Proc):
             methods.
         """
 
-        if len(kwargs) > 0:
+        if len(kwds) > 0:
             raise ValueError(
                 (
                     "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
             )
 
         d = {}
@@ -87,10 +86,11 @@ class TopDownProc(Proc):
                 s = data["weight"] * strengths.get(ch, self.default)
                 for feat in data["values"]:
                     d[feat] = max(s, d.get(feat, self.default))
-        return ActivationPacket(strengths=d)
+
+        return d
 
 
-class BottomUpProc(Proc):
+class BottomUp(PropagatorA):
     """
     Computes a bottom-up activations in NACS.
 
@@ -106,7 +106,7 @@ class BottomUpProc(Proc):
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
 
-    def call(self, construct, inputs, **kwargs): 
+    def call(self, construct, inputs, **kwds): 
         """
         Execute a bottom-up activation cycle.
 
@@ -115,11 +115,11 @@ class BottomUpProc(Proc):
             methods.
         """
 
-        if len(kwargs) > 0:
+        if len(kwds) > 0:
             raise ValueError(
                 (
                     "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwargs.keys())))
+                ).format(self.__class__.__name__, next(iter(kwds.keys())))
             )
 
         d = {}
@@ -130,10 +130,11 @@ class BottomUpProc(Proc):
             for _, data in dim_dict.items():
                 s = max(strengths.get(f, self.default) for f in data["values"])
                 d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
-        return ActivationPacket(strengths=d)
+        
+        return d
 
 
-class NACSProc(object):
+class NACSCycle(object):
 
     def __call__(self, nacs: Subsystem, args: Dict = None) -> None:
         """

@@ -1,28 +1,32 @@
-from pyClarion.base import ActivationPacket, DecisionPacket
+"""Provides basic propagators for building pyClarion agents."""
+
+
+__all__ = [
+    "MaxNode", "BoltzmannSelector", "ConstantBuffer", "Stimulus", 
+    "FilteredA", "FilteredD"
+]
+
+
+from pyClarion.base import ConstructSymbol, ActivationPacket, DecisionPacket
+from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorD
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths
 )
-from pyClarion.base.realizers import Proc
 
 
-__all__ = [
-    "MaxNode", "BoltzmannSelector", "ConstantProc", "StimulusProc", 
-    "FilteredProc"
-]
-
-
-class MaxNode(Proc):
+class MaxNode(PropagatorA):
     """Simple node returning maximum strength for given construct."""
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
 
         packets = inputs.values()
         strength = max_strength(construct, packets)
-        return ActivationPacket(strengths=strength)
+        
+        return strength
 
 
-class BoltzmannSelector(Proc):
+class BoltzmannSelector(PropagatorD):
     """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature, k=1):
@@ -35,7 +39,7 @@ class BoltzmannSelector(Proc):
         self.temperature = temperature
         self.k = k
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -48,21 +52,21 @@ class BoltzmannSelector(Proc):
         strengths = simple_junction(packets)
         probabilities = boltzmann_distribution(strengths, self.temperature)
         selection = select(probabilities, self.k)
-        dpacket = DecisionPacket(strengths=probabilities, selection=selection)
-        return dpacket
+
+        return probabilities, selection
 
 
-class ConstantProc(Proc):
+class ConstantBuffer(PropagatorB):
     """Outputs a stored activation packet."""
 
     def __init__(self, strengths = None) -> None:
 
         self.strengths = strengths or dict()
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
         """Return stored strengths."""
 
-        return ActivationPacket(strengths=self.strengths)
+        return self.strengths
 
     def update(self, strengths):
         """Update self with contents of dict-like strengths."""
@@ -76,40 +80,27 @@ class ConstantProc(Proc):
         self.strengths = {}
 
 
-class StimulusProc(Proc):
+class Stimulus(PropagatorB):
     """Propagates externally provided stimulus."""
 
-    def call(self, construct, inputs, stimulus=None, **kwargs):
+    def call(self, construct, inputs, stimulus=None, **kwds):
 
-        packet = stimulus or ActivationPacket()
-        return packet
+        return stimulus or {}
 
 
-class FilteredProc(Proc):
-    """
-    Filters input and output activations of proc.
-
-    Filters activation packets only. Will throw exception if other packet types 
-    are encountered.
-
-    Typically, filters will be applied only to chunk/feature nodes and 
-    response realizers.
-    """
+class FilteredA(PropagatorA):
+    """Filters input and output activations of an activation propagator."""
     
-    # Dev note:
-    # This object should inherit type signature of base_proc, not sure how to 
-    # do this. -CSM
-
     def __init__(
         self, 
-        base_proc, 
-        source_filter=None, 
-        input_filter=None, 
-        output_filter=None, 
+        base: PropagatorA, 
+        source_filter: ConstructSymbol = None, 
+        input_filter: ConstructSymbol = None, 
+        output_filter: ConstructSymbol = None, 
         fdefault=0
     ):
 
-        self.base_proc = base_proc
+        self.base = base
         # Expected types for source_filter, input_filter and output_filter 
         # should be construct symbols.
         self.source_filter = source_filter
@@ -117,12 +108,10 @@ class FilteredProc(Proc):
         self.output_filter = output_filter
         self.fdefault = fdefault
 
-    def call(self, construct, inputs, **kwargs):
+    def call(self, construct, inputs, **kwds):
 
         # Get filter settings and remove filter info from inputs dict so they 
-        # are not processed by self.base_proc
-        # Technically filters should be activation packets, but this is not 
-        # enforced (for now at least).
+        # are not processed by self.base.
         if self.source_filter is not None:
             source_weights = inputs.pop(self.source_filter)
         if self.input_filter is not None:
@@ -133,54 +122,75 @@ class FilteredProc(Proc):
         # Apply source filtering
         if self.source_filter is not None:
             inputs = {
-                source: ActivationPacket(
-                    strengths=scale_strengths(
-                        weight=source_weights.get(source, 1 - self.fdefault), 
-                        strengths=packet, 
-                    )
-                ) for source, packet in inputs.items()
+                source: scale_strengths(
+                    weight=source_weights.get(source, 1 - self.fdefault), 
+                    strengths=packet, 
+                ) 
+                for source, packet in inputs.items()
             }
 
-        # Filter inputs to base_proc
+        # Filter inputs to base
         if self.input_filter is not None:
-            # Make sure inputs has type Dict[ConstructSymbol, ActivationPacket]
-            # This is an expensive test (O(n) in number of packets).
-            if not all(
-                [
-                    isinstance(packet, ActivationPacket) 
-                    for packet in inputs.values()
-                ]
-            ):
-                raise TypeError(
-                    "Input filtering must act on ActivationPackets."
-                )
             inputs = {
-                source: ActivationPacket(
-                    strengths=multiplicative_filter(
-                        filter_weights=input_weights, 
-                        strengths=packet, 
-                        fdefault=self.fdefault
-                    )
-                ) for source, packet in inputs.items()
-            }
-        
-        # Call base_proc on (potentially) filtered inputs
-        # Note that call is to `Proc.call()` instead of `Proc.__call__()`. This 
-        # is because we rely on `self.__call__()` instead.
-        output = self.base_proc.call(construct, inputs, **kwargs)
-
-        # Filter outputs of base_proc
-        if self.output_filter is not None:
-            if not isinstance(output, ActivationPacket):
-                raise TypeError(
-                "Output filtering must act on an ActivationPacket."
-            )
-            output = ActivationPacket(
-                strengths=multiplicative_filter(
-                    filter_weights=output_weights, 
-                    strengths=output, 
+                source: multiplicative_filter(
+                    filter_weights=input_weights, 
+                    strengths=packet, 
                     fdefault=self.fdefault
                 )
+                for source, packet in inputs.items()
+            }
+        
+        # Call base on (potentially) filtered inputs. Note that call is to 
+        # `base.call()` instead of `base.__call__()`. This is because we rely 
+        # on `self.__call__()` instead.
+        output = self.base.call(construct, inputs, **kwds)
+
+        # Filter outputs of base
+        if self.output_filter is not None:
+            output = multiplicative_filter(
+                filter_weights=output_weights, 
+                strengths=output, 
+                fdefault=self.fdefault
             )
+
+        return output
+
+
+class FilteredD(PropagatorD):
+    """Filters input and output activations of a decision propagator."""
+    
+    def __init__(
+        self, 
+        base: PropagatorD, 
+        input_filter: ConstructSymbol = None, 
+        fdefault=0
+    ):
+
+        self.base = base
+        self.input_filter = input_filter
+        self.fdefault = fdefault
+
+    def call(self, construct, inputs, **kwds):
+
+        # Get filter settings and remove filter info from inputs dict so they 
+        # are not processed by self.base
+        if self.input_filter is not None:
+            input_weights = inputs.pop(self.input_filter)
+
+        # Filter inputs to base
+        if self.input_filter is not None:
+            inputs = {
+                source: multiplicative_filter(
+                    filter_weights=input_weights, 
+                    strengths=packet, 
+                    fdefault=self.fdefault
+                )
+                for source, packet in inputs.items()
+            }
+        
+        # Call base on (potentially) filtered inputs. Note that call is to 
+        # `base.call()` instead of `base.__call__()`. This is because we rely 
+        # on `self.__call__()` instead.
+        output = self.base.call(construct, inputs, **kwds)
 
         return output

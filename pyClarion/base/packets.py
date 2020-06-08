@@ -1,13 +1,13 @@
-"""Tools for representing information about node strengths and decisions."""
+"""Provides containers for representing strengths and decisions."""
+
+
+__all__ = ["Packet", "ActivationPacket", "DecisionPacket", "SubsystemPacket"]
 
 
 from typing import Any, Mapping, Set, FrozenSet, Tuple
 from types import MappingProxyType 
 from pyClarion.base.symbols import ConstructSymbol
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
-
-
-__all__ = ["Packet", "ActivationPacket", "DecisionPacket", "SubsystemPacket"]
 
 
 class Packet(object):
@@ -173,6 +173,7 @@ class DecisionPacket(Packet):
         )        
 
         return attr_strs + (selection_pstr,)
+
 
 class SubsystemPacket(Packet):
     """
