@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Chunk and rule databases `Chunks` and `AssociativeRules`.
 - `Map2VectorEncoder`, which encodes activation maps as vectors for processing by neural nets.
 - `FilteredA` and `FilteredD`, allowing input/output filtering and source filtering.
-- Attribute `shared` for container construct realizers. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
+- Attribute `assets` for container construct realizers. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
 - `SubsystemPacket` class for reporting subsystem states.
 - Added `output_value` attribute to node realizers for easy inspection of current activation.
 - Added `ConstructType.from_str()`.

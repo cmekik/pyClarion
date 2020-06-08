@@ -47,7 +47,7 @@ from pyClarion import (
 
 alice = Agent(
     name="Alice",
-    shared={"chunks": Chunks()}
+    assets={"chunks": Chunks()}
 )
 
 # The name argument to the Agent constructor serves to label the agent object. 
@@ -60,10 +60,10 @@ alice = Agent(
 # construct realizer. More on construct symbols below.
 
 # To keep track of concepts that Alice knows about, we equip Alice with a chunk 
-# database (more on chunks below), which is passed to Alice's 'shared' 
-# attribute. The `shared` attribute is a dict for convenient storage of 
+# database (more on chunks below), which is passed to Alice's 'assets' 
+# attribute. The `assets` attribute is a dict for convenient storage of 
 # resources shared by construct realizers subordinate to Alice. All container 
-# construct realizers have the `shared` attribute. A good rule of thumb is to 
+# construct realizers have the `assets` attribute. A good rule of thumb is to 
 # place shared resources in the container construct directly above the 
 # highest-level construct realizer using the resource. In this example, the 
 # chunk database is placed at the agent level because chunk information may be 
@@ -114,7 +114,7 @@ nacs = Subsystem(
     name="NACS",
     matches={buffer("WM")},
     propagator=NACSCycle(),
-    shared={"rules": AssociativeRules()}
+    assets={"rules": AssociativeRules()}
 )
 
 # The 'matches' argument lets the subsystem know that it should receive input 
@@ -167,17 +167,17 @@ nacs.add(
     Flow(
         name=flow_tt("Associations"),
         matches=ConstructType.chunk,
-        propagator=AssociativeRulePropagator(rules=nacs.shared["rules"])
+        propagator=AssociativeRulePropagator(rules=nacs.assets["rules"])
     ),
     Flow(
         name=flow_bt("Main"), 
         matches=ConstructType.feature, 
-        propagator=BottomUp(chunks=alice.shared["chunks"])
+        propagator=BottomUp(chunks=alice.assets["chunks"])
     ),
     Flow(
         name=flow_tb("Main"), 
         matches=ConstructType.chunk, 
-        propagator=TopDown(chunks=alice.shared["chunks"])
+        propagator=TopDown(chunks=alice.assets["chunks"])
     )
 )
 
@@ -307,7 +307,7 @@ nacs.add(*cnodes)
 # an association from the concept APPLE to the concept FRUIT. This association 
 # is meant to capture the fact that apples are fruits. 
 
-nacs.shared["rules"].link(chunk("FRUIT"), chunk("APPLE"))
+nacs.assets["rules"].link(chunk("FRUIT"), chunk("APPLE"))
 
 # We proceed in much the same way to link chunk and feature nodes. 
 
@@ -320,7 +320,7 @@ nacs.shared["rules"].link(chunk("FRUIT"), chunk("APPLE"))
 # The first call to `link()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node.
 
-alice.shared["chunks"].link(
+alice.assets["chunks"].link(
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
@@ -330,7 +330,7 @@ alice.shared["chunks"].link(
 # The second call to `link()` connects the 'JUICE' chunk node to the tasty 
 # feature node and the liquid state feature node.
 
-alice.shared["chunks"].link(
+alice.assets["chunks"].link(
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
@@ -339,7 +339,7 @@ alice.shared["chunks"].link(
 # The third and last call to `link()` connects the 'FRUIT' chunk node to the 
 # sweet and tasty feature nodes.
 
-alice.shared["chunks"].link(
+alice.assets["chunks"].link(
     chunk("FRUIT"),
     feature("tasty", True),
     feature("sweet", True)

@@ -403,7 +403,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
         self, 
         name: Hashable, 
         matches: MatchArg = None,
-        shared: Dict = None,
+        assets: Dict = None,
         updaters: UpdaterArg[Any] = None,
     ) -> None:
         """
@@ -411,13 +411,13 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
         """
 
         super().__init__(name=name, matches=matches, updaters=updaters)
-        # shared is a simple dict for storing/housing resources shared among 
+        # assets is a simple dict for storing/housing resources shared among 
         # different components of the container including updaters and other 
         # realizers. There is no sophisticated semantics, just a convenient 
         # handle for storing handles to datastructures such as chunk databases 
         # and bla information. It is the user's responsibility to make sure 
         # shared resources are shared and used as intended.
-        self.shared = shared if shared is not None else dict()
+        self.assets = assets if assets is not None else dict()
 
     def __contains__(self, key: ConstructSymbol) -> bool:
 
@@ -640,12 +640,12 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
         name: Hashable, 
         matches: MatchArg = None,
         propagator: Callable[['Subsystem', Optional[Dict]], None] = None,
-        shared: Dict = None,
+        assets: Dict = None,
         updaters: UpdaterArg['Subsystem'] = None
     ) -> None:
 
         super().__init__(
-            name=name, matches=matches, shared=shared, updaters=updaters
+            name=name, matches=matches, assets=assets, updaters=updaters
         )
         self.propagator = propagator
         self._features: Dict[ConstructSymbol, Node] = {}
@@ -800,12 +800,12 @@ class Agent(ContainerConstruct[None, None]):
         self, 
         name: Hashable, 
         matches: MatchArg = None, 
-        shared: Dict = None,
+        assets: Dict = None,
         updaters: UpdaterArg['Agent'] = None
     ) -> None:
 
         super().__init__(
-            name=name, matches=matches, shared=shared, updaters=updaters
+            name=name, matches=matches, assets=assets, updaters=updaters
         )
         self._buffers: Dict[ConstructSymbol, Buffer] = {}
         self._subsystems: Dict[ConstructSymbol, Subsystem] = {}
