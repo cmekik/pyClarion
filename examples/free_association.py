@@ -69,31 +69,27 @@ alice = Agent(
 # chunk database is placed at the agent level because chunk information may be 
 # used by subsystems and buffers.
 
-# For this simulation, there are two main constructs at the agent-level: working 
-# memory and the non-action-centered subsystem (NACS). In Clarion, working 
-# memory corresponds to a short-term memory store enabling information exchange 
-# between the NACS and the Action-Centered Subsystem (ACS). From a psychological 
-# standpoint, this is more similar to short-term memory. The NACS, on the other 
-# hand, is a subsystem that is responsible for processing declarative knowledge. 
-# Knowledge is represented by chunk and feature nodes within the NACS. These 
-# nodes receive activations from working memory and each other, and they compete 
-# to be selected as the output of NACS at each simulation step.
+# For this simulation, there are two main constructs at the agent-level: the 
+# stimulus and the non-action-centered subsystem (NACS). The stimulus is 
+# uncomplicated: it is simply an abstract representation of the task cue. The 
+# NACS, on the other hand, is the Clarion subsystem that is responsible for 
+# processing declarative knowledge. Knowledge is represented by chunk and 
+# feature nodes within the NACS. These nodes receive activations from external 
+# buffers and each other, and they compete to be selected as the output of NACS 
+# at each simulation step.
 
-# Working Memory
+# Stimulus
 
-# We begin by adding a working memory component to the model. For this 
-# simulation, we will not use a detailed model of working memory. We will simply 
-# directly set working memory to hold the task cue at each simulation step. 
+# We begin by adding the stimulus component to the model. 
 
 alice.add(
     Buffer(
-        name="WM", 
-        matches={subsystem("NACS")}, 
+        name="Stimulus", 
         propagator=Stimulus()
     )
 )
 
-# We represent working memory with a buffer construct, which is a top-level 
+# We represent the stimulus with a buffer construct, which is a top-level 
 # construct within an agent that stores and relays activations to various 
 # subsystems. As before, we first create a construct realizer. We then pass it 
 # to `alice` using `alice.add()`. This automatically stores the buffer within 
@@ -112,28 +108,29 @@ alice.add(
 
 nacs = Subsystem(
     name="NACS",
-    matches={buffer("WM")},
+    matches={buffer("Stimulus")},
     propagator=NACSCycle(),
     assets={"rules": Rules()}
 )
 
 # The 'matches' argument lets the subsystem know that it should receive input 
-# from working memory (more specifically, from the buffer construct representing 
-# working memory).
+# from the stimulus (more specifically, from the buffer construct representing 
+# the stimulus).
 
 # In this example, we see a construct symbol explicitly invoked for the first 
 # time through the convenience function `buffer()`, which takes a hashable 
 # object and returns a construct symbol for a buffer construct. Typically, 
 # construct symbols are created through convenience functions, as manually 
-# specifying them is rather tedious. For instance, the result of `buffer("WM")` 
-# can be directly created with the longer expression `ConstructSymbol("buffer", 
-# "WM")`, or the abbreviated but still verbose ConSymb("buffer", "WM").
+# specifying them is rather tedious. For instance, the result of 
+# `buffer("stimulus")` can be directly created with the longer expression 
+# `ConstructSymbol("buffer", "Stimulus")`, or the abbreviated but still verbose 
+# ConSymb("buffer", "Stimulus").
 
-# As before, we add a shared datastructure. The added object is a rule database, 
-# to be used in reasoning. Technically, this database will only be used by a 
-# single construct realizer. However, it helps to keep a reference to it at the 
-# level of NACS as other objects/processes, such as learning rules, base-level 
-# activation trackers, loggers etc., may need access to the rule database.
+# As before, we add a shared datastructure. It is a rule database, to be used in 
+# reasoning. Technically, this database will only be used by a single construct 
+# realizer. However, it helps to keep a reference to it at the level of NACS as 
+# other objects/processes, such as learning rules, base-level activation 
+# trackers, loggers etc., may need access to the rule database.
 
 alice.add(nacs)
 
@@ -198,11 +195,11 @@ nacs.add(
         name="Main",
         matches=MatchSpec(
             ctype=ConstructType.chunk,
-            constructs={buffer("WM")}
+            constructs={buffer("Stimulus")}
         ),
         propagator=FilteredD(
             base=BoltzmannSelector(temperature=.1),
-            input_filter=buffer("WM"))
+            input_filter=buffer("Stimulus"))
     )
 )
 
@@ -210,10 +207,10 @@ nacs.add(
 # a Boltzmann distribution from chunk node activations. A chunk is then 
 # sampled from this distribution and passed on as the selected response.
 
-# Furthermore, to prevent information in WM from interfering with respons 
-# selection, the `BoltzmanSelector` is wrapped in a `FilteredD` object. This 
-# object is set to filter inputs to the selector proportionally to their 
-# strengths in WM.
+# Furthermore, to prevent information in the stimulus from interfering with 
+# response selection, the `BoltzmanSelector` is wrapped in a `FilteredD` object. 
+# This object is set to filter inputs to the selector proportionally to their 
+# strengths in the stimulus buffer. This amounts to cue-suppression.
 
 # In this case, the response construct is identified with the construct symbol 
 # `response("Main")`, which may seem a little redundant. However, in some 
@@ -286,9 +283,9 @@ nacs.add(*cnodes)
 
 # This time, the `matches` argument takes a compound ConstructType value. This 
 # is because in the NACS, chunk nodes receive input from incoming flows 
-# (i.e., bottom-up and top-level flows) as well as working memory, which we 
+# (i.e., bottom-up and top-level flows) as well as the stimulus, which we 
 # represent as a buffer construct. In other words, information coming into the 
-# NACS from working memory activates the top level first.
+# NACS from the stimulus buffer activates the top level first.
 
 # Linking Up Nodes within NACS
 
@@ -360,7 +357,7 @@ alice.assets["chunks"].link(
 
 alice.propagate(
     args={
-        buffer("WM"): {"stimulus": {chunk("APPLE"): 1.}}
+        buffer("Stimulus"): {"stimulus": {chunk("APPLE"): 1.}}
     }
 )
 
