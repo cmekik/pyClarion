@@ -4,7 +4,7 @@
 __all__ = [
     "MatchArg", "UpdaterArg", "MissingSpec", "PullFuncs", "Inputs", "Updater",
     "ConstructRealizer", "BasicConstruct", "ContainerConstruct", "Node", "Flow", 
-    "Response", "Buffer", "Subsystem", "Agent"
+    "Response", "Buffer", "Subsystem", "Agent", "Assets"
 ]
 
 
@@ -20,7 +20,8 @@ from collections import ChainMap, OrderedDict
 from types import MappingProxyType
 from typing import (
     TypeVar, Union, Container, Tuple, Dict, List, Callable, Hashable, Sequence, 
-    Generic, Any, ClassVar, Optional, Type, Text, Iterator, Mapping
+    Generic, Any, ClassVar, Optional, Type, Text, Iterator, Mapping,
+    cast, no_type_check
 )
 from abc import abstractmethod
 
@@ -29,12 +30,19 @@ It = TypeVar('It') # type variable for inputs to construct realizers
 Ot = TypeVar('Ot') # type variable for outputs to construct realizers
 Rt = TypeVar('Rt') # type variable representing a construct realizer 
 
-MatchArg = Union[ConstructType, Container[ConstructSymbol], MatchSpec] # explain scope of this type variable
+Pt = TypeVar("Pt") # type variable for basic construct propagators
+At_co = TypeVar("At_co", covariant=True) # type variable for container construct assets
+
+# explain scope of this type variable
+MatchArg = Union[ConstructType, Container[ConstructSymbol], MatchSpec] 
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 PullFuncs = Dict[ConstructSymbol, Callable[[], It]]
 Inputs = Dict[ConstructSymbol, It]
-Updater = Callable[[Rt], None]
+# Could type annotations for updaters be improved? 
+# Right now,  
+# - Can
+Updater = Callable[[Rt], None] 
 # updater may be a pure ordered dict, or a list of identifier-updater pairs
 UpdaterArg = Union[
     # This should be an OrderedDict, but in 3.6 generic ordered dicts are not 
@@ -42,6 +50,11 @@ UpdaterArg = Union[
     Dict[Hashable, Updater[Rt]], 
     Sequence[Tuple[Hashable, Updater[Rt]]]
 ]
+
+# Shorthands
+APkt = ActivationPacket
+DPkt = DecisionPacket
+SPkt = SubsystemPacket
 
 
 class ConstructRealizer(Generic[It, Ot]):
@@ -57,14 +70,15 @@ class ConstructRealizer(Generic[It, Ot]):
     `matches` attribute, which may be set on initialization.
     """
 
+    _CRt = TypeVar("_CRt", bound="ConstructRealizer")
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
-    packet_constructor: ClassVar[Optional[Type[Ot]]] 
+    packet_constructor: ClassVar[Optional[Type[Ot]]]
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        updaters: UpdaterArg[Any] = None
+        updaters: UpdaterArg[_CRt] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -242,17 +256,21 @@ class ConstructRealizer(Generic[It, Ot]):
 ############################################
 
 
-class BasicConstruct(ConstructRealizer[It, Ot]):
+class BasicConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, Pt]):
     """Base class for basic construct realizers."""
 
+    # _CRt is defined to ensure that the type of a construct's updater is 
+    # compatible with the construct itself. Not sure if this implementation is 
+    # correct; needs confirmation. - Can
+    _CRt = TypeVar("_CRt", bound="BasicConstruct")
     ctype: ClassVar[ConstructType] = ConstructType.basic_construct
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        propagator: Propagator[It, Any, Ot] = None,
-        updaters: UpdaterArg[Any] = None,
+        propagator: Pt = None,
+        updaters: UpdaterArg[_CRt] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -272,10 +290,24 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
 
         if self.propagator is not None:
             packet: Ot
+            # I'm not sure I like the cast below. Propagator is generic, but 
+            # it's unclear to me that the variables are dealt with correctly. 
+            # This should be checked.
+            # If they are dealt with correctly, It may be fine. Correctness 
+            # could also be enforced through class variables storing the desired 
+            # Propagator type. 
+            # Ideally, there would be a bound on the type variable, but doing so 
+            # results in the propagator being upcast. This is not ideal because 
+            # then the typing information is lost downstream and cannot be 
+            # exploited by linters. 
+            # Maybe there is a better way, but this was the simplest and least 
+            # complicated I could come up with. The documentation should make 
+            # the expected Propagator type *very* explicit. - Can  
+            propagator = cast(Propagator, self.propagator)
             if args is not None:
-                packet = self.propagator(self.construct, self.inputs, **args)
+                packet = propagator(self.construct, self.inputs, **args)
             else:
-                packet = self.propagator(self.construct, self.inputs)
+                packet = propagator(self.construct, self.inputs)
             self.update_output(packet)
         else:
             raise TypeError("'NoneType' object is not callable")
@@ -289,17 +321,18 @@ class BasicConstruct(ConstructRealizer[It, Ot]):
         return d
 
 
-class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
+class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
+    _CRt = TypeVar("_CRt", bound="Node")
     ctype: ClassVar[ConstructType] = ConstructType.node
     packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        propagator: PropagatorA = None,
-        updaters: UpdaterArg['Node'] = None,
+        propagator: Pt = None,
+        updaters: UpdaterArg[_CRt] = None,
     ) -> None:
         """Initialize a new node realizer."""
 
@@ -313,17 +346,18 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket]):
         return self.output[self.construct]
 
 
-class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
+class Flow(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
+    _CRt = TypeVar("_CRt", bound="Flow")
     ctype: ClassVar[ConstructType] = ConstructType.flow
     packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable,
         matches: MatchArg = None,
-        propagator: PropagatorA = None,
-        updaters: UpdaterArg['Flow'] = None,
+        propagator: Pt = None,
+        updaters: UpdaterArg[_CRt] = None,
     ) -> None:
         """Initialize a new flow realizer."""
 
@@ -332,17 +366,18 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket]):
         )
 
 
-class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
+class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
 
+    _CRt = TypeVar("_CRt", bound="Response")
     ctype: ClassVar[ConstructType] = ConstructType.response
     packet_constructor: ClassVar[Type[DecisionPacket]] = DecisionPacket
 
     def __init__(
-        self,
+        self: _CRt,
         name: Hashable,
         matches: MatchArg = None,
-        propagator: PropagatorD = None,
-        updaters: UpdaterArg['Response'] = None,
+        propagator: Pt = None,
+        updaters: UpdaterArg[_CRt] = None,
         effector: Callable[[DecisionPacket], None] = None
     ) -> None:
         """
@@ -376,17 +411,18 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket]):
         return d
 
 
-class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
+class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
 
+    _CRt = TypeVar("_CRt", bound="Buffer")
     ctype: ClassVar[ConstructType] = ConstructType.buffer
     packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        propagator: PropagatorB = None,
-        updaters: UpdaterArg['Buffer'] = None,
+        propagator: Pt = None,
+        updaters: UpdaterArg[_CRt] = None,
     ) -> None:
         """Initialize a new buffer realizer."""
 
@@ -400,30 +436,58 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket]):
 #####################################
 
 
-class ContainerConstruct(ConstructRealizer[It, Ot]):
+# Decorator is meant to disable type_checking for the class (but not sub- or 
+# superclasses). @no_type_check is not supported on mypy as of 2020-06-10.
+# Disabling type checks is required here to prevent the typechecker from 
+# complaining about dynamically set attributes. - Can
+# @no_type_check
+class Assets(object):
+    """
+    Provides a namespace for ContainerConstruct assets.
+    
+    The main purpose of `Assets` objects is to provide handles for various
+    datastructures such as chunk databases, rule databases, bla information, 
+    etc. In general, all resources shared among different components of a 
+    container construct are considered assets. 
+    
+    It is the user's responsibility to make sure shared resources are shared 
+    and used as intended. 
+    """
+    
+    def __init__(self, **kwds: Any) -> None:
+        """
+        Initialize a new Assets instance.
+
+        :param kwds: A sequence of named to assets. Each asset in 
+            will be set to the attribute given by the corresponding name.
+        """
+
+        for k, v in kwds.items():
+            self.__setattr__(k, v)
+
+
+class ContainerConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, At_co]):
     """Base class for container construct realizers."""
 
+    _CRt = TypeVar("_CRt", bound="ContainerConstruct")
     ctype: ClassVar[ConstructType] = ConstructType.container_construct
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        assets: Dict = None,
-        updaters: UpdaterArg[Any] = None,
+        assets: At_co = None,
+        updaters: UpdaterArg[_CRt] = None,
     ) -> None:
         """
         Initialize a new container realizer.
         """
 
         super().__init__(name=name, matches=matches, updaters=updaters)
-        # assets is a simple dict for storing/housing resources shared among 
-        # different components of the container including updaters and other 
-        # realizers. There is no sophisticated semantics, just a convenient 
-        # handle for storing handles to datastructures such as chunk databases 
-        # and bla information. It is the user's responsibility to make sure 
-        # shared resources are shared and used as intended.
-        self.assets = assets if assets is not None else dict()
+        # In case assets argument is None self.assets is given type Any to 
+        # prevent type checkers from complaining about missing attributes. This 
+        # occurs b/c attributes of Assets objects are set dynamically.
+        self.assets: At_co = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructSymbol) -> bool:
 
@@ -636,18 +700,19 @@ class ContainerConstruct(ConstructRealizer[It, Ot]):
                 realizer.drop(construct)
 
 
-class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
+class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
+    _CRt = TypeVar("_CRt", bound="Subsystem")
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
     packet_constructor: ClassVar[Type[SubsystemPacket]] = SubsystemPacket
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        propagator: Callable[['Subsystem', Optional[Dict]], None] = None,
-        assets: Dict = None,
-        updaters: UpdaterArg['Subsystem'] = None
+        propagator: Callable[[_CRt, Optional[Dict]], None] = None,
+        assets: At_co = None,
+        updaters: UpdaterArg[_CRt] = None
     ) -> None:
 
         super().__init__(
@@ -736,7 +801,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
                     )
                 )
 
-    def propagate(self, args: Dict = None) -> None:
+    def propagate(self: _CRt, args: Dict = None) -> None:
 
         if self.propagator is not None:
             self.propagator(self, args)
@@ -797,17 +862,18 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket]):
         return MappingProxyType(self._responses)
 
 
-class Agent(ContainerConstruct[None, None]):
+class Agent(ContainerConstruct[None, None, At_co]):
 
+    _CRt = TypeVar("_CRt", bound="Agent")
     ctype: ClassVar[ConstructType] = ConstructType.agent
     packet_constructor: ClassVar[None] = None
 
     def __init__(
-        self, 
+        self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None, 
-        assets: Dict = None,
-        updaters: UpdaterArg['Agent'] = None
+        assets: At_co = None,
+        updaters: UpdaterArg[_CRt] = None
     ) -> None:
 
         super().__init__(

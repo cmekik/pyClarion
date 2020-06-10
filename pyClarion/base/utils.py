@@ -3,8 +3,7 @@
 
 __all__ = [
     "feature", "chunk", "flow_bt", "flow_tb", "flow_tt", "flow_bb", 
-    "response", "buffer", "subsystem", "agent",
-    "FlowTT", "FlowBB", "FlowTB", "FlowBT"
+    "response", "buffer", "subsystem", "agent"
 ]
 
 
@@ -122,91 +121,3 @@ def agent(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.agent, name)
-
-
-####################################
-### Construct Realizer Factories ###
-####################################
-
-# These are convenience functions for constructing Flow realizers.
-# They simply create a Flow instance with an appropriate construct.
-
-
-def _construct_ftype(
-    name: Hashable,
-    ftype: ConstructType,  
-    matches: MatchArg = None, 
-    propagator: PropagatorA = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-
-    name = ConstructSymbol(ftype, name)
-    return Flow(name=name, matches=matches, propagator=propagator, updaters=updaters)
-
-
-def FlowTT(
-    name: Hashable,
-    matches: MatchArg = None, 
-    propagator: PropagatorA = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-    """Construct a FlowRealizer instance for a flow in the top level."""
-
-    return _construct_ftype(
-        name=name, 
-        ftype=ConstructType.flow_tt, 
-        matches=matches, 
-        propagator=propagator, 
-        updaters=updaters
-    )
-
-
-def FlowBB(
-    name: Hashable,
-    matches: MatchArg = None, 
-    propagator: PropagatorA = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-    """Construct a FlowRealizer instance for a flow in the bottom level."""
-
-    return _construct_ftype(
-        name=name, 
-        ftype=ConstructType.flow_bb, 
-        matches=matches, 
-        propagator=propagator, 
-        updaters=updaters
-    )
-
-
-def FlowTB(
-    name: Hashable,
-    matches: MatchArg = None, 
-    propagator: PropagatorA = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-    """Construct a FlowRealizer instance for a top-down flow."""
-
-    return _construct_ftype(
-        name=name, 
-        ftype=ConstructType.flow_tb, 
-        matches=matches, 
-        propagator=propagator, 
-        updaters=updaters
-    )
-
-
-def FlowBT(
-    name: Hashable,
-    matches: MatchArg = None, 
-    propagator: PropagatorA = None, 
-    updaters: UpdaterArg[Flow] = None
-) -> Flow:
-    """Construct a FlowRealizer instance for a bottom-up flow."""
-
-    return _construct_ftype(
-        name=name, 
-        ftype=ConstructType.flow_bt,
-        matches=matches, 
-        propagator=propagator, 
-        updaters=updaters
-    )

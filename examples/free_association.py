@@ -12,7 +12,7 @@ from pyClarion import (
     # These are realizer objects, implementing behavior of simulated constructs.
     Agent, Subsystem, Buffer, Flow, Node, Response,
     # Construct types are used in controlling construct behavior
-    ConstructType, MatchSpec, 
+    ConstructType, MatchSpec, Assets,
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
     subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
@@ -24,6 +24,7 @@ from pyClarion import (
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
     FilteredD, NACSCycle
 )
+from pyClarion.components.assets import BasicAgentAssets, NACSAssets
 
 
 #############
@@ -47,7 +48,7 @@ from pyClarion import (
 
 alice = Agent(
     name="Alice",
-    assets={"chunks": Chunks()}
+    assets=BasicAgentAssets()
 )
 
 # The name argument to the Agent constructor serves to label the agent object. 
@@ -60,14 +61,16 @@ alice = Agent(
 # construct realizer. More on construct symbols below.
 
 # To keep track of concepts that Alice knows about, we equip Alice with a chunk 
-# database (more on chunks below), which is passed to Alice's 'assets' 
-# attribute. The `assets` attribute is a dict for convenient storage of 
-# resources shared by construct realizers subordinate to Alice. All container 
-# construct realizers have the `assets` attribute. A good rule of thumb is to 
-# place shared resources in the container construct directly above the 
-# highest-level construct realizer using the resource. In this example, the 
-# chunk database is placed at the agent level because chunk information may be 
-# used by subsystems and buffers.
+# database (more on chunks below). This is done by passing a `BasicAgentAssets` 
+# object, which holds a chunk database in its `chunks` attribute, to Alice's 
+# 'assets' attribute. The `assets` attribute provides a namespace for convenient 
+# storage of resources shared by construct realizers subordinate to Alice. All 
+# container construct realizers have the `assets` attribute. 
+
+# A good rule of thumb is to place shared resources in the container construct 
+# directly in or above the highest-level construct realizer using the resource. 
+# The chunk database is placed at the agent level because chunk information may 
+# be used by subsystems and buffers.
 
 # For this simulation, there are two main constructs at the agent-level: the 
 # stimulus and the non-action-centered subsystem (NACS). The stimulus is 
@@ -82,12 +85,8 @@ alice = Agent(
 
 # We begin by adding the stimulus component to the model. 
 
-alice.add(
-    Buffer(
-        name="Stimulus", 
-        propagator=Stimulus()
-    )
-)
+stimulus = Buffer(name="Stimulus", propagator=Stimulus())
+alice.add(stimulus)
 
 # We represent the stimulus with a buffer construct, which is a top-level 
 # construct within an agent that stores and relays activations to various 
@@ -110,7 +109,7 @@ nacs = Subsystem(
     name="NACS",
     matches={buffer("Stimulus")},
     propagator=NACSCycle(),
-    assets={"rules": Rules()}
+    assets=NACSAssets()
 )
 
 # The 'matches' argument lets the subsystem know that it should receive input 
@@ -126,11 +125,12 @@ nacs = Subsystem(
 # `ConstructSymbol("buffer", "Stimulus")`, or the abbreviated but still verbose 
 # ConSymb("buffer", "Stimulus").
 
-# As before, we add a shared datastructure. It is a rule database, to be used in 
-# reasoning. Technically, this database will only be used by a single construct 
-# realizer. However, it helps to keep a reference to it at the level of NACS as 
-# other objects/processes, such as learning rules, base-level activation 
-# trackers, loggers etc., may need access to the rule database.
+# As before, we add assets. In this case, we are interested in equipping the 
+# NACS with a rule database, to be used in reasoning. In reality, this database 
+# is only used by a single construct realizer. However, it helps to keep a 
+# reference to it at the level of NACS as other objects/processes, such as 
+# learning rules, base-level activation trackers, loggers etc., may need access 
+# to the rule database.
 
 alice.add(nacs)
 
@@ -164,17 +164,17 @@ nacs.add(
     Flow(
         name=flow_tt("Associations"),
         matches=ConstructType.chunk,
-        propagator=AssociativeRules(rules=nacs.assets["rules"])
+        propagator=AssociativeRules(rules=nacs.assets.rules)
     ),
     Flow(
         name=flow_bt("Main"), 
         matches=ConstructType.feature, 
-        propagator=BottomUp(chunks=alice.assets["chunks"])
+        propagator=BottomUp(chunks=alice.assets.chunks)
     ),
     Flow(
         name=flow_tb("Main"), 
         matches=ConstructType.chunk, 
-        propagator=TopDown(chunks=alice.assets["chunks"])
+        propagator=TopDown(chunks=alice.assets.chunks)
     )
 )
 
@@ -304,7 +304,7 @@ nacs.add(*cnodes)
 # an association from the concept APPLE to the concept FRUIT. This association 
 # is meant to capture the fact that apples are fruits. 
 
-nacs.assets["rules"].link(chunk("FRUIT"), chunk("APPLE"))
+nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE"))
 
 # We proceed in much the same way to link chunk and feature nodes. 
 
@@ -317,7 +317,7 @@ nacs.assets["rules"].link(chunk("FRUIT"), chunk("APPLE"))
 # The first call to `link()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node.
 
-alice.assets["chunks"].link(
+alice.assets.chunks.link(
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
@@ -327,7 +327,7 @@ alice.assets["chunks"].link(
 # The second call to `link()` connects the 'JUICE' chunk node to the tasty 
 # feature node and the liquid state feature node.
 
-alice.assets["chunks"].link(
+alice.assets.chunks.link(
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
@@ -336,7 +336,7 @@ alice.assets["chunks"].link(
 # The third and last call to `link()` connects the 'FRUIT' chunk node to the 
 # sweet and tasty feature nodes.
 
-alice.assets["chunks"].link(
+alice.assets.chunks.link(
     chunk("FRUIT"),
     feature("tasty", True),
     feature("sweet", True)
@@ -393,6 +393,7 @@ alice.clear_output()
 #   - The basics of running simulations using pyClarion 
 
 # Some functionalities that are supported but not demonstrated include:
+#   - Streamlined initialization of standard constructs (like NACS),  
 #   - Executing action callbacks through subsystems responses,
 #   - Dynamic modification of agent components,
 #   - Learning and state/parameter updates,
