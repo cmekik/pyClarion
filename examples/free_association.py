@@ -49,29 +49,28 @@ alice = Agent(
     assets=Assets(chunks=Chunks())
 )
 
-# The name argument to the Agent constructor serves to label the agent object. 
+# The `name` argument to the Agent constructor serves to label the agent object. 
 # It is mandatory to provide a name argument to construct realizers, as names 
 # enable automation of important behavior, such as linking/unlinking constructs.  
 
-# Behind the scenes, Agent converts the string "Alice" into a construct symbol 
+# Behind the scenes, `Agent` converts the string "Alice" into a construct symbol 
 # and stores it in a `construct` attribute (accessible via `alice.construct`).
 # It is possible to directly pass construct symbols as the `name` argument to a 
 # construct realizer. More on construct symbols below.
 
 # To keep track of concepts that Alice knows about, we equip Alice with a chunk 
-# database (more on chunks below). This is done by passing a `Assets` object, 
-# which holds a chunk database in its `chunks` attribute, to Alice's 'assets' 
-# attribute. The `assets` attribute provides a namespace for convenient 
-# storage of resources shared by construct realizers subordinate to Alice. All 
-# container construct realizers have the `assets` attribute. The Assets object 
-# simply records all arguments passed to it as an attribute (as a result it is 
-# dynamically typed, and may trigger some type checkers; this is why 
-# `type: ignore` appears at various points in this document).
+# database (more on chunks below). This is done by passing an `Assets` object, 
+# which is given a chunk database to be stored in its `chunks` attribute, as 
+# the agent's 'assets' attribute. The `assets` attribute provides a namespace 
+# for convenient storage of resources shared by construct realizers subordinate 
+# to Alice. All container construct realizers have the `assets` attribute. The 
+# `Assets` object is uncomplicated. It simply records all arguments passed to 
+# it as an attribute (as a result it is dynamically typed and may trigger some 
+# type checkers; this is why `type: ignore` appears at various points in this 
+# document).
 
 # A good rule of thumb is to place shared resources in the container construct 
-# directly in or above the highest-level construct realizer using the resource. 
-# The chunk database is placed at the agent level because chunk information may 
-# be used by subsystems and buffers.
+# directly in or above the highest-level construct realizer using the resource.
 
 # For this simulation, there are two main constructs at the agent-level: the 
 # stimulus and the non-action-centered subsystem (NACS). The stimulus is 
@@ -109,7 +108,7 @@ alice.add(stimulus)
 nacs = Subsystem(
     name="NACS",
     matches={buffer("Stimulus")},
-    propagator=NACSCycle(),
+    cycle=NACSCycle(),
     assets=Assets(rules=Rules())
 )
 

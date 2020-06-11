@@ -28,8 +28,8 @@ class Propagator(Generic[It, Xt, Ot]):
     """
     Abstract class for propagating strengths, decisions, and states.
 
-    Propagator subclasses and instances define how constructs process inputs and 
-    set outputs.
+    Propagator subclasses and instances define how constructs process inputs 
+    and set outputs.
     """
 
     # Would it be worth implenting this as a Protocol? - Can
@@ -49,10 +49,10 @@ class Propagator(Generic[It, Xt, Ot]):
         inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
         intermediate: Xt = self.call(construct, inputs_, **kwds)
         
-        return self.wrap(intermediate)
+        return self.make_packet(intermediate)
 
     @abstractmethod
-    def wrap(self, data: Xt) -> Ot:
+    def make_packet(self, data: Xt = None) -> Ot:
         pass
 
     @abstractmethod
@@ -86,8 +86,9 @@ class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
     Maps activations to activations.
     """
 
-    def wrap(self, data: APData) -> ActivationPacket:
+    def make_packet(self, data: APData = None) -> ActivationPacket:
 
+        data = data if data is not None else dict()
         return ActivationPacket(strengths=data)
 
 
@@ -98,9 +99,9 @@ class PropagatorD(Propagator[ActivationPacket, DPData, DecisionPacket]):
     Maps activations to decisions.
     """
 
-    def wrap(self, data: DPData) -> DecisionPacket:
+    def make_packet(self, data: DPData = None) -> DecisionPacket:
 
-        strengths, selection = data
+        strengths, selection = data if data is not None else (dict(), set())
         return DecisionPacket(strengths=strengths, selection=selection)
 
 
@@ -111,6 +112,7 @@ class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
     Maps subsystem outputs to activations.
     """
     
-    def wrap(self, data: APData) -> ActivationPacket:
+    def make_packet(self, data: APData = None) -> ActivationPacket:
 
+        data = data if data is not None else dict()
         return ActivationPacket(strengths=data)

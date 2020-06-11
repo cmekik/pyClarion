@@ -1,4 +1,4 @@
-"""Provides tools for defining the behavior of constructs within simulations."""
+"""Provides tools for defining the behavior of simulated constructs."""
 
 
 __all__ = [
@@ -39,9 +39,7 @@ ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 MissingSpec = Dict[ConstructRef, List[str]]
 PullFuncs = Dict[ConstructSymbol, Callable[[], It]]
 Inputs = Dict[ConstructSymbol, It]
-# Could type annotations for updaters be improved? 
-# Right now,  
-# - Can
+# Could type annotations for updaters be improved? - Can
 Updater = Callable[[Rt], None] 
 # updater may be a pure ordered dict, or a list of identifier-updater pairs
 UpdaterArg = Union[
@@ -51,13 +49,8 @@ UpdaterArg = Union[
     Sequence[Tuple[Hashable, Updater[Rt]]]
 ]
 
-# Shorthands
-APkt = ActivationPacket
-DPkt = DecisionPacket
-SPkt = SubsystemPacket
 
-
-class ConstructRealizer(Generic[It, Ot]):
+class ConstructRealizer(Generic[It, Ot, Pt]):
     """
     Base class for construct realizers.
 
@@ -71,44 +64,59 @@ class ConstructRealizer(Generic[It, Ot]):
     """
 
     _CRt = TypeVar("_CRt", bound="ConstructRealizer")
+    # Construct type associated with this realizer class.
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
-    packet_constructor: ClassVar[Optional[Type[Ot]]]
 
     def __init__(
         self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
+        propagator: Pt = None,
         updaters: UpdaterArg[_CRt] = None
     ) -> None:
         """
         Initialize a new construct realizer.
         
         :param name: Identifier for construct, may be a ConstructSymbol, str, 
-            tuple, or list.
+            tuple, or list. If a construct symbol is given, its construct type 
+            must match the construct type associated with the realizer class. 
+            If a str, tuple, or list is given, a `ConstructSymbol` will be 
+            created with the given values as construct identifiers and the 
+            class `ctype` as its `ConstructType`.  
         :param matches: Specification of constructs from which self may accept 
-            input.
+            input. Expects a `ConstructType` or a container of construct 
+            symbols. For complex matching patterns see `symbols.MatchSpec`.
+        :param propagator: Activation processor associated with client 
+            construct. Propagates strengths based on inputs from linked 
+            constructs. It is expected that this argument will behave like a 
+            `Propagator` object; this expectation is not enforced.
+        :param updaters: A dict-like object containing procedures for updating 
+            construct knowledge.
         """
 
-        self.matches = matches
         self._construct = self._parse_name(name=name)
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
 
+        self.matches = matches
+        self.propagator = propagator
         # This doesn't seem very safe...
         self.updaters: OrderedDict[Hashable, Updater[Any]]
-        if updaters is None:
-            self.updaters = OrderedDict()
-        elif isinstance(updaters, OrderedDict):
-            self.updaters = updaters
-        else:
-            self.updaters = OrderedDict(updaters)
+        if updaters is None: self.updaters = OrderedDict()
+        elif isinstance(updaters, OrderedDict): self.updaters = updaters
+        else: self.updaters = OrderedDict(updaters)
 
     def __repr__(self) -> Text:
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
 
     def propagate(self, args: Dict = None) -> None:
-        """Propagate activations."""
+        """
+        Propagate activations.
+
+        :param args: A dict containing optional arguments for self and 
+            subordinate constructs (if any).
+        """
 
         raise NotImplementedError()
 
@@ -132,7 +140,14 @@ class ConstructRealizer(Generic[It, Ot]):
     def watch(
         self, construct: ConstructSymbol, callback: Callable[[], It]
     ) -> None:
-        """Set given construct as an input to self."""
+        """
+        Set given construct as an input to self.
+        
+        :param construct: Symbol for target construct.
+        :param callback: A callable that returns a `Packet` representing the 
+            output of the target construct. Typically this will be the `view()` 
+            method of a construct realizer.
+        """
 
         self._inputs[construct] = callback
 
@@ -186,14 +201,16 @@ class ConstructRealizer(Generic[It, Ot]):
         # Emit output if available.
         if self._output is not None:
             return self._output
-        # Upon failure, try to construct empty output datastructure, 
-        # if constructor is available.
-        elif self.packet_constructor is not None:
-            self._output = self.packet_constructor()
+        # Upon failure, try to construct empty output datastructure, if 
+        # constructor is available.
+        elif self.propagator is not None:
+            self._output = cast(Propagator, self.propagator).make_packet()
             return self._output
-        # Upon a second failure, throw error.
+        # Upon a second failure, throw output error.
         else:
-            raise AttributeError('Output of {} not defined.'.format(repr(self)))
+            cls = type(self)
+            repr_ = repr(self)
+            raise cls.OutputError('Output of {} not defined.'.format(repr_))
 
     @property
     def missing(self) -> MissingSpec:
@@ -210,6 +227,10 @@ class ConstructRealizer(Generic[It, Ot]):
         if self.matches is None:
             d.setdefault(self.construct, []).append('matches')
         return d
+
+    class OutputError(Exception):
+        """Raised when a realizer has no output"""
+        pass
 
     def _check_construct(self, construct: ConstructSymbol) -> None:
         """Check if construct symbol matches realizer."""
@@ -256,37 +277,20 @@ class ConstructRealizer(Generic[It, Ot]):
 ############################################
 
 
-class BasicConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, Pt]):
-    """Base class for basic construct realizers."""
+class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
+    """
+    Base class for basic construct realizers.
+    
+    `BasicConstruct` objects are leaves in the construct realizer containment 
+    hierarchy. That is to say they contain no other realizers and are generally 
+    responsible for defining the behaviour of a single construct or type of 
+    construct in their context.
+    """
 
-    # _CRt is defined to ensure that the type of a construct's updater is 
-    # compatible with the construct itself. Not sure if this implementation is 
-    # correct; needs confirmation. - Can
-    _CRt = TypeVar("_CRt", bound="BasicConstruct")
     ctype: ClassVar[ConstructType] = ConstructType.basic_construct
 
-    def __init__(
-        self: _CRt, 
-        name: Hashable, 
-        matches: MatchArg = None,
-        propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None,
-    ) -> None:
-        """
-        Initialize a new construct realizer.
-        
-        :param construct: Symbolic representation of client construct.
-        :param matches: Specification of constructs from which self may accept 
-            input.
-        :param propagator: Activation processor associated with client 
-            construct.
-        """
-
-        super().__init__(name=name, matches=matches, updaters=updaters)
-        self.propagator = propagator
-
     def propagate(self, args: Dict = None) -> None:
-        """Update output of self with result of processor on current input."""
+        """Update output of self with result of propagator on current input."""
 
         if self.propagator is not None:
             packet: Ot
@@ -323,22 +327,7 @@ class BasicConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, Pt]):
 
 class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
-    _CRt = TypeVar("_CRt", bound="Node")
     ctype: ClassVar[ConstructType] = ConstructType.node
-    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
-
-    def __init__(
-        self: _CRt, 
-        name: Hashable, 
-        matches: MatchArg = None,
-        propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None,
-    ) -> None:
-        """Initialize a new node realizer."""
-
-        super().__init__(
-            name=name, matches=matches, propagator=propagator, updaters=updaters
-        )
 
     @property
     def output_value(self) -> Any:
@@ -348,29 +337,13 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
 class Flow(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
-    _CRt = TypeVar("_CRt", bound="Flow")
     ctype: ClassVar[ConstructType] = ConstructType.flow
-    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
-
-    def __init__(
-        self: _CRt, 
-        name: Hashable,
-        matches: MatchArg = None,
-        propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None,
-    ) -> None:
-        """Initialize a new flow realizer."""
-
-        super().__init__(
-            name=name, matches=matches, propagator=propagator, updaters=updaters
-        )
 
 
 class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
 
     _CRt = TypeVar("_CRt", bound="Response")
     ctype: ClassVar[ConstructType] = ConstructType.response
-    packet_constructor: ClassVar[Type[DecisionPacket]] = DecisionPacket
 
     def __init__(
         self: _CRt,
@@ -392,7 +365,10 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
         """
 
         super().__init__(
-            name=name, matches=matches, propagator=propagator, updaters=updaters
+            name=name, 
+            matches=matches, 
+            propagator=propagator, 
+            updaters=updaters
         )
         self.effector = effector
 
@@ -413,22 +389,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
 
 class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
 
-    _CRt = TypeVar("_CRt", bound="Buffer")
     ctype: ClassVar[ConstructType] = ConstructType.buffer
-    packet_constructor: ClassVar[Type[ActivationPacket]] = ActivationPacket
-
-    def __init__(
-        self: _CRt, 
-        name: Hashable, 
-        matches: MatchArg = None,
-        propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None,
-    ) -> None:
-        """Initialize a new buffer realizer."""
-
-        super().__init__(
-            name=name, matches=matches, propagator=propagator, updaters=updaters
-        )
 
 
 #####################################
@@ -469,7 +430,9 @@ class Assets(object): # type: ignore
             self.__setattr__(k, v)
 
 
-class ContainerConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, At_co]):
+class ContainerConstruct(
+    ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
+):
     """Base class for container construct realizers."""
 
     _CRt = TypeVar("_CRt", bound="ContainerConstruct")
@@ -627,11 +590,6 @@ class ContainerConstruct(ConstructRealizer[It, Ot], Generic[It, Ot, At_co]):
         construct.
         """
 
-        # self-links
-        # Would this cause trouble for parallelization? - Can
-        for realizer in self.values(): 
-            if realizer.accepts(realizer.construct):
-                realizer.watch(realizer.construct, realizer.view)
         # pairwise links
         for realizer1, realizer2 in combinations(self.values(), 2):
             if realizer1.accepts(realizer2.construct):
@@ -707,13 +665,12 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
     _CRt = TypeVar("_CRt", bound="Subsystem")
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
-    packet_constructor: ClassVar[Type[SubsystemPacket]] = SubsystemPacket
 
     def __init__(
         self: _CRt, 
         name: Hashable, 
         matches: MatchArg = None,
-        propagator: Callable[[_CRt, Optional[Dict]], None] = None,
+        cycle: Callable[[_CRt, Optional[Dict]], None] = None,
         assets: At_co = None,
         updaters: UpdaterArg[_CRt] = None
     ) -> None:
@@ -721,7 +678,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
         super().__init__(
             name=name, matches=matches, assets=assets, updaters=updaters
         )
-        self.propagator = propagator
+        self.cycle = cycle
         self._features: Dict[ConstructSymbol, Node] = {}
         self._chunks: Dict[ConstructSymbol, Node] = {}
         self._nodes: Mapping[ConstructSymbol, Node] = ChainMap(
@@ -806,8 +763,8 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
     def propagate(self: _CRt, args: Dict = None) -> None:
 
-        if self.propagator is not None:
-            self.propagator(self, args)
+        if self.cycle is not None:
+            self.cycle(self, args)
         else:
             raise TypeError("'NoneType' object is not callable")
         
@@ -829,6 +786,15 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
         }
 
         return SubsystemPacket(strengths=strengths, decisions=decisions)
+
+    @property
+    def output(self) -> SubsystemPacket:
+
+        cls = type(self)
+        try:
+            return super().output
+        except cls.OutputError:
+            return SubsystemPacket()
 
     @property
     def missing(self) -> MissingSpec:
@@ -869,7 +835,6 @@ class Agent(ContainerConstruct[None, None, At_co]):
 
     _CRt = TypeVar("_CRt", bound="Agent")
     ctype: ClassVar[ConstructType] = ConstructType.agent
-    packet_constructor: ClassVar[None] = None
 
     def __init__(
         self: _CRt, 
