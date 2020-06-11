@@ -32,7 +32,7 @@ class Propagator(Generic[It, Xt, Ot]):
     set outputs.
     """
 
-    # It may be worth implenting Propagator as a Protocol in the future. - Can
+    # Would it be worth implenting this as a Protocol? - Can
 
     def __call__(
         self, construct: ConstructSymbol, inputs: PullFuncs[It], **kwds: Any

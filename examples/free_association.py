@@ -16,15 +16,13 @@ from pyClarion import (
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
     subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
-    # These objects are free-standing datastructures handling various important 
-    # concerns.
+    # These objects house datastructures handling various important concerns.
     Chunks, Rules,
     # These objects define how realizers process activations in the forward 
     # direction.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
     FilteredD, NACSCycle
 )
-from pyClarion.components.assets import BasicAgentAssets, NACSAssets
 
 
 #############
@@ -48,7 +46,7 @@ from pyClarion.components.assets import BasicAgentAssets, NACSAssets
 
 alice = Agent(
     name="Alice",
-    assets=BasicAgentAssets()
+    assets=Assets(chunks=Chunks())
 )
 
 # The name argument to the Agent constructor serves to label the agent object. 
@@ -61,11 +59,14 @@ alice = Agent(
 # construct realizer. More on construct symbols below.
 
 # To keep track of concepts that Alice knows about, we equip Alice with a chunk 
-# database (more on chunks below). This is done by passing a `BasicAgentAssets` 
-# object, which holds a chunk database in its `chunks` attribute, to Alice's 
-# 'assets' attribute. The `assets` attribute provides a namespace for convenient 
+# database (more on chunks below). This is done by passing a `Assets` object, 
+# which holds a chunk database in its `chunks` attribute, to Alice's 'assets' 
+# attribute. The `assets` attribute provides a namespace for convenient 
 # storage of resources shared by construct realizers subordinate to Alice. All 
-# container construct realizers have the `assets` attribute. 
+# container construct realizers have the `assets` attribute. The Assets object 
+# simply records all arguments passed to it as an attribute (as a result it is 
+# dynamically typed, and may trigger some type checkers; this is why 
+# `type: ignore` appears at various points in this document).
 
 # A good rule of thumb is to place shared resources in the container construct 
 # directly in or above the highest-level construct realizer using the resource. 
@@ -109,7 +110,7 @@ nacs = Subsystem(
     name="NACS",
     matches={buffer("Stimulus")},
     propagator=NACSCycle(),
-    assets=NACSAssets()
+    assets=Assets(rules=Rules())
 )
 
 # The 'matches' argument lets the subsystem know that it should receive input 
@@ -164,17 +165,17 @@ nacs.add(
     Flow(
         name=flow_tt("Associations"),
         matches=ConstructType.chunk,
-        propagator=AssociativeRules(rules=nacs.assets.rules)
+        propagator=AssociativeRules(rules=nacs.assets.rules) # type: ignore
     ),
     Flow(
         name=flow_bt("Main"), 
         matches=ConstructType.feature, 
-        propagator=BottomUp(chunks=alice.assets.chunks)
+        propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
     Flow(
         name=flow_tb("Main"), 
         matches=ConstructType.chunk, 
-        propagator=TopDown(chunks=alice.assets.chunks)
+        propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
 
@@ -304,7 +305,7 @@ nacs.add(*cnodes)
 # an association from the concept APPLE to the concept FRUIT. This association 
 # is meant to capture the fact that apples are fruits. 
 
-nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE"))
+nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
 
 # We proceed in much the same way to link chunk and feature nodes. 
 
@@ -317,7 +318,7 @@ nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE"))
 # The first call to `link()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node.
 
-alice.assets.chunks.link(
+alice.assets.chunks.link( # type: ignore
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
@@ -327,7 +328,7 @@ alice.assets.chunks.link(
 # The second call to `link()` connects the 'JUICE' chunk node to the tasty 
 # feature node and the liquid state feature node.
 
-alice.assets.chunks.link(
+alice.assets.chunks.link( # type: ignore
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
@@ -336,7 +337,7 @@ alice.assets.chunks.link(
 # The third and last call to `link()` connects the 'FRUIT' chunk node to the 
 # sweet and tasty feature nodes.
 
-alice.assets.chunks.link(
+alice.assets.chunks.link( # type: ignore
     chunk("FRUIT"),
     feature("tasty", True),
     feature("sweet", True)

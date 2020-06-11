@@ -439,9 +439,12 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
 # Decorator is meant to disable type_checking for the class (but not sub- or 
 # superclasses). @no_type_check is not supported on mypy as of 2020-06-10.
 # Disabling type checks is required here to prevent the typechecker from 
-# complaining about dynamically set attributes. - Can
-# @no_type_check
-class Assets(object):
+# complaining about dynamically set attributes. 
+# 'type: ignore' is set to prevent mypy from complaining until the issue is 
+# resolved.
+# - Can
+@no_type_check
+class Assets(object): # type: ignore
     """
     Provides a namespace for ContainerConstruct assets.
     

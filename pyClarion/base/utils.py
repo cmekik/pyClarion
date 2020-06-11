@@ -1,4 +1,4 @@
-"""Provides convenience functions for constructing symbols and realizers."""
+"""Provides convenience functions."""
 
 
 __all__ = [
