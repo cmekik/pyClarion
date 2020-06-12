@@ -97,6 +97,19 @@ class Chunks(object):
         d = self._data.setdefault(ch, dict())
         self.update_form(d, *features, op=op, weights=weights)
 
+    def set_chunk(self, ch, form):
+        """
+        Set chunk to have given form to database.
+        
+        If the chunk is new, will simply add to database. Otherwise, will 
+        overwrite exisiting data.
+        """
+
+        d = {ch: form}
+        self.validate_init_data(d)
+        self._data.update(d)
+
+
     def remove_chunk(self, ch):
         """Remove chunk from database."""
 

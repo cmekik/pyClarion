@@ -3,18 +3,21 @@
 
 __all__ = [
     "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
-    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredD"
+    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredD", "ChunkExtractor"
 ]
 
 
-from pyClarion.base import ConstructSymbol, ActivationPacket, DecisionPacket
+from pyClarion.base import ConstructSymbol, chunk 
+from pyClarion.base.packets import ActivationPacket, DecisionPacket
 from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorD
 from pyClarion.components.datastructures import Chunks, Rules 
+from pyClarion.components.utils import ChunkConstructor
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
 from statistics import mean
+from itertools import count
 
 
 ##############################
@@ -168,7 +171,7 @@ class BottomUp(PropagatorA):
 
 
 ############################
-### Decision Propagators ###
+### Response Propagators ###
 ############################
 
 
@@ -200,6 +203,65 @@ class BoltzmannSelector(PropagatorD):
         selection = select(probabilities, self.k)
 
         return probabilities, selection
+
+
+class ChunkExtractor(PropagatorD):
+
+    def __init__(
+        self, 
+        items, 
+        threshold, 
+        op="max",
+        extraction_threshold=None,  
+        flag_source=None
+    ):
+
+        if flag_source is not None and extraction_threshold is None:
+            raise ValueError(
+                "Must provide extraction threshold when "
+                "flag_source is provided."
+            )
+
+        self.constructor = ChunkConstructor(threshold=threshold, op=op)
+        self.threshold = extraction_threshold
+        self.items = items
+        self.flag_source = flag_source
+        
+    def call(self, construct, inputs, **kwds):
+
+        if self.flag_source is not None:
+            selector = inputs.pop(self.flag_source)
+            _selection = [
+                i for i, item in enumerate(self.items) if 
+                selector[item.flag] > self.threshold
+            ]
+        else:
+            _selection = []
+
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        names = [
+            chunk("{}-{}".format(item.name, next(item.counter)))
+            for item in self.items
+        ]
+        forms = self.constructor(
+            strengths=strengths, 
+            filters=[item.filter for item in self.items]
+        )
+        extracts = {n: f for n, f in zip(names, forms)}
+        selection = {names[i] for i in _selection}
+
+        return extracts, selection 
+
+    class Item(object):
+        """Configuration data for a chunk extractor."""
+
+        def __init__(self, name, filter, flag=None):
+
+            self.name = name
+            self.flag = flag
+            self.filter = filter
+            self.counter = count(start=1, step=1)
 
 
 ##########################
