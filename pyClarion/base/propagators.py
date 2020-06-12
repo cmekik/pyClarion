@@ -8,7 +8,7 @@ from pyClarion.base.symbols import ConstructSymbol
 from pyClarion.base.packets import (
     ActivationPacket, DecisionPacket, SubsystemPacket
 )
-from typing import TypeVar, Generic, Dict, Callable, Any, Mapping, Tuple, Set
+from typing import TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set
 from abc import abstractmethod
 
 
@@ -18,8 +18,8 @@ Xt = TypeVar('Xt') # type variable for intermediate stage
                    # Should Xt be covariant/contravariant? - Can 
 Ot = TypeVar('Ot', covariant=True) # type variable for propagator outputs
 
-PullFuncs = Dict[ConstructSymbol, Callable[[], Dt]]
-Inputs = Dict[ConstructSymbol, Dt]
+PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
+Inputs = Mapping[ConstructSymbol, Dt]
 APData = Mapping[ConstructSymbol, Any] # type for ActivationPacket init
 DPData = Tuple[APData, Set[ConstructSymbol]] # type for DecisionPacket init
 

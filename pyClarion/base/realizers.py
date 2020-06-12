@@ -184,8 +184,9 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
 
         return self._construct
 
-    @property
-    def inputs(self) -> Dict[ConstructSymbol, Callable[[], It]]:
+    @property # type: ignore
+    @lru_cache(maxsize=1)
+    def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
         """
         Mapping from input constructs to pull funcs.
         
@@ -193,7 +194,7 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
         corrupted model behavior.
         """
 
-        return self._inputs
+        return MappingProxyType(self._inputs)
 
     @property
     def output(self) -> Ot:
@@ -309,10 +310,11 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
             # complicated I could come up with. The documentation should make 
             # the expected Propagator type *very* explicit. - Can  
             propagator = cast(Propagator, self.propagator)
+            inputs = cast(Any, self.inputs) # mypy complains about lru_cache
             if args is not None:
-                packet = propagator(self.construct, self.inputs, **args)
+                packet = propagator(self.construct, inputs, **args)
             else:
-                packet = propagator(self.construct, self.inputs)
+                packet = propagator(self.construct, inputs)
             self.update_output(packet)
         else:
             raise TypeError("'NoneType' object is not callable")
@@ -327,6 +329,11 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
 
 
 class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
+    """
+    Construct realizer for pyClarion nodes.
+
+    This object expects a propagator of type `PropagatorA` or similar.
+    """
 
     ctype: ClassVar[ConstructType] = ConstructType.node
 
@@ -337,11 +344,21 @@ class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
 
 
 class Flow(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
+    """
+    Construct realizer for pyClarion flows.
+
+    This object expects a propagator of type `PropagatorA` or similar.
+    """
 
     ctype: ClassVar[ConstructType] = ConstructType.flow
 
 
 class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
+    """
+    Construct realizer for pyClarion responses.
+
+    This object expects a propagator of type `PropagatorD` or similar.
+    """
 
     _CRt = TypeVar("_CRt", bound="Response")
     ctype: ClassVar[ConstructType] = ConstructType.response
@@ -355,13 +372,23 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
         effector: Callable[[DecisionPacket], None] = None
     ) -> None:
         """
-        Initialize a new construct realizer.
+        Initialize a new response realizer.
         
-        :param construct: Symbolic representation of client construct.
+        :param name: Identifier for construct, may be a ConstructSymbol, str, 
+            tuple, or list. If a construct symbol is given, its construct type 
+            must match the construct type associated with the realizer class. 
+            If a str, tuple, or list is given, a `ConstructSymbol` will be 
+            created with the given values as construct identifiers and the 
+            class `ctype` as its `ConstructType`.  
         :param matches: Specification of constructs from which self may accept 
-            input.
-        :param propagator: Activation propagator associated with client 
-            construct.
+            input. Expects a `ConstructType` or a container of construct 
+            symbols. For complex matching patterns see `symbols.MatchSpec`.
+        :param propagator: Activation processor associated with client 
+            construct. Propagates strengths based on inputs from linked 
+            constructs. It is expected that this argument will behave like a 
+            `Propagator` object; this expectation is not enforced.
+        :param updaters: A dict-like object containing procedures for updating 
+            construct knowledge.
         :param effector: Routine for executing selected actions.
         """
 
@@ -389,6 +416,11 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
 
 
 class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
+    """
+    Construct realizer for pyClarion buffers.
+
+    This object expects a propagator of type `PropagatorB` or similar.
+    """
 
     ctype: ClassVar[ConstructType] = ConstructType.buffer
 
@@ -408,7 +440,7 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
 @no_type_check
 class Assets(SimpleNamespace): # type: ignore
     """
-    Provides a namespace for ContainerConstruct assets.
+    A namespace for ContainerConstruct assets.
     
     The main purpose of `Assets` objects is to provide handles for various
     datastructures such as chunk databases, rule databases, bla information, 
