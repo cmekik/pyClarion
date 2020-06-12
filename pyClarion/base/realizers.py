@@ -15,9 +15,10 @@ from pyClarion.base.packets import (
 from pyClarion.base.propagators import (
     Propagator, PropagatorA, PropagatorD, PropagatorB
 )
-from itertools import combinations, combinations_with_replacement
+from itertools import combinations, combinations_with_replacement, chain
 from collections import ChainMap, OrderedDict
-from types import MappingProxyType
+from functools import lru_cache
+from types import MappingProxyType, SimpleNamespace
 from typing import (
     TypeVar, Union, Container, Tuple, Dict, List, Callable, Hashable, Sequence, 
     Generic, Any, ClassVar, Optional, Type, Text, Iterator, Mapping,
@@ -405,7 +406,7 @@ class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
 # resolved.
 # - Can
 @no_type_check
-class Assets(object): # type: ignore
+class Assets(SimpleNamespace): # type: ignore
     """
     Provides a namespace for ContainerConstruct assets.
     
@@ -417,25 +418,14 @@ class Assets(object): # type: ignore
     It is the user's responsibility to make sure shared resources are shared 
     and used as intended. 
     """
-    
-    def __init__(self, **kwds: Any) -> None:
-        """
-        Initialize a new Assets instance.
-
-        :param kwds: A sequence of named to assets. Each asset in 
-            will be set to the attribute given by the corresponding name.
-        """
-
-        for k, v in kwds.items():
-            self.__setattr__(k, v)
+    pass
 
 
-class ContainerConstruct(
-    ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
-):
+class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]):
     """Base class for container construct realizers."""
 
     _CRt = TypeVar("_CRt", bound="ContainerConstruct")
+    _contains: Dict[ConstructType, Type[ConstructRealizer]]= {}
     ctype: ClassVar[ConstructType] = ConstructType.container_construct
 
     def __init__(
@@ -450,6 +440,7 @@ class ContainerConstruct(
         """
 
         super().__init__(name=name, matches=matches, updaters=updaters)
+        self._dict: Dict = {ctype: {} for ctype in self._contains}
         # In case assets argument is None self.assets is given type Any to 
         # prevent type checkers from complaining about missing attributes. This 
         # occurs b/c attributes of Assets objects are set dynamically.
@@ -465,15 +456,32 @@ class ContainerConstruct(
 
     def __iter__(self) -> Iterator[ConstructSymbol]:
 
-        raise NotImplementedError()
+        for construct in chain(*self._dict.values()):
+            yield construct
 
     def __getitem__(self, key: ConstructSymbol) -> Any:
 
-        raise NotImplementedError()
+        ctype = key.ctype
+        matches = {ct for ct in self._contains if ctype in ct}
+        if len(matches) == 0:
+            raise ValueError("Unexpected ctype '{}'.".format(ctype))
+        elif len(matches) > 1:
+            raise ValueError("Ambiguous ctype '{}'.".format(ctype))
+        match = matches.pop()
+
+        return self._dict[match][key]
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
-        raise NotImplementedError()
+        ctype = key.ctype
+        matches = {ct for ct in self._contains if ctype in ct}
+        if len(matches) == 0:
+            raise ValueError("Unexpected ctype '{}'.".format(ctype))
+        elif len(matches) > 1:
+            raise ValueError("Ambiguous ctype '{}'.".format(ctype))
+        match = matches.pop()
+
+        del self._dict[match][key]
 
     def learn(self):
         """
@@ -494,7 +502,26 @@ class ContainerConstruct(
     def add(self, *realizers: ConstructRealizer) -> None:
         """Add a set of realizers to self."""
 
-        raise NotImplementedError()
+        try:
+            for i, realizer in enumerate(realizers):
+                ctype = realizer.construct.ctype
+                matches = {key for key in self._contains if ctype in key}
+                if len(matches) == 0:
+                    raise ValueError("Unexpected ctype '{}'.".format(ctype))
+                elif len(matches) > 1:
+                    raise ValueError("Ambiguous ctype '{}'.".format(ctype))
+                match = matches.pop()
+                if isinstance(realizer, self._contains[match]):
+                    self._dict[match][realizer.construct] = realizer
+                    self._update_links(realizer)
+                else:
+                    t = type(realizer)
+                    raise ValueError("Unexpected realizer type '{}'".format(t))
+        except ValueError as e:
+            # Undo changes before passing on the error.
+            for new_realizer in realizers[:i]:
+                del self[new_realizer.construct]
+            raise e
 
     def remove(self, *constructs: ConstructSymbol) -> None:
         """Remove a set of constructs from self."""
@@ -664,6 +691,12 @@ class ContainerConstruct(
 class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
     _CRt = TypeVar("_CRt", bound="Subsystem")
+    _contains = {
+        ConstructType.feature: Node, 
+        ConstructType.chunk: Node,
+        ConstructType.flow: Flow,
+        ConstructType.response: Response
+    }
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
 
     def __init__(
@@ -679,87 +712,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
             name=name, matches=matches, assets=assets, updaters=updaters
         )
         self.cycle = cycle
-        self._features: Dict[ConstructSymbol, Node] = {}
-        self._chunks: Dict[ConstructSymbol, Node] = {}
-        self._nodes: Mapping[ConstructSymbol, Node] = ChainMap(
-            self._features, self._chunks
-        )
-        self._flows: Dict[ConstructSymbol, Flow] = {}
-        self._responses: Dict[ConstructSymbol, Response] = {}
-
-
-    def __iter__(self) -> Iterator[ConstructSymbol]:
-
-        for construct in self._responses:
-            yield construct
-        for construct in self._flows:
-            yield construct
-        for construct in self._chunks:
-            yield construct
-        for construct in self._features:
-            yield construct
-
-    def __getitem__(self, key: ConstructSymbol) -> Any:
-
-        if key.ctype in ConstructType.feature:
-            return self._features[key]
-        elif key.ctype in ConstructType.chunk:
-            return self._chunks[key]
-        elif key.ctype in ConstructType.flow:
-            return self._flows[key]
-        elif key.ctype in ConstructType.response:
-            return self._responses[key]
-        else:
-            raise ValueError(
-                "{} does not contain constructs of type {}".format(
-                    self.__class__.__name__, repr(key.ctype)
-                )
-            ) 
-
-    def __delitem__(self, key: ConstructSymbol) -> None:
-
-        if key.ctype in ConstructType.feature:
-            del self._features[key]
-        elif key.ctype in ConstructType.chunk:
-            del self._chunks[key]
-        elif key.ctype in ConstructType.flow:
-            del self._flows[key]
-        elif key.ctype in ConstructType.response:
-            del self._responses[key]
-        else:
-            raise ValueError(
-                "{} does not contain constructs of type {}".format(
-                    self.__class__.__name__, repr(key.ctype)
-                )
-            )
-
-    def add(self, *realizers: ConstructRealizer) -> None:
-
-        for i, realizer in enumerate(realizers):
-            # Link new realizer with existing realizers
-            self._update_links(realizer)
-            # Store new realizer
-            if isinstance(realizer, Node):
-                if realizer.construct.ctype in ConstructType.feature:
-                    self._features[realizer.construct] = realizer
-                elif realizer.construct.ctype in ConstructType.chunk:
-                    self._chunks[realizer.construct] = realizer
-            elif isinstance(realizer, Flow):
-                self._flows[realizer.construct] = realizer
-            elif isinstance(realizer, Response):
-                self._responses[realizer.construct] = realizer
-            else:
-                # Unacceptable realizer type passed to self
-                # Restore self to state prior to call to add() and
-                # raise a TypeError
-                self._drop_links(realizer.construct)
-                for new_realizer in realizers[:i]:
-                    del self[new_realizer.construct]
-                raise TypeError(
-                    "{} may not contain realizer of type {}".format(
-                        self.__class__.__name__, realizer.__class__.__name__
-                    )
-                )
+        self._nodes = ChainMap(self.features, self.chunks)
 
     def propagate(self: _CRt, args: Dict = None) -> None:
 
@@ -773,17 +726,13 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
     def execute(self) -> None:
 
-        for realizer in self._responses.values():
+        for realizer in self.responses.values():
             realizer.execute()
 
     def _construct_subsystem_packet(self) -> SubsystemPacket:
 
-        strengths = {
-            symb: node.output_value for symb, node in self.nodes.items()
-        }
-        decisions = {
-            symb: node.output for symb, node in self.responses.items()
-        }
+        strengths = {sym: node.output_value for sym, node in self.nodes.items()}
+        decisions = {sym: node.output for sym, node in self.responses.items()}
 
         return SubsystemPacket(strengths=strengths, decisions=decisions)
 
@@ -805,142 +754,82 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
             d.setdefault(self.construct, []).append('propagator')
         return d
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def features(self) -> Mapping[ConstructSymbol, Node]:
 
-        return MappingProxyType(self._features)
+        return MappingProxyType(self._dict[ConstructType.feature])
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def chunks(self) -> Mapping[ConstructSymbol, Node]:
 
-        return MappingProxyType(self._chunks)
+        return MappingProxyType(self._dict[ConstructType.chunk])
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def nodes(self) -> Mapping[ConstructSymbol, Node]:
 
         return MappingProxyType(self._nodes)
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def flows(self) -> Mapping[ConstructSymbol, Flow]:
 
-        return MappingProxyType(self._flows)
+        return MappingProxyType(self._dict[ConstructType.flow])
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def responses(self) -> Mapping[ConstructSymbol, Response]:
 
-        return MappingProxyType(self._responses)
+        return MappingProxyType(self._dict[ConstructType.response])
 
 
 class Agent(ContainerConstruct[None, None, At_co]):
 
     _CRt = TypeVar("_CRt", bound="Agent")
+    _contains = {
+        ConstructType.buffer: Buffer, 
+        ConstructType.subsystem: Subsystem
+    }
     ctype: ClassVar[ConstructType] = ConstructType.agent
-
-    def __init__(
-        self: _CRt, 
-        name: Hashable, 
-        matches: MatchArg = None, 
-        assets: At_co = None,
-        updaters: UpdaterArg[_CRt] = None
-    ) -> None:
-
-        super().__init__(
-            name=name, matches=matches, assets=assets, updaters=updaters
-        )
-        self._buffers: Dict[ConstructSymbol, Buffer] = {}
-        self._subsystems: Dict[ConstructSymbol, Subsystem] = {}
-
-    def __iter__(self) -> Iterator[ConstructSymbol]:
-
-        for construct in self._buffers:
-            yield construct
-        for construct in self._subsystems:
-            yield construct
-
-    def __getitem__(self, key: ConstructSymbol) -> Any:
-
-        if key.ctype in ConstructType.buffer:
-            return self._buffers[key]
-        elif key.ctype in ConstructType.subsystem:
-            return self._subsystems[key]
-        else:
-            raise ValueError(
-                "{} does not contain constructs of type {}".format(
-                    self.__class__.__name__, repr(key.ctype)
-                )
-            )
-
-    def __delitem__(self, key: ConstructSymbol) -> None:
-
-        if key.ctype in ConstructType.buffer:
-            del self._buffers[key]
-        elif key.ctype in ConstructType.subsystem:
-            del self._subsystems[key]
-        else:
-            raise ValueError(
-                "{} does not contain constructs of type {}".format(
-                    self.__class__.__name__, repr(key.ctype)
-                )
-            )
-
-    def add(self, *realizers: ConstructRealizer) -> None:
-        """Add a set of realizers to self or a member of self."""
-
-        for i, realizer in enumerate(realizers):
-            # Link new realizer with existing realizers
-            self._update_links(realizer)
-            # Store new realizer
-            if isinstance(realizer, Buffer):
-                self._buffers[realizer.construct] = realizer
-            elif isinstance(realizer, Subsystem):
-                self._subsystems[realizer.construct] = realizer
-            else:
-                # Unacceptable realizer type passed to self
-                # Restore self to state prior to call to add() and
-                # raise a TypeError
-                self._drop_links(realizer.construct)
-                for new_realizer in realizers[:i]:
-                    del self[new_realizer.construct]
-                raise TypeError(
-                    "{} may not contain realizer of type {}".format(
-                        self.__class__.__name__, realizer.__class__.__name__
-                    )
-                )
 
     def propagate(self, args: Dict = None) -> None:
 
         args = args or dict()
         realizer: ConstructRealizer
-        for construct, realizer in self._buffers.items():
+        for construct, realizer in self.buffers.items():
             realizer.propagate(args=args.get(construct))
-        for construct, realizer in self._subsystems.items():
+        for construct, realizer in self.subsystems.items():
             realizer.propagate(args=args.get(construct))
 
     def execute(self) -> None:
         """Execute currently selected actions."""
 
-        for subsys in self._subsystems.values():
-            for resp in subsys.responses.values():
+        for subsys in self.subsystems.values():
+            for resp in subsys.responses.values(): # type: ignore
                 resp.execute()
 
     def weave(self) -> None:
 
         super().weave()
-        for realizer in self._subsystems.values():
+        for realizer in self.subsystems.values():
             realizer.weave()
 
     def unweave(self) -> None:
 
         super().unweave()
-        for realizer in self._subsystems.values():
+        for realizer in self.subsystems.values():
             realizer.unweave()
 
-    @property
-    def buffers(self) -> Mapping[ConstructSymbol, Buffer]:
+    @property # type: ignore
+    @lru_cache(maxsize=1) 
+    def buffers(self) -> Mapping[ConstructSymbol, Buffer]: 
 
-        return MappingProxyType(self._buffers)
+        return MappingProxyType(self._dict[ConstructType.buffer])
 
-    @property
+    @property # type: ignore
+    @lru_cache(maxsize=1)
     def subsystems(self) -> Mapping[ConstructSymbol, Subsystem]:
 
-        return MappingProxyType(self._subsystems)
+        return MappingProxyType(self._dict[ConstructType.subsystem])

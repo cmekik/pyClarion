@@ -383,7 +383,6 @@ print(subsystem_packet.pstr())
 
 alice.clear_output()
 
-
 ##################
 ### CONCLUSION ###
 ##################
