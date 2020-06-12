@@ -766,7 +766,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
         strengths = {sym: node.output_value for sym, node in self.nodes.items()}
         decisions = {sym: node.output for sym, node in self.responses.items()}
 
-        return SubsystemPacket(strengths=strengths, decisions=decisions)
+        return SubsystemPacket(mapping=strengths, decisions=decisions)
 
     @property
     def output(self) -> SubsystemPacket:

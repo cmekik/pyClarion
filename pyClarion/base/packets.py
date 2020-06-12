@@ -1,4 +1,4 @@
-"""Provides containers for representing strengths and decisions."""
+"""Provides containers for representing mapping and decisions."""
 
 
 __all__ = ["Packet", "ActivationPacket", "DecisionPacket", "SubsystemPacket"]
@@ -25,21 +25,21 @@ class Packet(object):
 
     This class may be extended with additional properties if necessary, (see 
     DecisionPacket for example), but additional properties should not support 
-    in-place modification: they should not have a setters and they should not 
-    return mutable objects. 
+    in-place modification: they should not have setters and they should not 
+    return (easily) mutable objects. 
     """
 
-    __slots__ = ("_data")
+    __slots__ = ("_mapping")
     _format = {"indent": 4, "digits": 3}
 
-    def __init__(self, data: Mapping[ConstructSymbol, Any] = None) -> None:
+    def __init__(self, mapping: Mapping[ConstructSymbol, Any] = None) -> None:
         """
         Initialize a new packet instance.
 
-        :param data: A mapping from construct symbols to related data.
+        :param mapping: A mapping from construct symbols to related data.
         """
 
-        self._data = dict(data) if data is not None else dict()
+        self._mapping = dict(mapping) if mapping is not None else dict()
 
     def __repr__(self):
 
@@ -47,38 +47,38 @@ class Packet(object):
 
     def __contains__(self, key):
 
-        return key in self._data
+        return key in self._mapping
 
     def __iter__(self):
 
-        return iter(self._data)
+        return iter(self._mapping)
 
     def __len__(self):
 
-        return len(self._data)
+        return len(self._mapping)
 
     def __getitem__(self, key: ConstructSymbol):
 
-        return self._data[key]
+        return self._mapping[key]
 
     def get(self, key, default=None):
 
-        return self._data.get(key, default)
+        return self._mapping.get(key, default)
 
     def keys(self):
         """Return a view of keys in self."""
 
-        return self._data.keys()
+        return self._mapping.keys()
 
     def values(self):
         """Return a view of values in self."""
 
-        return self._data.values()
+        return self._mapping.values()
 
     def items(self):
         """Return a view of items in self."""
 
-        return self._data.items()
+        return self._mapping.items()
 
     def pstr(self):
         """Pretty print packet contents for inspection and reporting."""
@@ -89,13 +89,13 @@ class Packet(object):
 
     def _contents_repr(self) -> str:
 
-        return "data={}".format(repr(self._data))
+        return "data={}".format(repr(self._mapping))
 
     def _attrs_to_strs(self) -> Tuple[str, ...]:
 
-        delim = "{outer}strengths = {content}" 
+        delim = "{outer}mapping = {content}" 
         content = pstr_iterable(
-            iterable=self._data, 
+            iterable=self._mapping, 
             cb=pstr_iterable_cb, 
             cbargs={"digits": self._format["digits"]},
             indent=self._format["indent"],
@@ -111,35 +111,29 @@ class Packet(object):
 
 class ActivationPacket(Packet):
     """
-    Represents chunk/feature activation strengths.
+    Represents chunk/feature activation mapping.
     
     See Packet documentation for details.
     """
 
-    def __init__(self, strengths: Mapping[ConstructSymbol, Any] = None) -> None:
-
-        super().__init__(strengths)
-
-    def _contents_repr(self):
-
-        return "strengths={}".format(repr(self._data))
+    pass
 
 
 class DecisionPacket(Packet):
     """
     Represents a response.
 
-    :param strengths: Mapping of node strengths.
+    :param mapping: Mapping of node mapping.
     :param selection: Set of selected actionable nodes.
     """
 
     def __init__(
         self, 
-        strengths: Mapping[ConstructSymbol, Any] = None, 
+        mapping: Mapping[ConstructSymbol, Any] = None, 
         selection: Set[ConstructSymbol] = None
     ) -> None:
 
-        super().__init__(strengths)
+        super().__init__(mapping)
         self._selection = (
             frozenset(selection) if selection is not None else frozenset()
         )
@@ -151,7 +145,7 @@ class DecisionPacket(Packet):
 
     def _contents_repr(self):
 
-        strengths_repr = "strengths={}".format(repr(self._data))
+        strengths_repr = "mapping={}".format(repr(self._mapping))
         selection_repr = "selection={}".format(repr(self._selection))
         return ", ".join([strengths_repr, selection_repr])
 
@@ -182,11 +176,11 @@ class SubsystemPacket(Packet):
 
     def __init__(
         self, 
-        strengths: Mapping[ConstructSymbol, Any] = None, 
+        mapping: Mapping[ConstructSymbol, Any] = None, 
         decisions: Mapping[ConstructSymbol, DecisionPacket] = None
     ) -> None:
 
-        super().__init__(strengths)
+        super().__init__(mapping)
         self._decisions = (
             decisions if decisions is not None else dict()
         )
@@ -201,7 +195,7 @@ class SubsystemPacket(Packet):
 
     def _contents_repr(self):
 
-        strengths_repr = "strengths={}".format(repr(self._data))
+        strengths_repr = "mapping={}".format(repr(self._mapping))
         selection_repr = "decisions={}".format(repr(self._decisions))
         return ", ".join([strengths_repr, selection_repr])
 

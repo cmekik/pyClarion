@@ -22,7 +22,7 @@ from pyClarion.base.realizers import MatchArg, UpdaterArg, Flow
 # They simply wrap the appropriate ConstructSymbol constructor.
 
 
-def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
+def feature(dim: Hashable, val: Hashable, lag: Hashable=0) -> ConstructSymbol:
     """
     Return a new feature symbol.
 
@@ -30,7 +30,7 @@ def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     :param val: Value of feature.
     """
 
-    return FeatureSymbol(dim, val)
+    return FeatureSymbol(dim, val, lag)
 
 
 def chunk(name: Hashable) -> ConstructSymbol:

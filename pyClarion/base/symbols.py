@@ -193,10 +193,14 @@ class FeatureSymbol(ConstructSymbol):
     __slots__ = ()
 
     def __init__(
-        self, dim: Optional[Hashable], val: Optional[Hashable], *args
+        self, 
+        dim: Optional[Hashable], 
+        val: Optional[Hashable], 
+        lag: Optional[Hashable], 
+        *args
     ) -> None:
 
-        super().__init__(ConstructType.feature, dim, val, *args)
+        super().__init__(ConstructType.feature, dim, val, lag, *args)
 
     def __repr__(self):
 
@@ -214,6 +218,11 @@ class FeatureSymbol(ConstructSymbol):
     def val(self) -> Optional[Hashable]:
 
         return self.cid[1]
+
+    @property
+    def lag(self) -> Optional[Hashable]:
+        
+        return self.cid[2]
 
 
 class MatchSpec(object):

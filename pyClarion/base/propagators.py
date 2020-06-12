@@ -89,7 +89,7 @@ class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
     def make_packet(self, data: APData = None) -> ActivationPacket:
 
         data = data if data is not None else dict()
-        return ActivationPacket(strengths=data)
+        return ActivationPacket(mapping=data)
 
 
 class PropagatorD(Propagator[ActivationPacket, DPData, DecisionPacket]):
@@ -101,8 +101,8 @@ class PropagatorD(Propagator[ActivationPacket, DPData, DecisionPacket]):
 
     def make_packet(self, data: DPData = None) -> DecisionPacket:
 
-        strengths, selection = data if data is not None else (dict(), set())
-        return DecisionPacket(strengths=strengths, selection=selection)
+        mapping, selection = data if data is not None else (dict(), set())
+        return DecisionPacket(mapping=mapping, selection=selection)
 
 
 class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
@@ -115,4 +115,4 @@ class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
     def make_packet(self, data: APData = None) -> ActivationPacket:
 
         data = data if data is not None else dict()
-        return ActivationPacket(strengths=data)
+        return ActivationPacket(mapping=data)
