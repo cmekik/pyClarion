@@ -74,6 +74,14 @@ class Chunks(object):
 
         return self._data.get(ch, default)
 
+    def find_form(self, query):
+
+        chunks = set()
+        for ch, form in self.items():
+            if form == query:
+                chunks.add(ch)
+        return chunks
+
     def chunks(self):
         """Return a view of chunks in self."""
 
@@ -204,14 +212,15 @@ class Chunks(object):
             for chunk_form in data.values():
                 if not isinstance(chunk_form, dict):
                     raise TypeError("Chunk form must be of type dict.")
-                if "op" not in chunk_form:
-                    raise ValueError("Dimension data must specify op.")
-                if "weight" not in chunk_form:
-                    raise ValueError("Dimension data must contain weight info.")
-                if "values" not in chunk_form:
-                    raise ValueError("Dimension data must contain value info.")
-                if not isinstance(chunk_form["values"], set):
-                    raise TypeError("Value info must be of type set.")
+                for dim_form in chunk_form.values():
+                    if "op" not in dim_form:
+                        raise ValueError("Dimension data must specify op.")
+                    if "weight" not in dim_form:
+                        raise ValueError("Dimension data must contain weight info.")
+                    if "values" not in dim_form:
+                        raise ValueError("Dimension data must contain value info.")
+                    if not isinstance(dim_form["values"], set):
+                        raise TypeError("Value info must be of type set.")
 
 
 class Rules(object):
