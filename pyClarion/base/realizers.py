@@ -12,9 +12,7 @@ from pyClarion.base.symbols import ConstructType, ConstructSymbol, MatchSpec
 from pyClarion.base.packets import (
     ActivationPacket, ResponsePacket, SubsystemPacket
 )
-from pyClarion.base.propagators import (
-    Propagator, PropagatorA, PropagatorD, PropagatorB
-)
+from pyClarion.base.propagators import Propagator
 from itertools import combinations, combinations_with_replacement, chain
 from collections import ChainMap, OrderedDict
 from functools import lru_cache

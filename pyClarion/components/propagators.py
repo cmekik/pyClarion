@@ -3,12 +3,12 @@
 
 __all__ = [
     "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
-    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredD", "ChunkExtractor"
+    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR", "ChunkExtractor"
 ]
 
 
 from pyClarion.base import ConstructSymbol, chunk 
-from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorD
+from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorR
 from pyClarion.components.datastructures import Chunks, Rules 
 from pyClarion.components.utils import ChunkConstructor
 from pyClarion.utils.funcs import (
@@ -178,7 +178,7 @@ class BottomUp(PropagatorA):
 ############################
 
 
-class BoltzmannSelector(PropagatorD):
+class BoltzmannSelector(PropagatorR):
     """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature, k=1):
@@ -208,7 +208,7 @@ class BoltzmannSelector(PropagatorD):
         return probabilities, selection
 
 
-class ChunkExtractor(PropagatorD):
+class ChunkExtractor(PropagatorR):
 
     def __init__(self, items, threshold, op="max"):
 
@@ -294,7 +294,7 @@ class FilteredA(PropagatorA):
         source_filter: ConstructSymbol = None, 
         input_filter: ConstructSymbol = None, 
         output_filter: ConstructSymbol = None, 
-        fdefault=0
+        fdefault=0.0
     ):
 
         self.base = base
@@ -363,14 +363,14 @@ class FilteredA(PropagatorA):
         return output
 
 
-class FilteredD(PropagatorD):
+class FilteredR(PropagatorR):
     """Filters input and output activations of a decision propagator."""
     
     def __init__(
         self, 
-        base: PropagatorD, 
+        base: PropagatorR, 
         input_filter: ConstructSymbol = None, 
-        fdefault=0
+        fdefault=0.0
     ):
 
         self.base = base

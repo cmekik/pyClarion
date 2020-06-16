@@ -1,7 +1,7 @@
 """Provides abstract classes for defining forward propagation cycles."""
 
 
-__all__ = ["Propagator", "PropagatorA", "PropagatorD", "PropagatorB"]
+__all__ = ["Propagator", "PropagatorA", "PropagatorR", "PropagatorB"]
 
 
 from pyClarion.base.symbols import ConstructSymbol
@@ -103,7 +103,7 @@ class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
         return ActivationPacket(mapping=data)
 
 
-class PropagatorD(Propagator[ActivationPacket, DPData, ResponsePacket]):
+class PropagatorR(Propagator[ActivationPacket, DPData, ResponsePacket]):
     """
     Represents a propagator for response selection.
 
