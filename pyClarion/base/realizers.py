@@ -10,7 +10,7 @@ __all__ = [
 
 from pyClarion.base.symbols import ConstructType, ConstructSymbol, MatchSpec
 from pyClarion.base.packets import (
-    ActivationPacket, DecisionPacket, SubsystemPacket
+    ActivationPacket, ResponsePacket, SubsystemPacket
 )
 from pyClarion.base.propagators import (
     Propagator, PropagatorA, PropagatorD, PropagatorB
@@ -353,7 +353,7 @@ class Flow(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
     ctype: ClassVar[ConstructType] = ConstructType.flow
 
 
-class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
+class Response(BasicConstruct[ActivationPacket, ResponsePacket, Pt]):
     """
     Construct realizer for pyClarion responses.
 
@@ -369,7 +369,7 @@ class Response(BasicConstruct[ActivationPacket, DecisionPacket, Pt]):
         matches: MatchArg = None,
         propagator: Pt = None,
         updaters: UpdaterArg[_CRt] = None,
-        effector: Callable[[DecisionPacket], None] = None
+        effector: Callable[[ResponsePacket], None] = None
     ) -> None:
         """
         Initialize a new response realizer.

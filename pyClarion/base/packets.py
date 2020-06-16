@@ -1,7 +1,7 @@
 """Provides containers for representing mapping and decisions."""
 
 
-__all__ = ["Packet", "ActivationPacket", "DecisionPacket", "SubsystemPacket"]
+__all__ = ["Packet", "ActivationPacket", "ResponsePacket", "SubsystemPacket"]
 
 
 from typing import Any, Mapping, Set, FrozenSet, Tuple
@@ -119,7 +119,7 @@ class ActivationPacket(Packet):
     pass
 
 
-class DecisionPacket(Packet):
+class ResponsePacket(Packet):
     """
     Represents a response.
 
@@ -177,7 +177,7 @@ class SubsystemPacket(Packet):
     def __init__(
         self, 
         mapping: Mapping[ConstructSymbol, Any] = None, 
-        decisions: Mapping[ConstructSymbol, DecisionPacket] = None
+        decisions: Mapping[ConstructSymbol, ResponsePacket] = None
     ) -> None:
 
         super().__init__(mapping)
@@ -186,7 +186,7 @@ class SubsystemPacket(Packet):
         )
 
     @property
-    def decisions(self) -> Mapping[ConstructSymbol, DecisionPacket]:
+    def decisions(self) -> Mapping[ConstructSymbol, ResponsePacket]:
 
         # Dev Note:
         # Type annotation not happy for some reason. MappingProxyType not 
@@ -225,7 +225,7 @@ class SubsystemPacket(Packet):
     @staticmethod
     def _pstr_cb(obj, indent=4, level=0, digits=None):
 
-        if isinstance(obj, DecisionPacket):
+        if isinstance(obj, ResponsePacket):
             indent_str = " " * indent * level
             s = obj.pstr().replace("\n", "\n" + indent_str)
             return s

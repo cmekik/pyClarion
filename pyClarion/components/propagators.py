@@ -8,7 +8,6 @@ __all__ = [
 
 
 from pyClarion.base import ConstructSymbol, chunk 
-from pyClarion.base.packets import ActivationPacket, DecisionPacket
 from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorD
 from pyClarion.components.datastructures import Chunks, Rules 
 from pyClarion.components.utils import ChunkConstructor

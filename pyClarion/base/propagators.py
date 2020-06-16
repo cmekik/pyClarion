@@ -6,7 +6,7 @@ __all__ = ["Propagator", "PropagatorA", "PropagatorD", "PropagatorB"]
 
 from pyClarion.base.symbols import ConstructSymbol
 from pyClarion.base.packets import (
-    ActivationPacket, DecisionPacket, SubsystemPacket
+    ActivationPacket, ResponsePacket, SubsystemPacket
 )
 from typing import TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set
 from abc import abstractmethod
@@ -22,7 +22,7 @@ Ot = TypeVar('Ot', covariant=True) # type variable for propagator outputs
 PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
 Inputs = Mapping[ConstructSymbol, Dt]
 APData = Mapping[ConstructSymbol, Any] # type for ActivationPacket init
-DPData = Tuple[APData, Set[ConstructSymbol]] # type for DecisionPacket init
+DPData = Tuple[APData, Set[ConstructSymbol]] # type for ResponsePacket init
 
 
 class Propagator(Generic[It, Xt, Ot]):
@@ -103,17 +103,17 @@ class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
         return ActivationPacket(mapping=data)
 
 
-class PropagatorD(Propagator[ActivationPacket, DPData, DecisionPacket]):
+class PropagatorD(Propagator[ActivationPacket, DPData, ResponsePacket]):
     """
     Represents a propagator for response selection.
 
     Maps activations to decisions.
     """
 
-    def make_packet(self, data: DPData = None) -> DecisionPacket:
+    def make_packet(self, data: DPData = None) -> ResponsePacket:
 
         mapping, selection = data if data is not None else (dict(), set())
-        return DecisionPacket(mapping=mapping, selection=selection)
+        return ResponsePacket(mapping=mapping, selection=selection)
 
 
 class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
