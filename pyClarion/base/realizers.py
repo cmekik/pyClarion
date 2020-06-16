@@ -64,16 +64,16 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
     `matches` attribute, which may be set on initialization.
     """
 
-    _CRt = TypeVar("_CRt", bound="ConstructRealizer")
+    Self = TypeVar("Self", bound="ConstructRealizer")
     # Construct type associated with this realizer class.
     ctype: ClassVar[ConstructType] = ConstructType.null_construct
 
     def __init__(
-        self: _CRt, 
+        self: Self, 
         name: Hashable, 
         matches: MatchArg = None,
         propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None
+        updaters: UpdaterArg[Self] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -360,15 +360,15 @@ class Response(BasicConstruct[ActivationPacket, ResponsePacket, Pt]):
     This object expects a propagator of type `PropagatorD` or similar.
     """
 
-    _CRt = TypeVar("_CRt", bound="Response")
+    Self = TypeVar("Self", bound="Response")
     ctype: ClassVar[ConstructType] = ConstructType.response
 
     def __init__(
-        self: _CRt,
+        self: Self,
         name: Hashable,
         matches: MatchArg = None,
         propagator: Pt = None,
-        updaters: UpdaterArg[_CRt] = None,
+        updaters: UpdaterArg[Self] = None,
         effector: Callable[[ResponsePacket], None] = None
     ) -> None:
         """
@@ -456,16 +456,16 @@ class Assets(SimpleNamespace): # type: ignore
 class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]):
     """Base class for container construct realizers."""
 
-    _CRt = TypeVar("_CRt", bound="ContainerConstruct")
+    Self = TypeVar("Self", bound="ContainerConstruct")
     _contains: Dict[ConstructType, Type[ConstructRealizer]]= {}
     ctype: ClassVar[ConstructType] = ConstructType.container_construct
 
     def __init__(
-        self: _CRt, 
+        self: Self, 
         name: Hashable, 
         matches: MatchArg = None,
         assets: At_co = None,
-        updaters: UpdaterArg[_CRt] = None,
+        updaters: UpdaterArg[Self] = None,
     ) -> None:
         """
         Initialize a new container realizer.
@@ -722,7 +722,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 
 class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
-    _CRt = TypeVar("_CRt", bound="Subsystem")
+    Self = TypeVar("Self", bound="Subsystem")
     _contains = {
         ConstructType.feature: Node, 
         ConstructType.chunk: Node,
@@ -732,12 +732,12 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
 
     def __init__(
-        self: _CRt, 
+        self: Self, 
         name: Hashable, 
         matches: MatchArg = None,
-        cycle: Callable[[_CRt, Optional[Dict]], None] = None,
+        cycle: Callable[[Self, Optional[Dict]], None] = None,
         assets: At_co = None,
-        updaters: UpdaterArg[_CRt] = None
+        updaters: UpdaterArg[Self] = None
     ) -> None:
 
         super().__init__(
@@ -746,7 +746,7 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
         self.cycle = cycle
         self._nodes = ChainMap(self.features, self.chunks)
 
-    def propagate(self: _CRt, args: Dict = None) -> None:
+    def propagate(self: Self, args: Dict = None) -> None:
 
         if self.cycle is not None:
             self.cycle(self, args)
@@ -819,7 +819,6 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
 class Agent(ContainerConstruct[None, None, At_co]):
 
-    _CRt = TypeVar("_CRt", bound="Agent")
     _contains = {
         ConstructType.buffer: Buffer, 
         ConstructType.subsystem: Subsystem
