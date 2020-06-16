@@ -12,6 +12,7 @@ from typing import TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set
 from abc import abstractmethod
 
 
+T = TypeVar('T', bound="Propagator")
 Dt = TypeVar('Dt') # type variable for inputs to processes
 It = TypeVar('It', contravariant=True) # type variable for propagator inputs
 Xt = TypeVar('Xt') # type variable for intermediate stage 
@@ -34,6 +35,17 @@ class Propagator(Generic[It, Xt, Ot]):
 
     # Would it be worth implenting this as a Protocol? - Can
 
+    def __copy__(self: T) -> T:
+        """
+        Make a copy of self.
+        
+        This method is primarily for use in factory patterns where a propagator 
+        instance may be provided as a template. The copy method should ensure 
+        that copies of the template instance may be mutated without unwanted 
+        mutation of other instances derived from the template.
+        """
+        raise NotImplementedError() 
+
     def __call__(
         self, construct: ConstructSymbol, inputs: PullFuncs[It], **kwds: Any
     ) -> Ot:
@@ -51,9 +63,8 @@ class Propagator(Generic[It, Xt, Ot]):
         
         return self.make_packet(intermediate)
 
-    @abstractmethod
     def make_packet(self, data: Xt = None) -> Ot:
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
     def call(
@@ -76,7 +87,7 @@ class Propagator(Generic[It, Xt, Ot]):
             Propagator instances throw errors upon receipt of unexpected 
             keyword arguments.
         """
-        pass
+        raise NotImplementedError()
 
 
 class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):

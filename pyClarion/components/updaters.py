@@ -3,15 +3,51 @@ __all__ = ["ChunkAdder"]
 
 from pyClarion.base.realizers import Node
 from pyClarion.components import Chunks
+from copy import copy
 
 
 class ChunkAdder(object):
+    """
+    Adds new chunk nodes to client constructs.
+    
+    Constructs Node objects for new chunks from a given template and adds them 
+    to client realizers.
 
-    def __init__(self, config, monitor, subsystem=None):
+    Warning: This implementation relies on (shallow) copying. If propagators 
+    and updaters used in the templates have mutable attributes unexpected 
+    behavior may occur. To mitigate this, these objects must define appropriate 
+    `__copy__()` methods.
+    """
 
-        self.config = config
-        self.monitor = monitor
+    def __init__(
+        self, 
+        template, 
+        response, 
+        subsystem=None, 
+        clients=None, 
+        return_added=False
+    ):
+        """
+        Initialize a new `ChunkAdder` instance.
+        
+        :param template: A ChunkAdder.Template object defining the form of 
+            `Node` instances representing new chunks.
+        :param response: Construct symbol for a response construct emmiting new 
+            chunk recommendations. 
+        :param subsystem: The subsystem that should be monitored. Used only if 
+            the chunk adder is located at the `Agent` level.
+        :param clients: Subsystem(s) to which new chunk nodes should be added. 
+            If None, it will be assumed that the sole client is the realizer 
+            housing this updater.
+        :param return_added: Whether to return the set of added chunks for 
+            possible subsequent processing.
+        """
+
+        self.template = template
+        self.response = response
         self.subsystem = subsystem
+        self.clients = {subsystem} if clients is None else clients
+        self.return_added = return_added
 
     def __call__(self, realizer):
 
@@ -21,38 +57,51 @@ class ChunkAdder(object):
             else realizer
         )
 
-        state = subsystem.output.decisions[self.monitor]
+        state = subsystem.output.decisions[self.response]
         added = set()
         for ch, form in state.items():
             chunks = db.find_form(form)
             if len(chunks) == 0:
                 db.set_chunk(ch, form)
-                # Should be able to control target subsystems, not just add to 
-                # the source subsystem - Can
-                subsystem.add(
-                    Node(
-                        name=ch,
-                        matches=self.config.matches,
-                        propagator=self.config.propagator,
-                        updaters=self.config.updaters
-                    )
-                )
                 added.add(ch)
             elif len(chunks) == 1:
                 pass
             else:
                 raise ValueError("Corrupt chunk database.")
 
-        return added
+        clients = self.clients if self.clients is not None else (None,)
+        for construct in clients:
+            client = realizer[construct] if construct is not None else realizer
+            for ch in added: 
+                client.add(
+                    # This is possibly problematic. May need to develop a way 
+                    # to easily and correctly define construct realizer 
+                    # factories. Main risk here are the updaters; since updaters 
+                    # are, at this time rather unrestricted. - Can 
+                    Node(
+                        name=ch,
+                        matches=copy(self.template.matches),
+                        propagator=copy(self.template.propagator),
+                        updaters={
+                            k: copy(v) 
+                            for k, v in self.template.updaters.items()
+                        } if self.template.updaters is not None else None
+                    )
+                )
 
-    class Config(object):
+        return None if not self.return_added else added
 
-        # The args should really be factories. This is unsafe. Parameter 
-        # changes here or to any generated element will cause updates to all 
-        # generated elements. Each input should be copyable and superordinate 
-        # object should work with copies. Alternatively, argument structure may 
-        # be changed so that constructors are called by the superordinate 
-        # object. - Can
+    class Template(object):
+        """
+        A template for new chunk nodes.
+        
+        Defines the matching behavior, propagator, and any updaters for new 
+        chunk nodes. Arguments passed to this object will be stored and copyied 
+        in the creation of Node instances representing new chunk nodes. 
+
+        Copying may cause subtle bugs. See warning in `ChunkAdder`. 
+        """
+
         def __init__(self, matches=None, propagator=None, updaters=None):
 
             self.matches=matches

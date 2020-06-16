@@ -283,6 +283,15 @@ class MatchSpec(object):
                 val |= predicate(key)
         return val
 
+    def __copy__(self):
+        """Make a shallow copy of self."""
+
+        return type(self)(
+            ctype=self.ctype,
+            constructs=self.constructs.copy(),
+            predicates=self.predicates.copy()
+        )
+
     def add(
         self, 
         ctype: ConstructType = None, 

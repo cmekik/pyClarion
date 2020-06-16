@@ -1,8 +1,6 @@
 """Demonstration and recipe for chunk extraction in pyClarion."""
 
-
 from pyClarion import *
-
 
 # Let's simulate a subject named 'Alice' who is shopping for some fruits. 
 # This simulation demonstrates a basic recipe for chunk extraction in 
@@ -43,23 +41,20 @@ alice = Agent(
     assets=Assets(chunks=Chunks()),
     updaters={
         "chunk_adder": ChunkAdder(
-            config=ChunkAdder.Config(
+            template=ChunkAdder.Template(
                 matches=MatchSpec(
                     ctype=ConstructType.flow_xt,
                     constructs={buffer("Stimulus")}
                 ),
                 propagator=MaxNode()
             ),
-            monitor=response("Extractor"),
+            response=response("Extractor"),
             subsystem=subsystem("NACS")
         )
     }
 )
 
-stimulus = Buffer(
-    name="Stimulus", 
-    propagator=Stimulus()
-)
+stimulus = Buffer(name="Stimulus", propagator=Stimulus())
 alice.add(stimulus)
 
 # For this example, we create a simple NACS w/ horizontal flows (no rules, no 
@@ -145,80 +140,35 @@ nacs.add(
 ### Simulation ###
 ##################
 
-print("Presentation 1")
-alice.propagate(
-    args={
-        buffer("Stimulus"): {
-            "stimulus": {
-                feature("fruit", "dragon fruit"): 1.0,
-                feature("price", "expensive"): 1.0
-            }
-        }
-    }
-)
-alice.learn()
-print(nacs[response("Extractor")].output.pstr())
-alice.clear_output()
+stimulus_states = [
+    {
+        feature("fruit", "dragon fruit"): 1.0,
+        feature("price", "expensive"): 1.0
+    },
+    {
+        feature("fruit", "orange"): 1.0,
+        feature("price", "expensive"): 1.0
+    },
+    {
+        feature("fruit", "dragon fruit"): 1.0,
+        feature("price", "expensive"): 1.0
+    },
+    {
+        feature("fruit", "kiwi"): 1.0,
+        feature("price", "very cheap"): 1.0
+    },
+    {
+        feature("fruit", "banana"): 1.0,
+        feature("price", "cheap"): 1.0
+    }    
+]
 
-print("Presentation 2")
-alice.propagate(
-    args={
-        buffer("Stimulus"): {
-            "stimulus": {
-                feature("fruit", "orange"): 1.0,
-                feature("price", "fair"): 1.0
-            }
-        }
-    }
-)
-alice.learn()
-print(nacs[response("Extractor")].output.pstr())
-alice.clear_output()
-
-print("Presentation 3")
-alice.propagate(
-    args={
-        buffer("Stimulus"): {
-            "stimulus": {
-                feature("fruit", "dragon fruit"): 1.0,
-                feature("price", "expensive"): 1.0
-            }
-        }
-    }
-)
-alice.learn()
-print(nacs[response("Extractor")].output.pstr())
-alice.clear_output()
-
-print("Presentation 4")
-alice.propagate(
-    args={
-        buffer("Stimulus"): {
-            "stimulus": {
-                feature("fruit", "kiwi"): 1.0,
-                feature("price", "very cheap"): 1.0
-            }
-        }
-    }
-)
-alice.learn()
-print(nacs[response("Extractor")].output.pstr())
-alice.clear_output()
-
-print("Presentation 5")
-alice.propagate(
-    args={
-        buffer("Stimulus"): {
-            "stimulus": {
-                feature("fruit", "banana"): 1.0,
-                feature("price", "cheap"): 1.0
-            }
-        }
-    }
-)
-alice.learn()
-print(nacs[response("Extractor")].output.pstr())
-alice.clear_output()
+for i, stimulus_state in enumerate(stimulus_states):
+    print("Presentation {}".format(i + 1))
+    alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
+    alice.learn()
+    print(nacs.output.pstr())
+    alice.clear_output()
 
 print("Learned Chunks:")
 alice.assets.chunks.pprint()

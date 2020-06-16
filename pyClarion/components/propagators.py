@@ -28,6 +28,10 @@ from itertools import count
 class MaxNode(PropagatorA):
     """Simple node returning maximum strength for given construct."""
 
+    def __copy__(self):
+
+        return type(self)()
+
     def call(self, construct, inputs, **kwds):
 
         packets = inputs.values()
@@ -86,7 +90,7 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, chunks=None, op=None, default=0):
+    def __init__(self, chunks=None, op=None, default=0.0):
 
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.op = op if op is not None else max
@@ -135,7 +139,7 @@ class BottomUp(PropagatorA):
 
     default_ops = {"max": max, "min": min, "mean": mean}
 
-    def __init__(self, chunks=None, ops=None, default=0):
+    def __init__(self, chunks=None, ops=None, default=0.0):
 
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
@@ -207,36 +211,12 @@ class BoltzmannSelector(PropagatorD):
 
 class ChunkExtractor(PropagatorD):
 
-    def __init__(
-        self, 
-        items, 
-        threshold, 
-        op="max",
-        extraction_threshold=None,  
-        flag_source=None
-    ):
-
-        if flag_source is not None and extraction_threshold is None:
-            raise ValueError(
-                "Must provide extraction threshold when "
-                "flag_source is provided."
-            )
+    def __init__(self, items, threshold, op="max"):
 
         self.constructor = ChunkConstructor(threshold=threshold, op=op)
-        self.threshold = extraction_threshold
         self.items = items
-        self.flag_source = flag_source
         
     def call(self, construct, inputs, **kwds):
-
-        if self.flag_source is not None:
-            selector = inputs.pop(self.flag_source)
-            _selection = [
-                i for i, item in enumerate(self.items) if 
-                selector[item.flag] > self.threshold
-            ]
-        else:
-            _selection = []
 
         packets = inputs.values()
         strengths = simple_junction(packets)
@@ -249,7 +229,7 @@ class ChunkExtractor(PropagatorD):
             filters=[item.filter for item in self.items]
         )
         extracts = {n: f for n, f in zip(names, forms)}
-        selection = {names[i] for i in _selection}
+        selection = set()
 
         return extracts, selection 
 
@@ -325,6 +305,16 @@ class FilteredA(PropagatorA):
         self.input_filter = input_filter
         self.output_filter = output_filter
         self.fdefault = fdefault
+
+    def __copy__(self):
+
+        return type(self)(
+            base=copy(self.base),
+            source_filter=copy(self.source_filter),
+            input_filter=copy(self.input_filter),
+            output_filter=copy(self.output_filter),
+            fdefault=copy(self.fdefault)
+        )
 
     def call(self, construct, inputs, **kwds):
 
