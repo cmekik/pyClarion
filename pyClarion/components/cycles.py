@@ -19,6 +19,12 @@ class NACSCycle(object):
 
         if args is None: args = dict()
 
+        # Propagate any input flows
+        for flow in nacs.flows.values(): # type: ignore
+            if flow.construct.ctype == ConstructType.flow_in:
+                flow_args = args.get(flow.construct, dict())
+                flow.propagate(args=flow_args)
+
         # Update chunk strengths
         for chunk_node in nacs.chunks.values(): # type: ignore
             chunk_node.propagate(args=args.get(chunk_node.construct))

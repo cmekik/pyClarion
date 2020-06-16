@@ -3,7 +3,7 @@
 
 __all__ = [
     "ConstructType", "ConstructSymbol", "FeatureSymbol", "MatchSpec",
-    "feature", "chunk", "flow_bt", "flow_tb", "flow_tt", "flow_bb", 
+    "feature", "chunk", "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb",
     "response", "buffer", "subsystem", "agent"
 ]
 
@@ -31,6 +31,7 @@ class ConstructType(Flag):
         null_construct: Empty construct type (corresponds to flag null).
         feature: Feature node.
         chunk: Chunk node.
+        flow_in: Activation input to a subsystem.
         flow_tb: Activation flow from top to bottom level.
         flow_bt: Activation flow from bottom to top level.
         flow_tt: Activation flow within top level.
@@ -57,6 +58,7 @@ class ConstructType(Flag):
     null_construct = 0
     feature = auto()
     chunk = auto()
+    flow_in = auto()
     flow_tb = auto()
     flow_bt = auto()
     flow_tt = auto()
@@ -72,7 +74,7 @@ class ConstructType(Flag):
     flow_xt = flow_bt | flow_tt 
     flow_h = flow_bb | flow_tt
     flow_v = flow_tb | flow_bt
-    flow = flow_tb | flow_bt | flow_tt | flow_bb
+    flow = flow_tb | flow_bt | flow_tt | flow_bb | flow_in
     basic_construct = node | flow | response | buffer
     container_construct = subsystem | agent
 
@@ -362,6 +364,16 @@ def chunk(name: Hashable) -> ConstructSymbol:
     """
 
     return ConstructSymbol(ConstructType.chunk, name)
+
+
+def flow_in(name: Hashable) -> ConstructSymbol:
+    """
+    Return a new input flow symbol.
+
+    :param cid: Name of flow.
+    """
+
+    return ConstructSymbol(ConstructType.flow_in, name)
 
 
 def flow_bt(name: Hashable) -> ConstructSymbol:

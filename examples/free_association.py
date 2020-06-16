@@ -21,7 +21,7 @@ from pyClarion import (
     # These objects define how realizers process activations in the forward 
     # direction.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
-    FilteredD, NACSCycle
+    FilteredR, NACSCycle
 )
 
 
@@ -197,7 +197,7 @@ nacs.add(
             ctype=ConstructType.chunk,
             constructs={buffer("Stimulus")}
         ),
-        propagator=FilteredD(
+        propagator=FilteredR(
             base=BoltzmannSelector(temperature=.1),
             input_filter=buffer("Stimulus"))
     )

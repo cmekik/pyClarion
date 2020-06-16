@@ -3,12 +3,14 @@
 
 __all__ = [
     "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
-    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR", "ChunkExtractor"
+    "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR", "ChunkExtractor", 
+    "Lag"
 ]
 
 
-from pyClarion.base import ConstructSymbol, chunk 
-from pyClarion.base.propagators import PropagatorA, PropagatorB, PropagatorR
+from pyClarion.base import (
+    ConstructSymbol, chunk, feature, PropagatorA, PropagatorB, PropagatorR
+)
 from pyClarion.components.datastructures import Chunks, Rules 
 from pyClarion.components.utils import ChunkConstructor
 from pyClarion.utils.funcs import (
@@ -173,6 +175,30 @@ class BottomUp(PropagatorA):
         return d
 
 
+class Lag(PropagatorA):
+    """Lags strengths for given features."""
+
+    def __init__(self, max_lag=1):
+        """
+        Initialize a new `Lag` propagator.
+
+        :param max_lag: Do not compute lags beyond this value.
+        """
+
+        self.max_lag = max_lag
+
+    def call(self, construct, inputs, **kwds):
+
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        d = {
+            feature(dim=f.dim, val=f.val, lag=f.lag + 1): s 
+            for f, s in strengths.items() if f.lag < self.max_lag
+        }
+
+        return d
+
+
 ############################
 ### Response Propagators ###
 ############################
@@ -235,10 +261,9 @@ class ChunkExtractor(PropagatorR):
     class Item(object):
         """Configuration data for a chunk extractor."""
 
-        def __init__(self, name, filter, flag=None):
+        def __init__(self, name, filter):
 
             self.name = name
-            self.flag = flag
             self.filter = filter
             self.counter = count(start=1, step=1)
 
