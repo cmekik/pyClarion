@@ -1,9 +1,10 @@
-__all__ = ["ChunkConstructor"]
+__all__ = ["ChunkConstructor", "LagDim"]
 
 
 from typing import Iterable
 from pyClarion.base import MatchSpec, Packet
 from pyClarion.components.datastructures import Chunks
+from collections import namedtuple
 
 
 class ChunkConstructor(object):

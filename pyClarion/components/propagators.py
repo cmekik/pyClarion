@@ -19,6 +19,7 @@ from pyClarion.utils.funcs import (
 )
 from statistics import mean
 from itertools import count
+from collections import namedtuple
 
 
 ##############################
@@ -178,6 +179,9 @@ class BottomUp(PropagatorA):
 class Lag(PropagatorA):
     """Lags strengths for given features."""
 
+    # Expected dimension type.
+    Dim = namedtuple("LagDim", ["name", "lag"])
+
     def __init__(self, max_lag=1):
         """
         Initialize a new `Lag` propagator.
@@ -192,8 +196,11 @@ class Lag(PropagatorA):
         packets = inputs.values()
         strengths = simple_junction(packets)
         d = {
-            feature(dim=f.dim, val=f.val, lag=f.lag + 1): s 
-            for f, s in strengths.items() if f.lag < self.max_lag
+            feature(
+                dim=type(self).Dim(name=f.dim.name, lag=f.dim.lag + 1), 
+                val=f.val
+            ): s 
+            for f, s in strengths.items() if f.dim.lag < self.max_lag
         }
 
         return d

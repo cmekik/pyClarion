@@ -16,9 +16,9 @@ def max_strength(construct, packets):
     Assumes strength >= 0.
     """
 
-    strength = 0
+    strength = 0.0
     for packet in packets:
-        strength = max(packet.get(construct, 0), strength)
+        strength = max(packet.get(construct, 0.0), strength)
     return {construct: strength}
 
 
@@ -31,7 +31,7 @@ def simple_junction(packets):
     return d
 
 
-def max_junction(packets, min_val=0):
+def max_junction(packets, min_val=0.0):
     """Map constructs in packets to their maximum strengths."""
 
     d = {}
@@ -41,7 +41,7 @@ def max_junction(packets, min_val=0):
     return d
 
 
-def linear_rule_strength(conditions, strengths, default=0):
+def linear_rule_strength(conditions, strengths, default=0.0):
     """Compute weighted sum of condition strengths."""
 
     return sum(w * strengths.get(ch, default) for ch, w in conditions.items())

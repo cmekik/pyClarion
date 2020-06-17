@@ -29,22 +29,22 @@ nacs.add(
 
 fnodes = [
     Node(
-        name=feature(dim, val, lag), 
+        name=feature(dim, val), 
         matches=MatchSpec(constructs={buffer("Stimulus"), flow_in("Lag")}), 
         propagator=MaxNode()
-    ) for dim, val, lag in [
-        ("dim", "val-1", 0),
-        ("dim", "val-2", 0),
-        ("dim", "val-3", 0),
-        ("dim", "val-4", 0),
-        ("dim", "val-5", 0),
-        ("dim", "val-6", 0),
-        ("dim", "val-1", 1),
-        ("dim", "val-2", 1),
-        ("dim", "val-3", 1),
-        ("dim", "val-4", 1),
-        ("dim", "val-5", 1),
-        ("dim", "val-6", 1)
+    ) for dim, val in [
+        (Lag.Dim(name="dim", lag=0), "val-1"),
+        (Lag.Dim(name="dim", lag=0), "val-2"),
+        (Lag.Dim(name="dim", lag=0), "val-3"),
+        (Lag.Dim(name="dim", lag=0), "val-4"),
+        (Lag.Dim(name="dim", lag=0), "val-5"),
+        (Lag.Dim(name="dim", lag=0), "val-6"),
+        (Lag.Dim(name="dim", lag=1), "val-1"),
+        (Lag.Dim(name="dim", lag=1), "val-2"),
+        (Lag.Dim(name="dim", lag=1), "val-3"),
+        (Lag.Dim(name="dim", lag=1), "val-4"),
+        (Lag.Dim(name="dim", lag=1), "val-5"),
+        (Lag.Dim(name="dim", lag=1), "val-6")
     ]
 ]
 nacs.add(*fnodes)
@@ -56,10 +56,10 @@ nacs.add(*fnodes)
 ##################
 
 stimulus_states = [
-    {feature("dim", "val-1"): 1.0},
-    {feature("dim", "val-2"): 1.0},
-    {feature("dim", "val-4"): 1.0},
-    {feature("dim", "val-3"): 1.0}
+    {feature(Lag.Dim(name="dim", lag=0), "val-1"): 1.0},
+    {feature(Lag.Dim(name="dim", lag=0), "val-2"): 1.0},
+    {feature(Lag.Dim(name="dim", lag=0), "val-4"): 1.0},
+    {feature(Lag.Dim(name="dim", lag=0), "val-3"): 1.0}
 ]
 
 for i, stimulus_state in enumerate(stimulus_states):

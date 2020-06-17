@@ -202,11 +202,10 @@ class FeatureSymbol(ConstructSymbol):
         self, 
         dim: Optional[Hashable], 
         val: Optional[Hashable], 
-        lag: Optional[Hashable], 
-        *args
+        *args: Hashable
     ) -> None:
 
-        super().__init__(ConstructType.feature, dim, val, lag, *args)
+        super().__init__(ConstructType.feature, dim, val, *args)
 
     def __repr__(self):
 
@@ -224,11 +223,6 @@ class FeatureSymbol(ConstructSymbol):
     def val(self) -> Optional[Hashable]:
 
         return self.cid[1]
-
-    @property
-    def lag(self) -> Optional[Hashable]:
-        
-        return self.cid[2]
 
 
 class MatchSpec(object):
@@ -345,7 +339,7 @@ class MatchSpec(object):
 # They simply wrap the appropriate ConstructSymbol constructor.
 
 
-def feature(dim: Hashable, val: Hashable, lag: Hashable=0) -> ConstructSymbol:
+def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     """
     Return a new feature symbol.
 
@@ -353,7 +347,7 @@ def feature(dim: Hashable, val: Hashable, lag: Hashable=0) -> ConstructSymbol:
     :param val: Value of feature.
     """
 
-    return FeatureSymbol(dim, val, lag)
+    return FeatureSymbol(dim, val)
 
 
 def chunk(name: Hashable) -> ConstructSymbol:
