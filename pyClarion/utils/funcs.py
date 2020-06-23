@@ -69,10 +69,10 @@ def boltzmann_distribution(strengths, temperature):
     return probabilities
 
 
-def multiplicative_filter(filter_weights, strengths, fdefault=0):
+def multiplicative_filter(filter_weights, strengths, fdefault=0.0):
 
     d = {
-        node: strengths[node] * (1 - filter_weights.get(node, fdefault)) 
+        node: strengths[node] * (1.0 - filter_weights.get(node, fdefault)) 
         for node in strengths
     }
     return d

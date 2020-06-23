@@ -74,12 +74,14 @@ class Chunks(object):
 
         return self._data.get(ch, default)
 
-    def find_form(self, query):
+    def find_form(self, form):
 
+        # This may need a faster implementation in the future. - Can
         chunks = set()
-        for ch, form in self.items():
-            if form == query:
+        for ch, ch_form in self.items():
+            if ch_form == form:
                 chunks.add(ch)
+
         return chunks
 
     def chunks(self):
@@ -116,7 +118,6 @@ class Chunks(object):
         d = {ch: form}
         self.validate_init_data(d)
         self._data.update(d)
-
 
     def remove_chunk(self, ch):
         """Remove chunk from database."""

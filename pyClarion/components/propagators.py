@@ -4,7 +4,7 @@
 __all__ = [
     "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
     "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR", "ChunkExtractor", 
-    "Lag"
+    "Lag", "WorkingMemory"
 ]
 
 
@@ -18,7 +18,7 @@ from pyClarion.utils.funcs import (
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
 from statistics import mean
-from itertools import count
+from itertools import count, chain, cycle
 from collections import namedtuple
 
 
@@ -179,7 +179,8 @@ class BottomUp(PropagatorA):
 class Lag(PropagatorA):
     """Lags strengths for given features."""
 
-    # Expected dimension type.
+    # Expected dimension type. Really only looks for a `lag` attribute, which 
+    # is an int specifying lag amount.
     Dim = namedtuple("LagDim", ["name", "lag"])
 
     def __init__(self, max_lag=1):
@@ -214,7 +215,7 @@ class Lag(PropagatorA):
 class BoltzmannSelector(PropagatorR):
     """Selects a chunk according to a Boltzmann distribution."""
 
-    def __init__(self, temperature, k=1):
+    def __init__(self, temperature, threshold=0.25,):
         """
         Initialize a ``BoltzmannSelector`` instance.
 
@@ -222,7 +223,7 @@ class BoltzmannSelector(PropagatorR):
         """
 
         self.temperature = temperature
-        self.k = k
+        self.threshold = threshold
 
     def call(self, construct, inputs, **kwds):
         """Select actionable chunks for execution. 
@@ -235,44 +236,39 @@ class BoltzmannSelector(PropagatorR):
 
         packets = inputs.values()
         strengths = simple_junction(packets)
+        strengths = {n: s for n, s in strengths.items() if self.threshold < s}
         probabilities = boltzmann_distribution(strengths, self.temperature)
-        selection = select(probabilities, self.k)
+        selection = select(probabilities, 1)
 
         return probabilities, selection
 
 
 class ChunkExtractor(PropagatorR):
 
-    def __init__(self, items, threshold, op="max"):
+    def __init__(self, chunks, name, filter, threshold, op="max"):
 
+        # Does not account for dimension weights; all weights set to 1.0
+        self.chunks = chunks
+        self.name = name
+        self.filter = filter
         self.constructor = ChunkConstructor(threshold=threshold, op=op)
-        self.items = items
+        self.count = count(start=1, step=1)
         
     def call(self, construct, inputs, **kwds):
 
         packets = inputs.values()
         strengths = simple_junction(packets)
-        names = [
-            chunk("{}-{}".format(item.name, next(item.counter)))
-            for item in self.items
-        ]
-        forms = self.constructor(
-            strengths=strengths, 
-            filters=[item.filter for item in self.items]
-        )
-        extracts = {n: f for n, f in zip(names, forms)}
-        selection = set()
 
-        return extracts, selection 
+        form = self.constructor(strengths=strengths, filter=self.filter)
+        matches_to_form = self.chunks.find_form(form)
+        if len(matches_to_form) == 0:
+            ch = chunk("{}-{}".format(self.name, next(self.count)))
+        elif len(matches_to_form) == 1:
+            ch = matches_to_form.pop()
+        else:
+            raise ValueError("Corrupt chunk database.")
 
-    class Item(object):
-        """Configuration data for a chunk extractor."""
-
-        def __init__(self, name, filter):
-
-            self.name = name
-            self.filter = filter
-            self.counter = count(start=1, step=1)
+        return {ch: form}, {ch} 
 
 
 ##########################
@@ -310,6 +306,70 @@ class Stimulus(PropagatorB):
     def call(self, construct, inputs, stimulus=None, **kwds):
 
         return stimulus or {}
+
+
+class WorkingMemory(PropagatorB):
+
+    # This is a very rough and simplistic working memory propagator. - Can
+
+    def __init__(self, source, chunks, slots=7):
+
+        self._clear = False
+        self._channel = None
+        self._index = cycle(range(slots))
+
+        self.source = source
+        self.chunks: Chunks = chunks
+        self.slots: list = [set() for _ in range(slots)]
+
+    def call(self, construct, inputs, **kwds):
+        
+        # May need to add flags/metacognitive info... - Can
+
+        # Clear WM if necessary
+        if self._clear is True:
+            for slot in self.slots: 
+                slot.clear()
+            self._clear = False
+
+        # Add the next value
+        if self._channel is not None:
+            channel = self._channel
+            packet = inputs[self.source]
+            print(packet)
+            decisions = packet.decisions.get(self._channel, None)
+            self._channel = None  
+            selection = set(decisions.selection) if decisions is not None else set()
+            if len(selection) > 1:
+                raise ValueError("At most one output expected.")
+            elif len(selection) == 0:
+                pass
+            else:
+                node = selection.pop()
+                form = self.chunks.get_form(node)
+                slot = self.slots[next(self._index)]
+                slot.clear()
+                slot.add(node)
+                for f in chain(*(d["values"] for d in form.values())):
+                    slot.add(f)
+
+        slot_chain = chain(*self.slots)
+        d = {n: 1.0 for n in slot_chain}
+        
+        return d
+
+    def update_on_next(self, channel):
+
+        self._channel = channel
+
+    def clear_on_next(self):
+
+        self._clear = True                                      
+
+    @property
+    def num_slots(self):
+
+        return len(self.slots)
 
 
 ##########################

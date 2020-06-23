@@ -1,40 +1,5 @@
-"""Demonstration and recipe for chunk extraction in pyClarion."""
-
 from pyClarion import *
-
-# Let's simulate a subject named 'Alice' who is shopping for some fruits. 
-# This simulation demonstrates a basic recipe for chunk extraction in 
-# pyClarion. If you have not worked through the free association example, 
-# please do so first, as you will be missing some of the prerequisite ideas.
-
-# The basic premise of the recipe is to create a special response construct 
-# for chunk extraction. On each cycle, this construct recommends new chunks 
-# based on the state of the bottom level. These recommendations are then picked 
-# up by an updater object, which adds any new chunks to its client chunk 
-# database and to affected subsystem(s). At this time the recipe and associated 
-# objects are highly experimental.
-
-# Here is the scenario:
-# Alice has implicit knowledge about fruits and prices, but is new to the 
-# store so she doesn't have any explicit knowledge about store prices. As a 
-# result, she is surveying the prices to form some explicit, crystalized 
-# knowledge.
-
-#############
-### Setup ###
-#############
-
-### Agent Setup ###
-
-# Agent setup proceeds more or less as with the free association example. 
-# Except that we include a `ChunkAdder` object as an updater when we initialize 
-# the agent realizer. 
-
-# The `ChunkAdder` object assumes the chunk database it is responsible for 
-# lives in the same realizer as itself. Minimally, the ChunkAdder needs to 
-# be given a response construct to monitor and a specification for constructing 
-# node realizers. Since, in this particular case, the adder lives at the agent 
-# level, it is also told which subsystem it should monitor.
+from typing import cast
 
 alice = Agent(
     name="Alice",
@@ -55,14 +20,19 @@ alice = Agent(
 )
 
 stimulus = Buffer(name="Stimulus", propagator=Stimulus())
-alice.add(stimulus)
-
-# For this example, we create a simple NACS w/ horizontal flows (no rules, no 
-# associative memory networks).
+wm = Buffer(
+    name="WM",
+    matches={subsystem("NACS")},
+    propagator=WorkingMemory(
+        source=subsystem("NACS"),
+        chunks=alice.assets.chunks
+    )
+)
+alice.add(stimulus, wm)
 
 nacs = Subsystem(
     name="NACS",
-    matches={buffer("Stimulus")},
+    matches={buffer("Stimulus"), buffer("WM")},
     cycle=NACSCycle()
 )
 alice.add(nacs)
@@ -79,13 +49,6 @@ nacs.add(
         propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
-
-# For the purposes of this example, we continue in the domain of fruits. Fruits 
-# are coded as individual values of a "fruits" dimension. Prices are also coded 
-# on a five-point scale ranging from "very cheap" to "fair" to "very expensive".
-# This encoding is not particularly sophisticated from a psychological point of 
-# view, and probably completely unrealistic. It is for illustration purposes 
-# only. 
 
 fnodes = [
     Node(
@@ -117,6 +80,16 @@ nacs.add(*fnodes)
 
 nacs.add(
     Response(
+        name="Retriever",
+        matches=MatchSpec(
+            ctype=ConstructType.chunk, 
+            constructs={buffer("Stimulus")}
+        ),
+        propagator=FilteredR(
+            base=BoltzmannSelector(temperature=.1),
+            input_filter=buffer("Stimulus"))
+    ),
+    Response(
         name="Extractor",
         matches=MatchSpec(
             ctype=ConstructType.feature, 
@@ -147,25 +120,19 @@ stimulus_states = [
         feature("price", "expensive"): 1.0
     },
     {
-        feature("fruit", "dragon fruit"): 1.0,
+        feature("fruit", "orange"): 1.0,
         feature("price", "expensive"): 1.0
-    },
-    {
-        feature("fruit", "kiwi"): 1.0,
-        feature("price", "very cheap"): 1.0
-    },
-    {
-        feature("fruit", "banana"): 1.0,
-        feature("price", "cheap"): 1.0
-    }    
+    }
 ]
+wm_channel = [response("Extractor"), response("Extractor"), None] 
 
-for i, stimulus_state in enumerate(stimulus_states):
+for i, (stimulus_state, channel) in enumerate(zip(stimulus_states, wm_channel)):
     print("Presentation {}".format(i + 1))
     alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
     alice.learn()
+    cast(WorkingMemory, wm.propagator).update_on_next(channel)
     print(nacs.output.pstr())
-    alice.clear_output()
+    print(wm.output.pstr())
 
 print("Learned Chunks:")
 alice.assets.chunks.pprint()
