@@ -149,7 +149,14 @@ class ConstructSymbol(object):
         if isinstance(other, ConstructSymbol):
             return self._data == other._data
         else:
-            return NotImplemented
+            raise NotImplementedError()
+
+    def __lt__(self, other):
+
+        if isinstance(other, ConstructSymbol) and self.ctype == other.ctype:
+            return self._data < other._data
+        else:
+            raise NotImplementedError()
 
     def __repr__(self):
 
