@@ -42,6 +42,13 @@ class MaxNode(PropagatorA):
         return strength
 
 
+class SimpleJunction(PropagatorA):
+
+    def call(self, construct, inputs, **kwds):
+
+        return simple_junction(inputs.values())
+
+
 class AssociativeRules(PropagatorA):
     """
     Propagates activations among chunks through associative rules.
@@ -215,7 +222,7 @@ class Lag(PropagatorA):
 class BoltzmannSelector(PropagatorR):
     """Selects a chunk according to a Boltzmann distribution."""
 
-    def __init__(self, temperature, threshold=0.25,):
+    def __init__(self, temperature, threshold=0.25):
         """
         Initialize a ``BoltzmannSelector`` instance.
 
@@ -422,7 +429,7 @@ class FilteredA(PropagatorA):
         if self.source_filter is not None:
             inputs = {
                 source: scale_strengths(
-                    weight=source_weights.get(source, 1 - self.fdefault), 
+                    weight=source_weights.get(source, 1.0 - self.fdefault), 
                     strengths=packet, 
                 ) 
                 for source, packet in inputs.items()

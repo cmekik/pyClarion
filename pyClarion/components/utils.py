@@ -1,4 +1,4 @@
-__all__ = ["ChunkConstructor", "LagDim"]
+__all__ = ["ChunkConstructor"]
 
 
 from typing import Iterable
