@@ -250,8 +250,6 @@ class MatchSpec(object):
     difference etc.
     """
 
-    # TODO: __repr__
-
     def __init__(
         self, 
         ctype: ConstructType = None, 
@@ -271,6 +269,18 @@ class MatchSpec(object):
         self.constructs: MutableSet[ConstructSymbol] = set()
         self.predicates: MutableSet[Callable[[ConstructSymbol], bool]] = set()
         self.add(ctype, constructs, predicates)
+
+    def __repr__(self):
+
+        ctr = "ConstructType({})".format(self.ctype.value)
+        if self.ctype.name is not None:
+            ctr = repr(self.ctype.name)
+        r = "MatchSpec(ctype={}, constructs={}, predicates={})".format(
+            ctr, repr(self.constructs), repr(self.predicates)
+        )
+
+        return r
+
 
     def __contains__(self, key: ConstructSymbol) -> bool:
         """
@@ -299,6 +309,17 @@ class MatchSpec(object):
             predicates=self.predicates.copy()
         )
 
+    def __ior__(self, other):
+
+        # TODO: Type check? - Can
+        self.add(other.ctype, other.constructs, other.predicates)
+    
+    def __isub__(self, other):
+
+        # TODO: Type check? - Can
+        self.remove(other.ctype, other.constructs, other.predicates)
+
+
     def add(
         self, 
         ctype: ConstructType = None, 
@@ -312,6 +333,10 @@ class MatchSpec(object):
         """
 
         if ctype is not None:
+            ctype = (
+                ConstructType.from_str(ctype) if isinstance(ctype, str) 
+                else ctype
+            ) 
             self.ctype |= ctype
         if constructs is not None:
             self.constructs |= set(constructs)
@@ -331,11 +356,15 @@ class MatchSpec(object):
         """
 
         if ctype is not None:
-            self.ctype ^= ctype
+            ctype = (
+                ConstructType.from_str(ctype) if isinstance(ctype, str) 
+                else ctype
+            ) 
+            self.ctype &= ~ctype
         if constructs is not None:
-            self.constructs ^= set(constructs)
+            self.constructs -= set(constructs)
         if predicates is not None:
-            self.predicates ^= set(predicates)
+            self.predicates -= set(predicates)
 
 
 ##################################
