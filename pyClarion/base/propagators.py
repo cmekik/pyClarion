@@ -4,7 +4,7 @@
 __all__ = ["Propagator", "PropagatorA", "PropagatorR", "PropagatorB"]
 
 
-from pyClarion.base.symbols import ConstructSymbol
+from pyClarion.base.symbols import ConstructSymbol, MatchSpec
 from pyClarion.base.packets import (
     ActivationPacket, ResponsePacket, SubsystemPacket
 )
@@ -62,6 +62,11 @@ class Propagator(Generic[It, Xt, Ot]):
         intermediate: Xt = self.call(construct, inputs_, **kwds)
         
         return self.make_packet(intermediate)
+
+    def expects(self, construct: ConstructSymbol):
+        """Returns True if propagator expects input from given construct."""
+
+        return False
 
     def make_packet(self, data: Xt = None) -> Ot:
         raise NotImplementedError()

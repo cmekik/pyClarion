@@ -126,15 +126,25 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
             updater(self)
 
     def accepts(self, source: ConstructSymbol) -> bool:
-        """Return true if self pulls information from source."""
+        """
+        Return true if self pulls information from source.
+        
+        Self is deemed to pull information from source if source is in 
+        self.matches OR self.propagator expects information from source.
+        """
+
+        if self.propagator is not None:
+            v = cast(Propagator, self.propagator).expects(construct=source) 
+        else:
+            v = False
 
         if self.matches is not None:
             if isinstance(self.matches, ConstructType):
-                return source.ctype in self.matches
+                v |= source.ctype in self.matches
             else:
-                return source in self.matches
-        else:
-            return False
+                v |= source in self.matches
+
+        return v
 
     def watch(
         self, construct: ConstructSymbol, callback: Callable[[], It]
