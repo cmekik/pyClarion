@@ -41,12 +41,11 @@ alice = Agent(
     assets=Assets(chunks=Chunks()),
     updaters={
         "chunk_adder": ChunkAdder(
-            template=ChunkAdder.Template(
-                matches=MatchSpec(
+            propagator=MaxNode(
+                MatchSpec(
                     ctype=ConstructType.flow_xt,
                     constructs={buffer("Stimulus")}
                 ),
-                propagator=MaxNode()
             ),
             response=response("Extractor"),
             subsystem=subsystem("NACS")
@@ -70,12 +69,10 @@ alice.add(nacs)
 nacs.add(
     Flow(
         name=flow_bt("Main"), 
-        matches=ConstructType.feature, 
         propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
     Flow(
         name=flow_tb("Main"), 
-        matches=ConstructType.chunk, 
         propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
@@ -89,12 +86,13 @@ nacs.add(
 
 fnodes = [
     Node(
-        name=feature(dim, val), 
-        matches=MatchSpec(
-            ctype=ConstructType.flow_xb, 
-            constructs={buffer("Stimulus")}
-        ), 
-        propagator=MaxNode()
+        name=feature(dim, val),  
+        propagator=MaxNode(
+            matches=MatchSpec(
+                ctype=ConstructType.flow_xb, 
+                constructs={buffer("Stimulus")}
+            ),
+        )
     ) for dim, val in [
         ("fruit", "banana"),
         ("fruit", "kiwi"),
@@ -118,16 +116,11 @@ nacs.add(*fnodes)
 nacs.add(
     Response(
         name="Extractor",
-        matches=MatchSpec(
-            ctype=ConstructType.feature, 
-            constructs={buffer("Stimulus")}
-        ),
         propagator=ChunkExtractor(
             chunks=alice.assets.chunks,
             name="state",
-            filter=MatchSpec(ctype=ConstructType.feature),
             threshold=0.9
-        )
+        ),
     )
 )
 

@@ -13,15 +13,16 @@ class ChunkAdder(object):
     Constructs Node objects for new chunks from a given template and adds them 
     to client realizers.
 
+    Does not allow adding updaters.
+
     Warning: This implementation relies on (shallow) copying. If propagators 
-    and updaters used in the templates have mutable attributes unexpected 
-    behavior may occur. To mitigate this, these objects must define appropriate 
-    `__copy__()` methods.
+        have mutable attributes unexpected behavior may occur. To mitigate 
+        this, propagators must define appropriate `__copy__()` methods.
     """
 
     def __init__(
         self, 
-        template, 
+        propagator, 
         response, 
         subsystem=None, 
         clients=None, 
@@ -43,7 +44,7 @@ class ChunkAdder(object):
             possible subsequent processing.
         """
 
-        self.template = template
+        self.propagator = propagator
         self.response = response
         self.subsystem = subsystem
         self.clients = {subsystem} if clients is None else clients
@@ -80,30 +81,8 @@ class ChunkAdder(object):
                     # are, at this time rather unrestricted. - Can 
                     Node(
                         name=ch,
-                        matches=copy(self.template.matches),
-                        propagator=copy(self.template.propagator),
-                        updaters={
-                            k: copy(v) 
-                            for k, v in self.template.updaters.items()
-                        } if self.template.updaters is not None else None
+                        propagator=copy(self.propagator)
                     )
                 )
 
         return None if not self.return_added else added
-
-    class Template(object):
-        """
-        A template for new chunk nodes.
-        
-        Defines the matching behavior, propagator, and any updaters for new 
-        chunk nodes. Arguments passed to this object will be stored and copyied 
-        in the creation of Node instances representing new chunk nodes. 
-
-        Copying may cause subtle bugs. See warning in `ChunkAdder`. 
-        """
-
-        def __init__(self, matches=None, propagator=None, updaters=None):
-
-            self.matches=matches
-            self.propagator=propagator
-            self.updaters=updaters

@@ -35,6 +35,10 @@ class Propagator(Generic[It, Xt, Ot]):
 
     # Would it be worth implenting this as a Protocol? - Can
 
+    def __init__(self, matches: MatchSpec = None):
+
+        self.matches = matches if matches is not None else MatchSpec()
+
     def __copy__(self: T) -> T:
         """
         Make a copy of self.
@@ -66,7 +70,7 @@ class Propagator(Generic[It, Xt, Ot]):
     def expects(self, construct: ConstructSymbol):
         """Returns True if propagator expects input from given construct."""
 
-        return False
+        return construct in self.matches
 
     def make_packet(self, data: Xt = None) -> Ot:
         raise NotImplementedError()

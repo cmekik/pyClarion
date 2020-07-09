@@ -4,12 +4,13 @@
 __all__ = [
     "MaxNode", "AssociativeRules", "TopDown", "BottomUp", "BoltzmannSelector", 
     "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR", "ChunkExtractor", 
-    "Lag", "WorkingMemory"
+    "Lag"
 ]
 
 
 from pyClarion.base import (
-    ConstructSymbol, chunk, feature, PropagatorA, PropagatorB, PropagatorR
+    ConstructType, ConstructSymbol, FeatureSymbol, chunk, feature, MatchSpec,
+    PropagatorA, PropagatorB, PropagatorR
 )
 from pyClarion.components.datastructures import Chunks, Rules 
 from pyClarion.components.utils import ChunkConstructor
@@ -20,6 +21,8 @@ from pyClarion.utils.funcs import (
 from statistics import mean
 from itertools import count, chain, cycle
 from collections import namedtuple
+from typing import Iterable, Any
+from copy import copy
 
 
 ##############################
@@ -32,7 +35,7 @@ class MaxNode(PropagatorA):
 
     def __copy__(self):
 
-        return type(self)()
+        return type(self)(matches=copy(self.matches))
 
     def call(self, construct, inputs, **kwds):
 
@@ -60,8 +63,12 @@ class AssociativeRules(PropagatorA):
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
-    def __init__(self, rules: Rules, op=None, default=0.0):
+    def __init__(self, rules: Rules, op=None, default=0.0, matches=None):
 
+        if matches is None: 
+            matches = MatchSpec(ctype=ConstructType.chunk)  
+        super().__init__(matches=matches)
+        
         self.rules = rules
         self.op = op if op is not None else max
         self.default = default
@@ -99,8 +106,12 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, chunks=None, op=None, default=0.0):
+    def __init__(self, chunks=None, op=None, default=0.0, matches=None):
 
+        if matches is None: 
+            matches = MatchSpec(ctype=ConstructType.chunk)  
+        super().__init__(matches=matches)
+        
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.op = op if op is not None else max
         self.default = default
@@ -148,8 +159,12 @@ class BottomUp(PropagatorA):
 
     default_ops = {"max": max, "min": min, "mean": mean}
 
-    def __init__(self, chunks=None, ops=None, default=0.0):
+    def __init__(self, chunks=None, ops=None, default=0.0, matches=None):
 
+        if matches is None: 
+            matches = MatchSpec(ctype=ConstructType.feature)  
+        super().__init__(matches=matches)
+        
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
         self.ops = ops if ops is not None else self.default_ops.copy()
@@ -190,12 +205,16 @@ class Lag(PropagatorA):
     # is an int specifying lag amount.
     Dim = namedtuple("LagDim", ["name", "lag"])
 
-    def __init__(self, max_lag=1):
+    def __init__(self, max_lag=1, matches=None):
         """
         Initialize a new `Lag` propagator.
 
         :param max_lag: Do not compute lags beyond this value.
         """
+
+        if matches is None: 
+            matches = MatchSpec(ctype=ConstructType.feature)  
+        super().__init__(matches=matches)
 
         self.max_lag = max_lag
 
@@ -222,12 +241,14 @@ class Lag(PropagatorA):
 class BoltzmannSelector(PropagatorR):
     """Selects a chunk according to a Boltzmann distribution."""
 
-    def __init__(self, temperature, threshold=0.25):
+    def __init__(self, temperature, threshold=0.25, matches=None):
         """
         Initialize a ``BoltzmannSelector`` instance.
 
         :param temperature: Temperature of the Boltzmann distribution.
         """
+
+        super().__init__(matches=matches)
 
         self.temperature = temperature
         self.threshold = threshold
@@ -252,12 +273,15 @@ class BoltzmannSelector(PropagatorR):
 
 class ChunkExtractor(PropagatorR):
 
-    def __init__(self, chunks, name, filter, threshold, op="max"):
+    def __init__(self, chunks, name, threshold, op="max", matches=None):
+
+        if matches is None: 
+            matches = MatchSpec(ctype=ConstructType.feature)  
+        super().__init__(matches=matches)
 
         # Does not account for dimension weights; all weights set to 1.0
         self.chunks = chunks
         self.name = name
-        self.filter = filter
         self.constructor = ChunkConstructor(threshold=threshold, op=op)
         self.count = count(start=1, step=1)
         
@@ -266,7 +290,7 @@ class ChunkExtractor(PropagatorR):
         packets = inputs.values()
         strengths = simple_junction(packets)
 
-        form = self.constructor(strengths=strengths, filter=self.filter)
+        form = self.constructor(strengths=strengths)
         matches_to_form = self.chunks.find_form(form)
         if len(matches_to_form) == 0:
             ch = chunk("{}-{}".format(self.name, next(self.count)))
@@ -286,8 +310,9 @@ class ChunkExtractor(PropagatorR):
 class ConstantBuffer(PropagatorB):
     """Outputs a stored activation packet."""
 
-    def __init__(self, strengths = None) -> None:
+    def __init__(self, strengths = None, matches = None) -> None:
 
+        super().__init__(matches=matches)
         self.strengths = strengths or dict()
 
     def call(self, construct, inputs, **kwds):
@@ -315,70 +340,6 @@ class Stimulus(PropagatorB):
         return stimulus or {}
 
 
-class WorkingMemory(PropagatorB):
-
-    # This is a very rough and simplistic working memory propagator. - Can
-
-    def __init__(self, source, chunks, slots=7):
-
-        self._clear = False
-        self._channel = None
-        self._index = cycle(range(slots))
-
-        self.source = source
-        self.chunks: Chunks = chunks
-        self.slots: list = [set() for _ in range(slots)]
-
-    def call(self, construct, inputs, **kwds):
-        
-        # May need to add flags/metacognitive info... - Can
-
-        # Clear WM if necessary
-        if self._clear is True:
-            for slot in self.slots: 
-                slot.clear()
-            self._clear = False
-
-        # Add the next value
-        if self._channel is not None:
-            channel = self._channel
-            packet = inputs[self.source]
-            print(packet)
-            decisions = packet.decisions.get(self._channel, None)
-            self._channel = None  
-            selection = set(decisions.selection) if decisions is not None else set()
-            if len(selection) > 1:
-                raise ValueError("At most one output expected.")
-            elif len(selection) == 0:
-                pass
-            else:
-                node = selection.pop()
-                form = self.chunks.get_form(node)
-                slot = self.slots[next(self._index)]
-                slot.clear()
-                slot.add(node)
-                for f in chain(*(d["values"] for d in form.values())):
-                    slot.add(f)
-
-        slot_chain = chain(*self.slots)
-        d = {n: 1.0 for n in slot_chain}
-        
-        return d
-
-    def update_on_next(self, channel):
-
-        self._channel = channel
-
-    def clear_on_next(self):
-
-        self._clear = True                                      
-
-    @property
-    def num_slots(self):
-
-        return len(self.slots)
-
-
 ##########################
 ### Filtering Wrappers ###
 ##########################
@@ -393,7 +354,7 @@ class FilteredA(PropagatorA):
         source_filter: ConstructSymbol = None, 
         input_filter: ConstructSymbol = None, 
         output_filter: ConstructSymbol = None, 
-        fdefault=0.0
+        fdefault=0.0,
     ):
 
         self.base = base
@@ -413,6 +374,15 @@ class FilteredA(PropagatorA):
             output_filter=copy(self.output_filter),
             fdefault=copy(self.fdefault)
         )
+
+    def expects(self, construct):
+
+        b = False
+        for c in (self.source_filter, self.input_filter, self.output_filter):
+            if c is not None:
+                b |= construct == c 
+
+        return b or self.base.expects(construct=construct)
 
     def call(self, construct, inputs, **kwds):
 
@@ -468,20 +438,43 @@ class FilteredR(PropagatorR):
     def __init__(
         self, 
         base: PropagatorR, 
+        source_filter: ConstructSymbol = None,
         input_filter: ConstructSymbol = None, 
         fdefault=0.0
     ):
 
         self.base = base
+        self.source_filter = source_filter
         self.input_filter = input_filter
         self.fdefault = fdefault
+
+    def expects(self, construct):
+
+        b = False
+        for c in (self.source_filter, self.input_filter):
+            if c is not None:
+                b |= construct == c 
+
+        return b or self.base.expects(construct=construct)
 
     def call(self, construct, inputs, **kwds):
 
         # Get filter settings and remove filter info from inputs dict so they 
         # are not processed by self.base
+        if self.source_filter is not None:
+            source_weights = inputs.pop(self.source_filter)
         if self.input_filter is not None:
             input_weights = inputs.pop(self.input_filter)
+
+        # Apply source filtering
+        if self.source_filter is not None:
+            inputs = {
+                source: scale_strengths(
+                    weight=source_weights.get(source, 1.0 - self.fdefault), 
+                    strengths=packet, 
+                ) 
+                for source, packet in inputs.items()
+            }
 
         # Filter inputs to base
         if self.input_filter is not None:

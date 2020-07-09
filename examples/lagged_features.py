@@ -22,7 +22,6 @@ alice.add(stimulus, nacs)
 nacs.add(
     Flow(
         name=flow_in("Lag"), 
-        matches=ConstructType.feature, 
         propagator=Lag(max_lag=1) 
     ),
 )
@@ -30,8 +29,9 @@ nacs.add(
 fnodes = [
     Node(
         name=feature(dim, val), 
-        matches=MatchSpec(constructs={buffer("Stimulus"), flow_in("Lag")}), 
-        propagator=MaxNode()
+        propagator=MaxNode(
+            matches=MatchSpec(constructs={buffer("Stimulus"), flow_in("Lag")}) 
+        )
     ) for dim, val in [
         (Lag.Dim(name="dim", lag=0), "val-1"),
         (Lag.Dim(name="dim", lag=0), "val-2"),

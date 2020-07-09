@@ -163,17 +163,14 @@ alice.add(nacs)
 nacs.add(
     Flow(
         name=flow_tt("Associations"),
-        matches=ConstructType.chunk,
         propagator=AssociativeRules(rules=nacs.assets.rules) # type: ignore
     ),
     Flow(
         name=flow_bt("Main"), 
-        matches=ConstructType.feature, 
         propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
     Flow(
         name=flow_tb("Main"), 
-        matches=ConstructType.chunk, 
         propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
@@ -193,13 +190,13 @@ nacs.add(
 nacs.add(
     Response(
         name="Main",
-        matches=MatchSpec(
-            ctype=ConstructType.chunk,
-            constructs={buffer("Stimulus")}
-        ),
         propagator=FilteredR(
-            base=BoltzmannSelector(temperature=.1),
-            input_filter=buffer("Stimulus"))
+            base=BoltzmannSelector(
+                temperature=.1,
+                matches=MatchSpec(ctype=ConstructType.chunk)
+            ),
+            input_filter=buffer("Stimulus")
+        )
     )
 )
 
@@ -236,8 +233,9 @@ nacs.add(
 fnodes = [
     Node(
         name=feature(dim, val), 
-        matches=ConstructType.flow_xb, 
-        propagator=MaxNode()
+        propagator=MaxNode(
+            matches=MatchSpec(ctype=ConstructType.flow_xb)
+        )
     ) for dim, val in [
         ("color", "#ff0000"), # red
         ("color", "#008000"), # green
@@ -274,8 +272,11 @@ nacs.add(*fnodes)
 cnodes = [
     Node(
         name=chunk(name),
-        matches=(ConstructType.flow_xt | ConstructType.buffer),
-        propagator=MaxNode()
+        propagator=MaxNode(
+            matches=MatchSpec(
+                ctype=ConstructType.flow_xt | ConstructType.buffer
+            )
+        )
     ) for name in ["FRUIT", "APPLE", "JUICE"]
 ]
 

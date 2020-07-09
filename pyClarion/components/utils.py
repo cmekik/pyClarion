@@ -23,17 +23,10 @@ class ChunkConstructor(object):
         self.threshold = threshold
         self.op = op
 
-    def __call__(
-        self, 
-        strengths: Packet, 
-        filter: MatchSpec
-    ) -> Iterable:
+    def __call__(self, strengths: Packet) -> dict:
         """Create candidate chunk forms based on given strengths and filter."""
 
-        eligible = (
-            f for f, s in strengths.items() if 
-            f in filter and s > self.threshold 
-        )
+        eligible = (f for f, s in strengths.items() if s > self.threshold)
         form = Chunks.update_form({}, *eligible, op=self.op) # weights?
         
         return form
