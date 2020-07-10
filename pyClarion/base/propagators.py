@@ -23,6 +23,7 @@ PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
 Inputs = Mapping[ConstructSymbol, Dt]
 APData = Mapping[ConstructSymbol, Any] # type for ActivationPacket init
 DPData = Tuple[APData, Set[ConstructSymbol]] # type for ResponsePacket init
+SPData = Any # type for SubsystemPacket init; needs to be corrected
 
 
 class Propagator(Generic[It, Xt, Ot]):

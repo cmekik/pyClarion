@@ -69,8 +69,6 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
     def __init__(
         self: Self, 
         name: Hashable, 
-        matches: MatchArg = None,
-        propagator: Pt = None,
         updaters: UpdaterArg[Self] = None
     ) -> None:
         """
@@ -97,8 +95,6 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
 
-        self.matches = matches
-        self.propagator = propagator
         # This doesn't seem very safe...
         self.updaters: OrderedDict[Hashable, Updater[Any]]
         if updaters is None: self.updaters = OrderedDict()
@@ -126,25 +122,9 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
             updater(self)
 
     def accepts(self, source: ConstructSymbol) -> bool:
-        """
-        Return true if self pulls information from source.
-        
-        Self is deemed to pull information from source if source is in 
-        self.matches OR self.propagator expects information from source.
-        """
+        """Return true if self pulls information from source."""
 
-        if self.propagator is not None:
-            v = cast(Propagator, self.propagator).expects(construct=source) 
-        else:
-            v = False
-
-        if self.matches is not None:
-            if isinstance(self.matches, ConstructType):
-                v |= source.ctype in self.matches
-            else:
-                v |= source in self.matches
-
-        return v
+        raise NotImplementedError()
 
     def watch(
         self, construct: ConstructSymbol, callback: Callable[[], It]
@@ -211,12 +191,7 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
         # Emit output if available.
         if self._output is not None:
             return self._output
-        # Upon failure, try to construct empty output datastructure, if 
-        # constructor is available.
-        elif self.propagator is not None:
-            self._output = cast(Propagator, self.propagator).make_packet()
-            return self._output
-        # Upon a second failure, throw output error.
+        # Upon failure, throw output error.
         else:
             cls = type(self)
             repr_ = repr(self)
@@ -234,8 +209,6 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
         d: MissingSpec = {}
         if self.construct is None:
             d.setdefault(self.construct, []).append('construct')
-        if self.matches is None:
-            d.setdefault(self.construct, []).append('matches')
         return d
 
     class OutputError(Exception):
@@ -297,7 +270,51 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
     construct in their context.
     """
 
+    Self = TypeVar("Self", bound="BasicConstruct")
     ctype: ClassVar[ConstructType] = ConstructType.basic_construct
+
+    def __init__(
+        self: Self,
+        name: Hashable,
+        propagator: Pt = None,
+        updaters: UpdaterArg[Self] = None,
+    ) -> None:
+        """
+        Initialize a new response realizer.
+        
+        :param name: Identifier for construct, may be a ConstructSymbol, str, 
+            tuple, or list. If a construct symbol is given, its construct type 
+            must match the construct type associated with the realizer class. 
+            If a str, tuple, or list is given, a `ConstructSymbol` will be 
+            created with the given values as construct identifiers and the 
+            class `ctype` as its `ConstructType`.  
+        :param matches: Specification of constructs from which self may accept 
+            input. Expects a `ConstructType` or a container of construct 
+            symbols. For complex matching patterns see `symbols.MatchSpec`.
+        :param propagator: Activation processor associated with client 
+            construct. Propagates strengths based on inputs from linked 
+            constructs. It is expected that this argument will behave like a 
+            `Propagator` object; this expectation is not enforced.
+        :param updaters: A dict-like object containing procedures for updating 
+            construct knowledge.
+        :param effector: Routine for executing selected actions.
+        """
+
+        super().__init__(
+            name=name, 
+            updaters=updaters
+        )
+        self.propagator = propagator
+
+    def accepts(self, source: ConstructSymbol) -> bool:
+        """
+        Return true if self pulls information from source.
+        
+        Self is deemed to pull information from source iff self.propagator 
+        expects information from source.
+        """
+
+        return cast(Propagator, self.propagator).expects(construct=source)
 
     def propagate(self, args: Dict = None) -> None:
         """Update output of self with result of propagator on current input."""
@@ -326,6 +343,21 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
             self.update_output(packet)
         else:
             raise TypeError("'NoneType' object is not callable")
+
+    @property
+    def output(self) -> Ot:
+        """"Current output of self."""
+
+        try:
+            return super().output
+        except super().OutputError:
+            # Try to construct empty output datastructure, if constructor is 
+            # available.
+            if self.propagator is not None:
+                self._output = cast(Propagator, self.propagator).make_packet()
+                return cast(Ot, self._output)
+            else:
+                raise 
 
     @property
     def missing(self) -> MissingSpec:
@@ -374,7 +406,6 @@ class Response(BasicConstruct[ActivationPacket, ResponsePacket, Pt]):
     def __init__(
         self: Self,
         name: Hashable,
-        matches: MatchArg = None,
         propagator: Pt = None,
         updaters: UpdaterArg[Self] = None,
         effector: Callable[[ResponsePacket], None] = None
@@ -402,7 +433,6 @@ class Response(BasicConstruct[ActivationPacket, ResponsePacket, Pt]):
 
         super().__init__(
             name=name, 
-            matches=matches, 
             propagator=propagator, 
             updaters=updaters
         )
@@ -479,11 +509,12 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         Initialize a new container realizer.
         """
 
-        super().__init__(name=name, matches=matches, updaters=updaters)
+        super().__init__(name=name, updaters=updaters)
         self._dict: Dict = {ctype: {} for ctype in self._contains}
         # In case assets argument is None self.assets is given type Any to 
         # prevent type checkers from complaining about missing attributes. This 
         # occurs b/c attributes of Assets objects are set dynamically.
+        self.matches = matches
         self.assets: At_co = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructSymbol) -> bool:
@@ -522,6 +553,22 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         match = matches.pop()
 
         del self._dict[match][key]
+
+    def accepts(self, source: ConstructSymbol) -> bool:
+        """
+        Return true if self pulls information from source.
+        
+        Self is deemed to pull information from source if source is in 
+        self.matches OR self.propagator expects information from source.
+        """
+
+        if self.matches is not None:
+            if isinstance(self.matches, ConstructType):
+                return source.ctype in self.matches
+            else:
+                return source in self.matches
+        else:
+            return False
 
     def learn(self):
         """
@@ -697,6 +744,8 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         """Return missing components in self or in member constructs."""
 
         d = super().missing
+        if self.matches is None:
+            d.setdefault(self.construct, []).append('matches')
         for realizer in self.values():
             d_realizer = realizer.missing
             for k, v in d_realizer.items():
@@ -784,15 +833,6 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
             return super().output
         except cls.OutputError:
             return SubsystemPacket()
-
-    @property
-    def missing(self) -> MissingSpec:
-        """Return missing components of self and all members."""
-
-        d = super().missing
-        if self.propagator is None:
-            d.setdefault(self.construct, []).append('propagator')
-        return d
 
     @property # type: ignore
     @lru_cache(maxsize=1)
