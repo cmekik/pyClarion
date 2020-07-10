@@ -495,7 +495,6 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
     """Base class for container construct realizers."""
 
     Self = TypeVar("Self", bound="ContainerConstruct")
-    _contains: Dict[ConstructType, Type[ConstructRealizer]]= {}
     ctype: ClassVar[ConstructType] = ConstructType.container_construct
 
     def __init__(
@@ -510,7 +509,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         """
 
         super().__init__(name=name, updaters=updaters)
-        self._dict: Dict = {ctype: {} for ctype in self._contains}
+        self._dict: Dict = {}
         # In case assets argument is None self.assets is given type Any to 
         # prevent type checkers from complaining about missing attributes. This 
         # occurs b/c attributes of Assets objects are set dynamically.
@@ -532,27 +531,11 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 
     def __getitem__(self, key: ConstructSymbol) -> Any:
 
-        ctype = key.ctype
-        matches = {ct for ct in self._contains if ctype in ct}
-        if len(matches) == 0:
-            raise ValueError("Unexpected ctype '{}'.".format(ctype))
-        elif len(matches) > 1:
-            raise ValueError("Ambiguous ctype '{}'.".format(ctype))
-        match = matches.pop()
-
-        return self._dict[match][key]
+        return self._dict[key.ctype][key]
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
-        ctype = key.ctype
-        matches = {ct for ct in self._contains if ctype in ct}
-        if len(matches) == 0:
-            raise ValueError("Unexpected ctype '{}'.".format(ctype))
-        elif len(matches) > 1:
-            raise ValueError("Ambiguous ctype '{}'.".format(ctype))
-        match = matches.pop()
-
-        del self._dict[match][key]
+        del self._dict[key.ctype][key]
 
     def accepts(self, source: ConstructSymbol) -> bool:
         """
@@ -589,26 +572,11 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
     def add(self, *realizers: ConstructRealizer) -> None:
         """Add a set of realizers to self."""
 
-        try:
-            for i, realizer in enumerate(realizers):
-                ctype = realizer.construct.ctype
-                matches = {key for key in self._contains if ctype in key}
-                if len(matches) == 0:
-                    raise ValueError("Unexpected ctype '{}'.".format(ctype))
-                elif len(matches) > 1:
-                    raise ValueError("Ambiguous ctype '{}'.".format(ctype))
-                match = matches.pop()
-                if isinstance(realizer, self._contains[match]):
-                    self._dict[match][realizer.construct] = realizer
-                    self._update_links(realizer)
-                else:
-                    t = type(realizer)
-                    raise ValueError("Unexpected realizer type '{}'".format(t))
-        except ValueError as e:
-            # Undo changes before passing on the error.
-            for new_realizer in realizers[:i]:
-                del self[new_realizer.construct]
-            raise e
+        for realizer in realizers:
+            ctype = realizer.construct.ctype
+            d = self._dict.setdefault(ctype, {})
+            d[realizer.construct] = realizer
+            self._update_links(realizer)
 
     def remove(self, *constructs: ConstructSymbol) -> None:
         """Remove a set of constructs from self."""
@@ -780,12 +748,6 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
 
     Self = TypeVar("Self", bound="Subsystem")
-    _contains = {
-        ConstructType.feature: Node, 
-        ConstructType.chunk: Node,
-        ConstructType.flow: Flow,
-        ConstructType.response: Response
-    }
     ctype: ClassVar[ConstructType] = ConstructType.subsystem
 
     def __init__(
@@ -838,13 +800,15 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
     @lru_cache(maxsize=1)
     def features(self) -> Mapping[ConstructSymbol, Node]:
 
-        return MappingProxyType(self._dict[ConstructType.feature])
+        d = self._dict.setdefault(ConstructType.feature, {})
+        return MappingProxyType(d)
 
     @property # type: ignore
     @lru_cache(maxsize=1)
     def chunks(self) -> Mapping[ConstructSymbol, Node]:
 
-        return MappingProxyType(self._dict[ConstructType.chunk])
+        d = self._dict.setdefault(ConstructType.chunk, {})
+        return MappingProxyType(d)
 
     @property # type: ignore
     @lru_cache(maxsize=1)
@@ -855,22 +819,25 @@ class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
     @property # type: ignore
     @lru_cache(maxsize=1)
     def flows(self) -> Mapping[ConstructSymbol, Flow]:
+        
+        # This is a hack
+        d1 = self._dict.setdefault(ConstructType.flow_bb, {})
+        d2 = self._dict.setdefault(ConstructType.flow_tt, {})
+        d3 = self._dict.setdefault(ConstructType.flow_bt, {})
+        d4 = self._dict.setdefault(ConstructType.flow_tb, {})
 
-        return MappingProxyType(self._dict[ConstructType.flow])
+        return MappingProxyType(ChainMap(d1, d2, d3, d4))
 
     @property # type: ignore
     @lru_cache(maxsize=1)
     def responses(self) -> Mapping[ConstructSymbol, Response]:
 
-        return MappingProxyType(self._dict[ConstructType.response])
+        d = self._dict.setdefault(ConstructType.response, {})
+        return MappingProxyType(d)
 
 
 class Agent(ContainerConstruct[None, None, At_co]):
 
-    _contains = {
-        ConstructType.buffer: Buffer, 
-        ConstructType.subsystem: Subsystem
-    }
     ctype: ClassVar[ConstructType] = ConstructType.agent
 
     def propagate(self, args: Dict = None) -> None:
