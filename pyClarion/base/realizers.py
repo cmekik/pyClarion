@@ -3,16 +3,15 @@
 
 __all__ = [
     "MatchArg", "UpdaterArg", "MissingSpec", "PullFuncs", "Inputs", "Updater",
-    "ConstructRealizer", "BasicConstruct", "ContainerConstruct", "Node", "Flow", 
-    "Response", "Buffer", "Subsystem", "Agent", "Assets"
+    "Realizer", "Construct", "Structure", "Assets"
 ]
 
 
 from pyClarion.base.symbols import ConstructType, ConstructSymbol, MatchSpec
 from pyClarion.base.packets import (
-    ActivationPacket, ResponsePacket, SubsystemPacket
+    ActivationPacket, ResponsePacket, SubsystemPacket,
 )
-from pyClarion.base.propagators import Propagator
+from pyClarion.base.propagators import Propagator, Cycle
 from itertools import combinations, combinations_with_replacement, chain
 from collections import ChainMap, OrderedDict
 from functools import lru_cache
@@ -28,9 +27,7 @@ from abc import abstractmethod
 It = TypeVar('It') # type variable for inputs to construct realizers
 Ot = TypeVar('Ot') # type variable for outputs to construct realizers
 Rt = TypeVar('Rt') # type variable representing a construct realizer 
-
-Pt = TypeVar("Pt") # type variable for basic construct propagators
-At_co = TypeVar("At_co", covariant=True) # type variable for container construct assets
+At_co = TypeVar("At_co", covariant=True) # type variable for sturcture assets
 
 # explain scope of this type variable
 MatchArg = Union[ConstructType, Container[ConstructSymbol], MatchSpec] 
@@ -49,7 +46,7 @@ UpdaterArg = Union[
 ]
 
 
-class ConstructRealizer(Generic[It, Ot, Pt]):
+class Realizer(Generic[It, Ot]):
     """
     Base class for construct realizers.
 
@@ -62,9 +59,7 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
     `matches` attribute, which may be set on initialization.
     """
 
-    Self = TypeVar("Self", bound="ConstructRealizer")
-    # Construct type associated with this realizer class.
-    ctype: ClassVar[ConstructType] = ConstructType.null_construct
+    Self = TypeVar("Self", bound="Realizer")
 
     def __init__(
         self: Self, 
@@ -91,7 +86,12 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
             construct knowledge.
         """
 
-        self._construct = self._parse_name(name=name)
+        if not isinstance(name, ConstructSymbol):
+            raise TypeError(
+                "Agrument 'name' must be of type ConstructSymbol"
+                "got {} instead.".format(type(name))
+            )
+        self._construct = name
         self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
         self._output: Optional[Ot] = None
 
@@ -175,12 +175,7 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
     @property # type: ignore
     @lru_cache(maxsize=1)
     def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
-        """
-        Mapping from input constructs to pull funcs.
-        
-        Warning: Direct in-place modification of this dict may result in 
-        corrupted model behavior.
-        """
+        """Mapping from input constructs to pull funcs."""
 
         return MappingProxyType(self._inputs)
 
@@ -215,52 +210,13 @@ class ConstructRealizer(Generic[It, Ot, Pt]):
         """Raised when a realizer has no output"""
         pass
 
-    def _check_construct(self, construct: ConstructSymbol) -> None:
-        """Check if construct symbol matches realizer."""
-
-        if construct.ctype not in type(self).ctype:
-            raise ValueError(
-                " ".join(
-                    [   
-                        type(self).__name__,
-                        "expects construct symbol with ctype",
-                        repr(type(self).ctype),
-                        "but received symbol {} of ctype {}.".format(
-                            str(construct), repr(construct.ctype)
-                        )
-                    ]
-                )
-            )
-
-    def _parse_name(self, name: Hashable) -> ConstructSymbol:
-
-        construct: ConstructSymbol
-
-        # This implementation seems very wrong. Should simply check for 
-        # hashability instead of complex type set, if input is not a construct 
-        # symbol already. -CSM
-        if isinstance(name, ConstructSymbol):
-            self._check_construct(name)
-            construct = name
-        elif isinstance(name, str):
-            construct = ConstructSymbol(type(self).ctype, name)
-        elif isinstance(name, (tuple, list)):
-            construct = ConstructSymbol(type(self).ctype, *name)
-        else:
-            raise TypeError(
-                "Argument `name` to ConstructRealizer must be of type"
-                "ConstructSymbol, str, tuple, or list."
-            )
-        
-        return construct
-
 
 ############################################
 ### Basic Construct Realizer Definitions ###
 ############################################
 
 
-class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
+class Construct(Realizer[It, Ot]):
     """
     Base class for basic construct realizers.
     
@@ -270,17 +226,16 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
     construct in their context.
     """
 
-    Self = TypeVar("Self", bound="BasicConstruct")
-    ctype: ClassVar[ConstructType] = ConstructType.basic_construct
+    Self = TypeVar("Self", bound="Construct")
 
     def __init__(
         self: Self,
         name: Hashable,
-        propagator: Pt = None,
+        propagator: Propagator[It, Any, Ot] = None,
         updaters: UpdaterArg[Self] = None,
     ) -> None:
         """
-        Initialize a new response realizer.
+        Initialize a new construct realizer.
         
         :param name: Identifier for construct, may be a ConstructSymbol, str, 
             tuple, or list. If a construct symbol is given, its construct type 
@@ -288,16 +243,12 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
             If a str, tuple, or list is given, a `ConstructSymbol` will be 
             created with the given values as construct identifiers and the 
             class `ctype` as its `ConstructType`.  
-        :param matches: Specification of constructs from which self may accept 
-            input. Expects a `ConstructType` or a container of construct 
-            symbols. For complex matching patterns see `symbols.MatchSpec`.
         :param propagator: Activation processor associated with client 
             construct. Propagates strengths based on inputs from linked 
             constructs. It is expected that this argument will behave like a 
             `Propagator` object; this expectation is not enforced.
         :param updaters: A dict-like object containing procedures for updating 
             construct knowledge.
-        :param effector: Routine for executing selected actions.
         """
 
         super().__init__(
@@ -314,32 +265,21 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
         expects information from source.
         """
 
-        return cast(Propagator, self.propagator).expects(construct=source)
+        if self.propagator is not None:
+            return self.propagator.expects(construct=source)
+        else:
+            raise TypeError("Missing propagator.")
 
     def propagate(self, args: Dict = None) -> None:
         """Update output of self with result of propagator on current input."""
 
         if self.propagator is not None:
             packet: Ot
-            # I'm not sure I like the cast below. Propagator is generic, but 
-            # it's unclear to me that the variables are dealt with correctly. 
-            # This should be checked.
-            # If they are dealt with correctly, It may be fine. Correctness 
-            # could also be enforced through class variables storing the desired 
-            # Propagator type. 
-            # Ideally, there would be a bound on the type variable, but doing so 
-            # results in the propagator being upcast. This is not ideal because 
-            # then the typing information is lost downstream and cannot be 
-            # exploited by linters. 
-            # Maybe there is a better way, but this was the simplest and least 
-            # complicated I could come up with. The documentation should make 
-            # the expected Propagator type *very* explicit. - Can  
-            propagator = cast(Propagator, self.propagator)
             inputs = cast(Any, self.inputs) # mypy complains about lru_cache
             if args is not None:
-                packet = propagator(self.construct, inputs, **args)
+                packet = self.propagator(self.construct, inputs, **args)
             else:
-                packet = propagator(self.construct, inputs)
+                packet = self.propagator(self.construct, inputs)
             self.update_output(packet)
         else:
             raise TypeError("'NoneType' object is not callable")
@@ -366,101 +306,6 @@ class BasicConstruct(ConstructRealizer[It, Ot, Pt]):
         if self.propagator is None:
             d.setdefault(self.construct, []).append('propagator')
         return d
-
-
-class Node(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
-    """
-    Construct realizer for pyClarion nodes.
-
-    This object expects a propagator of type `PropagatorA` or similar.
-    """
-
-    ctype: ClassVar[ConstructType] = ConstructType.node
-
-    @property
-    def output_value(self) -> Any:
-        
-        return self.output[self.construct]
-
-
-class Flow(BasicConstruct[ActivationPacket, ActivationPacket, Pt]):
-    """
-    Construct realizer for pyClarion flows.
-
-    This object expects a propagator of type `PropagatorA` or similar.
-    """
-
-    ctype: ClassVar[ConstructType] = ConstructType.flow
-
-
-class Response(BasicConstruct[ActivationPacket, ResponsePacket, Pt]):
-    """
-    Construct realizer for pyClarion responses.
-
-    This object expects a propagator of type `PropagatorD` or similar.
-    """
-
-    Self = TypeVar("Self", bound="Response")
-    ctype: ClassVar[ConstructType] = ConstructType.response
-
-    def __init__(
-        self: Self,
-        name: Hashable,
-        propagator: Pt = None,
-        updaters: UpdaterArg[Self] = None,
-        effector: Callable[[ResponsePacket], None] = None
-    ) -> None:
-        """
-        Initialize a new response realizer.
-        
-        :param name: Identifier for construct, may be a ConstructSymbol, str, 
-            tuple, or list. If a construct symbol is given, its construct type 
-            must match the construct type associated with the realizer class. 
-            If a str, tuple, or list is given, a `ConstructSymbol` will be 
-            created with the given values as construct identifiers and the 
-            class `ctype` as its `ConstructType`.  
-        :param matches: Specification of constructs from which self may accept 
-            input. Expects a `ConstructType` or a container of construct 
-            symbols. For complex matching patterns see `symbols.MatchSpec`.
-        :param propagator: Activation processor associated with client 
-            construct. Propagates strengths based on inputs from linked 
-            constructs. It is expected that this argument will behave like a 
-            `Propagator` object; this expectation is not enforced.
-        :param updaters: A dict-like object containing procedures for updating 
-            construct knowledge.
-        :param effector: Routine for executing selected actions.
-        """
-
-        super().__init__(
-            name=name, 
-            propagator=propagator, 
-            updaters=updaters
-        )
-        self.effector = effector
-
-    def execute(self) -> None:
-        """Execute any currently selected actions."""
-
-        if self.effector is not None:
-            self.effector(self.view())
-
-    @property
-    def missing(self) -> MissingSpec:
-
-        d = super().missing
-        if self.effector is None:
-            d.setdefault(self.construct, []).append('effector')
-        return d
-
-
-class Buffer(BasicConstruct[SubsystemPacket, ActivationPacket, Pt]):
-    """
-    Construct realizer for pyClarion buffers.
-
-    This object expects a propagator of type `PropagatorB` or similar.
-    """
-
-    ctype: ClassVar[ConstructType] = ConstructType.buffer
 
 
 #####################################
@@ -491,17 +336,16 @@ class Assets(SimpleNamespace): # type: ignore
     pass
 
 
-class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]):
+class Structure(Realizer[It, Ot]):
     """Base class for container construct realizers."""
 
-    Self = TypeVar("Self", bound="ContainerConstruct")
-    ctype: ClassVar[ConstructType] = ConstructType.container_construct
+    Self = TypeVar("Self", bound="Structure")
 
     def __init__(
         self: Self, 
         name: Hashable, 
-        matches: MatchArg = None,
-        assets: At_co = None,
+        cycle: Cycle[It, Any, Ot] = None,
+        assets: Any = None,
         updaters: UpdaterArg[Self] = None,
     ) -> None:
         """
@@ -510,11 +354,9 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 
         super().__init__(name=name, updaters=updaters)
         self._dict: Dict = {}
-        # In case assets argument is None self.assets is given type Any to 
-        # prevent type checkers from complaining about missing attributes. This 
-        # occurs b/c attributes of Assets objects are set dynamically.
-        self.matches = matches
-        self.assets: At_co = assets if assets is not None else Assets()
+
+        self.cycle = cycle
+        self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructSymbol) -> bool:
 
@@ -541,17 +383,36 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         """
         Return true if self pulls information from source.
         
-        Self is deemed to pull information from source if source is in 
-        self.matches OR self.propagator expects information from source.
+        Self is deemed to pull information from source iff self.cycle expects 
+        information from source.
         """
 
-        if self.matches is not None:
-            if isinstance(self.matches, ConstructType):
-                return source.ctype in self.matches
-            else:
-                return source in self.matches
+        if self.cycle is not None:
+            return self.cycle.expects(construct=source)
         else:
-            return False
+            raise TypeError("Missing cycle.")
+
+    def propagate(self: Self, args: Dict = None) -> None:
+
+        args = args or dict()
+        if self.cycle is not None:
+            for ctype in self.cycle.sequence:
+                for c in self.values(ctype=ctype):
+                    c.propagate(args=args.get(c.construct))
+            l = []
+            data: Any
+            if self.cycle.output is not None:
+                for ctype in self.cycle.output:
+                    l.append(
+                        {sym: c.output for sym, c in self.items(ctype=ctype)}
+                    )
+                data = tuple(l)
+            else:
+                data = None
+            packet = self.cycle.make_packet(data)
+            self.update_output(packet)
+        else:
+            raise TypeError("Missing cycle.")
 
     def learn(self):
         """
@@ -569,7 +430,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 
         raise NotImplementedError()
 
-    def add(self, *realizers: ConstructRealizer) -> None:
+    def add(self, *realizers: Realizer) -> None:
         """Add a set of realizers to self."""
 
         for realizer in realizers:
@@ -593,23 +454,33 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         for construct in keys:
             del self[construct]
 
-    def keys(self) -> Iterator[ConstructSymbol]:
+    def keys(self, ctype: ConstructType = None) -> Iterator[ConstructSymbol]:
         """Return iterator over all construct symbols in self."""
 
-        for construct in self:
-            yield construct
+        for ct in self._dict:
+            if ctype is None or bool(ct & ctype):
+                for construct in self._dict[ct]:
+                    yield construct
 
-    def values(self) -> Iterator[ConstructRealizer]:
+    def values(
+        self, ctype: ConstructType = None
+    ) -> Iterator[Realizer]:
         """Return iterator over all construct realizers in self."""
 
-        for construct in self:
-            yield self[construct]
+        for ct in self._dict:
+            if ctype is None or bool(ct & ctype):
+                for realizer in self._dict[ct].values():
+                    yield realizer
 
-    def items(self) -> Iterator[Tuple[ConstructSymbol, ConstructRealizer]]:
+    def items(
+        self, ctype: ConstructType = None
+    ) -> Iterator[Tuple[ConstructSymbol, Realizer]]:
         """Return iterator over all symbol, realizer pairs in self."""
 
-        for construct in self:
-            yield construct, self[construct]
+        for ct in self._dict:
+            if ctype is None or bool(ct & ctype):
+                for construct, realizer in self._dict[ct].items():
+                    yield construct, realizer
 
     def link(self, source: ConstructSymbol, target: ConstructSymbol) -> None:
         """Link source construct to target construct."""
@@ -683,6 +554,9 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
             for realizer in self.values():
                 if realizer.accepts(construct):
                     realizer.watch(construct, callback)
+        for realizer in self.values():
+            if isinstance(realizer, Structure):
+                realizer.weave() 
 
     def unweave(self) -> None:
         """
@@ -693,6 +567,8 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
 
         for realizer in self.values():
             realizer.drop_all()
+            if isinstance(realizer, Structure):
+                realizer.unweave()
 
     def reweave(self) -> None:
         """Bring links among constructs in compliance with current specs."""
@@ -712,8 +588,8 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         """Return missing components in self or in member constructs."""
 
         d = super().missing
-        if self.matches is None:
-            d.setdefault(self.construct, []).append('matches')
+        if self.cycle is None:
+            d.setdefault(self.construct, []).append('cycle')
         for realizer in self.values():
             d_realizer = realizer.missing
             for k, v in d_realizer.items():
@@ -725,7 +601,7 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
                 d[new_k] = v
         return d
 
-    def _update_links(self, new_realizer: ConstructRealizer) -> None:
+    def _update_links(self, new_realizer: Realizer) -> None:
         """Add any acceptable links associated with a new realizer."""
 
         for construct, realizer in self.items():
@@ -743,139 +619,3 @@ class ContainerConstruct(ConstructRealizer[It, Ot, None], Generic[It, Ot, At_co]
         for realizer in self.values():
             if realizer.accepts(construct):
                 realizer.drop(construct)
-
-
-class Subsystem(ContainerConstruct[ActivationPacket, SubsystemPacket, At_co]):
-
-    Self = TypeVar("Self", bound="Subsystem")
-    ctype: ClassVar[ConstructType] = ConstructType.subsystem
-
-    def __init__(
-        self: Self, 
-        name: Hashable, 
-        matches: MatchArg = None,
-        cycle: Callable[[Self, Optional[Dict]], None] = None,
-        assets: At_co = None,
-        updaters: UpdaterArg[Self] = None
-    ) -> None:
-
-        super().__init__(
-            name=name, matches=matches, assets=assets, updaters=updaters
-        )
-        self.cycle = cycle
-        self._nodes = ChainMap(self.features, self.chunks)
-
-    def propagate(self: Self, args: Dict = None) -> None:
-
-        if self.cycle is not None:
-            self.cycle(self, args)
-        else:
-            raise TypeError("'NoneType' object is not callable")
-        
-        packet = self._construct_subsystem_packet()
-        self.update_output(packet)
-
-    def execute(self) -> None:
-
-        for realizer in self.responses.values():
-            realizer.execute()
-
-    def _construct_subsystem_packet(self) -> SubsystemPacket:
-
-        strengths = {sym: node.output_value for sym, node in self.nodes.items()}
-        decisions = {sym: node.output for sym, node in self.responses.items()}
-
-        return SubsystemPacket(mapping=strengths, decisions=decisions)
-
-    @property
-    def output(self) -> SubsystemPacket:
-
-        cls = type(self)
-        try:
-            return super().output
-        except cls.OutputError:
-            return SubsystemPacket()
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def features(self) -> Mapping[ConstructSymbol, Node]:
-
-        d = self._dict.setdefault(ConstructType.feature, {})
-        return MappingProxyType(d)
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def chunks(self) -> Mapping[ConstructSymbol, Node]:
-
-        d = self._dict.setdefault(ConstructType.chunk, {})
-        return MappingProxyType(d)
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def nodes(self) -> Mapping[ConstructSymbol, Node]:
-
-        return MappingProxyType(self._nodes)
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def flows(self) -> Mapping[ConstructSymbol, Flow]:
-        
-        # This is a hack
-        d1 = self._dict.setdefault(ConstructType.flow_bb, {})
-        d2 = self._dict.setdefault(ConstructType.flow_tt, {})
-        d3 = self._dict.setdefault(ConstructType.flow_bt, {})
-        d4 = self._dict.setdefault(ConstructType.flow_tb, {})
-
-        return MappingProxyType(ChainMap(d1, d2, d3, d4))
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def responses(self) -> Mapping[ConstructSymbol, Response]:
-
-        d = self._dict.setdefault(ConstructType.response, {})
-        return MappingProxyType(d)
-
-
-class Agent(ContainerConstruct[None, None, At_co]):
-
-    ctype: ClassVar[ConstructType] = ConstructType.agent
-
-    def propagate(self, args: Dict = None) -> None:
-
-        args = args or dict()
-        realizer: ConstructRealizer
-        for construct, realizer in self.buffers.items():
-            realizer.propagate(args=args.get(construct))
-        for construct, realizer in self.subsystems.items():
-            realizer.propagate(args=args.get(construct))
-
-    def execute(self) -> None:
-        """Execute currently selected actions."""
-
-        for subsys in self.subsystems.values():
-            for resp in subsys.responses.values(): # type: ignore
-                resp.execute()
-
-    def weave(self) -> None:
-
-        super().weave()
-        for realizer in self.subsystems.values():
-            realizer.weave()
-
-    def unweave(self) -> None:
-
-        super().unweave()
-        for realizer in self.subsystems.values():
-            realizer.unweave()
-
-    @property # type: ignore
-    @lru_cache(maxsize=1) 
-    def buffers(self) -> Mapping[ConstructSymbol, Buffer]: 
-
-        return MappingProxyType(self._dict[ConstructType.buffer])
-
-    @property # type: ignore
-    @lru_cache(maxsize=1)
-    def subsystems(self) -> Mapping[ConstructSymbol, Subsystem]:
-
-        return MappingProxyType(self._dict[ConstructType.subsystem])

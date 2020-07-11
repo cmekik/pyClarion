@@ -36,8 +36,9 @@ from pyClarion import *
 # node realizers. Since, in this particular case, the adder lives at the agent 
 # level, it is also told which subsystem it should monitor.
 
-alice = Agent(
-    name="Alice",
+alice = Structure(
+    name=agent("Alice"),
+    cycle=AgentCycle(),
     assets=Assets(chunks=Chunks()),
     updaters={
         "chunk_adder": ChunkAdder(
@@ -53,25 +54,24 @@ alice = Agent(
     }
 )
 
-stimulus = Buffer(name="Stimulus", propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
 alice.add(stimulus)
 
 # For this example, we create a simple NACS w/ horizontal flows (no rules, no 
 # associative memory networks).
 
-nacs = Subsystem(
-    name="NACS",
-    matches={buffer("Stimulus")},
-    cycle=NACSCycle()
+nacs = Structure(
+    name=subsystem("NACS"),
+    cycle=NACSCycle(matches={buffer("Stimulus")})
 )
 alice.add(nacs)
 
 nacs.add(
-    Flow(
+    Construct(
         name=flow_bt("Main"), 
         propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
-    Flow(
+    Construct(
         name=flow_tb("Main"), 
         propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
@@ -85,7 +85,7 @@ nacs.add(
 # only. 
 
 fnodes = [
-    Node(
+    Construct(
         name=feature(dim, val),  
         propagator=MaxNode(
             matches=MatchSpec(
@@ -114,8 +114,8 @@ nacs.add(*fnodes)
 # which assumes that chunks are stored in a `Chunks` object.
 
 nacs.add(
-    Response(
-        name="Extractor",
+    Construct(
+        name=response("Extractor"),
         propagator=ChunkExtractor(
             chunks=alice.assets.chunks,
             name="state",

@@ -6,12 +6,14 @@ from pyClarion import *
 
 ### Agent Setup ###
 
-alice = Agent(name="Alice") # type: ignore
-stimulus = Buffer(name="Stimulus", propagator=Stimulus())
-nacs = Subsystem(
-    name="NACS",
-    matches={buffer("Stimulus")},
-    cycle=NACSCycle()
+alice = Structure(
+    name=agent("Alice"),
+    cycle=AgentCycle()
+)
+stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+nacs = Structure(
+    name=subsystem("NACS"),
+    cycle=NACSCycle(matches={buffer("Stimulus")})
 )
 
 alice.add(stimulus, nacs)
@@ -20,14 +22,14 @@ alice.add(stimulus, nacs)
 # associative memory networks, no top-down or bottom-up flows).
 
 nacs.add(
-    Flow(
+    Construct(
         name=flow_in("Lag"), 
         propagator=Lag(max_lag=1) 
     ),
 )
 
 fnodes = [
-    Node(
+    Construct(
         name=feature(dim, val), 
         propagator=MaxNode(
             matches=MatchSpec(constructs={buffer("Stimulus"), flow_in("Lag")}) 

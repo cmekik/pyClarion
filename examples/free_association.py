@@ -10,18 +10,18 @@ a cue.
 # purposes only.
 from pyClarion import (
     # These are realizer objects, implementing behavior of simulated constructs.
-    Agent, Subsystem, Buffer, Flow, Node, Response,
+    Structure, Construct,
     # Construct types are used in controlling construct behavior
     ConstructType, MatchSpec, Assets,
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
-    subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
+    agent, subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
     # These objects house datastructures handling various important concerns.
     Chunks, Rules,
     # These objects define how realizers process activations in the forward 
     # direction.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
-    FilteredR, NACSCycle
+    FilteredR, NACSCycle, AgentCycle
 )
 
 
@@ -36,41 +36,35 @@ from pyClarion import (
 # PyClarion agents are created by assembling construct realizers, which are 
 # objects instantiating theoretical constructs. Much of the assembly process is 
 # automated, so agent construction amounts to declaratively specifying the 
-# necessary constructs. There are broadly two main subtypes of construct 
-# realizer, container construct realizers, which may contain other realizers, 
-# and basic construct realizers, which may not contain other construct 
-# realizers.
+# necessary constructs. There are broadly two main types of construct: 
+# structures, which may contain other constructs, and basic constructs (or 
+# 'constructs' for short), which may not contain other constructs.
 
-# We begin by creating a realizer for the top-level construct: an Agent object 
-# representing Alice.
+# We begin by creating the top-level construct: a Structure object representing 
+# the agent Alice.
 
-alice = Agent(
-    name="Alice",
+alice = Structure(
+    name=agent("Alice"),
+    cycle=AgentCycle(),
     assets=Assets(chunks=Chunks())
 )
 
-# The `name` argument to the Agent constructor serves to label the agent object. 
-# It is mandatory to provide a name argument to construct realizers, as names 
-# enable automation of important behavior, such as linking/unlinking constructs.  
-
-# Behind the scenes, `Agent` converts the string "Alice" into a construct symbol 
-# and stores it in a `construct` attribute (accessible via `alice.construct`).
-# It is possible to directly pass construct symbols as the `name` argument to a 
-# construct realizer. More on construct symbols below.
+# The `name` argument to the Structure constructor serves to label the 
+# construct. It is mandatory to provide a name argument to construct realizers, 
+# as names enable automation of important behavior, such as linking/unlinking 
+# constructs.  
 
 # To keep track of concepts that Alice knows about, we equip Alice with a chunk 
 # database (more on chunks below). This is done by passing an `Assets` object, 
 # which is given a chunk database to be stored in its `chunks` attribute, as 
 # the agent's 'assets' attribute. The `assets` attribute provides a namespace 
 # for convenient storage of resources shared by construct realizers subordinate 
-# to Alice. All container construct realizers have the `assets` attribute. The 
-# `Assets` object is uncomplicated. It simply records all arguments passed to 
-# it as an attribute (as a result it is dynamically typed and may trigger some 
-# type checkers; this is why `type: ignore` appears at various points in this 
-# document).
+# to Alice. All Structure objects have the `assets` attribute. The `Assets` 
+# object is uncomplicated. It simply records all arguments passed to 
+# it as an attribute. 
 
-# A good rule of thumb is to place shared resources in the container construct 
-# directly in or above the highest-level construct realizer using the resource.
+# A good rule of thumb is to place shared resources in the structure directly 
+# in or above the highest-level construct realizer using the resource.
 
 # For this simulation, there are two main constructs at the agent-level: the 
 # stimulus and the non-action-centered subsystem (NACS). The stimulus is 
@@ -85,7 +79,7 @@ alice = Agent(
 
 # We begin by adding the stimulus component to the model. 
 
-stimulus = Buffer(name="Stimulus", propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
 alice.add(stimulus)
 
 # We represent the stimulus with a buffer construct, which is a top-level 
@@ -105,10 +99,9 @@ alice.add(stimulus)
 # syntactically similar, but differs a bit in its semantics. The propagator is,
 # this time, a callable that implements the desired activation cycle for NACS. 
 
-nacs = Subsystem(
-    name="NACS",
-    matches={buffer("Stimulus")},
-    cycle=NACSCycle(),
+nacs = Structure(
+    name=subsystem("NACS"),
+    cycle=NACSCycle(matches={buffer("Stimulus")}),
     assets=Assets(rules=Rules())
 )
 
@@ -161,17 +154,17 @@ alice.add(nacs)
 # We instantiate flows by constructing `Flow` objects.
 
 nacs.add(
-    Flow(
+    Construct(
         name=flow_tt("Associations"),
-        propagator=AssociativeRules(rules=nacs.assets.rules) # type: ignore
+        propagator=AssociativeRules(rules=nacs.assets.rules) 
     ),
-    Flow(
+    Construct(
         name=flow_bt("Main"), 
-        propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
+        propagator=BottomUp(chunks=alice.assets.chunks) 
     ),
-    Flow(
+    Construct(
         name=flow_tb("Main"), 
-        propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
+        propagator=TopDown(chunks=alice.assets.chunks) 
     )
 )
 
@@ -188,8 +181,8 @@ nacs.add(
 # necessary. This feature is not used in the present simulation.
 
 nacs.add(
-    Response(
-        name="Main",
+    Construct(
+        name=response("Main"),
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
@@ -231,7 +224,7 @@ nacs.add(
 # simply pass it to alice.add() to complete feature addition.
 
 fnodes = [
-    Node(
+    Construct(
         name=feature(dim, val), 
         propagator=MaxNode(
             matches=MatchSpec(ctype=ConstructType.flow_xb)
@@ -270,7 +263,7 @@ nacs.add(*fnodes)
 # and pass them to `alice.add()`.
 
 cnodes = [
-    Node(
+    Construct(
         name=chunk(name),
         propagator=MaxNode(
             matches=MatchSpec(

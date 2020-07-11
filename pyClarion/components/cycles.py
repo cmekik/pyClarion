@@ -1,66 +1,42 @@
 """Provides propagators for standard Clarion subsystems."""
 
 
-__all__ = ["NACSCycle"]
+__all__ = ["NACSCycle", "AgentCycle"]
 
 
 from typing import Dict
-from pyClarion.base import Subsystem, ConstructType
+from pyClarion.base import ConstructType, CycleS, CycleG
+
+class AgentCycle(CycleG):
+
+    def __init__(self):
+
+        super().__init__(
+            sequence = [
+                ConstructType.buffer,
+                ConstructType.subsystem
+            ] 
+        )
+
+    def make_packet(self, data: None = None) -> None:
+        pass
 
 
-class NACSCycle(object):
+class NACSCycle(CycleS):
 
-    def __call__(self, nacs: Subsystem, args: Dict = None) -> None:
-        """
-        Execute NACS activation cycle on given subsystem realizer.
-        
-        Not designed for use with flow_bt, flow_tb Flow objects.
-        """
+    def __init__(self, matches = None):
 
-        if args is None: args = dict()
-
-        # Propagate any input flows
-        for flow in nacs.flows.values(): # type: ignore
-            if flow.construct.ctype == ConstructType.flow_in:
-                flow_args = args.get(flow.construct, dict())
-                flow.propagate(args=flow_args)
-
-        # Update chunk strengths
-        for chunk_node in nacs.chunks.values(): # type: ignore
-            chunk_node.propagate(args=args.get(chunk_node.construct))
-
-        # Propagate chunk strengths to bottom level
-        for flow in nacs.flows.values(): # type: ignore
-            if flow.construct.ctype == ConstructType.flow_tb:
-                flow_args = args.get(flow.construct, dict())
-                flow.propagate(args=flow_args)
-        
-        # Update feature strengths
-        for feature_node in nacs.features.values(): # type: ignore
-            feature_node.propagate(args=args.get(feature_node.construct))
-        
-        # Propagate strengths within levels
-        for flow in nacs.flows.values(): # type: ignore
-            if flow.construct.ctype in ConstructType.flow_h:
-                flow.propagate(args=args.get(flow.construct))
-        
-        # Update feature strengths (account for signal from any 
-        # bottom-level flows)
-        for feature_node in nacs.features.values(): # type: ignore
-            feature_node.propagate(args=args.get(feature_node.construct))
-        
-        # Propagate feature strengths to top level
-        for flow in nacs.flows.values(): # type: ignore
-            if flow.construct.ctype == ConstructType.flow_bt:
-                flow_args = args.get(flow.construct, dict())
-                flow.propagate(args=flow_args)
-        
-        # Update chunk strengths (account for bottom-up signal)
-        for chunk_node in nacs.chunks.values(): # type: ignore
-            chunk_node.propagate(args=args.get(chunk_node.construct))
-        
-        # Select response
-        for response_realizer in nacs.responses.values(): # type: ignore
-            response_realizer.propagate(
-                args=args.get(response_realizer.construct)
-            )
+        super().__init__(
+            sequence = [
+                ConstructType.flow_in,
+                ConstructType.chunk,
+                ConstructType.flow_tb,
+                ConstructType.feature,
+                ConstructType.flow_h,
+                ConstructType.feature,
+                ConstructType.flow_bt,
+                ConstructType.chunk,
+                ConstructType.response
+            ],
+            matches = matches
+        )

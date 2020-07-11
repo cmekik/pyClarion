@@ -1,14 +1,21 @@
 """Provides abstract classes for defining forward propagation cycles."""
 
 
-__all__ = ["Propagator", "PropagatorA", "PropagatorR", "PropagatorB"]
+__all__ = [
+    "Propagator", "PropagatorA", "PropagatorR", "PropagatorB", 
+    "Cycle", "CycleS", "CycleG"
+]
 
 
-from pyClarion.base.symbols import ConstructSymbol, MatchSpec
+from pyClarion.base.symbols import ConstructSymbol, MatchSpec, ConstructType
 from pyClarion.base.packets import (
     ActivationPacket, ResponsePacket, SubsystemPacket
 )
-from typing import TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set
+from pyClarion.utils.funcs import simple_junction
+from typing import (
+    TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set, Dict, 
+    Sequence, Optional
+)
 from abc import abstractmethod
 
 
@@ -23,8 +30,10 @@ PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
 Inputs = Mapping[ConstructSymbol, Dt]
 APData = Mapping[ConstructSymbol, Any] # type for ActivationPacket init
 DPData = Tuple[APData, Set[ConstructSymbol]] # type for ResponsePacket init
-SPData = Any # type for SubsystemPacket init; needs to be corrected
-
+SPData = Tuple[
+    Mapping[ConstructSymbol, ActivationPacket],
+    Mapping[ConstructSymbol, ResponsePacket]
+]
 
 class Propagator(Generic[It, Xt, Ot]):
     """
@@ -34,7 +43,7 @@ class Propagator(Generic[It, Xt, Ot]):
     and set outputs.
     """
 
-    # Would it be worth implenting this as a Protocol? - Can
+    matches: MatchSpec
 
     def __init__(self, matches: MatchSpec = None):
 
@@ -137,3 +146,49 @@ class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
 
         data = data if data is not None else dict()
         return ActivationPacket(mapping=data)
+
+
+class Cycle(Generic[It, Xt, Ot]):
+    """Represents a container construct activation cycle."""
+
+    # Specifies data required to construct the output packet
+    output: Optional[Sequence[ConstructType]] = None
+
+    def __init__(self, sequence, matches: MatchSpec = None):
+
+        self.sequence = sequence
+        self.matches = matches if matches is not None else MatchSpec()
+
+    def expects(self, construct: ConstructSymbol) -> bool:
+        """Returns True if propagator expects input from given construct."""
+
+        return construct in self.matches
+
+    def make_packet(self, data: Xt = None) -> Ot:
+        raise NotImplementedError()
+
+
+class CycleS(Cycle[ActivationPacket, SPData, SubsystemPacket]):
+    """Represents a subsystem activation cycle."""
+
+    output = (ConstructType.node, ConstructType.response)
+
+    def __init__(self, sequence, matches: MatchSpec = None):
+
+        super().__init__(
+            sequence=sequence,
+            matches=matches
+        )
+
+    def make_packet(self, data: SPData = None) -> SubsystemPacket:
+
+        mapping, decisions = data if data is not None else (dict(), dict())
+        mapping = simple_junction(mapping.values())
+
+        return SubsystemPacket(mapping=mapping, decisions=decisions)
+
+
+class CycleG(Cycle[None, None, None]):
+    """Represents an aGent activation cycle."""
+    pass
+    

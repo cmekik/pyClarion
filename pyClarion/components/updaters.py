@@ -1,7 +1,7 @@
 __all__ = ["ChunkAdder"]
 
 
-from pyClarion.base.realizers import Node
+from pyClarion.base.realizers import Construct
 from pyClarion.components import Chunks
 from copy import copy
 
@@ -79,7 +79,7 @@ class ChunkAdder(object):
                     # to easily and correctly define construct realizer 
                     # factories. Main risk here are the updaters; since updaters 
                     # are, at this time rather unrestricted. - Can 
-                    Node(
+                    Construct(
                         name=ch,
                         propagator=copy(self.propagator)
                     )
