@@ -14,8 +14,9 @@ from pyClarion.base.packets import (
 from pyClarion.utils.funcs import simple_junction
 from typing import (
     TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set, Dict, 
-    Sequence, Optional
+    Sequence, Optional, no_type_check
 )
+from types import SimpleNamespace
 from abc import abstractmethod
 
 
@@ -192,3 +193,25 @@ class CycleG(Cycle[None, None, None]):
     """Represents an aGent activation cycle."""
     pass
     
+
+# Decorator is meant to disable type_checking for the class (but not sub- or 
+# superclasses). @no_type_check is not supported on mypy as of 2020-06-10.
+# Disabling type checks is required here to prevent the typechecker from 
+# complaining about dynamically set attributes. 
+# 'type: ignore' is set to prevent mypy from complaining until the issue is 
+# resolved.
+# - Can
+@no_type_check
+class Assets(SimpleNamespace): # type: ignore
+    """
+    A namespace for ContainerConstruct assets.
+    
+    The main purpose of `Assets` objects is to provide handles for various
+    datastructures such as chunk databases, rule databases, bla information, 
+    etc. In general, all resources shared among different components of a 
+    container construct are considered assets. 
+    
+    It is the user's responsibility to make sure shared resources are shared 
+    and used as intended. 
+    """
+    pass

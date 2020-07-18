@@ -78,17 +78,6 @@ class ConstructType(Flag):
     basic_construct = node | flow | response | buffer
     container_construct = subsystem | agent
 
-    @classmethod
-    def from_str(cls, s):
-        """Return a construct type based on a name string."""
-
-        try:
-            return cls.__members__[s]
-        except KeyError:
-            raise ValueError(
-            "{} is not a valid {} name".format(s, cls.__name__)
-        )
-
 
 class ConstructSymbol(object):
     """
@@ -121,7 +110,7 @@ class ConstructSymbol(object):
         """
 
         if isinstance(ctype, str):
-            ctype = ConstructType.from_str(ctype)
+            ctype = ConstructType[ctype]
         elif isinstance(ctype, int):
             ctype = ConstructType(ctype)
         elif isinstance(ctype, ConstructType):
@@ -333,10 +322,6 @@ class MatchSpec(object):
         """
 
         if ctype is not None:
-            ctype = (
-                ConstructType.from_str(ctype) if isinstance(ctype, str) 
-                else ctype
-            ) 
             self.ctype |= ctype
         if constructs is not None:
             self.constructs |= set(constructs)
@@ -356,10 +341,6 @@ class MatchSpec(object):
         """
 
         if ctype is not None:
-            ctype = (
-                ConstructType.from_str(ctype) if isinstance(ctype, str) 
-                else ctype
-            ) 
             self.ctype &= ~ctype
         if constructs is not None:
             self.constructs -= set(constructs)

@@ -6,6 +6,7 @@ the goal is to report the first thing that comes to mind upon presentation of
 a cue.
 """
 
+
 # Import notes may be skipped on first reading. They are for clarification 
 # purposes only.
 from pyClarion import (
@@ -15,7 +16,8 @@ from pyClarion import (
     ConstructType, MatchSpec, Assets,
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
-    agent, subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, flow_bt,
+    agent, subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, 
+    flow_bt,
     # These objects house datastructures handling various important concerns.
     Chunks, Rules,
     # These objects define how realizers process activations in the forward 
@@ -338,6 +340,7 @@ alice.assets.chunks.link( # type: ignore
 
 # Agent setup is now complete!
 
+
 #########################
 ### Simulation Basics ###
 #########################
@@ -376,6 +379,7 @@ print(subsystem_packet.pstr())
 # requirements.
 
 alice.clear_output()
+
 
 ##################
 ### CONCLUSION ###

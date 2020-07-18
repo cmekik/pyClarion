@@ -1,9 +1,11 @@
 from pyClarion.base import *
-from pyClarion.components.datastructures import Chunks
-from typing import Iterable, List, Hashable, Any, Tuple, Callable
+from pyClarion.components.chunks import Chunks
+from typing import Iterable, List, Hashable, Any, Tuple, Callable, Mapping
 from itertools import groupby, product
 
-FeatureCons = Callable[[Hashable, Hashable], ConstructSymbol]
+
+__all__ = ["WorkingMemory", "WMUpdater"]
+
 
 class WorkingMemory(PropagatorB):
     """
@@ -99,56 +101,35 @@ class WorkingMemory(PropagatorB):
         self.reset()
 
 
-class BaseWMUpdater(object):
-
-    def __init__(self, controller: Tuple[ConstructSymbol, ConstructSymbol]):
-
-        self.controller = controller
-
-    def __call__(self, realizer):
-
-        raise NotImplementedError()
-
-    def parse_commands(self, packet):
-
-        raw_cmds = packet.selection
-
-        # Filter irrelevant data
-        cmds = set(f for f in raw_cmds if f in self.interface)
-
-        # Validate cmds
-        s = sorted(cmds, FeatureSymbol.dim)
-        for k, g in groupby(s):
-            if len(g) > 1:
-                raise ValueError(
-                    "Ill-formed WM command in dimension '{}'.".format(k)
-                )
-        
-        return cmds
-
-    @property
-    def interface(self):
-        """List of features governing updater behavior."""
-
-        raise NotImplementedError()
-
-
-
-class WMWriter(BaseWMUpdater):
+class WMUpdater(object):
     """
     Updates the state of a WorkingMemory propagator.
     
     Collaborates w/ WorkingMemory objects. 
 
     If an invalid command specification is passed to the object, does nothing.
+
+    Updates to WM state occur as follows:
+        First, the WM memory state is reset, if such a command is received. 
+        Then, any writing actions occur. Writing actions modify the memory 
+        content of specific WM slots; clearing a specific slot is considered a 
+        write action. Multiple slots may be written to simultaneously. Finally, 
+        output toggling actions are performed. These govern, for each slot, 
+        whether the WM includes the content of the slot in its output.
     """
 
     def __init__(
         self,
         source: ConstructSymbol,
         controller: Tuple[ConstructSymbol, ConstructSymbol],
+        reset_dim: Hashable,
+        reset_vals: List[Hashable],
         write_dims: List[Hashable],
-        write_vals: List[Hashable],
+        write_clear: Hashable,
+        write_standby: Hashable,
+        write_channels: Mapping[Hashable, ConstructSymbol],
+        switch_dims: List[Hashable],
+        switch_vals: Mapping[Hashable, bool],
         chunks: Chunks
     ) -> None:
         """
@@ -157,20 +138,49 @@ class WMWriter(BaseWMUpdater):
         :param source: Construct from which WM will be populated.
         :param controller: Tuple indicating controller construct for WM. First 
             member specifies subsystem, second member specifies response.
+        :param reset_dim: Dimension of WM reset commands.
+        :param reset_vals: Values for WM reset commands. Mapping from a 
+            hashable to true and false.
         :param write_dims: Dimensions for WM write commands. One dimension per 
             slot, listed in order.
-        :param write_vals: Values for WM write commands. Maps one value to each 
-            data channel.
+        :param write_clear: Value that will trigger clearing of a given slot.
+        :param write_standby: Value that maintains current memory state of 
+            given slot.
+        :param write_channels: Values for WM write commands. Maps one value to 
+            each data channel.
+        :param switch_dims: Dimension for WM switch commands. One for each slot.
+        :param switch_vals: Values for WM switch commands. Mapping from a 
+            hashable to true and false.
         :param chunks: Chunk database from which to populate the WM.
         """
 
-        super().__init__(controller=controller)
+        self.controller = controller
         self.source = source
+        self.reset_dim = reset_dim
+        self.reset_vals = reset_vals
         self.write_dims = write_dims
-        self.write_vals = write_vals
+        self.write_clear = write_clear
+        self.write_standby = write_standby
+        self.write_channels = write_channels
+        self.switch_dims = switch_dims
+        self.switch_vals = switch_vals
         self.chunks = chunks
 
     def __call__(self, realizer):
+
+        if not isinstance(realizer.propagator, WorkingMemory):
+            raise TypeError(
+                "Expected propagator of type WorkingMemory," 
+                "got {} instead.".format(type(realizer))
+            )
+        if len(self.write_dims) != len(realizer.propagator.slots):
+            raise TypeError(
+            "Write dimensions must match slots in number."
+            ) 
+        if len(self.switch_dims) != len(realizer.propagator.slots):
+            raise TypeError(
+            "Switch dimensions must match slots in number."
+            ) 
 
         inputs = {
             construct: pull_func() 
@@ -182,13 +192,32 @@ class WMWriter(BaseWMUpdater):
         cmd_packet = inputs[subsys].decisions[resp] 
         cmds = self.parse_commands(packet=cmd_packet)
 
-        for cmd in cmds:
-            slot = self.write_dims.index(cmd.dim)
-            channel = self.write_vals[cmd.val]
-            data_packet = source.decisions[channel]
-            nodes = self.get_nodes(packet=data_packet)
-            realizer.propagator.write(slot, *nodes)
-            slots.append(slot)
+        # execute reset
+        if self.reset_dim in cmds:
+            val = cmds[self.reset_dim].pop()
+            if self.reset_vals[val] == True:
+                realizer.propagator.reset()
+
+        # write to any slots
+        for slot, dim in enumerate(self.write_dims):
+            if dim in cmds:
+                val = cmds[dim]
+                if val == self.write_clear:
+                    realizer.propagator.clear(slot)
+                elif val == self.write_standby:
+                    pass
+                else:
+                    channel = self.write_vals[val]
+                    data_packet = source.decisions[channel]
+                    nodes = self.get_nodes(packet=data_packet)
+                    realizer.propagator.write(slot, *nodes)
+
+        # toggle any switches
+        for slot, dim in enumerate(self.switch_dims):
+            if dim in cmds:
+                val = cmds[dim]
+                if self.switch_vals[val] == True:
+                    realizer.propagator.toggle(slot)
    
     def get_nodes(self, packet):
 
@@ -199,93 +228,37 @@ class WMWriter(BaseWMUpdater):
                 for f in chain(*(d["values"] for d in form.values())):
                     yield f
 
-        # Should probably cache this. - Can
-        @property 
-        def interface(self):
-            
-            iterator = product(self.write_dims, self.write_vals)
-            return [feature(dim, val) for dim, val in iterator]
+    def parse_commands(self, packet):
 
+        raw_cmds = packet.selection
 
-class WMResetter(object):
+        # Filter irrelevant data
+        _cmds = set(f for f in raw_cmds if f in self.interface)
 
-    def __init__(
-        self,
-        controller,
-        reset_dim,
-        reset_vals
-    ):
-        """
-        Initialize a WMResetter instance.
+        # Validate cmds
+        cmds = {}
+        s = sorted(_cmds, FeatureSymbol.dim)
+        for k, g in groupby(s):
+            if len(g) > 1:
+                raise ValueError(
+                    "Ill-formed WM command in dimension '{}'.".format(k)
+                )
+            cmds[k] = next(g)
         
-        :param reset_dim: Dimension of WM reset commands.
-        :param reset_vals: Values for WM reset commands. Mapping from a 
-            hashable to true and false.
-        """
+        return cmds
 
-        super().__init__(controller=controller)
-        self.reset_dim = reset_dim
-        self.reset_vals = reset_vals
-    
-    def __call__(self, realizer):
-        
-        inputs = {
-            construct: pull_func() 
-            for construct, pull_func in realizer.inputs.items()
-        }
-
-        subsys, resp = self.controller
-        cmd_packet = inputs[subsys].decisions[resp] 
-        cmds = self.parse_commands(packet=cmd_packet)
-
-        for cmd in cmds:
-            if self.reset_vals[cmd.val] == True:
-                realizer.propagator.reset()
-
-    @property
+    # Should probably cache this. But it requires some care to be robust to 
+    # changes to underlying datastructures. - Can
+    @property 
     def interface(self):
-
-        return [feature(self.reset_dim, val) for val in self.reset_vals]
-
-
-class WMSwitch(BaseWMUpdater):
-
-    def __init__(
-        self,
-        controller,
-        switch_dims,
-        switch_vals
-    ):
-        """
-        Initialize a WMResetter instance.
         
-        :param read_dims: Dimension for WM switch commands. One for each slot.
-        :param reset_vals: Values for WM switch commands. Mapping from a 
-            hashable to true and false.
-        """
+        reset = [feature(self.reset_dim, val) for val in self.reset_vals]
 
-        super().__init__(controller)
-        self.read_dims = read_dim
-        self.read_vals = read_vals
+        write_special = [self.write_clear, self.write_standby]
+        write_vals = chain(write_special, self.write_vals)
+        write_dvps = product(self.write_dims, write_vals)
+        write = [feature(dim, val) for dim, val in write_dvps]
 
-    def __call__(self, realizer):
-        
-        inputs = {
-            construct: pull_func() 
-            for construct, pull_func in realizer.inputs.items()
-        }
+        switch = [feature(self.switch_dim, val) for val in self.switch_vals]
 
-        subsys, resp = self.controller
-        cmd_packet = inputs[subsys].decisions[resp] 
-        cmds = self.parse_commands(packet=cmd_packet)
-
-        for cmd in cmds:
-            if self.read_vals[cmd.val] == True:
-                i = self.read_dims.index(cmd.dim)
-                slot = realizer.propagator.slots[i]
-                realizer.propagator.toggle(slot)
-
-    @property
-    def interface(self):
-
-        return [feature(self.read_dim, val) for val in self.read_vals]
+        return reset + write + switch

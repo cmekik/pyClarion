@@ -8,13 +8,9 @@ __all__ = [
 
 
 from pyClarion.base.symbols import ConstructType, ConstructSymbol, MatchSpec
-from pyClarion.base.packets import (
-    ActivationPacket, ResponsePacket, SubsystemPacket,
-)
-from pyClarion.base.propagators import Propagator, Cycle
-from itertools import combinations, combinations_with_replacement, chain
+from pyClarion.base.propagators import Propagator, Cycle, Assets
+from itertools import combinations, chain
 from collections import ChainMap, OrderedDict
-from functools import lru_cache
 from types import MappingProxyType, SimpleNamespace
 from typing import (
     TypeVar, Union, Container, Tuple, Dict, List, Callable, Hashable, Sequence, 
@@ -54,9 +50,7 @@ class Realizer(Generic[It, Ot]):
     providing a standard interface for creating, inspecting, modifying and 
     propagating information across construct networks. 
 
-    Message passing among constructs follows a pull-based architecture. A 
-    realizer decides what constructs to pull information from through its 
-    `matches` attribute, which may be set on initialization.
+    Message passing among constructs follows a pull-based architecture. 
     """
 
     Self = TypeVar("Self", bound="Realizer")
@@ -75,13 +69,6 @@ class Realizer(Generic[It, Ot]):
             If a str, tuple, or list is given, a `ConstructSymbol` will be 
             created with the given values as construct identifiers and the 
             class `ctype` as its `ConstructType`.  
-        :param matches: Specification of constructs from which self may accept 
-            input. Expects a `ConstructType` or a container of construct 
-            symbols. For complex matching patterns see `symbols.MatchSpec`.
-        :param propagator: Activation processor associated with client 
-            construct. Propagates strengths based on inputs from linked 
-            constructs. It is expected that this argument will behave like a 
-            `Propagator` object; this expectation is not enforced.
         :param updaters: A dict-like object containing procedures for updating 
             construct knowledge.
         """
@@ -172,8 +159,7 @@ class Realizer(Generic[It, Ot]):
 
         return self._construct
 
-    @property # type: ignore
-    @lru_cache(maxsize=1)
+    @property 
     def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
         """Mapping from input constructs to pull funcs."""
 
@@ -192,38 +178,18 @@ class Realizer(Generic[It, Ot]):
             repr_ = repr(self)
             raise cls.OutputError('Output of {} not defined.'.format(repr_))
 
-    @property
-    def missing(self) -> MissingSpec:
-        """
-        Return any missing components of self.
-
-        This attribute may be used to check if any important components were 
-        forgotten at setup.
-        """
-
-        d: MissingSpec = {}
-        if self.construct is None:
-            d.setdefault(self.construct, []).append('construct')
-        return d
-
     class OutputError(Exception):
         """Raised when a realizer has no output"""
         pass
 
 
-############################################
-### Basic Construct Realizer Definitions ###
-############################################
-
-
 class Construct(Realizer[It, Ot]):
     """
-    Base class for basic construct realizers.
+    Represents basic constructs.
     
-    `BasicConstruct` objects are leaves in the construct realizer containment 
+    `Construct` objects are leaves in the construct realizer containment 
     hierarchy. That is to say they contain no other realizers and are generally 
-    responsible for defining the behaviour of a single construct or type of 
-    construct in their context.
+    responsible for defining the behaviour of a single construct.
     """
 
     Self = TypeVar("Self", bound="Construct")
@@ -231,7 +197,7 @@ class Construct(Realizer[It, Ot]):
     def __init__(
         self: Self,
         name: Hashable,
-        propagator: Propagator[It, Any, Ot] = None,
+        propagator: Propagator[It, Any, Ot],
         updaters: UpdaterArg[Self] = None,
     ) -> None:
         """
@@ -265,24 +231,18 @@ class Construct(Realizer[It, Ot]):
         expects information from source.
         """
 
-        if self.propagator is not None:
-            return self.propagator.expects(construct=source)
-        else:
-            raise TypeError("Missing propagator.")
+        return self.propagator.expects(construct=source)
 
     def propagate(self, args: Dict = None) -> None:
         """Update output of self with result of propagator on current input."""
 
-        if self.propagator is not None:
-            packet: Ot
-            inputs = cast(Any, self.inputs) # mypy complains about lru_cache
-            if args is not None:
-                packet = self.propagator(self.construct, inputs, **args)
-            else:
-                packet = self.propagator(self.construct, inputs)
-            self.update_output(packet)
+        packet: Ot
+        inputs = cast(Any, self.inputs) # mypy complains about lru_cache
+        if args is not None:
+            packet = self.propagator(self.construct, inputs, **args)
         else:
-            raise TypeError("'NoneType' object is not callable")
+            packet = self.propagator(self.construct, inputs)
+        self.update_output(packet)
 
     @property
     def output(self) -> Ot:
@@ -293,47 +253,8 @@ class Construct(Realizer[It, Ot]):
         except super().OutputError:
             # Try to construct empty output datastructure, if constructor is 
             # available.
-            if self.propagator is not None:
-                self._output = cast(Propagator, self.propagator).make_packet()
-                return cast(Ot, self._output)
-            else:
-                raise 
-
-    @property
-    def missing(self) -> MissingSpec:
-
-        d = super().missing
-        if self.propagator is None:
-            d.setdefault(self.construct, []).append('propagator')
-        return d
-
-
-#####################################
-### Container Construct Realizers ###
-#####################################
-
-
-# Decorator is meant to disable type_checking for the class (but not sub- or 
-# superclasses). @no_type_check is not supported on mypy as of 2020-06-10.
-# Disabling type checks is required here to prevent the typechecker from 
-# complaining about dynamically set attributes. 
-# 'type: ignore' is set to prevent mypy from complaining until the issue is 
-# resolved.
-# - Can
-@no_type_check
-class Assets(SimpleNamespace): # type: ignore
-    """
-    A namespace for ContainerConstruct assets.
-    
-    The main purpose of `Assets` objects is to provide handles for various
-    datastructures such as chunk databases, rule databases, bla information, 
-    etc. In general, all resources shared among different components of a 
-    container construct are considered assets. 
-    
-    It is the user's responsibility to make sure shared resources are shared 
-    and used as intended. 
-    """
-    pass
+            self._output = self.propagator.make_packet()
+            return self._output
 
 
 class Structure(Realizer[It, Ot]):
@@ -344,7 +265,7 @@ class Structure(Realizer[It, Ot]):
     def __init__(
         self: Self, 
         name: Hashable, 
-        cycle: Cycle[It, Any, Ot] = None,
+        cycle: Cycle[It, Any, Ot],
         assets: Any = None,
         updaters: UpdaterArg[Self] = None,
     ) -> None:
@@ -377,6 +298,7 @@ class Structure(Realizer[It, Ot]):
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
+        self.drop_links(construct=key)
         del self._dict[key.ctype][key]
 
     def accepts(self, source: ConstructSymbol) -> bool:
@@ -387,32 +309,28 @@ class Structure(Realizer[It, Ot]):
         information from source.
         """
 
-        if self.cycle is not None:
-            return self.cycle.expects(construct=source)
-        else:
-            raise TypeError("Missing cycle.")
+        return self.cycle.expects(construct=source)
 
     def propagate(self: Self, args: Dict = None) -> None:
 
         args = args or dict()
-        if self.cycle is not None:
-            for ctype in self.cycle.sequence:
-                for c in self.values(ctype=ctype):
-                    c.propagate(args=args.get(c.construct))
-            l = []
-            data: Any
-            if self.cycle.output is not None:
-                for ctype in self.cycle.output:
-                    l.append(
-                        {sym: c.output for sym, c in self.items(ctype=ctype)}
-                    )
-                data = tuple(l)
-            else:
-                data = None
-            packet = self.cycle.make_packet(data)
-            self.update_output(packet)
+        for ctype in self.cycle.sequence:
+            for c in self.values(ctype=ctype):
+                c.propagate(args=args.get(c.construct))
+
+        l = []
+        data: Any
+        if self.cycle.output is not None:
+            for ctype in self.cycle.output:
+                l.append(
+                    {sym: c.output for sym, c in self.items(ctype=ctype)}
+                )
+            data = tuple(l)
         else:
-            raise TypeError("Missing cycle.")
+            data = None
+
+        packet = self.cycle.make_packet(data)
+        self.update_output(packet)
 
     def learn(self):
         """
@@ -437,13 +355,13 @@ class Structure(Realizer[It, Ot]):
             ctype = realizer.construct.ctype
             d = self._dict.setdefault(ctype, {})
             d[realizer.construct] = realizer
-            self._update_links(realizer)
+            self.update_links(construct=realizer.construct)
 
     def remove(self, *constructs: ConstructSymbol) -> None:
         """Remove a set of constructs from self."""
 
         for construct in constructs:
-            self.__delitem__(construct)
+            del self[construct]
 
     def clear(self):
         """Remove all constructs in self."""
@@ -481,16 +399,6 @@ class Structure(Realizer[It, Ot]):
             if ctype is None or bool(ct & ctype):
                 for construct, realizer in self._dict[ct].items():
                     yield construct, realizer
-
-    def link(self, source: ConstructSymbol, target: ConstructSymbol) -> None:
-        """Link source construct to target construct."""
-
-        self[target].watch(source, self[source].view)
-
-    def unlink(self, source: ConstructSymbol, target: ConstructSymbol) -> None:
-        """Unlink source construct from target construct."""
-
-        self[target].drop(source)
 
     def watch(
         self, construct: ConstructSymbol, callback: Callable[[], It]
@@ -583,37 +491,21 @@ class Structure(Realizer[It, Ot]):
         for realizer in self.values():
             realizer.clear_output()
 
-    @property
-    def missing(self) -> MissingSpec:
-        """Return missing components in self or in member constructs."""
-
-        d = super().missing
-        if self.cycle is None:
-            d.setdefault(self.construct, []).append('cycle')
-        for realizer in self.values():
-            d_realizer = realizer.missing
-            for k, v in d_realizer.items():
-                new_k: Tuple[ConstructSymbol, ...]
-                if isinstance(k, ConstructSymbol):
-                    new_k = (self.construct, k)
-                else:
-                    new_k = (self.construct, *k)
-                d[new_k] = v
-        return d
-
-    def _update_links(self, new_realizer: Realizer) -> None:
+    def update_links(self, construct: ConstructSymbol) -> None:
         """Add any acceptable links associated with a new realizer."""
 
-        for construct, realizer in self.items():
-            if realizer.accepts(new_realizer.construct):
-                realizer.watch(new_realizer.construct, new_realizer.view)
-            if new_realizer.accepts(construct):
-                new_realizer.watch(construct, realizer.view)
-        for construct, callback in self._inputs.items():
-            if new_realizer.accepts(construct):
-                new_realizer.watch(construct, callback)
+        target = self[construct]
+        # target._inputs.clear() # For case where connectivity is narrowed.
+        for c, realizer in self.items():
+            if realizer.accepts(target.construct):
+                realizer.watch(target.construct, target.view)
+            if target.accepts(c):
+                target.watch(c, realizer.view)
+        for c, callback in self._inputs.items():
+            if target.accepts(c):
+                target.watch(c, callback)
 
-    def _drop_links(self, construct: ConstructSymbol) -> None:
+    def drop_links(self, construct: ConstructSymbol) -> None:
         """Remove construct from inputs of any accepting member constructs."""
 
         for realizer in self.values():
