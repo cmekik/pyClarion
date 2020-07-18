@@ -511,3 +511,15 @@ class Structure(Realizer[It, Ot]):
         for realizer in self.values():
             if realizer.accepts(construct):
                 realizer.drop(construct)
+
+    @property
+    def output(self) -> Ot:
+        """"Current output of self."""
+
+        try:
+            return super().output
+        except super().OutputError:
+            # Try to construct empty output datastructure, if constructor is 
+            # available.
+            self._output = self.cycle.make_packet()
+            return self._output
