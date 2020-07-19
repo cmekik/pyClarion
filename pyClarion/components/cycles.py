@@ -1,7 +1,7 @@
 """Provides propagators for standard Clarion subsystems."""
 
 
-__all__ = ["NACSCycle", "AgentCycle"]
+__all__ = ["ACSCycle", "NACSCycle", "AgentCycle"]
 
 
 from typing import Dict
@@ -20,6 +20,26 @@ class AgentCycle(CycleG):
 
     def make_packet(self, data: None = None) -> None:
         pass
+
+
+class ACSCycle(CycleS):
+
+    def __init__(self, matches = None):
+
+        super().__init__(
+            sequence = [
+                ConstructType.flow_in,
+                ConstructType.feature,
+                ConstructType.flow_bt,
+                ConstructType.chunk,
+                ConstructType.flow_h,
+                ConstructType.chunk,
+                ConstructType.flow_tb,
+                ConstructType.feature,
+                ConstructType.response
+            ],
+            matches = matches
+        )
 
 
 class NACSCycle(CycleS):

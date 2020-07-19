@@ -1,7 +1,7 @@
 from pyClarion.base import *
 from pyClarion.components.chunks import Chunks
 from typing import Iterable, List, Hashable, Any, Tuple, Callable, Mapping
-from itertools import groupby, product
+from itertools import groupby, product, chain
 
 
 __all__ = ["WorkingMemory", "WMUpdater"]
@@ -31,6 +31,7 @@ class WorkingMemory(PropagatorB):
         self, 
         slots: List[Hashable], 
         dims: Tuple[Hashable, Hashable],
+        matches: MatchSpec = None
     ) -> None:
         """
         Initialize a new WorkingMemory propagator instance.
@@ -42,6 +43,7 @@ class WorkingMemory(PropagatorB):
             the output. 
         """
 
+        super().__init__(matches=matches)
         self.dims = dims 
         self.slots = slots
 
@@ -61,16 +63,21 @@ class WorkingMemory(PropagatorB):
 
         return d
 
-    def write(self, slot, *nodes):
+    def write(self, slot, nodes):
         """Set slot to contain given nodes."""
 
         self.store[slot].clear()
-        self.store[slot].update(*nodes)
+        self.store[slot].update(nodes)
 
     def toggle(self, slot):
-        """Toggle whether to exclude slot contents from output."""
+        """
+        Toggle whether to exclude slot contents from output.
 
-        self.excludes[slot] = not self.excludes[slot]
+        Toggling an empty slot has no effect.
+        """
+
+        if len(self.store[slot]) > 0:
+            self.excludes[slot] = not self.excludes[slot]
 
     def clear(self, slot):
         """Clear contents of slot and remove exclusion marker."""
@@ -123,7 +130,7 @@ class WMUpdater(object):
         source: ConstructSymbol,
         controller: Tuple[ConstructSymbol, ConstructSymbol],
         reset_dim: Hashable,
-        reset_vals: List[Hashable],
+        reset_vals: Mapping[Hashable, bool],
         write_dims: List[Hashable],
         write_clear: Hashable,
         write_standby: Hashable,
@@ -153,6 +160,13 @@ class WMUpdater(object):
             hashable to true and false.
         :param chunks: Chunk database from which to populate the WM.
         """
+
+        if len(reset_vals) > len(reset_vals.values()):
+            raise ValueError("Arg reset_vals must be injective.")
+        if len(write_channels) > len(write_channels.values()):
+            raise ValueError("Arg write_channels must be injective.")
+        if len(switch_vals) > len(switch_vals.values()):
+            raise ValueError("Arg switch_vals must be injective.")
 
         self.controller = controller
         self.source = source
@@ -194,7 +208,7 @@ class WMUpdater(object):
 
         # execute reset
         if self.reset_dim in cmds:
-            val = cmds[self.reset_dim].pop()
+            val = cmds[self.reset_dim]
             if self.reset_vals[val] == True:
                 realizer.propagator.reset()
 
@@ -207,10 +221,10 @@ class WMUpdater(object):
                 elif val == self.write_standby:
                     pass
                 else:
-                    channel = self.write_vals[val]
+                    channel = self.write_channels[val]
                     data_packet = source.decisions[channel]
                     nodes = self.get_nodes(packet=data_packet)
-                    realizer.propagator.write(slot, *nodes)
+                    realizer.propagator.write(slot, nodes)
 
         # toggle any switches
         for slot, dim in enumerate(self.switch_dims):
@@ -220,11 +234,11 @@ class WMUpdater(object):
                     realizer.propagator.toggle(slot)
    
     def get_nodes(self, packet):
-
+        
         for ch in packet.selection:
             yield ch
             if self.chunks is not None:
-                form = self.chunks.get_form(node)
+                form = self.chunks.get_form(ch)
                 for f in chain(*(d["values"] for d in form.values())):
                     yield f
 
@@ -237,13 +251,14 @@ class WMUpdater(object):
 
         # Validate cmds
         cmds = {}
-        s = sorted(_cmds, FeatureSymbol.dim)
-        for k, g in groupby(s):
+        s = sorted(_cmds, key=self._key_func)
+        for k, g in groupby(s, self._key_func):
+            g = list(g)
             if len(g) > 1:
                 raise ValueError(
                     "Ill-formed WM command in dimension '{}'.".format(k)
                 )
-            cmds[k] = next(g)
+            cmds[k] = g.pop().val
         
         return cmds
 
@@ -255,10 +270,36 @@ class WMUpdater(object):
         reset = [feature(self.reset_dim, val) for val in self.reset_vals]
 
         write_special = [self.write_clear, self.write_standby]
-        write_vals = chain(write_special, self.write_vals)
+        write_vals = chain(write_special, self.write_channels)
         write_dvps = product(self.write_dims, write_vals)
         write = [feature(dim, val) for dim, val in write_dvps]
 
-        switch = [feature(self.switch_dim, val) for val in self.switch_vals]
+        switch_dvps = product(self.switch_dims, self.switch_vals)
+        switch = [feature(dim, val) for dim, val in switch_dvps]
 
         return reset + write + switch
+
+    @property
+    def dims(self):
+        """Dims associated w/ WM updates"""
+
+        return [self.reset_dim] + self.write_dims + self.switch_dims
+
+    @property
+    def defaults(self):
+        """Features indicating default (i.e. standby) actions."""
+
+        rv = [v for v, b in self.reset_vals.items() if not b].pop()
+        wv = self.write_standby
+        sv = [v for v, b in self.switch_vals.items() if not b].pop()
+
+        r = feature(self.reset_dim, rv)
+        w = [feature(d, wv) for d in self.write_dims]
+        s = [feature(d, sv) for d in self.switch_dims]
+
+        return [r] + w + s
+
+    @staticmethod
+    def _key_func(ftr):
+
+        return ftr.dim

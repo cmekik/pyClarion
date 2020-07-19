@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "MaxNode", "BoltzmannSelector", "ConstantBuffer", "Stimulus", "FilteredA", 
-    "FilteredR", "Lag"
+    "MaxNode", "Lag", "ActionSelector", "BoltzmannSelector", "ConstantBuffer", 
+    "Stimulus", "FilteredA", "FilteredR"
 ]
 
 
@@ -109,6 +109,48 @@ class BoltzmannSelector(PropagatorR):
         strengths = {n: s for n, s in strengths.items() if self.threshold < s}
         probabilities = boltzmann_distribution(strengths, self.temperature)
         selection = select(probabilities, 1)
+
+        return probabilities, selection
+
+
+class ActionSelector(PropagatorR):
+    """Selects action paramaters according to Boltzmann distributions."""
+
+    def __init__(self, dims, temperature):
+        """
+        Initialize a ``ActionSelector`` instance.
+
+        :param dims: Registered action dimensions.
+        :param temperature: Temperature of the Boltzmann distribution.
+        """
+
+        self.dims = dims
+        self.temperature = temperature
+
+    def expects(self, construct):
+        
+        return (
+            construct.ctype in ConstructType.feature and 
+            construct.dim in self.dims
+        )
+
+    def call(self, construct, inputs, **kwds):
+        """Select actionable chunks for execution. 
+        
+        Selection probabilities vary with feature strengths according to a 
+        Boltzmann distribution. Probabilities for each target dimension are 
+        computed separately.
+        """
+
+        packets = inputs.values()
+        strengths = simple_junction(packets)
+        probabilities, selection = dict(), set()
+        for dim in self.dims:
+            strens = {f: s for f, s in strengths.items() if f.dim == dim}
+            prs = boltzmann_distribution(strens, self.temperature)
+            sel = select(prs, 1)
+            probabilities.update(prs)
+            selection.update(sel)
 
         return probabilities, selection
 

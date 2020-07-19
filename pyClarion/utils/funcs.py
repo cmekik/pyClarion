@@ -48,7 +48,11 @@ def linear_rule_strength(conditions, strengths, default=0.0):
 
 
 def select(probabilities, k=1):
-    """Sample k keys from probability dict without replacement."""
+    """
+    Sample k keys from probability dict without replacement.
+    
+    If probabilities is empty returns empty set.
+    """
 
     selection = set()
     if len(probabilities) > 0:
@@ -84,4 +88,4 @@ def scale_strengths(weight, strengths):
        construct: weight * strength 
        for construct, strength in strengths.items()
    }
-   return scaled_strengths 
+   return scaled_strengths

@@ -1,17 +1,17 @@
 from pyClarion import *
 from typing import cast
 
-alice = Agent(
-    name="Alice",
+alice = Structure(
+    name=agent("Alice"),
+    cycle=AgentCycle(),
     assets=Assets(chunks=Chunks()),
     updaters={
         "chunk_adder": ChunkAdder(
-            template=ChunkAdder.Template(
-                matches=MatchSpec(
+            propagator=MaxNode(
+                MatchSpec(
                     ctype=ConstructType.flow_xt,
                     constructs={buffer("Stimulus")}
                 ),
-                propagator=MaxNode()
             ),
             response=response("Extractor"),
             subsystem=subsystem("NACS")
@@ -19,45 +19,108 @@ alice = Agent(
     }
 )
 
-stimulus = Buffer(name="Stimulus", propagator=Stimulus())
-wm = Buffer(
-    name="WM",
-    matches={subsystem("NACS")},
+wmud = WMUpdater(
+    source=subsystem("NACS"),
+    controller=(subsystem("ACS"), response("wm")),
+    reset_dim="wm-reset",
+    reset_vals={"release": True, "standby": False},
+    write_dims=["wm-w0", "wm-w1", "wm-w2", "wm-w3", "wm-w4", "wm-w5", "wm-w6"],
+    write_clear="clear",
+    write_standby="standby",
+    write_channels={
+        "retrieve": response("Retriever"), 
+        "extract": response("Extractor")
+    },
+    switch_dims=["wm-s0", "wm-s1", "wm-s2", "wm-s3", "wm-s4", "wm-s5", "wm-s6"],
+    switch_vals={"toggle": True, "standby": False},
+    chunks=alice.assets.chunks
+)
+
+wm = Construct(
+    name=buffer("WM"),
     propagator=WorkingMemory(
-        source=subsystem("NACS"),
-        chunks=alice.assets.chunks
+        slots=[0, 1, 2, 3, 4, 5, 6],
+        dims=("wm-state", "wm-exclude"),
+        matches=MatchSpec(constructs={subsystem("ACS"), subsystem("NACS")}),
+    ),
+    updaters={"main": wmud}
+)
+alice.add(wm)
+
+wm_defaults = Construct(
+    name=buffer("WM-defaults"),
+    propagator=ConstantBuffer(strengths={f: 0.5 for f in wmud.defaults})
+)
+alice.add(wm_defaults)
+
+stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+alice.add(stimulus)
+
+acs = Structure(
+    name=subsystem("ACS"),
+    cycle=ACSCycle(
+        matches={buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")}
     )
 )
-alice.add(stimulus, wm)
+alice.add(acs)
 
-nacs = Subsystem(
-    name="NACS",
-    matches={buffer("Stimulus"), buffer("WM")},
-    cycle=NACSCycle()
+# print(wmud.interface)
+
+fnodes = [
+    Construct(
+        name=f, 
+        propagator=MaxNode(
+            matches=MatchSpec(
+                ctype=ConstructType.flow_xb, 
+                constructs={
+                    buffer("Stimulus"), 
+                    buffer("WM-defaults")
+                }
+            )
+        )
+    ) 
+    for f in wmud.interface
+]
+acs.add(*fnodes)
+
+acs.add(
+    Construct(
+        name=response("wm"),
+        propagator=ActionSelector(
+            temperature=.01,
+            dims=wmud.dims
+        )
+    )
+)
+
+nacs = Structure(
+    name=subsystem("NACS"),
+    cycle=NACSCycle(
+        matches={buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")}
+    )
 )
 alice.add(nacs)
 
 nacs.add(
-    Flow(
+    Construct(
         name=flow_bt("Main"), 
-        matches=ConstructType.feature, 
         propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
-    Flow(
+    Construct(
         name=flow_tb("Main"), 
-        matches=ConstructType.chunk, 
         propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
 
 fnodes = [
-    Node(
+    Construct(
         name=feature(dim, val), 
-        matches=MatchSpec(
-            ctype=ConstructType.flow_xb, 
-            constructs={buffer("Stimulus")}
-        ), 
-        propagator=MaxNode()
+        propagator=MaxNode(
+            matches=MatchSpec(
+                ctype=ConstructType.flow_xb, 
+                constructs={buffer("Stimulus")}
+            )
+        )
     ) for dim, val in [
         ("fruit", "banana"),
         ("fruit", "kiwi"),
@@ -79,26 +142,20 @@ nacs.add(*fnodes)
 # which assumes that chunks are stored in a `Chunks` object.
 
 nacs.add(
-    Response(
-        name="Retriever",
-        matches=MatchSpec(
-            ctype=ConstructType.chunk, 
-            constructs={buffer("Stimulus")}
-        ),
+    Construct(
+        name=response("Retriever"),
         propagator=FilteredR(
-            base=BoltzmannSelector(temperature=.1),
+            base=BoltzmannSelector(
+                temperature=.1,
+                matches=MatchSpec(ctype=ConstructType.chunk)
+            ),
             input_filter=buffer("Stimulus"))
     ),
-    Response(
-        name="Extractor",
-        matches=MatchSpec(
-            ctype=ConstructType.feature, 
-            constructs={buffer("Stimulus")}
-        ),
+    Construct(
+        name=response("Extractor"),
         propagator=ChunkExtractor(
             chunks=alice.assets.chunks,
             name="state",
-            filter=MatchSpec(ctype=ConstructType.feature),
             threshold=0.9
         )
     )
@@ -110,32 +167,97 @@ nacs.add(
 ### Simulation ###
 ##################
 
-stimulus_states = [
-    {
-        feature("fruit", "dragon fruit"): 1.0,
-        feature("price", "expensive"): 1.0
-    },
-    {
-        feature("fruit", "orange"): 1.0,
-        feature("price", "expensive"): 1.0
-    },
-    {
-        feature("fruit", "orange"): 1.0,
-        feature("price", "expensive"): 1.0
-    }
-]
-wm_channel = [response("Extractor"), response("Extractor"), None] 
+# standby (empty wm)
+print("Standby (Empty WM)")
 
-for i, (stimulus_state, channel) in enumerate(zip(stimulus_states, wm_channel)):
-    print("Presentation {}".format(i + 1))
-    alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
-    alice.learn()
-    cast(WorkingMemory, wm.propagator).update_on_next(channel)
-    print(nacs.output.pstr())
-    print(wm.output.pstr())
+d = {
+    feature("fruit", "dragon fruit"): 1.0,
+    feature("price", "expensive"): 1.0,
+}
 
-print("Learned Chunks:")
-alice.assets.chunks.pprint()
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
+# toggle
+print("Toggle (Empty WM)")
+
+d = {feature("wm-s1", "toggle"): 1.0}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+print(cast(WorkingMemory, wm.propagator).excludes)
+
+# single write
+print("Single Write")
+
+d = {
+    feature("fruit", "dragon fruit"): 1.0,
+    feature("price", "expensive"): 1.0,
+    feature("wm-w0", "retrieve"): 1.0
+}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
+
+# reset
+print("Reset")
+
+d = {
+    feature("fruit", "dragon fruit"): 1.0,
+    feature("price", "expensive"): 1.0,
+    feature("wm-reset", "release"): 1.0
+}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
+
+# double write
+print("Double Write")
+
+d = {
+    feature("fruit", "banana"): 1.0,
+    feature("price", "expensive"): 1.0,
+    feature("wm-w0", "retrieve"): 1.0,
+    feature("wm-w1", "extract"): 1.0
+}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
+# toggle
+print("Toggle")
+
+d = {feature("wm-s1", "toggle"): 1.0}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
+
+# single delete
+print("Single Delete")
+
+d = {feature("wm-w1", "clear"): 1.0}
+alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.learn()
+
+alice.propagate(args={})
+print(wm.output.pstr())
+
 
 ##################
 ### CONCLUSION ###
