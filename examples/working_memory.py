@@ -8,7 +8,7 @@ alice = Structure(
     assets=Assets(chunks=Chunks()),
     updater=ChunkAdder(
         propagator=MaxNode(
-            MatchSpec(
+            MatchSet(
                 ctype=ConstructType.flow_xt,
                 constructs={buffer("Stimulus")}
             ),
@@ -40,7 +40,7 @@ wm = Construct(
     propagator=WorkingMemory(
         slots=[0, 1, 2, 3, 4, 5, 6],
         dims=("wm-state", "wm-exclude"),
-        matches=MatchSpec(constructs={subsystem("ACS"), subsystem("NACS")}),
+        matches=MatchSet(constructs={subsystem("ACS"), subsystem("NACS")}),
     ),
     updater=wmud
 )
@@ -69,7 +69,7 @@ fnodes = [
     Construct(
         name=f, 
         propagator=MaxNode(
-            matches=MatchSpec(
+            matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={
                     buffer("Stimulus"), 
@@ -115,7 +115,7 @@ fnodes = [
     Construct(
         name=feature(dim, val), 
         propagator=MaxNode(
-            matches=MatchSpec(
+            matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={buffer("Stimulus")}
             )
@@ -146,7 +146,7 @@ nacs.add(
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
-                matches=MatchSpec(ctype=ConstructType.chunk)
+                matches=MatchSet(ctype=ConstructType.chunk)
             ),
             input_filter=buffer("Stimulus"))
     ),

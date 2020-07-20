@@ -11,7 +11,7 @@ Provides:
 """
 
 
-from pyClarion.base import MatchSpec, Construct, ConstructType, ConstructSymbol, chunk
+from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
 from pyClarion.components.propagators import PropagatorA, PropagatorR
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from typing import Mapping
@@ -254,7 +254,7 @@ class TopDown(PropagatorA):
     def __init__(self, chunks=None, op=None, default=0.0, matches=None):
 
         if matches is None: 
-            matches = MatchSpec(ctype=ConstructType.chunk)  
+            matches = MatchSet(ctype=ConstructType.chunk)  
         super().__init__(matches=matches)
         
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
@@ -305,7 +305,7 @@ class BottomUp(PropagatorA):
     def __init__(self, chunks=None, ops=None, default=0.0, matches=None):
 
         if matches is None: 
-            matches = MatchSpec(ctype=ConstructType.feature)  
+            matches = MatchSet(ctype=ConstructType.feature)  
         super().__init__(matches=matches)
         
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
@@ -356,7 +356,7 @@ class ChunkConstructor(object):
         self.threshold = threshold
         self.op = op
 
-    def __call__(self, strengths: Mapping[ConstructSymbol, float]) -> dict:
+    def __call__(self, strengths: Mapping[Symbol, float]) -> dict:
         """Create candidate chunk forms based on given strengths and filter."""
 
         eligible = (f for f, s in strengths.items() if s > self.threshold)
@@ -371,7 +371,7 @@ class ChunkExtractor(PropagatorR):
     def __init__(self, chunks, name, threshold, op="max", matches=None):
 
         if matches is None: 
-            matches = MatchSpec(ctype=ConstructType.feature)  
+            matches = MatchSet(ctype=ConstructType.feature)  
         super().__init__(matches=matches)
 
         # Does not account for dimension weights; all weights set to 1.0

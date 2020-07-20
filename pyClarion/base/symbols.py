@@ -2,9 +2,9 @@
 
 
 __all__ = [
-    "ConstructType", "ConstructSymbol", "FeatureSymbol", "MatchSpec",
-    "feature", "chunk", "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb",
-    "response", "buffer", "subsystem", "agent"
+    "ConstructType", "Symbol", "MatchSet","feature", "chunk", "flow_in", 
+    "flow_bt", "flow_tb", "flow_tt", "flow_bb", "response", "buffer", 
+    "subsystem", "agent"
 ]
 
 
@@ -25,7 +25,7 @@ class ConstructType(Flag):
 
     Signals the role of a construct for controlling processing logic.
 
-    See ConstructSymbol for usage patterns.
+    See Symbol for usage patterns.
     
     Basic members (and interpretations):
         null_construct: Empty construct type (corresponds to flag null).
@@ -79,7 +79,7 @@ class ConstructType(Flag):
     container_construct = subsystem | agent
 
 
-class ConstructSymbol(object):
+class Symbol(object):
     """
     Symbolic representation of a Clarion construct.
 
@@ -103,7 +103,7 @@ class ConstructSymbol(object):
         self, ctype: Union[ConstructType, str, int], *cid: Optional[Hashable]
     ) -> None:
         """
-        Initialize a new ConstructSymbol.
+        Initialize a new Symbol.
 
         :param ctype: Construct type.
         :param cid: Hashable sequence serving as Construct ID.
@@ -137,7 +137,7 @@ class ConstructSymbol(object):
 
     def __eq__(self, other):
 
-        if isinstance(other, ConstructSymbol):
+        if isinstance(other, Symbol):
             return self._data == other._data
         else:
             raise TypeError(
@@ -148,7 +148,7 @@ class ConstructSymbol(object):
     
     def __lt__(self, other):
 
-        if isinstance(other, ConstructSymbol) and self.ctype == other.ctype:
+        if isinstance(other, Symbol) and self.ctype == other.ctype:
             return self._data < other._data
         else:
             raise TypeError(
@@ -190,61 +190,43 @@ class ConstructSymbol(object):
 
         return self._data[1]
 
-
-# Abbreviated handle for ConstructSymbol.
-ConSymb = ConstructSymbol
-
-
-class FeatureSymbol(ConstructSymbol):
-    """
-    Symbolic representation of a feature node.
-
-    Extends ConstructSymbol to support accessing dim and val attributes.
-    """
-
-    __slots__ = ()
-
-    def __init__(
-        self, 
-        dim: Optional[Hashable], 
-        val: Optional[Hashable], 
-        *args: Hashable
-    ) -> None:
-
-        super().__init__(ConstructType.feature, dim, val, *args)
-
-    def __repr__(self):
-
-        args = ', '.join(map(repr, self.cid))
-        r = "{}({})".format(type(self).__name__, args)
-
-        return r
-
     @property
     def dim(self) -> Optional[Hashable]:
+        """Dimension of a feature."""
 
-        return self.cid[0]
+        if self.ctype in ConstructType.feature:
+            return self.cid[0]
+        else:
+            raise TypeError(
+                "Attribute 'dim' not defined for {}".format(self.ctype)
+            )
 
     @property
     def val(self) -> Optional[Hashable]:
+        """Value of a feature."""
 
-        return self.cid[1]
+        if self.ctype in ConstructType.feature:
+            return self.cid[1]
+        else:
+            raise TypeError(
+                "Attribute 'dim' not defined for {}".format(self.ctype)
+            )
 
 
-class MatchSpec(object):
+class MatchSet(object):
     """
     A unary predicate that applies to construct symbols.
 
-    MatchSpec objects are intended to facilitate checking if constructs satisfy 
+    MatchSet objects are intended to facilitate checking if constructs satisfy 
     complex conditions. Such checks may be required, for example, to decide 
     whether or not to connect two construct realizers (see realizers.py). 
-    In general, MatchSpec objects may be used at any point where a (potentially 
+    In general, MatchSet objects may be used at any point where a (potentially 
     complex) predicate must be applied to construct symbols. 
 
-    MatchSpec objects support definition with respect to construct types or 
+    MatchSet objects support definition with respect to construct types or 
     arbitrary predicates, and by enumeration of matching constructs. They are 
     set-like in that they support __contains__, may be extended (through 
-    addition) or contracted (through removal). However, unlike sets, MatchSpec 
+    addition) or contracted (through removal). However, unlike sets, MatchSet 
     objects do not support algebraic operators such as union, intersection, 
     difference etc.
     """
@@ -252,8 +234,8 @@ class MatchSpec(object):
     def __init__(
         self, 
         ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+        constructs: Iterable[Symbol] = None,
+        predicates: Iterable[Callable[[Symbol], bool]] = None
     ) -> None:
         """
         Initialize a new Matcher instance.
@@ -265,8 +247,8 @@ class MatchSpec(object):
         """
 
         self.ctype = ConstructType.null_construct
-        self.constructs: MutableSet[ConstructSymbol] = set()
-        self.predicates: MutableSet[Callable[[ConstructSymbol], bool]] = set()
+        self.constructs: MutableSet[Symbol] = set()
+        self.predicates: MutableSet[Callable[[Symbol], bool]] = set()
         self.add(ctype, constructs, predicates)
 
     def __repr__(self):
@@ -274,14 +256,14 @@ class MatchSpec(object):
         ctr = "ConstructType({})".format(self.ctype.value)
         if self.ctype.name is not None:
             ctr = repr(self.ctype.name)
-        r = "MatchSpec(ctype={}, constructs={}, predicates={})".format(
+        r = "MatchSet(ctype={}, constructs={}, predicates={})".format(
             ctr, repr(self.constructs), repr(self.predicates)
         )
 
         return r
 
 
-    def __contains__(self, key: ConstructSymbol) -> bool:
+    def __contains__(self, key: Symbol) -> bool:
         """
         Return true if construct is in the match set.
         
@@ -322,8 +304,8 @@ class MatchSpec(object):
     def add(
         self, 
         ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+        constructs: Iterable[Symbol] = None,
+        predicates: Iterable[Callable[[Symbol], bool]] = None
     ) -> None:
         """
         Extend the set of accepted constructs.
@@ -341,8 +323,8 @@ class MatchSpec(object):
     def remove(
         self, 
         ctype: ConstructType = None, 
-        constructs: Iterable[ConstructSymbol] = None,
-        predicates: Iterable[Callable[[ConstructSymbol], bool]] = None
+        constructs: Iterable[Symbol] = None,
+        predicates: Iterable[Callable[[Symbol], bool]] = None
     ) -> None:
         """
         Contract the set of accepted constructs.
@@ -363,10 +345,10 @@ class MatchSpec(object):
 ##################################
 
 # These are convenience functions for constructing construct symbols.
-# They simply wrap the appropriate ConstructSymbol constructor.
+# They simply wrap the appropriate Symbol constructor.
 
 
-def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
+def feature(dim: Hashable, val: Hashable) -> Symbol:
     """
     Return a new feature symbol.
 
@@ -374,104 +356,104 @@ def feature(dim: Hashable, val: Hashable) -> ConstructSymbol:
     :param val: Value of feature.
     """
 
-    return FeatureSymbol(dim, val)
+    return Symbol(ConstructType.feature, dim, val)
 
 
-def chunk(name: Hashable) -> ConstructSymbol:
+def chunk(name: Hashable) -> Symbol:
     """
     Return a new chunk symbol.
 
     :param cid: Chunk identifier.
     """
 
-    return ConstructSymbol(ConstructType.chunk, name)
+    return Symbol(ConstructType.chunk, name)
 
 
-def flow_in(name: Hashable) -> ConstructSymbol:
+def flow_in(name: Hashable) -> Symbol:
     """
     Return a new input flow symbol.
 
     :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.flow_in, name)
+    return Symbol(ConstructType.flow_in, name)
 
 
-def flow_bt(name: Hashable) -> ConstructSymbol:
+def flow_bt(name: Hashable) -> Symbol:
     """
     Return a new bottom-up flow symbol.
 
     :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.flow_bt, name)
+    return Symbol(ConstructType.flow_bt, name)
 
 
-def flow_tb(name: Hashable) -> ConstructSymbol:
+def flow_tb(name: Hashable) -> Symbol:
     """
     Return a new top-down flow symbol.
 
     :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.flow_tb, name)
+    return Symbol(ConstructType.flow_tb, name)
 
 
-def flow_tt(name: Hashable) -> ConstructSymbol:
+def flow_tt(name: Hashable) -> Symbol:
     """
     Return a new top-level flow symbol.
 
     :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.flow_tt, name)
+    return Symbol(ConstructType.flow_tt, name)
 
 
-def flow_bb(name: Hashable) -> ConstructSymbol:
+def flow_bb(name: Hashable) -> Symbol:
     """
     Return a new bottom-level flow symbol.
 
     :param cid: Name of flow.
     """
 
-    return ConstructSymbol(ConstructType.flow_bb, name)
+    return Symbol(ConstructType.flow_bb, name)
 
 
-def response(name: Hashable) -> ConstructSymbol:
+def response(name: Hashable) -> Symbol:
     """
     Return a new response symbol.
 
     :param name: Name of response.
     """
 
-    return ConstructSymbol(ConstructType.response, name)
+    return Symbol(ConstructType.response, name)
 
 
-def buffer(name: Hashable) -> ConstructSymbol:
+def buffer(name: Hashable) -> Symbol:
     """
     Return a new buffer symbol.
 
     :param name: Name of buffer.
     """
 
-    return ConstructSymbol(ConstructType.buffer, name)
+    return Symbol(ConstructType.buffer, name)
 
 
-def subsystem(name: Hashable) -> ConstructSymbol:
+def subsystem(name: Hashable) -> Symbol:
     """
     Return a new subsystem symbol.
 
     :param name: Name of subsystem.
     """
 
-    return ConstructSymbol(ConstructType.subsystem, name)
+    return Symbol(ConstructType.subsystem, name)
 
 
-def agent(name: Hashable) -> ConstructSymbol:
+def agent(name: Hashable) -> Symbol:
     """
     Return a new agent symbol.
 
     :param name: Name of agent.
     """
 
-    return ConstructSymbol(ConstructType.agent, name)
+    return Symbol(ConstructType.agent, name)

@@ -43,7 +43,7 @@ alice = Structure(
     assets=Assets(chunks=Chunks()),
     updater=ChunkAdder(
         propagator=MaxNode(
-            MatchSpec(
+            MatchSet(
                 ctype=ConstructType.flow_xt,
                 constructs={buffer("Stimulus")}
             ),
@@ -87,7 +87,7 @@ fnodes = [
     Construct(
         name=feature(dim, val),  
         propagator=MaxNode(
-            matches=MatchSpec(
+            matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={buffer("Stimulus")}
             ),

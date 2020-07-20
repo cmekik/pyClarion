@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-from pyClarion.base.symbols import ConstructType, ConstructSymbol
+from pyClarion.base.symbols import ConstructType, Symbol
 from pyClarion.base.propagators import Propagator, Cycle, Assets
 from itertools import combinations, chain
 from types import MappingProxyType
@@ -17,9 +17,9 @@ from typing import (
 )
 
 
-ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
+ConstructRef = Union[Symbol, Tuple[Symbol, ...]]
 PullFunc = Callable[[], Any]
-PullFuncs = Dict[ConstructSymbol, PullFunc]
+PullFuncs = Dict[Symbol, PullFunc]
 Rt = TypeVar('Rt', bound="Realizer") 
 Updater = Callable[[Rt], None] # Could this be improved? - Can
 
@@ -38,7 +38,7 @@ class Realizer(object):
 
 
     def __init__(
-        self: R, name: ConstructSymbol, updater: Updater[R] = None
+        self: R, name: Symbol, updater: Updater[R] = None
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -48,9 +48,9 @@ class Realizer(object):
             construct knowledge.
         """
 
-        if not isinstance(name, ConstructSymbol):
+        if not isinstance(name, Symbol):
             raise TypeError(
-                "Agrument 'name' must be of type ConstructSymbol"
+                "Agrument 'name' must be of type Symbol"
                 "got {} instead.".format(type(name))
             )
 
@@ -81,13 +81,13 @@ class Realizer(object):
         if self.updater is not None:
             self.updater(self)
 
-    def accepts(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: Symbol) -> bool:
         """Return true if self pulls information from source."""
 
         raise NotImplementedError()
 
     def watch(
-        self, construct: ConstructSymbol, callback: PullFunc
+        self, construct: Symbol, callback: PullFunc
     ) -> None:
         """
         Set given construct as an input to self.
@@ -100,7 +100,7 @@ class Realizer(object):
 
         self._inputs[construct] = callback
 
-    def drop(self, construct: ConstructSymbol) -> None:
+    def drop(self, construct: Symbol) -> None:
         """Disconnect given construct from self."""
 
         if construct in self._inputs:
@@ -127,13 +127,13 @@ class Realizer(object):
         self._output = None
 
     @property
-    def construct(self) -> ConstructSymbol:
+    def construct(self) -> Symbol:
         """Client construct of self."""
 
         return self._construct
 
     @property 
-    def inputs(self) -> Mapping[ConstructSymbol, PullFunc]:
+    def inputs(self) -> Mapping[Symbol, PullFunc]:
         """Mapping from input constructs to pull funcs."""
 
         return MappingProxyType(self._inputs)
@@ -167,7 +167,7 @@ class Construct(Realizer, Generic[Pt]):
 
     def __init__(
         self: C,
-        name: ConstructSymbol,
+        name: Symbol,
         propagator: Pt,
         updater: Updater[C] = None,
     ) -> None:
@@ -185,7 +185,7 @@ class Construct(Realizer, Generic[Pt]):
         super().__init__(name=name, updater=updater)
         self.propagator = propagator
 
-    def accepts(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: Symbol) -> bool:
         """
         Return true if self pulls information from source.
         
@@ -221,7 +221,7 @@ class Structure(Realizer, Generic[Ct]):
 
     def __init__(
         self: S, 
-        name: ConstructSymbol, 
+        name: Symbol, 
         cycle: Ct,
         assets: Any = None,
         updater: Updater[S] = None,
@@ -244,7 +244,7 @@ class Structure(Realizer, Generic[Ct]):
             return False
         return True
 
-    def __iter__(self) -> Iterator[ConstructSymbol]:
+    def __iter__(self) -> Iterator[Symbol]:
 
         for construct in chain(*self._dict.values()):
             yield construct
@@ -263,13 +263,13 @@ class Structure(Realizer, Generic[Ct]):
         else:
             return self._dict[key.ctype][key]
 
-    def __delitem__(self, key: ConstructSymbol) -> None:
+    def __delitem__(self, key: Symbol) -> None:
 
         # Should probably be recursive like getitem. - Can
         self.drop_links(construct=key)
         del self._dict[key.ctype][key]
 
-    def accepts(self, source: ConstructSymbol) -> bool:
+    def accepts(self, source: Symbol) -> bool:
         """
         Return true if self pulls information from source.
         
@@ -316,7 +316,7 @@ class Structure(Realizer, Generic[Ct]):
             d[realizer.construct] = realizer
             self.update_links(construct=realizer.construct)
 
-    def remove(self, *constructs: ConstructSymbol) -> None:
+    def remove(self, *constructs: Symbol) -> None:
         """Remove a set of constructs from self."""
 
         for construct in constructs:
@@ -327,7 +327,7 @@ class Structure(Realizer, Generic[Ct]):
 
         self._dict.clear()
 
-    def keys(self, ctype: ConstructType = None) -> Iterator[ConstructSymbol]:
+    def keys(self, ctype: ConstructType = None) -> Iterator[Symbol]:
         """Return iterator over all construct symbols in self."""
 
         for ct in self._dict:
@@ -345,7 +345,7 @@ class Structure(Realizer, Generic[Ct]):
 
     def items(
         self, ctype: ConstructType = None
-    ) -> Iterator[Tuple[ConstructSymbol, Realizer]]:
+    ) -> Iterator[Tuple[Symbol, Realizer]]:
         """Return iterator over all symbol, realizer pairs in self."""
 
         for ct in self._dict:
@@ -354,7 +354,7 @@ class Structure(Realizer, Generic[Ct]):
                     yield construct, realizer
 
     def watch(
-        self, construct: ConstructSymbol, callback: PullFunc
+        self, construct: Symbol, callback: PullFunc
     ) -> None:
         """
         Add construct as an input to self. 
@@ -367,7 +367,7 @@ class Structure(Realizer, Generic[Ct]):
             if realizer.accepts(construct):
                 realizer.watch(construct, callback)
 
-    def drop(self, construct: ConstructSymbol) -> None:
+    def drop(self, construct: Symbol) -> None:
         """
         Remove construct as an input to self. 
         
@@ -444,7 +444,7 @@ class Structure(Realizer, Generic[Ct]):
         for realizer in self.values():
             realizer.clear_output()
 
-    def update_links(self, construct: ConstructSymbol) -> None:
+    def update_links(self, construct: Symbol) -> None:
         """Add any acceptable links associated with a new realizer."""
 
         target = self[construct]
@@ -457,7 +457,7 @@ class Structure(Realizer, Generic[Ct]):
             if target.accepts(c):
                 target.watch(c, callback)
 
-    def drop_links(self, construct: ConstructSymbol) -> None:
+    def drop_links(self, construct: Symbol) -> None:
         """Remove construct from inputs of any accepting member constructs."""
 
         for realizer in self.values():

@@ -1,5 +1,5 @@
 import collections.abc as abc
-from pyClarion.base.symbols import ConstructSymbol
+from pyClarion.base.symbols import Symbol
 
 
 __all__ = ["pstr_iterable", "pstr_iterable_cb"]
@@ -95,7 +95,7 @@ def pstr_iterable(iterable, cb, cbargs=None, indent=4, level=0):
 
 def pstr_iterable_cb(obj, digits=None):
 
-    if isinstance(obj, ConstructSymbol):
+    if isinstance(obj, Symbol):
         return str(obj)
     else:
         s = obj

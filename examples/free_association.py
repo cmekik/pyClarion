@@ -13,7 +13,7 @@ from pyClarion import (
     # These are realizer objects, implementing behavior of simulated constructs.
     Structure, Construct,
     # Construct types are used in controlling construct behavior
-    ConstructType, MatchSpec, Assets,
+    ConstructType, MatchSet, Assets,
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
     agent, subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, 
@@ -118,7 +118,7 @@ nacs = Structure(
 # construct symbols are created through convenience functions, as manually 
 # specifying them is rather tedious. For instance, the result of 
 # `buffer("stimulus")` can be directly created with the longer expression 
-# `ConstructSymbol("buffer", "Stimulus")`, or the abbreviated but still verbose 
+# `Symbol("buffer", "Stimulus")`, or the abbreviated but still verbose 
 # ConSymb("buffer", "Stimulus").
 
 # As before, we add assets. In this case, we are interested in equipping the 
@@ -189,7 +189,7 @@ nacs.add(
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
-                matches=MatchSpec(ctype=ConstructType.chunk)
+                matches=MatchSet(ctype=ConstructType.chunk)
             ),
             input_filter=buffer("Stimulus")
         )
@@ -230,7 +230,7 @@ fnodes = [
     Construct(
         name=feature(dim, val), 
         propagator=MaxNode(
-            matches=MatchSpec(ctype=ConstructType.flow_xb)
+            matches=MatchSet(ctype=ConstructType.flow_xb)
         )
     ) for dim, val in [
         ("color", "#ff0000"), # red
@@ -269,7 +269,7 @@ cnodes = [
     Construct(
         name=chunk(name),
         propagator=MaxNode(
-            matches=MatchSpec(
+            matches=MatchSet(
                 ctype=ConstructType.flow_xt | ConstructType.buffer
             )
         )

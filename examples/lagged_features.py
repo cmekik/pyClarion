@@ -33,7 +33,7 @@ fnodes = [
     Construct(
         name=feature(dim, val), 
         propagator=MaxNode(
-            matches=MatchSpec(constructs={buffer("Stimulus"), flow_in("Lag")}) 
+            matches=MatchSet(constructs={buffer("Stimulus"), flow_in("Lag")}) 
         )
     ) for dim, val in [
         (Lag.Dim(name="dim", lag=0), "val-1"),

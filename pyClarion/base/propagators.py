@@ -4,7 +4,7 @@
 __all__ = ["Propagator", "Cycle", "Assets"]
 
 
-from pyClarion.base.symbols import ConstructSymbol, MatchSpec, ConstructType
+from pyClarion.base.symbols import Symbol, MatchSet, ConstructType
 from types import MappingProxyType
 from typing import (
     TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set, Dict, 
@@ -15,8 +15,8 @@ from abc import abstractmethod
 
 
 Dt = TypeVar('Dt') # type variable for inputs to processes
-PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
-Inputs = Mapping[ConstructSymbol, Dt]
+PullFuncs = Mapping[Symbol, Callable[[], Dt]]
+Inputs = Mapping[Symbol, Dt]
 
 
 It = TypeVar('It', contravariant=True) # type variable for propagator inputs
@@ -30,11 +30,11 @@ class Propagator(Generic[It, Ot]):
     and set outputs.
     """
 
-    matches: MatchSpec
+    matches: MatchSet
 
-    def __init__(self, matches: MatchSpec = None):
+    def __init__(self, matches: MatchSet = None):
 
-        self.matches = matches if matches is not None else MatchSpec()
+        self.matches = matches if matches is not None else MatchSet()
 
     def __copy__(self: T) -> T:
         """
@@ -48,7 +48,7 @@ class Propagator(Generic[It, Ot]):
         raise NotImplementedError() 
 
     def __call__(
-        self, construct: ConstructSymbol, inputs: PullFuncs[It], **kwds: Any
+        self, construct: Symbol, inputs: PullFuncs[It], **kwds: Any
     ) -> Ot:
         """
         Execute construct's forward propagation cycle.
@@ -64,7 +64,7 @@ class Propagator(Generic[It, Ot]):
         
         return self.emit(intermediate)
 
-    def expects(self, construct: ConstructSymbol):
+    def expects(self, construct: Symbol):
         """Returns True if propagator expects input from given construct."""
 
         return construct in self.matches
@@ -83,7 +83,7 @@ class Propagator(Generic[It, Ot]):
 
     @abstractmethod
     def call(
-        self, construct: ConstructSymbol, inputs: Inputs[It], **kwds: Any
+        self, construct: Symbol, inputs: Inputs[It], **kwds: Any
     ) -> Any:
         """
         Execute construct's forward propagation cycle.
@@ -111,12 +111,12 @@ class Cycle(Generic[It, Ot]):
     # Specifies data required to construct the output packet
     output: ConstructType = ConstructType.null_construct
 
-    def __init__(self, sequence, matches: MatchSpec = None):
+    def __init__(self, sequence, matches: MatchSet = None):
 
         self.sequence = sequence
-        self.matches = matches if matches is not None else MatchSpec()
+        self.matches = matches if matches is not None else MatchSet()
 
-    def expects(self, construct: ConstructSymbol) -> bool:
+    def expects(self, construct: Symbol) -> bool:
         """Returns True if propagator expects input from given construct."""
 
         return construct in self.matches

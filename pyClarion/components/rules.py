@@ -4,7 +4,7 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from pyClarion.base import ConstructType, ConstructSymbol, MatchSpec
+from pyClarion.base import ConstructType, MatchSet
 from pyClarion.components.propagators import PropagatorA
 from pyClarion.utils.funcs import linear_rule_strength
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
@@ -276,7 +276,7 @@ class AssociativeRules(PropagatorA):
     def __init__(self, rules: Rules, op=None, default=0.0, matches=None):
 
         if matches is None: 
-            matches = MatchSpec(ctype=ConstructType.chunk)  
+            matches = MatchSet(ctype=ConstructType.chunk)  
         super().__init__(matches=matches)
         
         self.rules = rules

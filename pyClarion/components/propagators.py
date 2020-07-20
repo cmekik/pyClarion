@@ -9,7 +9,7 @@ __all__ = [
 
 
 from pyClarion.base import (
-    ConstructType, ConstructSymbol, FeatureSymbol, chunk, feature, MatchSpec,
+    ConstructType, Symbol,  MatchSet, chunk, feature,
     Propagator
 )
 from pyClarion.utils.funcs import (
@@ -28,7 +28,7 @@ from copy import copy
 ############################
 
 
-class PropagatorN(Propagator[Mapping[ConstructSymbol, float], float]):
+class PropagatorN(Propagator[Mapping[Symbol, float], float]):
     """
     Propagator for individual nodes.
 
@@ -41,7 +41,7 @@ class PropagatorN(Propagator[Mapping[ConstructSymbol, float], float]):
         return output
 
 
-class PropagatorA(Propagator[float, Mapping[ConstructSymbol, float]]):
+class PropagatorA(Propagator[float, Mapping[Symbol, float]]):
     """
     Propagator for a collection of nodes or a single flows.
 
@@ -49,8 +49,8 @@ class PropagatorA(Propagator[float, Mapping[ConstructSymbol, float]]):
     """
 
     def emit(
-        self, data: Mapping[ConstructSymbol, float] = None
-    ) -> Mapping[ConstructSymbol, float]:
+        self, data: Mapping[Symbol, float] = None
+    ) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
@@ -65,7 +65,7 @@ class Response(NamedTuple):
     (e.g., ICLs, constructed chunks etc.).
     """
 
-    selection: FrozenSet[ConstructSymbol]
+    selection: FrozenSet[Symbol]
     data: Mapping
 
 
@@ -91,7 +91,7 @@ class PropagatorR(Propagator[float, Response]):
 
 
 class PropagatorB(
-    Propagator[Mapping[ConstructSymbol, Any], Mapping[ConstructSymbol, float]]
+    Propagator[Mapping[Symbol, Any], Mapping[Symbol, float]]
 ):
     """
     Propagator for buffers.
@@ -100,8 +100,8 @@ class PropagatorB(
     """
     
     def emit(
-        self, data: Mapping[ConstructSymbol, float] = None
-    ) -> Mapping[ConstructSymbol, float]:
+        self, data: Mapping[Symbol, float] = None
+    ) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
@@ -147,7 +147,7 @@ class Lag(PropagatorA):
         """
 
         if matches is None: 
-            matches = MatchSpec(ctype=ConstructType.feature)  
+            matches = MatchSet(ctype=ConstructType.feature)  
         super().__init__(matches=matches)
 
         self.max_lag = max_lag
@@ -291,9 +291,9 @@ class FilteredA(PropagatorA):
     def __init__(
         self, 
         base: PropagatorA, 
-        source_filter: ConstructSymbol = None, 
-        input_filter: ConstructSymbol = None, 
-        output_filter: ConstructSymbol = None, 
+        source_filter: Symbol = None, 
+        input_filter: Symbol = None, 
+        output_filter: Symbol = None, 
         fdefault=0.0,
     ):
 
@@ -375,8 +375,8 @@ class FilteredR(PropagatorR):
     def __init__(
         self, 
         base: PropagatorR, 
-        source_filter: ConstructSymbol = None,
-        input_filter: ConstructSymbol = None, 
+        source_filter: Symbol = None,
+        input_filter: Symbol = None, 
         fdefault=0.0
     ):
 

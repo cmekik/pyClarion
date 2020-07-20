@@ -32,7 +32,7 @@ class WorkingMemory(PropagatorB):
         self, 
         slots: List[Hashable], 
         dims: Tuple[Hashable, Hashable],
-        matches: MatchSpec = None
+        matches: MatchSet = None
     ) -> None:
         """
         Initialize a new WorkingMemory propagator instance.
@@ -128,14 +128,14 @@ class WMUpdater(object):
 
     def __init__(
         self,
-        source: ConstructSymbol,
-        controller: Tuple[ConstructSymbol, ConstructSymbol],
+        source: Symbol,
+        controller: Tuple[Symbol, Symbol],
         reset_dim: Hashable,
         reset_vals: Mapping[Hashable, bool],
         write_dims: List[Hashable],
         write_clear: Hashable,
         write_standby: Hashable,
-        write_channels: Mapping[Hashable, ConstructSymbol],
+        write_channels: Mapping[Hashable, Symbol],
         switch_dims: List[Hashable],
         switch_vals: Mapping[Hashable, bool],
         chunks: Chunks
