@@ -11,9 +11,10 @@ Provides:
 """
 
 
-from pyClarion.base import MatchSpec, Packet, Construct, ConstructType, chunk
+from pyClarion.base import MatchSpec, Construct, ConstructType, ConstructSymbol, chunk
 from pyClarion.components.propagators import PropagatorA, PropagatorR
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
+from typing import Mapping
 from collections import namedtuple
 from statistics import mean
 from itertools import count
@@ -355,7 +356,7 @@ class ChunkConstructor(object):
         self.threshold = threshold
         self.op = op
 
-    def __call__(self, strengths: Packet) -> dict:
+    def __call__(self, strengths: Mapping[ConstructSymbol, float]) -> dict:
         """Create candidate chunk forms based on given strengths and filter."""
 
         eligible = (f for f, s in strengths.items() if s > self.threshold)

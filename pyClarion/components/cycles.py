@@ -4,18 +4,9 @@
 __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
-from pyClarion.base import (
-    ConstructType, ConstructSymbol, Cycle, ResponsePacket, SubsystemPacket, 
-    MatchSpec
-)
+from pyClarion.base import ConstructType, ConstructSymbol, Cycle, MatchSpec
 from types import MappingProxyType
 from typing import Dict, Mapping, Tuple
-
-
-SPData = Tuple[
-    Mapping[ConstructSymbol, Mapping[ConstructSymbol, float]],
-    Mapping[ConstructSymbol, ResponsePacket]
-]
 
 
 class AgentCycle(Cycle[None, None]):

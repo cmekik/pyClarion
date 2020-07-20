@@ -5,10 +5,6 @@ __all__ = ["Propagator", "Cycle", "Assets"]
 
 
 from pyClarion.base.symbols import ConstructSymbol, MatchSpec, ConstructType
-from pyClarion.base.packets import (
-    ActivationPacket, ResponsePacket, SubsystemPacket
-)
-from pyClarion.utils.funcs import simple_junction
 from types import MappingProxyType
 from typing import (
     TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set, Dict, 
