@@ -156,7 +156,7 @@ stimulus_states = [
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
     alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
-    alice.learn()
+    alice.update()
     print(nacs.output.pstr())
     alice.clear_output()
 

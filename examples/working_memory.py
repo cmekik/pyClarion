@@ -176,21 +176,20 @@ d = {
 }
 
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
 
-# toggle
-print("Toggle (Empty WM)")
+# toggle empty (should do nothing)
+print("Toggle (Empty WM; does nothing)")
 
 d = {feature("wm-s1", "toggle"): 1.0}
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
-print(cast(WorkingMemory, wm.propagator).excludes)
 
 # single write
 print("Single Write")
@@ -201,7 +200,7 @@ d = {
     feature("wm-w0", "retrieve"): 1.0
 }
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
@@ -216,7 +215,7 @@ d = {
     feature("wm-reset", "release"): 1.0
 }
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
@@ -232,17 +231,17 @@ d = {
     feature("wm-w1", "extract"): 1.0
 }
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
 
-# toggle
-print("Toggle")
+# Toggle Slot 1
+print("Toggle Slot 1")
 
 d = {feature("wm-s1", "toggle"): 1.0}
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())
@@ -253,7 +252,7 @@ print("Single Delete")
 
 d = {feature("wm-w1", "clear"): 1.0}
 alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
-alice.learn()
+alice.update()
 
 alice.propagate(args={})
 print(wm.output.pstr())

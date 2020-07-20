@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "MatchArg", "UpdaterArg", "MissingSpec", "PullFuncs", "Inputs", "Updater",
-    "Realizer", "Construct", "Structure", "Assets"
+    "Realizer", "Construct", "Structure", "Updater", "UpdaterArg", "PullFunc", 
+    "PullFuncs", "ConstructRef"
 ]
 
 
@@ -20,17 +20,12 @@ from typing import (
 from abc import abstractmethod
 
 
-It = TypeVar('It') # type variable for inputs to construct realizers
-Ot = TypeVar('Ot') # type variable for outputs to construct realizers
 Rt = TypeVar('Rt') # type variable representing a construct realizer 
-At_co = TypeVar("At_co", covariant=True) # type variable for sturcture assets
 
-# explain scope of this type variable
-MatchArg = Union[ConstructType, Container[ConstructSymbol], MatchSpec] 
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
-MissingSpec = Dict[ConstructRef, List[str]]
-PullFuncs = Dict[ConstructSymbol, Callable[[], It]]
-Inputs = Dict[ConstructSymbol, It]
+PullFunc = Callable[[], Any]
+PullFuncs = Dict[ConstructSymbol, PullFunc]
+
 # Could type annotations for updaters be improved? - Can
 Updater = Callable[[Rt], None] 
 # updater may be a pure ordered dict, or a list of identifier-updater pairs
@@ -42,11 +37,11 @@ UpdaterArg = Union[
 ]
 
 
-class Realizer(Generic[It, Ot]):
+class Realizer(object):
     """
     Base class for construct realizers.
 
-    Construct realizers are facilitate communication between constructs by 
+    Construct realizers facilitate communication between constructs by 
     providing a standard interface for creating, inspecting, modifying and 
     propagating information across construct networks. 
 
@@ -63,12 +58,7 @@ class Realizer(Generic[It, Ot]):
         """
         Initialize a new construct realizer.
         
-        :param name: Identifier for construct, may be a ConstructSymbol, str, 
-            tuple, or list. If a construct symbol is given, its construct type 
-            must match the construct type associated with the realizer class. 
-            If a str, tuple, or list is given, a `ConstructSymbol` will be 
-            created with the given values as construct identifiers and the 
-            class `ctype` as its `ConstructType`.  
+        :param name: Identifier for construct.  
         :param updaters: A dict-like object containing procedures for updating 
             construct knowledge.
         """
@@ -79,8 +69,8 @@ class Realizer(Generic[It, Ot]):
                 "got {} instead.".format(type(name))
             )
         self._construct = name
-        self._inputs: Dict[ConstructSymbol, Callable[[], It]] = {}
-        self._output: Optional[Ot] = None
+        self._inputs: PullFuncs = {}
+        self._output: Optional[Any] = None
 
         # This doesn't seem very safe...
         self.updaters: OrderedDict[Hashable, Updater[Any]]
@@ -102,7 +92,7 @@ class Realizer(Generic[It, Ot]):
 
         raise NotImplementedError()
 
-    def learn(self) -> None:
+    def update(self) -> None:
         """Execute learning routines."""
         
         for updater in self.updaters.values():
@@ -114,7 +104,7 @@ class Realizer(Generic[It, Ot]):
         raise NotImplementedError()
 
     def watch(
-        self, construct: ConstructSymbol, callback: Callable[[], It]
+        self, construct: ConstructSymbol, callback: PullFunc
     ) -> None:
         """
         Set given construct as an input to self.
@@ -138,12 +128,12 @@ class Realizer(Generic[It, Ot]):
 
         self._inputs.clear()
 
-    def view(self) -> Ot:
+    def view(self) -> Any:
         """Return current output of self."""
         
         return self.output
 
-    def update_output(self, output: Ot) -> None:
+    def update_output(self, output: Any) -> None:
         """Update output of self."""
 
         self._output = output
@@ -160,13 +150,13 @@ class Realizer(Generic[It, Ot]):
         return self._construct
 
     @property 
-    def inputs(self) -> Mapping[ConstructSymbol, Callable[[], It]]:
+    def inputs(self) -> Mapping[ConstructSymbol, PullFunc]:
         """Mapping from input constructs to pull funcs."""
 
         return MappingProxyType(self._inputs)
 
     @property
-    def output(self) -> Ot:
+    def output(self) -> Any:
         """"Current output of self."""
 
         # Emit output if available.
@@ -183,7 +173,9 @@ class Realizer(Generic[It, Ot]):
         pass
 
 
-class Construct(Realizer[It, Ot]):
+# Autocomplete only works properly when bound is passed as str. Why? - Can
+Pt = TypeVar("Pt", bound="Propagator")
+class Construct(Realizer, Generic[Pt]):
     """
     Represents basic constructs.
     
@@ -197,22 +189,16 @@ class Construct(Realizer[It, Ot]):
     def __init__(
         self: Self,
         name: Hashable,
-        propagator: Propagator[It, Any, Ot],
+        propagator: Pt,
         updaters: UpdaterArg[Self] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
         
-        :param name: Identifier for construct, may be a ConstructSymbol, str, 
-            tuple, or list. If a construct symbol is given, its construct type 
-            must match the construct type associated with the realizer class. 
-            If a str, tuple, or list is given, a `ConstructSymbol` will be 
-            created with the given values as construct identifiers and the 
-            class `ctype` as its `ConstructType`.  
+        :param name: Identifier for construct.  
         :param propagator: Activation processor associated with client 
             construct. Propagates strengths based on inputs from linked 
-            constructs. It is expected that this argument will behave like a 
-            `Propagator` object; this expectation is not enforced.
+            constructs.
         :param updaters: A dict-like object containing procedures for updating 
             construct knowledge.
         """
@@ -236,16 +222,13 @@ class Construct(Realizer[It, Ot]):
     def propagate(self, args: Dict = None) -> None:
         """Update output of self with result of propagator on current input."""
 
-        packet: Ot
-        inputs = cast(Any, self.inputs) # mypy complains about lru_cache
-        if args is not None:
-            packet = self.propagator(self.construct, inputs, **args)
-        else:
-            packet = self.propagator(self.construct, inputs)
+        inputs = self.inputs
+        args = args or dict()
+        packet = self.propagator(self.construct, inputs, **args)
         self.update_output(packet)
 
     @property
-    def output(self) -> Ot:
+    def output(self) -> Any:
         """"Current output of self."""
 
         try:
@@ -257,7 +240,8 @@ class Construct(Realizer[It, Ot]):
             return self._output
 
 
-class Structure(Realizer[It, Ot]):
+Ct = TypeVar("Ct", bound="Cycle")
+class Structure(Realizer, Generic[Ct]):
     """Base class for container construct realizers."""
 
     Self = TypeVar("Self", bound="Structure")
@@ -265,7 +249,7 @@ class Structure(Realizer[It, Ot]):
     def __init__(
         self: Self, 
         name: Hashable, 
-        cycle: Cycle[It, Any, Ot],
+        cycle: Ct,
         assets: Any = None,
         updaters: UpdaterArg[Self] = None,
     ) -> None:
@@ -300,7 +284,7 @@ class Structure(Realizer[It, Ot]):
             elif len(key) == 1:
                 return self[key[0]]
             else:
-                # If Catch & output more informative error here? - Can
+                # Catch & output more informative error here? - Can
                 head = self[key[0]]
                 return head[key[1:]] 
         else:
@@ -308,7 +292,7 @@ class Structure(Realizer[It, Ot]):
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
-        # Should this be recursive like getitem? - Can
+        # Should probably be recursive like getitem. - Can
         self.drop_links(construct=key)
         del self._dict[key.ctype][key]
 
@@ -343,16 +327,16 @@ class Structure(Realizer[It, Ot]):
         packet = self.cycle.make_packet(data)
         self.update_output(packet)
 
-    def learn(self):
+    def update(self):
         """
-        Execute learning routines in self and all members.
+        Execute any knowledge updates in self and all members.
         
         Issues update calls to each updater attached to self.  
         """
 
-        super().learn()
+        super().update()
         for realizer in self.values():
-            realizer.learn()
+            realizer.update()
 
     def execute(self) -> None:
         """Execute currently selected actions."""
@@ -360,7 +344,7 @@ class Structure(Realizer[It, Ot]):
         raise NotImplementedError()
 
     def add(self, *realizers: Realizer) -> None:
-        """Add a set of realizers to self."""
+        """Add realizers to self."""
 
         for realizer in realizers:
             ctype = realizer.construct.ctype
@@ -412,7 +396,7 @@ class Structure(Realizer[It, Ot]):
                     yield construct, realizer
 
     def watch(
-        self, construct: ConstructSymbol, callback: Callable[[], It]
+        self, construct: ConstructSymbol, callback: PullFunc
     ) -> None:
         """
         Add construct as an input to self. 
@@ -524,7 +508,7 @@ class Structure(Realizer[It, Ot]):
                 realizer.drop(construct)
 
     @property
-    def output(self) -> Ot:
+    def output(self) -> Any:
         """"Current output of self."""
 
         try:

@@ -3,7 +3,7 @@
 
 __all__ = [
     "Propagator", "PropagatorA", "PropagatorR", "PropagatorB", 
-    "Cycle", "CycleS", "CycleG"
+    "Cycle", "CycleS", "CycleG", "Assets"
 ]
 
 
@@ -23,8 +23,6 @@ from abc import abstractmethod
 T = TypeVar('T', bound="Propagator")
 Dt = TypeVar('Dt') # type variable for inputs to processes
 It = TypeVar('It', contravariant=True) # type variable for propagator inputs
-Xt = TypeVar('Xt') # type variable for intermediate stage 
-                   # Should Xt be covariant/contravariant? - Can 
 Ot = TypeVar('Ot', covariant=True) # type variable for propagator outputs
 
 PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
@@ -36,7 +34,7 @@ SPData = Tuple[
     Mapping[ConstructSymbol, ResponsePacket]
 ]
 
-class Propagator(Generic[It, Xt, Ot]):
+class Propagator(Generic[It, Ot]):
     """
     Abstract class for propagating strengths, decisions, and states.
 
@@ -74,7 +72,7 @@ class Propagator(Generic[It, Xt, Ot]):
         """
 
         inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
-        intermediate: Xt = self.call(construct, inputs_, **kwds)
+        intermediate: Any = self.call(construct, inputs_, **kwds)
         
         return self.make_packet(intermediate)
 
@@ -83,13 +81,13 @@ class Propagator(Generic[It, Xt, Ot]):
 
         return construct in self.matches
 
-    def make_packet(self, data: Xt = None) -> Ot:
+    def make_packet(self, data: Any = None) -> Ot:
         raise NotImplementedError()
 
     @abstractmethod
     def call(
         self, construct: ConstructSymbol, inputs: Inputs[It], **kwds: Any
-    ) -> Xt:
+    ) -> Any:
         """
         Execute construct's forward propagation cycle.
 
@@ -110,7 +108,7 @@ class Propagator(Generic[It, Xt, Ot]):
         raise NotImplementedError()
 
 
-class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
+class PropagatorA(Propagator[ActivationPacket, ActivationPacket]):
     """
     Represents a propagator for nodes or flows.
 
@@ -123,7 +121,7 @@ class PropagatorA(Propagator[ActivationPacket, APData, ActivationPacket]):
         return ActivationPacket(mapping=data)
 
 
-class PropagatorR(Propagator[ActivationPacket, DPData, ResponsePacket]):
+class PropagatorR(Propagator[ActivationPacket, ResponsePacket]):
     """
     Represents a propagator for response selection.
 
@@ -136,7 +134,7 @@ class PropagatorR(Propagator[ActivationPacket, DPData, ResponsePacket]):
         return ResponsePacket(mapping=mapping, selection=selection)
 
 
-class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
+class PropagatorB(Propagator[SubsystemPacket, ActivationPacket]):
     """
     Represents a propagator for buffers.
 
@@ -149,7 +147,7 @@ class PropagatorB(Propagator[SubsystemPacket, APData, ActivationPacket]):
         return ActivationPacket(mapping=data)
 
 
-class Cycle(Generic[It, Xt, Ot]):
+class Cycle(Generic[It, Ot]):
     """Represents a container construct activation cycle."""
 
     # Specifies data required to construct the output packet
@@ -165,21 +163,18 @@ class Cycle(Generic[It, Xt, Ot]):
 
         return construct in self.matches
 
-    def make_packet(self, data: Xt = None) -> Ot:
+    def make_packet(self, data: Any = None) -> Ot:
         raise NotImplementedError()
 
 
-class CycleS(Cycle[ActivationPacket, SPData, SubsystemPacket]):
+class CycleS(Cycle[ActivationPacket, SubsystemPacket]):
     """Represents a subsystem activation cycle."""
 
     output = (ConstructType.node, ConstructType.response)
 
     def __init__(self, sequence, matches: MatchSpec = None):
 
-        super().__init__(
-            sequence=sequence,
-            matches=matches
-        )
+        super().__init__(sequence=sequence, matches=matches)
 
     def make_packet(self, data: SPData = None) -> SubsystemPacket:
 
@@ -189,7 +184,7 @@ class CycleS(Cycle[ActivationPacket, SPData, SubsystemPacket]):
         return SubsystemPacket(mapping=mapping, decisions=decisions)
 
 
-class CycleG(Cycle[None, None, None]):
+class CycleG(Cycle[None, None]):
     """Represents an aGent activation cycle."""
     pass
     
