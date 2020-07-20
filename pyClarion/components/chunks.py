@@ -390,7 +390,7 @@ class ChunkExtractor(PropagatorR):
         else:
             raise ValueError("Corrupt chunk database.")
 
-        return {ch: form}, {ch} 
+        return {ch}, {"defs": {ch: form}}  
 
 
 class ChunkAdder(object):
@@ -449,9 +449,9 @@ class ChunkAdder(object):
             else realizer
         )
 
-        state = subsystem.output.decisions[self.response]
+        defs = subsystem.output[self.response].data["defs"]
         added = set()
-        for ch, form in state.items():
+        for ch, form in defs.items():
             chunks = db.find_form(form)
             if len(chunks) == 0:
                 db.set_chunk(ch, form)

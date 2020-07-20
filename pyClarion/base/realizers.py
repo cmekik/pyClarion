@@ -200,8 +200,8 @@ class Construct(Realizer, Generic[Pt]):
 
         inputs = self.inputs
         args = args or dict()
-        packet = self.propagator(self.construct, inputs, **args)
-        self.update_output(packet)
+        output = self.propagator(self.construct, inputs, **args)
+        self.update_output(output)
 
     @property
     def output(self) -> Any:
@@ -286,19 +286,10 @@ class Structure(Realizer, Generic[Ct]):
             for c in self.values(ctype=ctype):
                 c.propagate(args=args.get(c.construct))
 
-        l = []
-        data: Any
-        if self.cycle.output is not None:
-            for ctype in self.cycle.output:
-                l.append(
-                    {sym: c.output for sym, c in self.items(ctype=ctype)}
-                )
-            data = tuple(l)
-        else:
-            data = None
-
-        packet = self.cycle.emit(data)
-        self.update_output(packet)
+        ctype = self.cycle.output
+        data = {sym: c.output for sym, c in self.items(ctype=ctype)}
+        output = self.cycle.emit(data)
+        self.update_output(output)
 
     def update(self):
         """

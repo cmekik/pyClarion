@@ -4,11 +4,12 @@
 __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
-from typing import Dict, Mapping, Tuple
 from pyClarion.base import (
     ConstructType, ConstructSymbol, Cycle, ResponsePacket, SubsystemPacket, 
     MatchSpec
 )
+from types import MappingProxyType
+from typing import Dict, Mapping, Tuple
 
 
 SPData = Tuple[
@@ -33,20 +34,21 @@ class AgentCycle(Cycle[None, None]):
         pass
 
 
-class CycleS(Cycle[Mapping[ConstructSymbol, float], SubsystemPacket]):
+class CycleS(Cycle[Mapping[ConstructSymbol, float], Mapping[ConstructSymbol, float]]):
     """Represents a subsystem activation cycle."""
 
-    output = (ConstructType.node, ConstructType.response)
+    output = ConstructType.node | ConstructType.response
 
     def __init__(self, sequence, matches: MatchSpec = None):
 
         super().__init__(sequence=sequence, matches=matches)
 
-    def emit(self, data: SPData = None) -> SubsystemPacket:
+    def emit(
+        self, data: Mapping[ConstructSymbol, float] = None
+    ) -> Mapping[ConstructSymbol, float]:
 
-        mapping, decisions = data if data is not None else (dict(), dict())
-
-        return SubsystemPacket(mapping=mapping, decisions=decisions)
+        mapping = data if data is not None else dict()
+        return MappingProxyType(mapping=mapping)
 
 
 class ACSCycle(CycleS):

@@ -10,13 +10,13 @@ __all__ = [
 
 from pyClarion.base import (
     ConstructType, ConstructSymbol, FeatureSymbol, chunk, feature, MatchSpec,
-    Propagator, ResponsePacket, SubsystemPacket
+    Propagator
 )
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
-from typing import Tuple, Mapping, Set
+from typing import Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union
 from types import MappingProxyType
 from collections import namedtuple
 from typing import Iterable, Any
@@ -30,7 +30,7 @@ from copy import copy
 
 class PropagatorN(Propagator[Mapping[ConstructSymbol, float], float]):
     """
-    Represents a propagator for individual nodes.
+    Propagator for individual nodes.
 
     Maps activations to activations.
     """
@@ -43,7 +43,7 @@ class PropagatorN(Propagator[Mapping[ConstructSymbol, float], float]):
 
 class PropagatorA(Propagator[float, Mapping[ConstructSymbol, float]]):
     """
-    Represents a propagator for a collection of nodes or a single flows.
+    Propagator for a collection of nodes or a single flows.
 
     Maps activations to activations.
     """
@@ -55,24 +55,46 @@ class PropagatorA(Propagator[float, Mapping[ConstructSymbol, float]]):
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
 
-# type for ResponsePacket init
-DPData = Tuple[Mapping[ConstructSymbol, float], Set[ConstructSymbol]] 
-class PropagatorR(Propagator[float, ResponsePacket]):
+
+class Response(NamedTuple):
     """
-    Represents a propagator for response selection.
+    Response data.
+    
+    Selection is a set of constructs (typically chunks or features) selected as 
+    output. Data is a handle for optional metadata associated w/ the response 
+    (e.g., ICLs, constructed chunks etc.).
+    """
+
+    selection: FrozenSet[ConstructSymbol]
+    data: Mapping
+
+
+class PropagatorR(Propagator[float, Response]):
+    """
+    Propagator for response selection.
 
     Maps activations to decisions.
     """
 
-    def emit(self, data: DPData = None) -> ResponsePacket:
+    def emit(self, data: Union[Tuple[Set, Mapping], Set] = None) -> Response:
 
-        mapping, selection = data if data is not None else (dict(), set())
-        return ResponsePacket(mapping=mapping, selection=selection)
+        selection: Set
+        mapping: Optional[Mapping]
+        if isinstance(data, tuple):
+            selection, mapping = data 
+        elif data is not None:
+            selection, mapping = data, dict()
+        else:
+            selection, mapping = (set(), dict())
+        
+        return Response(frozenset(selection), MappingProxyType(mapping))
 
 
-class PropagatorB(Propagator[SubsystemPacket, Mapping[ConstructSymbol, float]]):
+class PropagatorB(
+    Propagator[Mapping[ConstructSymbol, Any], Mapping[ConstructSymbol, float]]
+):
     """
-    Represents a propagator for buffers.
+    Propagator for buffers.
 
     Maps subsystem outputs to activations.
     """
@@ -85,9 +107,9 @@ class PropagatorB(Propagator[SubsystemPacket, Mapping[ConstructSymbol, float]]):
         return MappingProxyType(mapping=data)
 
 
-##############################
-### Activation Propagators ###
-##############################
+########################
+### Node Propagators ###
+########################
 
 
 class MaxNode(PropagatorN):
@@ -103,6 +125,11 @@ class MaxNode(PropagatorN):
         strength = max_strength(construct, packets)
         
         return strength
+
+
+########################
+### Flow Propagators ###
+########################
 
 
 class Lag(PropagatorA):
@@ -171,7 +198,7 @@ class BoltzmannSelector(PropagatorR):
         probabilities = boltzmann_distribution(inputs, self.temperature)
         selection = select(probabilities, 1)
 
-        return probabilities, selection
+        return selection
 
 
 class ActionSelector(PropagatorR):
@@ -211,7 +238,7 @@ class ActionSelector(PropagatorR):
             probabilities.update(prs)
             selection.update(sel)
 
-        return probabilities, selection
+        return selection
 
 
 ##########################
@@ -256,7 +283,7 @@ class Stimulus(PropagatorB):
 ### Filtering Wrappers ###
 ##########################
 
-# WARNING: Filtering may be broken... - Can
+# WARNING: Filtering may be broken after changes to propagators... - Can
 
 class FilteredA(PropagatorA):
     """Filters input and output activations of an activation propagator."""

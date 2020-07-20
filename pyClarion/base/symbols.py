@@ -118,7 +118,9 @@ class ConstructSymbol(object):
             pass
         else:
             raise TypeError(
-                "Unexpected type {} for arg ctype.".format(type(ctype).__name__)
+                "Unexpected type {} for arg ctype.".format(
+                    type(ctype).__name__
+                )
             )
         
         super().__setattr__('_data', (ctype, tuple(cid)))
@@ -138,14 +140,22 @@ class ConstructSymbol(object):
         if isinstance(other, ConstructSymbol):
             return self._data == other._data
         else:
-            raise NotImplementedError()
-
+            raise TypeError(
+                "'==' not supported between instances of '{}' and '{}'.".format(
+                    type(self).__name__, type(other).__name__
+                )
+            )
+    
     def __lt__(self, other):
 
         if isinstance(other, ConstructSymbol) and self.ctype == other.ctype:
             return self._data < other._data
         else:
-            raise NotImplementedError()
+            raise TypeError(
+                "'<' not supported between instances of '{}' and '{}'.".format(
+                    type(self).__name__, type(other).__name__
+                )
+            ) 
 
     def __repr__(self):
 

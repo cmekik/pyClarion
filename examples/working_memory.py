@@ -1,5 +1,6 @@
 from pyClarion import *
 from typing import cast
+import pprint
 
 alice = Structure(
     name=agent("Alice"),
@@ -177,7 +178,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 # toggle empty (should do nothing)
 print("Toggle (Empty WM; does nothing)")
@@ -187,7 +188,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 # single write
 print("Single Write")
@@ -201,7 +202,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 
 # reset
@@ -216,7 +217,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 
 # double write
@@ -232,7 +233,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 # Toggle Slot 1
 print("Toggle Slot 1")
@@ -242,7 +243,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 
 # single delete
@@ -253,7 +254,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output)
+pprint.pprint(wm.output)
 
 
 ##################

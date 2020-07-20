@@ -1,6 +1,7 @@
 """Demonstration and recipe for chunk extraction in pyClarion."""
 
 from pyClarion import *
+import pprint
 
 # Let's simulate a subject named 'Alice' who is shopping for some fruits. 
 # This simulation demonstrates a basic recipe for chunk extraction in 
@@ -155,7 +156,7 @@ for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
     alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
     alice.update()
-    print(nacs.output.pstr())
+    pprint.pprint(nacs.output)
     alice.clear_output()
 
 print("Learned Chunks:")

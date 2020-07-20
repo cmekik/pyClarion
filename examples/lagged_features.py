@@ -1,4 +1,5 @@
 from pyClarion import *
+import pprint
 
 #############
 ### Setup ###
@@ -67,7 +68,7 @@ stimulus_states = [
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
     alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
-    print(nacs.output.pstr())
+    pprint.pprint(nacs.output)
 
 # Clearing outputs during the presentation sequence will interrupt lagged 
 # feature computation.    

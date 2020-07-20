@@ -25,6 +25,7 @@ from pyClarion import (
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
     FilteredR, NACSCycle, AgentCycle
 )
+import pprint
 
 
 #############
@@ -365,13 +366,11 @@ alice.propagate(
 # nacs object. This object stores all relevant information about the 
 # state of the NACS at the end of the propagation cycle.
 
-subsystem_packet = nacs.output
-
 # We can then simply print out a nicely formatted representation of the output 
 # using the subsystem_packet.pstr() method.
  
 print("Information returned by Alice's NACS upon presentation of 'APPLE':") 
-print(subsystem_packet.pstr())
+pprint.pprint(nacs.output)
 
 # Finally, we clear the output so as not to contaminate any subsequent trials 
 # with persistent activations. This is an optional step, taken here for 

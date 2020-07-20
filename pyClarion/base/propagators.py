@@ -113,7 +113,7 @@ class Cycle(Generic[It, Ot]):
     """Represents a container construct activation cycle."""
 
     # Specifies data required to construct the output packet
-    output: Optional[Sequence[ConstructType]] = None
+    output: ConstructType = ConstructType.null_construct
 
     def __init__(self, sequence, matches: MatchSpec = None):
 

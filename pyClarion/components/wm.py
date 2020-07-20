@@ -204,7 +204,7 @@ class WMUpdater(object):
 
         source = inputs[self.source]
         subsys, resp = self.controller
-        cmd_packet = inputs[subsys].decisions[resp] 
+        cmd_packet = inputs[subsys][resp] 
         cmds = self.parse_commands(packet=cmd_packet)
 
         # execute reset
@@ -223,7 +223,7 @@ class WMUpdater(object):
                     pass
                 else:
                     channel = self.write_channels[val]
-                    data_packet = source.decisions[channel]
+                    data_packet = source[channel]
                     nodes = self.get_nodes(packet=data_packet)
                     realizer.propagator.write(slot, nodes)
 
