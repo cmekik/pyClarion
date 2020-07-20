@@ -3,7 +3,7 @@
 
 __all__ = [
     "ConstructType", "Symbol", "MatchSet","feature", "chunk", "flow_in", 
-    "flow_bt", "flow_tb", "flow_tt", "flow_bb", "response", "buffer", 
+    "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", "buffer", 
     "subsystem", "agent"
 ]
 
@@ -36,7 +36,7 @@ class ConstructType(Flag):
         flow_bt: Activation flow from bottom to top level.
         flow_tt: Activation flow within top level.
         flow_bb: Activation flow within bottom level.
-        response: Selected responses.
+        terminus: Selected responses.
         buffer: Temporary store of activations.
         subsystem: A Clarion subsystem.
         agent: A full Clarion agent.
@@ -50,7 +50,7 @@ class ConstructType(Flag):
         flow_h: Horizontal (intra-level) flow.
         flow_v: Vertical (inter-level) flow.
         flow: Links among microfeature and/or chunk nodes.
-        basic_construct: Feature or chunk or flow or response or behavior or 
+        basic_construct: Feature or chunk or flow or terminus or behavior or 
             buffer. 
         container_construct: Subsystem or agent.
     """
@@ -63,7 +63,7 @@ class ConstructType(Flag):
     flow_bt = auto()
     flow_tt = auto()
     flow_bb = auto()
-    response = auto()
+    terminus = auto()
     buffer = auto()
     subsystem = auto()
     agent = auto()
@@ -75,7 +75,7 @@ class ConstructType(Flag):
     flow_h = flow_bb | flow_tt
     flow_v = flow_tb | flow_bt
     flow = flow_tb | flow_bt | flow_tt | flow_bb | flow_in
-    basic_construct = node | flow | response | buffer
+    basic_construct = node | flow | terminus | buffer
     container_construct = subsystem | agent
 
 
@@ -419,14 +419,14 @@ def flow_bb(name: Hashable) -> Symbol:
     return Symbol(ConstructType.flow_bb, name)
 
 
-def response(name: Hashable) -> Symbol:
+def terminus(name: Hashable) -> Symbol:
     """
-    Return a new response symbol.
+    Return a new terminus symbol.
 
-    :param name: Name of response.
+    :param name: Name of terminus.
     """
 
-    return Symbol(ConstructType.response, name)
+    return Symbol(ConstructType.terminus, name)
 
 
 def buffer(name: Hashable) -> Symbol:

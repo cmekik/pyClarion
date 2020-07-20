@@ -28,7 +28,7 @@ class AgentCycle(Cycle[None, None]):
 class CycleS(Cycle[Mapping[Symbol, float], Mapping[Symbol, float]]):
     """Represents a subsystem activation cycle."""
 
-    output = ConstructType.node | ConstructType.response
+    output = ConstructType.node | ConstructType.terminus
 
     def __init__(self, sequence, matches: MatchSet = None):
 
@@ -56,7 +56,7 @@ class ACSCycle(CycleS):
                 ConstructType.chunk,
                 ConstructType.flow_tb,
                 ConstructType.feature,
-                ConstructType.response
+                ConstructType.terminus
             ],
             matches = matches
         )
@@ -76,7 +76,7 @@ class NACSCycle(CycleS):
                 ConstructType.feature,
                 ConstructType.flow_bt,
                 ConstructType.chunk,
-                ConstructType.response
+                ConstructType.terminus
             ],
             matches = matches
         )

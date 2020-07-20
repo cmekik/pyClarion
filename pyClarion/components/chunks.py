@@ -411,7 +411,7 @@ class ChunkAdder(object):
     def __init__(
         self, 
         propagator, 
-        response, 
+        terminus, 
         subsystem=None, 
         clients=None, 
         return_added=False
@@ -421,7 +421,7 @@ class ChunkAdder(object):
         
         :param template: A ChunkAdder.Template object defining the form of 
             `Node` instances representing new chunks.
-        :param response: Construct symbol for a response construct emmiting new 
+        :param terminus: Construct symbol for a terminus construct emmiting new 
             chunk recommendations. 
         :param subsystem: The subsystem that should be monitored. Used only if 
             the chunk adder is located at the `Agent` level.
@@ -433,7 +433,7 @@ class ChunkAdder(object):
         """
 
         self.propagator = propagator
-        self.response = response
+        self.terminus = terminus
         self.subsystem = subsystem
         self.clients = {subsystem} if clients is None else clients
 
@@ -450,7 +450,7 @@ class ChunkAdder(object):
             else realizer
         )
 
-        defs = subsystem.output[self.response].data["defs"]
+        defs = subsystem.output[self.terminus].data["defs"]
         added = set()
         for ch, form in defs.items():
             chunks = db.find_form(form)

@@ -13,22 +13,22 @@ alice = Structure(
                 constructs={buffer("Stimulus")}
             ),
         ),
-        response=response("Extractor"),
+        terminus=terminus("Extractor"),
         subsystem=subsystem("NACS")
     )
 )
 
 wmud = WMUpdater(
     source=subsystem("NACS"),
-    controller=(subsystem("ACS"), response("wm")),
+    controller=(subsystem("ACS"), terminus("wm")),
     reset_dim="wm-reset",
     reset_vals={"release": True, "standby": False},
     write_dims=["wm-w0", "wm-w1", "wm-w2", "wm-w3", "wm-w4", "wm-w5", "wm-w6"],
     write_clear="clear",
     write_standby="standby",
     write_channels={
-        "retrieve": response("Retriever"), 
-        "extract": response("Extractor")
+        "retrieve": terminus("Retriever"), 
+        "extract": terminus("Extractor")
     },
     switch_dims=["wm-s0", "wm-s1", "wm-s2", "wm-s3", "wm-s4", "wm-s5", "wm-s6"],
     switch_vals={"toggle": True, "standby": False},
@@ -84,7 +84,7 @@ acs.add(*fnodes)
 
 acs.add(
     Construct(
-        name=response("wm"),
+        name=terminus("wm"),
         propagator=ActionSelector(
             temperature=.01,
             dims=wmud.dims
@@ -136,13 +136,13 @@ fnodes = [
 ]
 nacs.add(*fnodes)
 
-# As mentioned, we need to create a special response construct that produces 
+# As mentioned, we need to create a special terminus construct that produces 
 # new chunk recommendations. This is achieved with a `ChunkExtractor` object,
 # which assumes that chunks are stored in a `Chunks` object.
 
 nacs.add(
     Construct(
-        name=response("Retriever"),
+        name=terminus("Retriever"),
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
@@ -151,7 +151,7 @@ nacs.add(
             input_filter=buffer("Stimulus"))
     ),
     Construct(
-        name=response("Extractor"),
+        name=terminus("Extractor"),
         propagator=ChunkExtractor(
             chunks=alice.assets.chunks,
             name="state",

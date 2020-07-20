@@ -8,7 +8,7 @@ import pprint
 # pyClarion. If you have not worked through the free association example, 
 # please do so first, as you will be missing some of the prerequisite ideas.
 
-# The basic premise of the recipe is to create a special response construct 
+# The basic premise of the recipe is to create a special terminus construct 
 # for chunk extraction. On each cycle, this construct recommends new chunks 
 # based on the state of the bottom level. These recommendations are then picked 
 # up by an updater object, which adds any new chunks to its client chunk 
@@ -33,7 +33,7 @@ import pprint
 
 # The `ChunkAdder` object assumes the chunk database it is responsible for 
 # lives in the same realizer as itself. Minimally, the ChunkAdder needs to 
-# be given a response construct to monitor and a specification for constructing 
+# be given a terminus construct to monitor and a specification for constructing 
 # node realizers. Since, in this particular case, the adder lives at the agent 
 # level, it is also told which subsystem it should monitor.
 
@@ -48,7 +48,7 @@ alice = Structure(
                 constructs={buffer("Stimulus")}
             ),
         ),
-        response=response("Extractor"),
+        terminus=terminus("Extractor"),
         subsystem=subsystem("NACS")
     )
 )
@@ -108,13 +108,13 @@ fnodes = [
 ]
 nacs.add(*fnodes)
 
-# As mentioned, we need to create a special response construct that produces 
+# As mentioned, we need to create a special terminus construct that produces 
 # new chunk recommendations. This is achieved with a `ChunkExtractor` object,
 # which assumes that chunks are stored in a `Chunks` object.
 
 nacs.add(
     Construct(
-        name=response("Extractor"),
+        name=terminus("Extractor"),
         propagator=ChunkExtractor(
             chunks=alice.assets.chunks,
             name="state",

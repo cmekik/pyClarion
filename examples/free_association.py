@@ -16,7 +16,7 @@ from pyClarion import (
     ConstructType, MatchSet, Assets,
     # These functions are constructors for construct symbols, which are used to 
     # name, index and reference simulated constructs
-    agent, subsystem, buffer, feature, chunk, response, flow_tt, flow_tb, 
+    agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 
     flow_bt,
     # These objects house datastructures handling various important concerns.
     Chunks, Rules,
@@ -185,7 +185,7 @@ nacs.add(
 
 nacs.add(
     Construct(
-        name=response("Main"),
+        name=terminus("Main"),
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
@@ -196,20 +196,18 @@ nacs.add(
     )
 )
 
-# The response selection procedure in this example involves the construction of 
+# The output selection procedure in this example involves the construction of 
 # a Boltzmann distribution from chunk node activations. A chunk is then 
-# sampled from this distribution and passed on as the selected response.
+# sampled from this distribution and passed on as the selected output.
 
 # Furthermore, to prevent information in the stimulus from interfering with 
-# response selection, the `BoltzmanSelector` is wrapped in a `FilteredD` object. 
+# output selection, the `BoltzmanSelector` is wrapped in a `FilteredD` object. 
 # This object is set to filter inputs to the selector proportionally to their 
 # strengths in the stimulus buffer. This amounts to cue-suppression.
 
-# In this case, the response construct is identified with the construct symbol 
-# `response("Main")`, which may seem a little redundant. However, in some 
-# cases (e.g., a complex ACS), a single subsystem may contain several response 
-# constructs. In such cases, we add several Response realizers, ideally each 
-# with a helpful name.
+# In this case, the output terminus is identified with the construct symbol 
+# `terminus("Main")`. In some cases (e.g., a complex ACS), a single subsystem 
+# may contain several terminus nodes. In such cases, we add several termini.
 
 # Nodes
 

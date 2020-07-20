@@ -61,7 +61,7 @@ class Response(NamedTuple):
     Response data.
     
     Selection is a set of constructs (typically chunks or features) selected as 
-    output. Data is a handle for optional metadata associated w/ the response 
+    output. Data is a handle for optional metadata associated w/ the terminus 
     (e.g., ICLs, constructed chunks etc.).
     """
 
@@ -71,7 +71,7 @@ class Response(NamedTuple):
 
 class PropagatorR(Propagator[float, Response]):
     """
-    Propagator for response selection.
+    Propagator for subsystem termini.
 
     Maps activations to decisions.
     """

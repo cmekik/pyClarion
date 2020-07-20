@@ -145,7 +145,7 @@ class WMUpdater(object):
 
         :param source: Construct from which WM will be populated.
         :param controller: Tuple indicating controller construct for WM. First 
-            member specifies subsystem, second member specifies response.
+            member specifies subsystem, second member specifies terminus.
         :param reset_dim: Dimension of WM reset commands.
         :param reset_vals: Values for WM reset commands. Mapping from a 
             hashable to true and false.
