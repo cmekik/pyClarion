@@ -1,10 +1,7 @@
 """Provides abstract classes for defining forward propagation cycles."""
 
 
-__all__ = [
-    "Propagator", "PropagatorA", "PropagatorR", "PropagatorB", 
-    "Cycle", "CycleS", "CycleG", "Assets"
-]
+__all__ = ["Propagator", "Cycle", "Assets"]
 
 
 from pyClarion.base.symbols import ConstructSymbol, MatchSpec, ConstructType
@@ -12,6 +9,7 @@ from pyClarion.base.packets import (
     ActivationPacket, ResponsePacket, SubsystemPacket
 )
 from pyClarion.utils.funcs import simple_junction
+from types import MappingProxyType
 from typing import (
     TypeVar, Generic, Mapping, Callable, Any, Mapping, Tuple, Set, Dict, 
     Sequence, Optional, no_type_check
@@ -20,20 +18,14 @@ from types import SimpleNamespace
 from abc import abstractmethod
 
 
-T = TypeVar('T', bound="Propagator")
 Dt = TypeVar('Dt') # type variable for inputs to processes
-It = TypeVar('It', contravariant=True) # type variable for propagator inputs
-Ot = TypeVar('Ot', covariant=True) # type variable for propagator outputs
-
 PullFuncs = Mapping[ConstructSymbol, Callable[[], Dt]]
 Inputs = Mapping[ConstructSymbol, Dt]
-APData = Mapping[ConstructSymbol, Any] # type for ActivationPacket init
-DPData = Tuple[APData, Set[ConstructSymbol]] # type for ResponsePacket init
-SPData = Tuple[
-    Mapping[ConstructSymbol, ActivationPacket],
-    Mapping[ConstructSymbol, ResponsePacket]
-]
 
+
+It = TypeVar('It', contravariant=True) # type variable for propagator inputs
+Ot = TypeVar('Ot', covariant=True) # type variable for propagator outputs
+T = TypeVar('T', bound="Propagator")
 class Propagator(Generic[It, Ot]):
     """
     Abstract class for propagating strengths, decisions, and states.
@@ -74,14 +66,23 @@ class Propagator(Generic[It, Ot]):
         inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
         intermediate: Any = self.call(construct, inputs_, **kwds)
         
-        return self.make_packet(intermediate)
+        return self.emit(intermediate)
 
     def expects(self, construct: ConstructSymbol):
         """Returns True if propagator expects input from given construct."""
 
         return construct in self.matches
 
-    def make_packet(self, data: Any = None) -> Ot:
+    @abstractmethod
+    def emit(self, data: Any = None) -> Ot:
+        """
+        Emit propagator output based on the return type of self.call().
+        
+        If no data is passed in, emits a default or null value of the expected
+        output type. If data is passed in ensures output is of the expected 
+        type and formats data as necessary before returning the result. 
+        """
+
         raise NotImplementedError()
 
     @abstractmethod
@@ -108,45 +109,6 @@ class Propagator(Generic[It, Ot]):
         raise NotImplementedError()
 
 
-class PropagatorA(Propagator[ActivationPacket, ActivationPacket]):
-    """
-    Represents a propagator for nodes or flows.
-
-    Maps activations to activations.
-    """
-
-    def make_packet(self, data: APData = None) -> ActivationPacket:
-
-        data = data if data is not None else dict()
-        return ActivationPacket(mapping=data)
-
-
-class PropagatorR(Propagator[ActivationPacket, ResponsePacket]):
-    """
-    Represents a propagator for response selection.
-
-    Maps activations to decisions.
-    """
-
-    def make_packet(self, data: DPData = None) -> ResponsePacket:
-
-        mapping, selection = data if data is not None else (dict(), set())
-        return ResponsePacket(mapping=mapping, selection=selection)
-
-
-class PropagatorB(Propagator[SubsystemPacket, ActivationPacket]):
-    """
-    Represents a propagator for buffers.
-
-    Maps subsystem outputs to activations.
-    """
-    
-    def make_packet(self, data: APData = None) -> ActivationPacket:
-
-        data = data if data is not None else dict()
-        return ActivationPacket(mapping=data)
-
-
 class Cycle(Generic[It, Ot]):
     """Represents a container construct activation cycle."""
 
@@ -163,30 +125,8 @@ class Cycle(Generic[It, Ot]):
 
         return construct in self.matches
 
-    def make_packet(self, data: Any = None) -> Ot:
+    def emit(self, data: Any = None) -> Ot:
         raise NotImplementedError()
-
-
-class CycleS(Cycle[ActivationPacket, SubsystemPacket]):
-    """Represents a subsystem activation cycle."""
-
-    output = (ConstructType.node, ConstructType.response)
-
-    def __init__(self, sequence, matches: MatchSpec = None):
-
-        super().__init__(sequence=sequence, matches=matches)
-
-    def make_packet(self, data: SPData = None) -> SubsystemPacket:
-
-        mapping, decisions = data if data is not None else (dict(), dict())
-        mapping = simple_junction(mapping.values())
-
-        return SubsystemPacket(mapping=mapping, decisions=decisions)
-
-
-class CycleG(Cycle[None, None]):
-    """Represents an aGent activation cycle."""
-    pass
     
 
 # Decorator is meant to disable type_checking for the class (but not sub- or 

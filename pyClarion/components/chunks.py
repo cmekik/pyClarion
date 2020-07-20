@@ -11,8 +11,8 @@ Provides:
 """
 
 
-from pyClarion.base import MatchSpec, Packet, PropagatorA, PropagatorR, Construct, ConstructType, chunk
-from pyClarion.utils.funcs import simple_junction
+from pyClarion.base import MatchSpec, Packet, Construct, ConstructType, chunk
+from pyClarion.components.propagators import PropagatorA, PropagatorR
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from collections import namedtuple
 from statistics import mean
@@ -277,11 +277,9 @@ class TopDown(PropagatorA):
             )
 
         d = {}
-        packets = inputs.values()
-        strengths = simple_junction(packets)
         for ch, dim_dict in self.chunks.items():
             for _, data in dim_dict.items():
-                s = data["weight"] * strengths.get(ch, self.default)
+                s = data["weight"] * inputs.get(ch, self.default)
                 for feat in data["values"]:
                     l = d.setdefault(feat, [])
                     l.append(s)
@@ -330,13 +328,11 @@ class BottomUp(PropagatorA):
             )
 
         d = {}
-        packets = inputs.values()
-        strengths = simple_junction(packets)
         for ch, ch_data in self.chunks.items():
             divisor = sum(data["weight"] for data in ch_data.values())
             for dim, data in ch_data.items():
                 op = self.ops[data["op"]]
-                s = op(strengths.get(f, self.default) for f in data["values"])
+                s = op(inputs.get(f, self.default) for f in data["values"])
                 d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
         
         return d
@@ -385,10 +381,7 @@ class ChunkExtractor(PropagatorR):
         
     def call(self, construct, inputs, **kwds):
 
-        packets = inputs.values()
-        strengths = simple_junction(packets)
-
-        form = self.constructor(strengths=strengths)
+        form = self.constructor(strengths=inputs)
         matches_to_form = self.chunks.find_form(form)
         if len(matches_to_form) == 0:
             ch = chunk("{}-{}".format(self.name, next(self.count)))

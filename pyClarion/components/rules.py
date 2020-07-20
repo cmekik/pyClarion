@@ -4,8 +4,9 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from pyClarion.base import ConstructType, ConstructSymbol, PropagatorA, MatchSpec
-from pyClarion.utils.funcs import simple_junction, linear_rule_strength
+from pyClarion.base import ConstructType, ConstructSymbol, MatchSpec
+from pyClarion.components.propagators import PropagatorA
+from pyClarion.utils.funcs import linear_rule_strength
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
 
@@ -292,10 +293,8 @@ class AssociativeRules(PropagatorA):
             )
         
         d = {}
-        packets = inputs.values()
-        strengths = simple_junction(packets)
         for conc, cond_dict in self.rules:
-            s = linear_rule_strength(cond_dict, strengths, self.default)
+            s = linear_rule_strength(cond_dict, inputs, self.default)
             l = d.setdefault(conc, [])
             l.append(s) 
         d = {c: self.op(l) for c, l in d.items()}

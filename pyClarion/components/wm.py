@@ -1,4 +1,5 @@
 from pyClarion.base import *
+from pyClarion.components.propagators import PropagatorB
 from pyClarion.components.chunks import Chunks
 from typing import Iterable, List, Hashable, Any, Tuple, Callable, Mapping
 from itertools import groupby, product, chain

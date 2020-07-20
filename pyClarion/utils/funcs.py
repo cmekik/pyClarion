@@ -19,7 +19,7 @@ def max_strength(construct, packets):
     strength = 0.0
     for packet in packets:
         strength = max(packet.get(construct, 0.0), strength)
-    return {construct: strength}
+    return strength
 
 
 def simple_junction(packets):

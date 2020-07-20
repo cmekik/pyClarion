@@ -2,6 +2,7 @@
 
 
 __all__ = [
+    "PropagatorN", "PropagatorA", "PropagatorR", "PropagatorB",
     "MaxNode", "Lag", "ActionSelector", "BoltzmannSelector", "ConstantBuffer", 
     "Stimulus", "FilteredA", "FilteredR"
 ]
@@ -9,15 +10,79 @@ __all__ = [
 
 from pyClarion.base import (
     ConstructType, ConstructSymbol, FeatureSymbol, chunk, feature, MatchSpec,
-    PropagatorA, PropagatorB, PropagatorR
+    Propagator, ResponsePacket, SubsystemPacket
 )
 from pyClarion.utils.funcs import (
     max_strength, simple_junction, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
+from typing import Tuple, Mapping, Set
+from types import MappingProxyType
 from collections import namedtuple
 from typing import Iterable, Any
 from copy import copy
+
+
+############################
+### Abstract Propagators ###
+############################
+
+
+class PropagatorN(Propagator[Mapping[ConstructSymbol, float], float]):
+    """
+    Represents a propagator for individual nodes.
+
+    Maps activations to activations.
+    """
+
+    def emit(self, data: float = None) -> float:
+
+        output = data if data is not None else 0.0
+        return output
+
+
+class PropagatorA(Propagator[float, Mapping[ConstructSymbol, float]]):
+    """
+    Represents a propagator for a collection of nodes or a single flows.
+
+    Maps activations to activations.
+    """
+
+    def emit(
+        self, data: Mapping[ConstructSymbol, float] = None
+    ) -> Mapping[ConstructSymbol, float]:
+
+        data = data if data is not None else dict()
+        return MappingProxyType(mapping=data)
+
+# type for ResponsePacket init
+DPData = Tuple[Mapping[ConstructSymbol, float], Set[ConstructSymbol]] 
+class PropagatorR(Propagator[float, ResponsePacket]):
+    """
+    Represents a propagator for response selection.
+
+    Maps activations to decisions.
+    """
+
+    def emit(self, data: DPData = None) -> ResponsePacket:
+
+        mapping, selection = data if data is not None else (dict(), set())
+        return ResponsePacket(mapping=mapping, selection=selection)
+
+
+class PropagatorB(Propagator[SubsystemPacket, Mapping[ConstructSymbol, float]]):
+    """
+    Represents a propagator for buffers.
+
+    Maps subsystem outputs to activations.
+    """
+    
+    def emit(
+        self, data: Mapping[ConstructSymbol, float] = None
+    ) -> Mapping[ConstructSymbol, float]:
+
+        data = data if data is not None else dict()
+        return MappingProxyType(mapping=data)
 
 
 ##############################
@@ -25,7 +90,7 @@ from copy import copy
 ##############################
 
 
-class MaxNode(PropagatorA):
+class MaxNode(PropagatorN):
     """Simple node returning maximum strength for given construct."""
 
     def __copy__(self):
@@ -62,14 +127,12 @@ class Lag(PropagatorA):
 
     def call(self, construct, inputs, **kwds):
 
-        packets = inputs.values()
-        strengths = simple_junction(packets)
         d = {
             feature(
                 dim=type(self).Dim(name=f.dim.name, lag=f.dim.lag + 1), 
                 val=f.val
             ): s 
-            for f, s in strengths.items() if f.dim.lag < self.max_lag
+            for f, s in inputs.items() if f.dim.lag < self.max_lag
         }
 
         return d
@@ -104,10 +167,8 @@ class BoltzmannSelector(PropagatorR):
         :param strengths: Mapping of node strengths.
         """
 
-        packets = inputs.values()
-        strengths = simple_junction(packets)
-        strengths = {n: s for n, s in strengths.items() if self.threshold < s}
-        probabilities = boltzmann_distribution(strengths, self.temperature)
+        inputs = {n: s for n, s in inputs.items() if self.threshold < s}
+        probabilities = boltzmann_distribution(inputs, self.temperature)
         selection = select(probabilities, 1)
 
         return probabilities, selection
@@ -142,12 +203,10 @@ class ActionSelector(PropagatorR):
         computed separately.
         """
 
-        packets = inputs.values()
-        strengths = simple_junction(packets)
         probabilities, selection = dict(), set()
         for dim in self.dims:
-            strens = {f: s for f, s in strengths.items() if f.dim == dim}
-            prs = boltzmann_distribution(strens, self.temperature)
+            ipt = {f: s for f, s in inputs.items() if f.dim == dim}
+            prs = boltzmann_distribution(ipt, self.temperature)
             sel = select(prs, 1)
             probabilities.update(prs)
             selection.update(sel)
@@ -197,6 +256,7 @@ class Stimulus(PropagatorB):
 ### Filtering Wrappers ###
 ##########################
 
+# WARNING: Filtering may be broken... - Can
 
 class FilteredA(PropagatorA):
     """Filters input and output activations of an activation propagator."""
@@ -260,14 +320,11 @@ class FilteredA(PropagatorA):
 
         # Filter inputs to base
         if self.input_filter is not None:
-            inputs = {
-                source: multiplicative_filter(
-                    filter_weights=input_weights, 
-                    strengths=packet, 
-                    fdefault=self.fdefault
-                )
-                for source, packet in inputs.items()
-            }
+            inputs = multiplicative_filter(
+                filter_weights=input_weights, 
+                strengths=inputs, 
+                fdefault=self.fdefault
+            )
         
         # Call base on (potentially) filtered inputs. Note that call is to 
         # `base.call()` instead of `base.__call__()`. This is because we rely 
@@ -331,14 +388,11 @@ class FilteredR(PropagatorR):
 
         # Filter inputs to base
         if self.input_filter is not None:
-            inputs = {
-                source: multiplicative_filter(
-                    filter_weights=input_weights, 
-                    strengths=packet, 
-                    fdefault=self.fdefault
-                )
-                for source, packet in inputs.items()
-            }
+            inputs = multiplicative_filter(
+                filter_weights=input_weights, 
+                strengths=inputs, 
+                fdefault=self.fdefault
+            )
         
         # Call base on (potentially) filtered inputs. Note that call is to 
         # `base.call()` instead of `base.__call__()`. This is because we rely 

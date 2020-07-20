@@ -1,13 +1,24 @@
 """Provides propagators for standard Clarion subsystems."""
 
 
-__all__ = ["ACSCycle", "NACSCycle", "AgentCycle"]
+__all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
-from typing import Dict
-from pyClarion.base import ConstructType, CycleS, CycleG
+from typing import Dict, Mapping, Tuple
+from pyClarion.base import (
+    ConstructType, ConstructSymbol, Cycle, ResponsePacket, SubsystemPacket, 
+    MatchSpec
+)
 
-class AgentCycle(CycleG):
+
+SPData = Tuple[
+    Mapping[ConstructSymbol, Mapping[ConstructSymbol, float]],
+    Mapping[ConstructSymbol, ResponsePacket]
+]
+
+
+class AgentCycle(Cycle[None, None]):
+    """Represents an agent activation cycle."""
 
     def __init__(self):
 
@@ -18,8 +29,24 @@ class AgentCycle(CycleG):
             ] 
         )
 
-    def make_packet(self, data: None = None) -> None:
+    def emit(self, data: None = None) -> None:
         pass
+
+
+class CycleS(Cycle[Mapping[ConstructSymbol, float], SubsystemPacket]):
+    """Represents a subsystem activation cycle."""
+
+    output = (ConstructType.node, ConstructType.response)
+
+    def __init__(self, sequence, matches: MatchSpec = None):
+
+        super().__init__(sequence=sequence, matches=matches)
+
+    def emit(self, data: SPData = None) -> SubsystemPacket:
+
+        mapping, decisions = data if data is not None else (dict(), dict())
+
+        return SubsystemPacket(mapping=mapping, decisions=decisions)
 
 
 class ACSCycle(CycleS):
