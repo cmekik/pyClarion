@@ -279,7 +279,7 @@ class Structure(Realizer[It, Ot]):
         self.cycle = cycle
         self.assets = assets if assets is not None else Assets()
 
-    def __contains__(self, key: ConstructSymbol) -> bool:
+    def __contains__(self, key: ConstructRef) -> bool:
 
         try:
             self.__getitem__(key)
@@ -292,12 +292,23 @@ class Structure(Realizer[It, Ot]):
         for construct in chain(*self._dict.values()):
             yield construct
 
-    def __getitem__(self, key: ConstructSymbol) -> Any:
+    def __getitem__(self, key: ConstructRef) -> Any:
 
-        return self._dict[key.ctype][key]
+        if isinstance(key, tuple):
+            if len(key) == 0:
+                raise KeyError("Key sequence must be of length 1 at least.")
+            elif len(key) == 1:
+                return self[key[0]]
+            else:
+                # If Catch & output more informative error here? - Can
+                head = self[key[0]]
+                return head[key[1:]] 
+        else:
+            return self._dict[key.ctype][key]
 
     def __delitem__(self, key: ConstructSymbol) -> None:
 
+        # Should this be recursive like getitem? - Can
         self.drop_links(construct=key)
         del self._dict[key.ctype][key]
 
