@@ -40,18 +40,16 @@ alice = Structure(
     name=agent("Alice"),
     cycle=AgentCycle(),
     assets=Assets(chunks=Chunks()),
-    updaters={
-        "chunk_adder": ChunkAdder(
-            propagator=MaxNode(
-                MatchSpec(
-                    ctype=ConstructType.flow_xt,
-                    constructs={buffer("Stimulus")}
-                ),
+    updater=ChunkAdder(
+        propagator=MaxNode(
+            MatchSpec(
+                ctype=ConstructType.flow_xt,
+                constructs={buffer("Stimulus")}
             ),
-            response=response("Extractor"),
-            subsystem=subsystem("NACS")
-        )
-    }
+        ),
+        response=response("Extractor"),
+        subsystem=subsystem("NACS")
+    )
 )
 
 stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())

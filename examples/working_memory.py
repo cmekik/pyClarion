@@ -5,18 +5,16 @@ alice = Structure(
     name=agent("Alice"),
     cycle=AgentCycle(),
     assets=Assets(chunks=Chunks()),
-    updaters={
-        "chunk_adder": ChunkAdder(
-            propagator=MaxNode(
-                MatchSpec(
-                    ctype=ConstructType.flow_xt,
-                    constructs={buffer("Stimulus")}
-                ),
+    updater=ChunkAdder(
+        propagator=MaxNode(
+            MatchSpec(
+                ctype=ConstructType.flow_xt,
+                constructs={buffer("Stimulus")}
             ),
-            response=response("Extractor"),
-            subsystem=subsystem("NACS")
-        )
-    }
+        ),
+        response=response("Extractor"),
+        subsystem=subsystem("NACS")
+    )
 )
 
 wmud = WMUpdater(
@@ -43,7 +41,7 @@ wm = Construct(
         dims=("wm-state", "wm-exclude"),
         matches=MatchSpec(constructs={subsystem("ACS"), subsystem("NACS")}),
     ),
-    updaters={"main": wmud}
+    updater=wmud
 )
 alice.add(wm)
 
@@ -179,7 +177,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 # toggle empty (should do nothing)
 print("Toggle (Empty WM; does nothing)")
@@ -189,7 +187,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 # single write
 print("Single Write")
@@ -203,7 +201,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 
 # reset
@@ -218,7 +216,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 
 # double write
@@ -234,7 +232,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 # Toggle Slot 1
 print("Toggle Slot 1")
@@ -244,7 +242,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 
 # single delete
@@ -255,7 +253,7 @@ alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
 alice.propagate(args={})
-print(wm.output.pstr())
+print(wm.output)
 
 
 ##################

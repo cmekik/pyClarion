@@ -2,41 +2,29 @@
 
 
 __all__ = [
-    "Realizer", "Construct", "Structure", "Updater", "UpdaterArg", "PullFunc", 
-    "PullFuncs", "ConstructRef"
+    "Realizer", "Construct", "Structure", "Updater", "PullFunc", "PullFuncs", 
+    "ConstructRef"
 ]
 
 
-from pyClarion.base.symbols import ConstructType, ConstructSymbol, MatchSpec
+from pyClarion.base.symbols import ConstructType, ConstructSymbol
 from pyClarion.base.propagators import Propagator, Cycle, Assets
 from itertools import combinations, chain
-from collections import ChainMap, OrderedDict
-from types import MappingProxyType, SimpleNamespace
+from types import MappingProxyType
 from typing import (
-    TypeVar, Union, Container, Tuple, Dict, List, Callable, Hashable, Sequence, 
-    Generic, Any, ClassVar, Optional, Type, Text, Iterator, Mapping,
-    cast, no_type_check
+    TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
+    Text, Iterator, Mapping,
 )
-from abc import abstractmethod
 
-
-Rt = TypeVar('Rt') # type variable representing a construct realizer 
 
 ConstructRef = Union[ConstructSymbol, Tuple[ConstructSymbol, ...]]
 PullFunc = Callable[[], Any]
 PullFuncs = Dict[ConstructSymbol, PullFunc]
-
-# Could type annotations for updaters be improved? - Can
-Updater = Callable[[Rt], None] 
-# updater may be a pure ordered dict, or a list of identifier-updater pairs
-UpdaterArg = Union[
-    # This should be an OrderedDict, but in 3.6 generic ordered dicts are not 
-    # supported (only python 3.7 and up).
-    Dict[Hashable, Updater[Rt]], 
-    Sequence[Tuple[Hashable, Updater[Rt]]]
-]
+Rt = TypeVar('Rt', bound="Realizer") 
+Updater = Callable[[Rt], None] # Could this be improved? - Can
 
 
+R = TypeVar("R", bound="Realizer")
 class Realizer(object):
     """
     Base class for construct realizers.
@@ -48,18 +36,15 @@ class Realizer(object):
     Message passing among constructs follows a pull-based architecture. 
     """
 
-    Self = TypeVar("Self", bound="Realizer")
 
     def __init__(
-        self: Self, 
-        name: Hashable, 
-        updaters: UpdaterArg[Self] = None
+        self: R, name: ConstructSymbol, updater: Updater[R] = None
     ) -> None:
         """
         Initialize a new construct realizer.
         
         :param name: Identifier for construct.  
-        :param updaters: A dict-like object containing procedures for updating 
+        :param updater: A dict-like object containing procedures for updating 
             construct knowledge.
         """
 
@@ -68,15 +53,13 @@ class Realizer(object):
                 "Agrument 'name' must be of type ConstructSymbol"
                 "got {} instead.".format(type(name))
             )
+
         self._construct = name
         self._inputs: PullFuncs = {}
         self._output: Optional[Any] = None
 
-        # This doesn't seem very safe...
-        self.updaters: OrderedDict[Hashable, Updater[Any]]
-        if updaters is None: self.updaters = OrderedDict()
-        elif isinstance(updaters, OrderedDict): self.updaters = updaters
-        else: self.updaters = OrderedDict(updaters)
+        self.updater = updater
+
 
     def __repr__(self) -> Text:
 
@@ -92,11 +75,11 @@ class Realizer(object):
 
         raise NotImplementedError()
 
-    def update(self) -> None:
+    def update(self: R) -> None:
         """Execute learning routines."""
         
-        for updater in self.updaters.values():
-            updater(self)
+        if self.updater is not None:
+            self.updater(self)
 
     def accepts(self, source: ConstructSymbol) -> bool:
         """Return true if self pulls information from source."""
@@ -159,13 +142,10 @@ class Realizer(object):
     def output(self) -> Any:
         """"Current output of self."""
 
-        # Emit output if available.
         if self._output is not None:
             return self._output
-        # Upon failure, throw output error.
         else:
-            cls = type(self)
-            repr_ = repr(self)
+            cls, repr_ = type(self), repr(self)
             raise cls.OutputError('Output of {} not defined.'.format(repr_))
 
     class OutputError(Exception):
@@ -175,6 +155,7 @@ class Realizer(object):
 
 # Autocomplete only works properly when bound is passed as str. Why? - Can
 Pt = TypeVar("Pt", bound="Propagator")
+C = TypeVar("C", bound="Construct")
 class Construct(Realizer, Generic[Pt]):
     """
     Represents basic constructs.
@@ -184,13 +165,11 @@ class Construct(Realizer, Generic[Pt]):
     responsible for defining the behaviour of a single construct.
     """
 
-    Self = TypeVar("Self", bound="Construct")
-
     def __init__(
-        self: Self,
-        name: Hashable,
+        self: C,
+        name: ConstructSymbol,
         propagator: Pt,
-        updaters: UpdaterArg[Self] = None,
+        updater: Updater[C] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -199,14 +178,11 @@ class Construct(Realizer, Generic[Pt]):
         :param propagator: Activation processor associated with client 
             construct. Propagates strengths based on inputs from linked 
             constructs.
-        :param updaters: A dict-like object containing procedures for updating 
+        :param updater: A dict-like object containing procedures for updating 
             construct knowledge.
         """
 
-        super().__init__(
-            name=name, 
-            updaters=updaters
-        )
+        super().__init__(name=name, updater=updater)
         self.propagator = propagator
 
     def accepts(self, source: ConstructSymbol) -> bool:
@@ -234,30 +210,27 @@ class Construct(Realizer, Generic[Pt]):
         try:
             return super().output
         except super().OutputError:
-            # Try to construct empty output datastructure, if constructor is 
-            # available.
-            self._output = self.propagator.make_packet()
+            self._output = self.propagator.emit() # Default/empty output.
             return self._output
 
 
 Ct = TypeVar("Ct", bound="Cycle")
+S = TypeVar("S", bound="Structure")
 class Structure(Realizer, Generic[Ct]):
     """Base class for container construct realizers."""
 
-    Self = TypeVar("Self", bound="Structure")
-
     def __init__(
-        self: Self, 
-        name: Hashable, 
+        self: S, 
+        name: ConstructSymbol, 
         cycle: Ct,
         assets: Any = None,
-        updaters: UpdaterArg[Self] = None,
+        updater: Updater[S] = None,
     ) -> None:
         """
         Initialize a new container realizer.
         """
 
-        super().__init__(name=name, updaters=updaters)
+        super().__init__(name=name, updater=updater)
         self._dict: Dict = {}
 
         self.cycle = cycle
@@ -306,7 +279,7 @@ class Structure(Realizer, Generic[Ct]):
 
         return self.cycle.expects(construct=source)
 
-    def propagate(self: Self, args: Dict = None) -> None:
+    def propagate(self, args: Dict = None) -> None:
 
         args = args or dict()
         for ctype in self.cycle.sequence:
@@ -324,7 +297,7 @@ class Structure(Realizer, Generic[Ct]):
         else:
             data = None
 
-        packet = self.cycle.make_packet(data)
+        packet = self.cycle.emit(data)
         self.update_output(packet)
 
     def update(self):
@@ -361,11 +334,7 @@ class Structure(Realizer, Generic[Ct]):
     def clear(self):
         """Remove all constructs in self."""
 
-        # make a copy of self.keys() first so as not to modify self during 
-        # iteration over self.
-        keys = tuple(self.keys())
-        for construct in keys:
-            del self[construct]
+        self._dict.clear()
 
     def keys(self, ctype: ConstructType = None) -> Iterator[ConstructSymbol]:
         """Return iterator over all construct symbols in self."""
@@ -375,9 +344,7 @@ class Structure(Realizer, Generic[Ct]):
                 for construct in self._dict[ct]:
                     yield construct
 
-    def values(
-        self, ctype: ConstructType = None
-    ) -> Iterator[Realizer]:
+    def values(self, ctype: ConstructType = None) -> Iterator[Realizer]:
         """Return iterator over all construct realizers in self."""
 
         for ct in self._dict:
@@ -490,7 +457,6 @@ class Structure(Realizer, Generic[Ct]):
         """Add any acceptable links associated with a new realizer."""
 
         target = self[construct]
-        # target._inputs.clear() # For case where connectivity is narrowed.
         for c, realizer in self.items():
             if realizer.accepts(target.construct):
                 realizer.watch(target.construct, target.view)
@@ -514,7 +480,5 @@ class Structure(Realizer, Generic[Ct]):
         try:
             return super().output
         except super().OutputError:
-            # Try to construct empty output datastructure, if constructor is 
-            # available.
-            self._output = self.cycle.make_packet()
+            self._output = self.cycle.emit()
             return self._output
