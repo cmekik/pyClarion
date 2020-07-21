@@ -382,7 +382,7 @@ class ChunkAdder(object):
 
     def __init__(
         self, 
-        propagator, 
+        emitter, 
         prefix,
         terminus, 
         subsystem=None, 
@@ -406,7 +406,7 @@ class ChunkAdder(object):
         """
 
         self.constructor = ChunkConstructor(op=op)
-        self.propagator = propagator
+        self.emitter = emitter
         self.prefix = prefix
         self.count = count(start=1, step=1)
 
@@ -447,6 +447,6 @@ class ChunkAdder(object):
                 client.add(
                     Construct(
                         name=ch,
-                        propagator=copy(self.propagator)
+                        emitter=copy(self.emitter)
                     )
                 )

@@ -48,7 +48,7 @@ import pprint
 
 alice = Structure(
     name=agent("Alice"),
-    cycle=AgentCycle(),
+    emitter=AgentCycle(),
     assets=Assets(chunks=Chunks())
 )
 
@@ -82,7 +82,7 @@ alice = Structure(
 
 # We begin by adding the stimulus component to the model. 
 
-stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
 alice.add(stimulus)
 
 # We represent the stimulus with a buffer construct, which is a top-level 
@@ -104,7 +104,7 @@ alice.add(stimulus)
 
 nacs = Structure(
     name=subsystem("NACS"),
-    cycle=NACSCycle(matches={buffer("Stimulus")}),
+    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")})),
     assets=Assets(rules=Rules())
 )
 
@@ -159,15 +159,15 @@ alice.add(nacs)
 nacs.add(
     Construct(
         name=flow_tt("Associations"),
-        propagator=AssociativeRules(rules=nacs.assets.rules) 
+        emitter=AssociativeRules(rules=nacs.assets.rules) 
     ),
     Construct(
         name=flow_bt("Main"), 
-        propagator=BottomUp(chunks=alice.assets.chunks) 
+        emitter=BottomUp(chunks=alice.assets.chunks) 
     ),
     Construct(
         name=flow_tb("Main"), 
-        propagator=TopDown(chunks=alice.assets.chunks) 
+        emitter=TopDown(chunks=alice.assets.chunks) 
     )
 )
 
@@ -186,7 +186,7 @@ nacs.add(
 nacs.add(
     Construct(
         name=terminus("Main"),
-        propagator=FilteredR(
+        emitter=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)
@@ -227,7 +227,7 @@ nacs.add(
 fnodes = [
     Construct(
         name=feature(dim, val), 
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(ctype=ConstructType.flow_xb)
         )
     ) for dim, val in [
@@ -266,7 +266,7 @@ nacs.add(*fnodes)
 cnodes = [
     Construct(
         name=chunk(name),
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(
                 ctype=ConstructType.flow_xt | ConstructType.buffer
             )
@@ -352,9 +352,7 @@ alice.assets.chunks.link( # type: ignore
 # Alice performs one NACS cycle. 
 
 alice.propagate(
-    args={
-        buffer("Stimulus"): {"stimulus": {chunk("APPLE"): 1.}}
-    }
+    kwds={buffer("Stimulus"): {"stimulus": {chunk("APPLE"): 1.}}}
 )
 
 # To see what came to Alice's mind, we can simply inspect the output state of 
@@ -375,7 +373,7 @@ pprint.pprint(alice.output)
 # demonstration purposes. Its use in practice will depend on the simulation 
 # requirements.
 
-alice.clear_output()
+alice.clear_outputs()
 
 
 ##################

@@ -2,9 +2,9 @@
 
 
 __all__ = [
-    "ConstructType", "Symbol", "MatchSet","feature", "chunk", "flow_in", 
-    "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", "buffer", 
-    "subsystem", "agent"
+    "ConstructType", "Symbol", "MatchSet", "ConstructRef", "feature", "chunk", 
+    "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", 
+    "buffer", "subsystem", "agent"
 ]
 
 
@@ -12,6 +12,10 @@ from enum import Flag, auto
 from typing import (
     Optional, Hashable, Tuple, Union, Iterable, Callable, MutableSet
 )
+
+
+# Address for a construct w/in a simulated agent or component.
+ConstructRef = Union["Symbol", Tuple["Symbol", ...]]
 
 
 #########################

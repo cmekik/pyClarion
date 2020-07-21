@@ -39,10 +39,10 @@ import pprint
 
 alice = Structure(
     name=agent("Alice"),
-    cycle=AgentCycle(),
+    emitter=AgentCycle(),
     assets=Assets(chunks=Chunks()),
     updater=ChunkAdder(
-        propagator=MaxNode(
+        emitter=MaxNode(
             MatchSet(
                 ctype=ConstructType.flow_xt,
                 constructs={buffer("Stimulus")}
@@ -54,7 +54,7 @@ alice = Structure(
     )
 )
 
-stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
 alice.add(stimulus)
 
 # For this example, we create a simple NACS w/ horizontal flows (no rules, no 
@@ -62,18 +62,18 @@ alice.add(stimulus)
 
 nacs = Structure(
     name=subsystem("NACS"),
-    cycle=NACSCycle(matches={buffer("Stimulus")})
+    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")}))
 )
 alice.add(nacs)
 
 nacs.add(
     Construct(
         name=flow_bt("Main"), 
-        propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
+        emitter=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
     Construct(
         name=flow_tb("Main"), 
-        propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
+        emitter=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
 
@@ -87,7 +87,7 @@ nacs.add(
 fnodes = [
     Construct(
         name=feature(dim, val),  
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={buffer("Stimulus")}
@@ -116,7 +116,7 @@ nacs.add(*fnodes)
 nacs.add(
     Construct(
         name=terminus("bl-state"),
-        propagator=ThresholdSelector(threshold=0.9)
+        emitter=ThresholdSelector(threshold=0.9)
     )
 )
 
@@ -151,10 +151,10 @@ stimulus_states = [
 
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
-    alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
+    alice.propagate(kwds={buffer("Stimulus"): {"stimulus": stimulus_state}})
     alice.update()
     pprint.pprint(alice.output)
-    alice.clear_output()
+    alice.clear_outputs()
 
 print("Learned Chunks:")
 alice.assets.chunks.pprint()

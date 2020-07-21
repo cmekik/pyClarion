@@ -183,16 +183,16 @@ class WMUpdater(object):
 
     def __call__(self, realizer):
 
-        if not isinstance(realizer.propagator, WorkingMemory):
+        if not isinstance(realizer.emitter, WorkingMemory):
             raise TypeError(
-                "Expected propagator of type WorkingMemory," 
+                "Expected emitter of type WorkingMemory," 
                 "got {} instead.".format(type(realizer))
             )
-        if len(self.write_dims) != len(realizer.propagator.slots):
+        if len(self.write_dims) != len(realizer.emitter.slots):
             raise TypeError(
             "Write dimensions must match slots in number."
             ) 
-        if len(self.switch_dims) != len(realizer.propagator.slots):
+        if len(self.switch_dims) != len(realizer.emitter.slots):
             raise TypeError(
             "Switch dimensions must match slots in number."
             ) 
@@ -211,28 +211,28 @@ class WMUpdater(object):
         if self.reset_dim in cmds:
             val = cmds[self.reset_dim]
             if self.reset_vals[val] == True:
-                realizer.propagator.reset()
+                realizer.emitter.reset()
 
         # write to any slots
         for slot, dim in enumerate(self.write_dims):
             if dim in cmds:
                 val = cmds[dim]
                 if val == self.write_clear:
-                    realizer.propagator.clear(slot)
+                    realizer.emitter.clear(slot)
                 elif val == self.write_standby:
                     pass
                 else:
                     channel = self.write_channels[val]
                     data_packet = source[channel]
                     nodes = self.get_nodes(packet=data_packet)
-                    realizer.propagator.write(slot, nodes)
+                    realizer.emitter.write(slot, nodes)
 
         # toggle any switches
         for slot, dim in enumerate(self.switch_dims):
             if dim in cmds:
                 val = cmds[dim]
                 if self.switch_vals[val] == True:
-                    realizer.propagator.toggle(slot)
+                    realizer.emitter.toggle(slot)
    
     def get_nodes(self, packet):
         

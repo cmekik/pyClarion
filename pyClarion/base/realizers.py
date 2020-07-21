@@ -1,31 +1,32 @@
 """Provides tools for defining the behavior of simulated constructs."""
 
 
-__all__ = [
-    "Realizer", "Construct", "Structure", "Updater", "PullFunc", "PullFuncs", 
-    "ConstructRef"
-]
+__all__ = ["Realizer", "Construct", "Structure"]
 
 
-from pyClarion.base.symbols import ConstructType, Symbol
-from pyClarion.base.propagators import Propagator, Cycle, Assets
+from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef
+from pyClarion.base.propagators import Emitter, Propagator, Cycle, Assets
 from itertools import combinations, chain
 from types import MappingProxyType
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Mapping,
+    Text, Iterator, Mapping, cast
 )
 
 
-ConstructRef = Union[Symbol, Tuple[Symbol, ...]]
 PullFunc = Callable[[], Any]
 PullFuncs = Dict[Symbol, PullFunc]
 Rt = TypeVar('Rt', bound="Realizer") 
 Updater = Callable[[Rt], None] # Could this be improved? - Can
+StructureItem = Tuple[Symbol, "Realizer"]
 
 
+# Autocomplete only works properly when bound is passed as str. Why? - Can
+# Et = TypeVar("Et", bound="Emitter[It, Ot]") is more desirable and similar 
+# for Pt & Ct below; but, this is not supported as of 2020-07-20. - Can
+Et = TypeVar("Et", bound="Emitter")
 R = TypeVar("R", bound="Realizer")
-class Realizer(object):
+class Realizer(Generic[Et]):
     """
     Base class for construct realizers.
 
@@ -36,16 +37,14 @@ class Realizer(object):
     Message passing among constructs follows a pull-based architecture. 
     """
 
-
     def __init__(
-        self: R, name: Symbol, updater: Updater[R] = None
+        self: R, name: Symbol, emitter: Et, updater: Updater[R] = None
     ) -> None:
         """
         Initialize a new construct realizer.
         
         :param name: Identifier for construct.  
-        :param updater: A dict-like object containing procedures for updating 
-            construct knowledge.
+        :param updater: Procedure for updating persistent construct data.
         """
 
         if not isinstance(name, Symbol):
@@ -58,37 +57,34 @@ class Realizer(object):
         self._inputs: PullFuncs = {}
         self._output: Optional[Any] = None
 
+        self.emitter = emitter
         self.updater = updater
-
 
     def __repr__(self) -> Text:
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
 
-    def propagate(self, args: Dict = None) -> None:
+    def propagate(self, kwds: Dict = None) -> None:
         """
         Propagate activations.
 
-        :param args: A dict containing optional arguments for self and 
-            subordinate constructs (if any).
+        :param kwds: Keyword arguments for propagation procedure.
         """
 
         raise NotImplementedError()
 
     def update(self: R) -> None:
-        """Execute learning routines."""
+        """Update persistent data associated with self."""
         
         if self.updater is not None:
             self.updater(self)
 
     def accepts(self, source: Symbol) -> bool:
-        """Return true if self pulls information from source."""
+        """Return true iff self pulls information from source."""
 
-        raise NotImplementedError()
+        return self.emitter.expects(source)
 
-    def watch(
-        self, construct: Symbol, callback: PullFunc
-    ) -> None:
+    def watch(self, construct: Symbol, callback: PullFunc) -> None:
         """
         Set given construct as an input to self.
         
@@ -103,10 +99,12 @@ class Realizer(object):
     def drop(self, construct: Symbol) -> None:
         """Disconnect given construct from self."""
 
-        if construct in self._inputs:
+        try:
             del self._inputs[construct]
+        except KeyError:
+            pass
 
-    def drop_all(self) -> None:
+    def clear_inputs(self) -> None:
         """Disconnect self from all linked constructs."""
 
         self._inputs.clear()
@@ -115,16 +113,6 @@ class Realizer(object):
         """Return current output of self."""
         
         return self.output
-
-    def update_output(self, output: Any) -> None:
-        """Update output of self."""
-
-        self._output = output
-
-    def clear_output(self) -> None:
-        """Clear output."""
-
-        self._output = None
 
     @property
     def construct(self) -> Symbol:
@@ -145,30 +133,35 @@ class Realizer(object):
         if self._output is not None:
             return self._output
         else:
-            cls, repr_ = type(self), repr(self)
-            raise cls.OutputError('Output of {} not defined.'.format(repr_))
+            self._output = self.emitter.emit() # Default/empty output.
+            return self._output
 
-    class OutputError(Exception):
-        """Raised when a realizer has no output"""
-        pass
+    @output.setter
+    def output(self, output: Any) -> None:
+
+        self._output = output
+
+    @output.deleter
+    def output(self) -> None:
+        
+        self._output = None
 
 
-# Autocomplete only works properly when bound is passed as str. Why? - Can
 Pt = TypeVar("Pt", bound="Propagator")
 C = TypeVar("C", bound="Construct")
-class Construct(Realizer, Generic[Pt]):
+class Construct(Realizer[Pt]):
     """
-    Represents basic constructs.
+    A basic construct.
     
-    `Construct` objects are leaves in the construct realizer containment 
-    hierarchy. That is to say they contain no other realizers and are generally 
-    responsible for defining the behaviour of a single construct.
+    Responsible for defining the behaviour of the lowest-level constructs such 
+    as individual nodes, bottom level networks, top level rule databases, 
+    subsystem output terminals, short term memory buffers and so on.
     """
 
     def __init__(
         self: C,
         name: Symbol,
-        propagator: Pt,
+        emitter: Pt,
         updater: Updater[C] = None,
     ) -> None:
         """
@@ -182,58 +175,33 @@ class Construct(Realizer, Generic[Pt]):
             construct knowledge.
         """
 
-        super().__init__(name=name, updater=updater)
-        self.propagator = propagator
+        super().__init__(name=name, emitter=emitter, updater=updater)
 
-    def accepts(self, source: Symbol) -> bool:
-        """
-        Return true if self pulls information from source.
-        
-        Self is deemed to pull information from source iff self.propagator 
-        expects information from source.
-        """
-
-        return self.propagator.expects(construct=source)
-
-    def propagate(self, args: Dict = None) -> None:
+    def propagate(self, kwds: Dict = None) -> None:
         """Update output of self with result of propagator on current input."""
 
         inputs = self.inputs
-        args = args or dict()
-        output = self.propagator(self.construct, inputs, **args)
-        self.update_output(output)
-
-    @property
-    def output(self) -> Any:
-        """"Current output of self."""
-
-        try:
-            return super().output
-        except super().OutputError:
-            self._output = self.propagator.emit() # Default/empty output.
-            return self._output
+        kwds = kwds or dict()
+        self.output = self.emitter(self.construct, inputs, **kwds)
 
 
 Ct = TypeVar("Ct", bound="Cycle")
 S = TypeVar("S", bound="Structure")
-class Structure(Realizer, Generic[Ct]):
-    """Base class for container construct realizers."""
+class Structure(Realizer[Ct]):
+    """A composite construct."""
 
     def __init__(
         self: S, 
         name: Symbol, 
-        cycle: Ct,
+        emitter: Ct,
         assets: Any = None,
         updater: Updater[S] = None,
     ) -> None:
-        """
-        Initialize a new container realizer.
-        """
+        """Initialize a new Structure instance."""
 
-        super().__init__(name=name, updater=updater)
+        super().__init__(name=name, emitter=emitter, updater=updater)
+        
         self._dict: Dict = {}
-
-        self.cycle = cycle
         self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructRef) -> bool:
@@ -269,43 +237,23 @@ class Structure(Realizer, Generic[Ct]):
         self.drop_links(construct=key)
         del self._dict[key.ctype][key]
 
-    def accepts(self, source: Symbol) -> bool:
-        """
-        Return true if self pulls information from source.
-        
-        Self is deemed to pull information from source iff self.cycle expects 
-        information from source.
-        """
+    def propagate(self, kwds: Dict = None) -> None:
 
-        return self.cycle.expects(construct=source)
-
-    def propagate(self, args: Dict = None) -> None:
-
-        args = args or dict()
-        for ctype in self.cycle.sequence:
+        kwds = kwds or dict()
+        for ctype in self.emitter.sequence:
             for c in self.values(ctype=ctype):
-                c.propagate(args=args.get(c.construct))
+                c.propagate(kwds=kwds.get(c.construct))
 
-        ctype = self.cycle.output
+        ctype = self.emitter.output
         data = {sym: c.output for sym, c in self.items(ctype=ctype)}
-        output = self.cycle.emit(data)
-        self.update_output(output)
+        self.output = self.emitter.emit(data)
 
     def update(self):
-        """
-        Execute any knowledge updates in self and all members.
-        
-        Issues update calls to each updater attached to self.  
-        """
+        """Update persistent data in self and all members."""
 
         super().update()
         for realizer in self.values():
             realizer.update()
-
-    def execute(self) -> None:
-        """Execute currently selected actions."""
-
-        raise NotImplementedError()
 
     def add(self, *realizers: Realizer) -> None:
         """Add realizers to self."""
@@ -343,9 +291,7 @@ class Structure(Realizer, Generic[Ct]):
                 for realizer in self._dict[ct].values():
                     yield realizer
 
-    def items(
-        self, ctype: ConstructType = None
-    ) -> Iterator[Tuple[Symbol, Realizer]]:
+    def items(self, ctype: ConstructType = None) -> Iterator[StructureItem]:
         """Return iterator over all symbol, realizer pairs in self."""
 
         for ct in self._dict:
@@ -353,14 +299,8 @@ class Structure(Realizer, Generic[Ct]):
                 for construct, realizer in self._dict[ct].items():
                     yield construct, realizer
 
-    def watch(
-        self, construct: Symbol, callback: PullFunc
-    ) -> None:
-        """
-        Add construct as an input to self. 
-        
-        Also adds construct as input to any interested construct in self.
-        """
+    def watch(self, construct: Symbol, callback: PullFunc) -> None:
+        """Add construct as an input to self and any accepting members."""
 
         super().watch(construct, callback)
         for realizer in self.values():
@@ -368,84 +308,22 @@ class Structure(Realizer, Generic[Ct]):
                 realizer.watch(construct, callback)
 
     def drop(self, construct: Symbol) -> None:
-        """
-        Remove construct as an input to self. 
-        
-        Also removes construct as an input from any listening member in self.
-        """
+        """Remove construct as an input to self and any accepting members."""
 
         super().drop(construct)
         for realizer in self.values():
-            if realizer.accepts(construct):
-                realizer.drop(construct)
+            realizer.drop(construct)
 
-    def drop_all(self) -> None:
-        """
-        Remove all inputs to self. 
-        
-        Also removes all inputs to self from any constructs in self that may be 
-        listening to them.
-        """
+    def clear_inputs(self) -> None:
+        """Remove all inputs to self from self and any accepting members."""
 
         for construct in self._inputs:
             for realizer in self.values():
-                if realizer.accepts(construct):
-                    realizer.drop(construct)
-        super().drop_all()           
-
-    def weave(self) -> None:
-        """
-        Add any acceptable links among constructs in self.
-        
-        A link is considered acceptable by a member construct if 
-        member.accepts() returns True.
-
-        Will also add links from inputs to self to any accepting member 
-        construct.
-        """
-
-        # pairwise links
-        for realizer1, realizer2 in combinations(self.values(), 2):
-            if realizer1.accepts(realizer2.construct):
-                realizer1.watch(realizer2.construct, realizer2.view)
-            if realizer2.accepts(realizer1.construct):
-                realizer2.watch(realizer1.construct, realizer1.view)
-        # links to subsystem input buffers
-        for construct, callback in self._inputs.items():
-            for realizer in self.values():
-                if realizer.accepts(construct):
-                    realizer.watch(construct, callback)
-        for realizer in self.values():
-            if isinstance(realizer, Structure):
-                realizer.weave() 
-
-    def unweave(self) -> None:
-        """
-        Remove all links to and among constructs in self.
-        
-        Will also remove any links from inputs to self to member constructs.
-        """
-
-        for realizer in self.values():
-            realizer.drop_all()
-            if isinstance(realizer, Structure):
-                realizer.unweave()
-
-    def reweave(self) -> None:
-        """Bring links among constructs in compliance with current specs."""
-
-        self.unweave()
-        self.weave()
-
-    def clear_output(self) -> None:
-        """Clear output of self and all members."""
-
-        self._output = None
-        for realizer in self.values():
-            realizer.clear_output()
+                realizer.drop(construct)
+        super().clear_inputs()           
 
     def update_links(self, construct: Symbol) -> None:
-        """Add any acceptable links associated with a new realizer."""
+        """Add any acceptable links associated with construct."""
 
         target = self[construct]
         for c, realizer in self.items():
@@ -458,18 +336,34 @@ class Structure(Realizer, Generic[Ct]):
                 target.watch(c, callback)
 
     def drop_links(self, construct: Symbol) -> None:
-        """Remove construct from inputs of any accepting member constructs."""
+        """Remove any existing links from construct to any member."""
 
         for realizer in self.values():
-            if realizer.accepts(construct):
-                realizer.drop(construct)
+            realizer.drop(construct)
 
-    @property
-    def output(self) -> Any:
-        """"Current output of self."""
+    def clear_links(self) -> None:
+        """Remove all links to, among, and within all members of self."""
 
-        try:
-            return super().output
-        except super().OutputError:
-            self._output = self.cycle.emit()
-            return self._output
+        for realizer in self.values():
+            realizer.clear_inputs()
+            if isinstance(realizer, Structure):
+                realizer.clear_links()
+
+    def reweave(self) -> None:
+        """Recompute all links to, among, and within constructs in self."""
+
+        self.clear_links()
+        for construct, realizer in self.items():
+            if isinstance(realizer, Structure):
+                realizer.reweave()
+            self.update_links(construct)
+
+    def clear_outputs(self) -> None:
+        """Clear output of self and all members."""
+
+        del self._output
+        for realizer in self.values():
+            if isinstance(realizer, Structure):
+                realizer.clear_outputs()
+            else:
+                del realizer.output

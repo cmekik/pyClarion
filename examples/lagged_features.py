@@ -9,12 +9,12 @@ import pprint
 
 alice = Structure(
     name=agent("Alice"),
-    cycle=AgentCycle()
+    emitter=AgentCycle()
 )
-stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
 nacs = Structure(
     name=subsystem("NACS"),
-    cycle=NACSCycle(matches={buffer("Stimulus")})
+    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")}))
 )
 
 alice.add(stimulus, nacs)
@@ -25,14 +25,14 @@ alice.add(stimulus, nacs)
 nacs.add(
     Construct(
         name=flow_in("Lag"), 
-        propagator=Lag(max_lag=1) 
+        emitter=Lag(max_lag=1) 
     ),
 )
 
 fnodes = [
     Construct(
         name=feature(dim, val), 
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(constructs={buffer("Stimulus"), flow_in("Lag")}) 
         )
     ) for dim, val in [
@@ -67,12 +67,12 @@ stimulus_states = [
 
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
-    alice.propagate(args={buffer("Stimulus"): {"stimulus": stimulus_state}})
+    alice.propagate(kwds={buffer("Stimulus"): {"stimulus": stimulus_state}})
     pprint.pprint(alice.output)
 
 # Clearing outputs during the presentation sequence will interrupt lagged 
 # feature computation.    
-alice.clear_output()
+alice.clear_outputs()
 
 ##################
 ### CONCLUSION ###

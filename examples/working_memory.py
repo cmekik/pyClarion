@@ -4,10 +4,10 @@ import pprint
 
 alice = Structure(
     name=agent("Alice"),
-    cycle=AgentCycle(),
+    emitter=AgentCycle(),
     assets=Assets(chunks=Chunks()),
     updater=ChunkAdder(
-        propagator=MaxNode(
+        emitter=MaxNode(
             MatchSet(
                 ctype=ConstructType.flow_xt,
                 constructs={buffer("Stimulus")}
@@ -38,7 +38,7 @@ wmud = WMUpdater(
 
 wm = Construct(
     name=buffer("WM"),
-    propagator=WorkingMemory(
+    emitter=WorkingMemory(
         slots=[0, 1, 2, 3, 4, 5, 6],
         dims=("wm-state", "wm-exclude"),
         matches=MatchSet(constructs={subsystem("ACS"), subsystem("NACS")}),
@@ -49,17 +49,21 @@ alice.add(wm)
 
 wm_defaults = Construct(
     name=buffer("WM-defaults"),
-    propagator=ConstantBuffer(strengths={f: 0.5 for f in wmud.defaults})
+    emitter=ConstantBuffer(strengths={f: 0.5 for f in wmud.defaults})
 )
 alice.add(wm_defaults)
 
-stimulus = Construct(name=buffer("Stimulus"), propagator=Stimulus())
+stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
 alice.add(stimulus)
 
 acs = Structure(
     name=subsystem("ACS"),
-    cycle=ACSCycle(
-        matches={buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")}
+    emitter=ACSCycle(
+        matches=MatchSet(
+            constructs={
+                buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")
+            }
+        )
     )
 )
 alice.add(acs)
@@ -69,7 +73,7 @@ alice.add(acs)
 fnodes = [
     Construct(
         name=f, 
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={
@@ -86,7 +90,7 @@ acs.add(*fnodes)
 acs.add(
     Construct(
         name=terminus("wm"),
-        propagator=ActionSelector(
+        emitter=ActionSelector(
             temperature=.01,
             dims=wmud.dims
         )
@@ -95,7 +99,7 @@ acs.add(
 
 nacs = Structure(
     name=subsystem("NACS"),
-    cycle=NACSCycle(
+    emitter=NACSCycle(
         matches={buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")}
     )
 )
@@ -104,18 +108,18 @@ alice.add(nacs)
 nacs.add(
     Construct(
         name=flow_bt("Main"), 
-        propagator=BottomUp(chunks=alice.assets.chunks) # type: ignore
+        emitter=BottomUp(chunks=alice.assets.chunks) # type: ignore
     ),
     Construct(
         name=flow_tb("Main"), 
-        propagator=TopDown(chunks=alice.assets.chunks) # type: ignore
+        emitter=TopDown(chunks=alice.assets.chunks) # type: ignore
     )
 )
 
 fnodes = [
     Construct(
         name=feature(dim, val), 
-        propagator=MaxNode(
+        emitter=MaxNode(
             matches=MatchSet(
                 ctype=ConstructType.flow_xb, 
                 constructs={buffer("Stimulus")}
@@ -144,7 +148,7 @@ nacs.add(*fnodes)
 nacs.add(
     Construct(
         name=terminus("retrieval"),
-        propagator=FilteredR(
+        emitter=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)
@@ -153,7 +157,7 @@ nacs.add(
     ),
     Construct(
         name=terminus("bl-state"),
-        propagator=ThresholdSelector(threshold=0.9)
+        emitter=ThresholdSelector(threshold=0.9)
     )
 )
 
@@ -171,20 +175,20 @@ d = {
     feature("price", "expensive"): 1.0,
 }
 
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 # toggle empty (should do nothing)
 print("Toggle (Empty WM; does nothing)")
 
 d = {feature("wm-s1", "toggle"): 1.0}
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 # single write
@@ -195,10 +199,10 @@ d = {
     feature("price", "expensive"): 1.0,
     feature("wm-w0", "retrieve"): 1.0
 }
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 
@@ -210,10 +214,10 @@ d = {
     feature("price", "expensive"): 1.0,
     feature("wm-reset", "release"): 1.0
 }
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 
@@ -226,20 +230,20 @@ d = {
     feature("wm-w0", "retrieve"): 1.0,
     feature("wm-w1", "extract"): 1.0
 }
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 # Toggle Slot 1
 print("Toggle Slot 1")
 
 d = {feature("wm-s1", "toggle"): 1.0}
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 
@@ -247,10 +251,10 @@ pprint.pprint(alice.output)
 print("Single Delete")
 
 d = {feature("wm-w1", "clear"): 1.0}
-alice.propagate(args={buffer("Stimulus"): {"stimulus": d}})
+alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 alice.update()
 
-alice.propagate(args={})
+alice.propagate(kwds={})
 pprint.pprint(alice.output)
 
 
