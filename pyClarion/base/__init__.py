@@ -9,5 +9,4 @@ To study the associated code follow this order:
 
 
 from pyClarion.base.symbols import *
-from pyClarion.base.propagators import *
 from pyClarion.base.realizers import *
