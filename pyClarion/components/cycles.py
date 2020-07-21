@@ -9,8 +9,10 @@ from types import MappingProxyType
 from typing import Dict, Mapping, Tuple
 
 
-class AgentCycle(Cycle[None, None]):
+class AgentCycle(Cycle[None, Mapping[Symbol, float]]):
     """Represents an agent activation cycle."""
+
+    output = ConstructType.buffer | ConstructType.subsystem
 
     def __init__(self):
 
@@ -21,8 +23,12 @@ class AgentCycle(Cycle[None, None]):
             ] 
         )
 
-    def emit(self, data: None = None) -> None:
-        pass
+    def emit(
+        self, data: Mapping[Symbol, float] = None
+    ) -> Mapping[Symbol, float]:
+
+        mapping = data if data is not None else dict()
+        return MappingProxyType(mapping=mapping)
 
 
 class CycleS(Cycle[Mapping[Symbol, float], Mapping[Symbol, float]]):

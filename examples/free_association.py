@@ -367,8 +367,8 @@ alice.propagate(
 # We can then simply print out a nicely formatted representation of the output 
 # using the subsystem_packet.pstr() method.
  
-print("Information returned by Alice's NACS upon presentation of 'APPLE':") 
-pprint.pprint(nacs.output)
+print("Alice's cognitive state upon presentation of 'APPLE':") 
+pprint.pprint(alice.output)
 
 # Finally, we clear the output so as not to contaminate any subsequent trials 
 # with persistent activations. This is an optional step, taken here for 
