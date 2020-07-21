@@ -12,9 +12,9 @@ Provides:
 
 
 from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
-from pyClarion.components.propagators import PropagatorA, PropagatorR
+from pyClarion.components.propagators import PropagatorA
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
-from typing import Mapping
+from typing import Mapping, Iterable
 from collections import namedtuple
 from statistics import mean
 from itertools import count
@@ -22,8 +22,7 @@ from copy import copy
 
 
 __all__ = [
-    "Chunks", "TopDown", "BottomUp", "ChunkConstructor", "ChunkExtractor", 
-    "ChunkAdder"
+    "Chunks", "TopDown", "BottomUp", "ChunkConstructor", "ChunkAdder"
 ]
 
 
@@ -342,56 +341,29 @@ class BottomUp(PropagatorA):
 class ChunkConstructor(object):
     """Constructs new chunks from feature strengths."""
 
-    def __init__(self, threshold, op="max"):
+    def __init__(self, op="max"):
         """
         Initialize a chunk constructor object.
 
         Collaborates with `Chunks` database.
 
         :param op: Default op for strength aggregation w/in dimensions.
-        :param subsystem: Target subsystem to be monitored. If None, it is 
-            assumed that the client realizer is the target subsystem.
         """
 
-        self.threshold = threshold
         self.op = op
 
-    def __call__(self, strengths: Mapping[Symbol, float]) -> dict:
+    def __call__(self, features: Iterable[Symbol]) -> dict:
         """Create candidate chunk forms based on given strengths and filter."""
 
-        eligible = (f for f, s in strengths.items() if s > self.threshold)
-        form = Chunks.update_form({}, *eligible, op=self.op) # weights?
+        for symbol in features:
+            if not symbol.ctype in ConstructType.feature:
+                raise TypeError(
+                    "Cannot construct chunk containing {}".format(symbol)
+                )
+
+        form = Chunks.update_form({}, *features, op=self.op) # weights?
         
         return form
-
-
-class ChunkExtractor(PropagatorR):
-    """Response propagator for extracting new chunks from the bottom level."""
-
-    def __init__(self, chunks, name, threshold, op="max", matches=None):
-
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.feature)  
-        super().__init__(matches=matches)
-
-        # Does not account for dimension weights; all weights set to 1.0
-        self.chunks = chunks
-        self.name = name
-        self.constructor = ChunkConstructor(threshold=threshold, op=op)
-        self.count = count(start=1, step=1)
-        
-    def call(self, construct, inputs, **kwds):
-
-        form = self.constructor(strengths=inputs)
-        matches_to_form = self.chunks.find_form(form)
-        if len(matches_to_form) == 0:
-            ch = chunk("{}-{}".format(self.name, next(self.count)))
-        elif len(matches_to_form) == 1:
-            ch = matches_to_form.pop()
-        else:
-            raise ValueError("Corrupt chunk database.")
-
-        return {ch}, {"defs": {ch: form}}  
 
 
 class ChunkAdder(object):
@@ -411,10 +383,11 @@ class ChunkAdder(object):
     def __init__(
         self, 
         propagator, 
+        prefix,
         terminus, 
         subsystem=None, 
         clients=None, 
-        return_added=False
+        op="max"
     ):
         """
         Initialize a new `ChunkAdder` instance.
@@ -428,39 +401,44 @@ class ChunkAdder(object):
         :param clients: Subsystem(s) to which new chunk nodes should be added. 
             If None, it will be assumed that the sole client is the realizer 
             housing this updater.
-        :param return_added: Whether to return the set of added chunks for 
-            possible subsequent processing.
+        :param prefix: Prefix added to created chunk names.
+        :param op: Chunk op.
         """
 
+        self.constructor = ChunkConstructor(op=op)
         self.propagator = propagator
+        self.prefix = prefix
+        self.count = count(start=1, step=1)
+
         self.terminus = terminus
         self.subsystem = subsystem
         self.clients = {subsystem} if clients is None else clients
 
     def __call__(self, realizer):
 
-        # This means that the updater must be placed at the same level as the 
-        # chunk db. Is this ok? - Can
         if not isinstance(realizer.assets.chunks, Chunks):
-            raise TypeError("Realizer must have a `chunks` asset of type Chunks.")
+            raise TypeError(
+                "Realizer must have a `chunks` asset of type Chunks."
+            )
 
-        db: Chunks = realizer.assets.chunks # this should be a `Chunks` object.
+        db: Chunks = realizer.assets.chunks
         subsystem = (
             realizer[self.subsystem] if self.subsystem is not None 
             else realizer
         )
 
-        defs = subsystem.output[self.terminus].data["defs"]
+        features = subsystem.output[self.terminus]
+        form = self.constructor(features=features)
+        chunks = db.find_form(form)
         added = set()
-        for ch, form in defs.items():
-            chunks = db.find_form(form)
-            if len(chunks) == 0:
-                db.set_chunk(ch, form)
-                added.add(ch)
-            elif len(chunks) == 1:
-                pass
-            else:
-                raise ValueError("Corrupt chunk database.")
+        if len(chunks) == 0:
+            ch = chunk("{}-{}".format(self.prefix, next(self.count)))
+            db.set_chunk(ch, form)
+            added.add(ch)
+        elif len(chunks) == 1:
+            pass
+        else:
+            raise ValueError("Corrupt chunk database.")
 
         clients = self.clients if self.clients is not None else (None,)
         for construct in clients:

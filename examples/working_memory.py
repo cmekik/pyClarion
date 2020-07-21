@@ -13,7 +13,8 @@ alice = Structure(
                 constructs={buffer("Stimulus")}
             ),
         ),
-        terminus=terminus("Extractor"),
+        prefix="bl-state",
+        terminus=terminus("bl-state"),
         subsystem=subsystem("NACS")
     )
 )
@@ -27,8 +28,8 @@ wmud = WMUpdater(
     write_clear="clear",
     write_standby="standby",
     write_channels={
-        "retrieve": terminus("Retriever"), 
-        "extract": terminus("Extractor")
+        "retrieve": terminus("retrieval"), 
+        "extract": terminus("bl-state")
     },
     switch_dims=["wm-s0", "wm-s1", "wm-s2", "wm-s3", "wm-s4", "wm-s5", "wm-s6"],
     switch_vals={"toggle": True, "standby": False},
@@ -142,7 +143,7 @@ nacs.add(*fnodes)
 
 nacs.add(
     Construct(
-        name=terminus("Retriever"),
+        name=terminus("retrieval"),
         propagator=FilteredR(
             base=BoltzmannSelector(
                 temperature=.1,
@@ -151,12 +152,8 @@ nacs.add(
             input_filter=buffer("Stimulus"))
     ),
     Construct(
-        name=terminus("Extractor"),
-        propagator=ChunkExtractor(
-            chunks=alice.assets.chunks,
-            name="state",
-            threshold=0.9
-        )
+        name=terminus("bl-state"),
+        propagator=ThresholdSelector(threshold=0.9)
     )
 )
 

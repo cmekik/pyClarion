@@ -236,19 +236,13 @@ class WMUpdater(object):
    
     def get_nodes(self, packet):
         
-        for ch in packet.selection:
-            yield ch
-            if self.chunks is not None:
-                form = self.chunks.get_form(ch)
-                for f in chain(*(d["values"] for d in form.values())):
-                    yield f
+        for node in packet:
+            yield node
 
     def parse_commands(self, packet):
 
-        raw_cmds = packet.selection
-
         # Filter irrelevant data
-        _cmds = set(f for f in raw_cmds if f in self.interface)
+        _cmds = set(f for f in packet if f in self.interface)
 
         # Validate cmds
         cmds = {}

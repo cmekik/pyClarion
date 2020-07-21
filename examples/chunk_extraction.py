@@ -48,7 +48,8 @@ alice = Structure(
                 constructs={buffer("Stimulus")}
             ),
         ),
-        terminus=terminus("Extractor"),
+        prefix="bl-state",
+        terminus=terminus("bl-state"),
         subsystem=subsystem("NACS")
     )
 )
@@ -114,12 +115,8 @@ nacs.add(*fnodes)
 
 nacs.add(
     Construct(
-        name=terminus("Extractor"),
-        propagator=ChunkExtractor(
-            chunks=alice.assets.chunks,
-            name="state",
-            threshold=0.9
-        ),
+        name=terminus("bl-state"),
+        propagator=ThresholdSelector(threshold=0.9)
     )
 )
 

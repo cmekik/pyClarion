@@ -2,19 +2,18 @@
 
 
 __all__ = [
-    "PropagatorN", "PropagatorA", "PropagatorR", "PropagatorB",
-    "MaxNode", "Lag", "ActionSelector", "BoltzmannSelector", "ConstantBuffer", 
-    "Stimulus", "FilteredA", "FilteredR"
+    "PropagatorN", "PropagatorA", "PropagatorT", "PropagatorB",
+    "MaxNode", "Lag", "ThresholdSelector", "ActionSelector", 
+    "BoltzmannSelector", "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR"
 ]
 
 
 from pyClarion.base import (
-    ConstructType, Symbol,  MatchSet, chunk, feature,
-    Propagator
+    ConstructType, Symbol,  MatchSet, Propagator, chunk, feature,
 )
 from pyClarion.utils.funcs import (
-    max_strength, simple_junction, boltzmann_distribution, select, 
-    multiplicative_filter, scale_strengths, linear_rule_strength
+    max_strength, boltzmann_distribution, select, multiplicative_filter, 
+    scale_strengths, linear_rule_strength
 )
 from typing import Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union
 from types import MappingProxyType
@@ -56,38 +55,17 @@ class PropagatorA(Propagator[float, Mapping[Symbol, float]]):
         return MappingProxyType(mapping=data)
 
 
-class Response(NamedTuple):
-    """
-    Response data.
-    
-    Selection is a set of constructs (typically chunks or features) selected as 
-    output. Data is a handle for optional metadata associated w/ the terminus 
-    (e.g., ICLs, constructed chunks etc.).
-    """
-
-    selection: FrozenSet[Symbol]
-    data: Mapping
-
-
-class PropagatorR(Propagator[float, Response]):
+class PropagatorT(Propagator[float, FrozenSet[Symbol]]):
     """
     Propagator for subsystem termini.
 
     Maps activations to decisions.
     """
 
-    def emit(self, data: Union[Tuple[Set, Mapping], Set] = None) -> Response:
-
-        selection: Set
-        mapping: Optional[Mapping]
-        if isinstance(data, tuple):
-            selection, mapping = data 
-        elif data is not None:
-            selection, mapping = data, dict()
-        else:
-            selection, mapping = (set(), dict())
+    def emit(self, data: Set[Symbol] = None) -> FrozenSet[Symbol]:
         
-        return Response(frozenset(selection), MappingProxyType(mapping))
+        selection = data or set()
+        return frozenset(selection)
 
 
 class PropagatorB(
@@ -170,7 +148,27 @@ class Lag(PropagatorA):
 ############################
 
 
-class BoltzmannSelector(PropagatorR):
+class ThresholdSelector(PropagatorT):
+    """
+    Propagator for extracting nodes above a thershold.
+    
+    Targets feature nodes by default.
+    """
+
+    def __init__(self, threshold=0.85, matches=None):
+
+        if matches is None: 
+            matches = MatchSet(ctype=ConstructType.feature)  
+        super().__init__(matches=matches)
+        self.threshold = threshold
+        
+    def call(self, construct, inputs, **kwds):
+
+        eligible = (f for f, s in inputs.items() if s > self.threshold)
+        return set(eligible)  
+
+
+class BoltzmannSelector(PropagatorT):
     """Selects a chunk according to a Boltzmann distribution."""
 
     def __init__(self, temperature, threshold=0.25, matches=None):
@@ -201,7 +199,7 @@ class BoltzmannSelector(PropagatorR):
         return selection
 
 
-class ActionSelector(PropagatorR):
+class ActionSelector(PropagatorT):
     """Selects action paramaters according to Boltzmann distributions."""
 
     def __init__(self, dims, temperature):
@@ -369,12 +367,12 @@ class FilteredA(PropagatorA):
         return output
 
 
-class FilteredR(PropagatorR):
+class FilteredR(PropagatorT):
     """Filters input and output activations of a decision propagator."""
     
     def __init__(
         self, 
-        base: PropagatorR, 
+        base: PropagatorT, 
         source_filter: Symbol = None,
         input_filter: Symbol = None, 
         fdefault=0.0
