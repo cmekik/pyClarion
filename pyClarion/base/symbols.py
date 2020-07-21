@@ -1,21 +1,15 @@
-"""Provides tools for naming, indexing, and selecting constructs."""
+"""Tools for naming, indexing, and selecting constructs."""
 
 
 __all__ = [
-    "ConstructType", "Symbol", "MatchSet", "ConstructRef", "feature", "chunk", 
+    "ConstructType", "Symbol", "ConstructRef", "MatchSet", "feature", "chunk", 
     "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", 
     "buffer", "subsystem", "agent"
 ]
 
 
 from enum import Flag, auto
-from typing import (
-    Optional, Hashable, Tuple, Union, Iterable, Callable, MutableSet
-)
-
-
-# Address for a construct w/in a simulated agent or component.
-ConstructRef = Union["Symbol", Tuple["Symbol", ...]]
+from typing import Hashable, Tuple, Union, Iterable, Callable, MutableSet
 
 
 #########################
@@ -29,8 +23,6 @@ class ConstructType(Flag):
 
     Signals the role of a construct for controlling processing logic.
 
-    See Symbol for usage patterns.
-    
     Basic members (and interpretations):
         null_construct: Empty construct type (corresponds to flag null).
         feature: Feature node.
@@ -40,22 +32,21 @@ class ConstructType(Flag):
         flow_bt: Activation flow from bottom to top level.
         flow_tt: Activation flow within top level.
         flow_bb: Activation flow within bottom level.
-        terminus: Selected responses.
+        terminus: Subsystem output.
         buffer: Temporary store of activations.
         subsystem: A Clarion subsystem.
-        agent: A full Clarion agent.
+        agent: A Clarion agent.
 
     Other members: 
-        node: A chunk or microfeature.
+        node: A chunk or (micro)feature.
         flow_bx: Flow originating in bottom level.
         flow_tx: Flow originating in top level.
         flow_xb: Flow ending in bottom level.
         flow_xt: Flow ending in top level.
         flow_h: Horizontal (intra-level) flow.
         flow_v: Vertical (inter-level) flow.
-        flow: Links among microfeature and/or chunk nodes.
-        basic_construct: Feature or chunk or flow or terminus or behavior or 
-            buffer. 
+        flow: Links among (micro)feature and/or chunk nodes.
+        basic_construct: A feature or chunk or flow or terminus or buffer. 
         container_construct: Subsystem or agent.
     """
 
@@ -71,6 +62,7 @@ class ConstructType(Flag):
     buffer = auto()
     subsystem = auto()
     agent = auto()
+
     node = feature | chunk
     flow_bx = flow_bt | flow_bb 
     flow_tx = flow_tb | flow_tt 
@@ -85,18 +77,9 @@ class ConstructType(Flag):
 
 class Symbol(object):
     """
-    Symbolic representation of a Clarion construct.
+    Symbol for naming Clarion constructs.
 
-    Abbreviated ConSymb.
-    
-    Construct symbols are immutable objects that identify simulated constructs. 
-    Each symbol has a construct type, which is used to facilitate filtering and 
-    conditional logic acting categorically on core Clarion construct types. 
-    
-    To disambiguate different constructs of the same type within a given agent, 
-    each construct symbol is associated with a construct id. Construct ids may 
-    be any hashable object. They may also be used to support finer filtering and 
-    logic.
+    Consists of a construct type (see ConstructType) and an identifier.
     """
 
     __slots__ = ('_data')
@@ -104,13 +87,13 @@ class Symbol(object):
     _data: Tuple[ConstructType, Tuple[Hashable, ...]]
 
     def __init__(
-        self, ctype: Union[ConstructType, str, int], *cid: Optional[Hashable]
+        self, ctype: Union[ConstructType, str, int], *cid: Hashable
     ) -> None:
         """
         Initialize a new Symbol.
 
         :param ctype: Construct type.
-        :param cid: Hashable sequence serving as Construct ID.
+        :param cid: Hashable sequence serving as identifier.
         """
 
         if isinstance(ctype, str):
@@ -125,6 +108,12 @@ class Symbol(object):
                 "Unexpected type {} for arg ctype.".format(
                     type(ctype).__name__
                 )
+            )
+
+        if ctype in ConstructType.feature and len(cid) < 2:
+            raise TypeError(
+                "Feature symbols must specify at least a dim and a val, but "
+                "only {} objects passed as cid.".format(len(cid))
             )
         
         super().__setattr__('_data', (ctype, tuple(cid)))
@@ -189,13 +178,13 @@ class Symbol(object):
         return self._data[0]
 
     @property
-    def cid(self) -> Tuple[Optional[Hashable], ...]:
+    def cid(self) -> Tuple[Hashable, ...]:
         """Construct identifier associated with self."""
 
         return self._data[1]
 
     @property
-    def dim(self) -> Optional[Hashable]:
+    def dim(self) -> Hashable:
         """Dimension of a feature."""
 
         if self.ctype in ConstructType.feature:
@@ -206,7 +195,7 @@ class Symbol(object):
             )
 
     @property
-    def val(self) -> Optional[Hashable]:
+    def val(self) -> Hashable:
         """Value of a feature."""
 
         if self.ctype in ConstructType.feature:
@@ -217,22 +206,19 @@ class Symbol(object):
             )
 
 
+# Address for a construct w/in a simulated agent or component.
+ConstructRef = Union[Symbol, Tuple[Symbol, ...]]
+
+
 class MatchSet(object):
     """
-    A unary predicate that applies to construct symbols.
+    Matches construct symbols.
 
-    MatchSet objects are intended to facilitate checking if constructs satisfy 
-    complex conditions. Such checks may be required, for example, to decide 
-    whether or not to connect two construct realizers (see realizers.py). 
-    In general, MatchSet objects may be used at any point where a (potentially 
-    complex) predicate must be applied to construct symbols. 
-
-    MatchSet objects support definition with respect to construct types or 
-    arbitrary predicates, and by enumeration of matching constructs. They are 
-    set-like in that they support __contains__, may be extended (through 
-    addition) or contracted (through removal). However, unlike sets, MatchSet 
-    objects do not support algebraic operators such as union, intersection, 
-    difference etc.
+    Checks if construct symbols satisfy complex conditions. Supports checks 
+    against construct types, reference symbol sets, or arbitrary predicates. 
+    
+    Supports usage with 'in' and addition/removal of criteria. Does NOT support 
+    algebraic operators such as union, intersection, difference etc.
     """
 
     def __init__(
@@ -269,9 +255,9 @@ class MatchSet(object):
 
     def __contains__(self, key: Symbol) -> bool:
         """
-        Return true if construct is in the match set.
+        Return true iff construct is in the match set.
         
-        A construct is considered to be in the match set if:
+        A construct is considered to be in the match set iff:
             - Its construct type is in self.ctype OR
             - It is equal to a member of self.constructs OR
             - A predicate in self.predicates returns true when called on its 
@@ -303,7 +289,6 @@ class MatchSet(object):
 
         # TODO: Type check? - Can
         self.remove(other.ctype, other.constructs, other.predicates)
-
 
     def add(
         self, 

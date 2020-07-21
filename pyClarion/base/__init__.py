@@ -1,10 +1,13 @@
 """
-Basic definitions for building Clarion agents.
+Framework for simulating Clarion constructs.
 
-To study the associated code follow this order:
-    1. symbols.py
-    2. propagators.py
-    3. realizers.py
+Views Clarion constructs as networks of networks that propagate activations 
+among their nodes. Each node is named by a single symbolic token and 
+connections among nodes are decided based on formal properties of construct 
+symbols.
+
+Activation propagation follows a pull-based message-passing architecture and 
+updates to persistent data (i.e., knowledge) follow a blackboard pattern. 
 """
 
 

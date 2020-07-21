@@ -15,7 +15,9 @@ from pyClarion.utils.funcs import (
     max_strength, boltzmann_distribution, select, multiplicative_filter, 
     scale_strengths, linear_rule_strength
 )
-from typing import Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union
+from typing import (
+    Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict
+)
 from types import MappingProxyType
 from collections import namedtuple
 from typing import Iterable, Any
@@ -27,11 +29,11 @@ from copy import copy
 ############################
 
 
-class PropagatorN(Propagator[Mapping[Symbol, float], float]):
+class PropagatorN(Propagator[Mapping[Symbol, float], float, float]):
     """
     Propagator for individual nodes.
 
-    Maps activations to activations.
+    Maps activations to activations. Default activation is assumed to be zero.
     """
 
     def emit(self, data: float = None) -> float:
@@ -40,7 +42,9 @@ class PropagatorN(Propagator[Mapping[Symbol, float], float]):
         return output
 
 
-class PropagatorA(Propagator[float, Mapping[Symbol, float]]):
+class PropagatorA(
+    Propagator[float, Dict[Symbol, float], Mapping[Symbol, float]]
+):
     """
     Propagator for a collection of nodes or a single flows.
 
@@ -55,7 +59,7 @@ class PropagatorA(Propagator[float, Mapping[Symbol, float]]):
         return MappingProxyType(mapping=data)
 
 
-class PropagatorT(Propagator[float, FrozenSet[Symbol]]):
+class PropagatorT(Propagator[float, Set[Symbol], FrozenSet[Symbol]]):
     """
     Propagator for subsystem termini.
 
@@ -69,7 +73,9 @@ class PropagatorT(Propagator[float, FrozenSet[Symbol]]):
 
 
 class PropagatorB(
-    Propagator[Mapping[Symbol, Any], Mapping[Symbol, float]]
+    Propagator[
+        Mapping[Symbol, Any], Dict[Symbol, float], Mapping[Symbol, float]
+    ]
 ):
     """
     Propagator for buffers.
@@ -77,9 +83,7 @@ class PropagatorB(
     Maps subsystem outputs to activations.
     """
     
-    def emit(
-        self, data: Mapping[Symbol, float] = None
-    ) -> Mapping[Symbol, float]:
+    def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)

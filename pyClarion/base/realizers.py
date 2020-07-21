@@ -1,9 +1,9 @@
-"""Provides tools for defining the behavior of simulated constructs."""
+"""Tools for defining construct behavior."""
 
 
 __all__ = [
-    "Realizer", "Construct", "Structure", 
-    "Emitter", "Propagator", "Cycle", "Assets"
+    "Realizer", "Construct", "Structure", "Emitter", "Propagator", "Cycle", 
+    "Assets", "UpdaterChain"
 ]
 
 
@@ -13,7 +13,7 @@ from abc import abstractmethod
 from types import MappingProxyType, SimpleNamespace
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Mapping, cast, no_type_check
+    Text, Iterator, Iterable, Mapping, ClassVar, cast, no_type_check
 )
 
 
@@ -30,8 +30,7 @@ It = TypeVar('It', contravariant=True) # type variable for emitter inputs
 Ot = TypeVar('Ot', covariant=True) # type variable for emitter outputs
 
 
-
-# Autocomplete only works properly when bound is passed as str. Why? - Can
+# Autocomplete only works properly when bound is str. Why? - Can
 # Et = TypeVar("Et", bound="Emitter[It, Ot]") is more desirable and similar 
 # for Pt & Ct below; but, this is not supported as of 2020-07-20. - Can
 Et = TypeVar("Et", bound="Emitter")
@@ -40,27 +39,29 @@ class Realizer(Generic[Et]):
     """
     Base class for construct realizers.
 
-    Construct realizers facilitate communication between constructs by 
-    providing a standard interface for creating, inspecting, modifying and 
+    Provides a standard interface for creating, inspecting, modifying and 
     propagating information across construct networks. 
 
-    Message passing among constructs follows a pull-based architecture. 
+    Follows a pull-based message-passing pattern for activation propagation and 
+    a blackboard pattern for updates to persistent data. 
     """
 
     def __init__(
         self: R, name: Symbol, emitter: Et, updater: Updater[R] = None
     ) -> None:
         """
-        Initialize a new construct realizer.
+        Initialize a new Realizer instance.
         
-        :param name: Identifier for construct.  
+        :param name: Identifier for client construct.  
+        :param emitter: Procedure for activation propagation. Expected to be of 
+            type Emitter.
         :param updater: Procedure for updating persistent construct data.
         """
 
         if not isinstance(name, Symbol):
             raise TypeError(
-                "Agrument 'name' must be of type Symbol"
-                "got {} instead.".format(type(name))
+                "Agrument 'name' must be of type Symbol "
+                "got '{}' instead.".format(type(name).__name__)
             )
 
         self._construct = name
@@ -74,11 +75,12 @@ class Realizer(Generic[Et]):
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
 
+    @abstractmethod
     def propagate(self, kwds: Dict = None) -> None:
         """
         Propagate activations.
 
-        :param kwds: Keyword arguments for propagation procedure.
+        :param kwds: Keyword arguments for emitter.
         """
 
         raise NotImplementedError()
@@ -96,18 +98,18 @@ class Realizer(Generic[Et]):
 
     def watch(self, construct: Symbol, callback: PullFunc[Any]) -> None:
         """
-        Set given construct as an input to self.
+        Add link from construct to self.
         
         :param construct: Symbol for target construct.
-        :param callback: A callable that returns a `Packet` representing the 
-            output of the target construct. Typically this will be the `view()` 
-            method of a construct realizer.
+        :param callback: A callable that returns data representing the output 
+            of construct. Typically this will be the `view()` method of a 
+            Realizer instance.
         """
 
         self._inputs[construct] = callback
 
     def drop(self, construct: Symbol) -> None:
-        """Disconnect given construct from self."""
+        """Remove link from construct to self."""
 
         try:
             del self._inputs[construct]
@@ -115,7 +117,7 @@ class Realizer(Generic[Et]):
             pass
 
     def clear_inputs(self) -> None:
-        """Disconnect self from all linked constructs."""
+        """Clear self.inputs."""
 
         self._inputs.clear()
 
@@ -126,7 +128,7 @@ class Realizer(Generic[Et]):
 
     @property
     def construct(self) -> Symbol:
-        """Client construct of self."""
+        """Symbol for client construct."""
 
         return self._construct
 
@@ -138,13 +140,11 @@ class Realizer(Generic[Et]):
 
     @property
     def output(self) -> Any:
-        """"Current output of self."""
+        """Current output of self."""
 
-        if self._output is not None:
-            return self._output
-        else:
+        if self._output is None:
             self._output = self.emitter.emit() # Default/empty output.
-            return self._output
+        return self._output
 
     @output.setter
     def output(self, output: Any) -> None:
@@ -163,8 +163,8 @@ class Construct(Realizer[Pt]):
     """
     A basic construct.
     
-    Responsible for defining the behaviour of the lowest-level constructs such 
-    as individual nodes, bottom level networks, top level rule databases, 
+    Responsible for defining the behaviour of lowest-level constructs such as 
+    individual nodes, bottom level networks, top level rule databases, 
     subsystem output terminals, short term memory buffers and so on.
     """
 
@@ -177,18 +177,15 @@ class Construct(Realizer[Pt]):
         """
         Initialize a new construct realizer.
         
-        :param name: Identifier for construct.  
-        :param propagator: Activation processor associated with client 
-            construct. Propagates strengths based on inputs from linked 
-            constructs.
-        :param updater: A dict-like object containing procedures for updating 
-            construct knowledge.
+        :param name: Identifier for client construct.  
+        :param emitter: Procedure for activation propagation. Expected to be of 
+            type Propagator.
+        :param updater: Procedure for updating persistent construct data.
         """
 
         super().__init__(name=name, emitter=emitter, updater=updater)
 
     def propagate(self, kwds: Dict = None) -> None:
-        """Update output of self with result of propagator on current input."""
 
         inputs = self.inputs
         kwds = kwds or dict()
@@ -198,7 +195,12 @@ class Construct(Realizer[Pt]):
 Ct = TypeVar("Ct", bound="Cycle")
 S = TypeVar("S", bound="Structure")
 class Structure(Realizer[Ct]):
-    """A composite construct."""
+    """
+    A composite construct.
+    
+    Defines behaviour of higher-level constructs, such as agents and 
+    subsystems, which may contain other constructs. 
+    """
 
     def __init__(
         self: S, 
@@ -207,7 +209,16 @@ class Structure(Realizer[Ct]):
         assets: Any = None,
         updater: Updater[S] = None,
     ) -> None:
-        """Initialize a new Structure instance."""
+        """
+        Initialize a new Structure instance.
+        
+        :param name: Identifier for client construct.  
+        :param emitter: Procedure for activation propagation. Expected to be of 
+            type Emitter.
+        :param assets: Data structure storing persistent data shared among 
+            members of self.
+        :param updater: Procedure for updating persistent construct data.
+        """
 
         super().__init__(name=name, emitter=emitter, updater=updater)
         
@@ -241,11 +252,21 @@ class Structure(Realizer[Ct]):
         else:
             return self._dict[key.ctype][key]
 
+    # Recursive application needs testing. - Can
     def __delitem__(self, key: Symbol) -> None:
 
-        # Should probably be recursive like getitem. - Can
-        self.drop_links(construct=key)
-        del self._dict[key.ctype][key]
+        if isinstance(key, tuple):
+            if len(key) == 0:
+                raise KeyError("Key sequence must be of length 1 at least.")
+            elif len(key) == 1:
+                del self[key[0]]
+            else:
+                # Catch & output more informative error here? - Can
+                head = self[key[0]]
+                del head[key[1:]] 
+        else:
+            self.drop_links(construct=key)
+            del self._dict[key.ctype][key]
 
     def propagate(self, kwds: Dict = None) -> None:
 
@@ -266,7 +287,7 @@ class Structure(Realizer[Ct]):
             realizer.update()
 
     def add(self, *realizers: Realizer) -> None:
-        """Add realizers to self."""
+        """Add realizers to self and any associated links."""
 
         for realizer in realizers:
             ctype = realizer.construct.ctype
@@ -275,7 +296,7 @@ class Structure(Realizer[Ct]):
             self.update_links(construct=realizer.construct)
 
     def remove(self, *constructs: Symbol) -> None:
-        """Remove a set of constructs from self."""
+        """Remove constructs from self and any associated links."""
 
         for construct in constructs:
             del self[construct]
@@ -310,7 +331,14 @@ class Structure(Realizer[Ct]):
                     yield construct, realizer
 
     def watch(self, construct: Symbol, callback: PullFunc) -> None:
-        """Add construct as an input to self and any accepting members."""
+        """
+        Add links from construct to self and any accepting members.
+        
+        :param construct: Symbol for target construct.
+        :param callback: A callable that returns data representing the output 
+            of construct. Typically this will be the `view()` method of a 
+            Realizer instance.
+        """
 
         super().watch(construct, callback)
         for realizer in self.values():
@@ -318,14 +346,14 @@ class Structure(Realizer[Ct]):
                 realizer.watch(construct, callback)
 
     def drop(self, construct: Symbol) -> None:
-        """Remove construct as an input to self and any accepting members."""
+        """Remove links from construct to self and any accepting members."""
 
         super().drop(construct)
         for realizer in self.values():
             realizer.drop(construct)
 
     def clear_inputs(self) -> None:
-        """Remove all inputs to self from self and any accepting members."""
+        """Clear self.inputs and remove all associated links."""
 
         for construct in self._inputs:
             for realizer in self.values():
@@ -346,7 +374,7 @@ class Structure(Realizer[Ct]):
                 target.watch(c, callback)
 
     def drop_links(self, construct: Symbol) -> None:
-        """Remove any existing links from construct to any member."""
+        """Remove any existing links from construct to any member of self."""
 
         for realizer in self.values():
             realizer.drop(construct)
@@ -360,7 +388,7 @@ class Structure(Realizer[Ct]):
                 realizer.clear_links()
 
     def reweave(self) -> None:
-        """Recompute all links to, among, and within constructs in self."""
+        """Recompute all links to, among, and within members of self."""
 
         self.clear_links()
         for construct, realizer in self.items():
@@ -379,54 +407,53 @@ class Structure(Realizer[Ct]):
                 del realizer.output
 
 
-class Emitter(Generic[It, Ot]):
+Xt = TypeVar("Xt")
+class Emitter(Generic[Xt, Ot]):
     """
     Base class for propagating strengths, decisions, etc.
 
-    Emitters define how constructs process inputs and set outputs.
+    Emitters define how constructs connect, process inputs, and set outputs.
     """
 
     matches: MatchSet
 
     def __init__(self, matches: MatchSet = None):
+        """
+        Initialize a new Emitter instance.
+
+        :param matches: Constructs from which self expects input.
+        """
 
         self.matches = matches if matches is not None else MatchSet()
 
     def expects(self, construct: Symbol):
-        """Returns True if propagator expects input from given construct."""
+        """Return True iff self expects input from construct."""
 
         return construct in self.matches
 
     @abstractmethod
-    def emit(self, data: Any = None) -> Ot:
+    def emit(self, data: Xt = None) -> Ot:
         """
-        Emit propagator output based on the return type of self.call().
-        
+        Emit output.
+
         If no data is passed in, emits a default or null value of the expected
-        output type. If data is passed in ensures output is of the expected 
-        type and formats data as necessary before returning the result. 
+        output type. Otherwise, ensures output is of the expected type and 
+        before returning the result. 
         """
 
         raise NotImplementedError()
 
 
 T = TypeVar('T', bound="Propagator")
-class Propagator(Emitter[It, Ot]):
-    """
-    Emitters for basic constructs.
-
-    This class contains abstract methods. 
-    """
+class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
+    """Emitter for basic constructs."""
 
     def __copy__(self: T) -> T:
         """
         Make a copy of self.
-        
-        Not implemented by default.
 
-        For cases where a propagator instance is used as a template. Should 
-        ensure that copies of the template may be mutated without unwanted 
-        side-effects.
+        Enables use of propagator instances as templates. Should ensure that 
+        mutation of copies do not have unwanted side-effects.
         """
         raise NotImplementedError() 
 
@@ -441,43 +468,47 @@ class Propagator(Emitter[It, Ot]):
         """
 
         inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
-        intermediate: Any = self.call(construct, inputs_, **kwds)
+        intermediate: Xt = self.call(construct, inputs_, **kwds)
         
         return self.emit(intermediate)
 
     @abstractmethod
-    def call(self, construct: Symbol, inputs: Inputs[It], **kwds: Any) -> Any:
+    def call(self, construct: Symbol, inputs: Inputs[It], **kwds: Any) -> Xt:
         """
-        Execute construct's forward propagation cycle.
-
-        Abstract method.
+        Compute construct's output.
 
         :param construct: Name of the client construct. 
         :param inputs: Pairs the names of input constructs with their outputs. 
         :param kwds: Optional parameters. Propagator instances are recommended 
             to throw errors upon receipt of unexpected keywords.
         """
+
         raise NotImplementedError()
 
 
-class Cycle(Emitter[It, Ot]):
-    """Represents a container construct activation cycle."""
+class Cycle(Emitter[Xt, Ot]):
+    """Emitter for composite constructs."""
 
     # Specifies data required to construct the output packet
-    output: ConstructType = ConstructType.null_construct
+    output: ClassVar[ConstructType] = ConstructType.null_construct
 
-    def __init__(self, sequence, matches: MatchSet = None):
+    def __init__(
+        self, sequence: Iterable[ConstructType], matches: MatchSet = None
+    ) -> None:
+        """
+        Initialize a new Cycle instance.
+
+        :param sequence: Activation propagation sequence for client construct.
+        :param matches: Constructs from which self expects input.
+        """
 
         super().__init__(matches=matches)
         self.sequence = sequence
     
 
-# Decorator @no_type_check is meant to disable type_checking for the class (but 
-# not sub- or superclasses). @no_type_check is not supported on mypy as of 
-# 2020-06-10. Disabling type checks is required here to prevent the typechecker 
-# from complaining about dynamically set attributes. 'type: ignore' is set to 
-# prevent mypy from complaining until the issue is resolved.
-# - Can
+# Decorator @no_type_check should disable type_checking for Assets (but not 
+# sub- or superclasses). @no_type_check is not supported on mypy as of 
+# 2020-06-10. 'type: ignore' is set until @no_type_check is supported. - Can
 @no_type_check
 class Assets(SimpleNamespace): # type: ignore
     """
@@ -488,3 +519,33 @@ class Assets(SimpleNamespace): # type: ignore
     different components of a container construct are considered assets. 
     """
     pass
+
+
+# Remember: Rt = TypeVar("Rt", bound="Realizer")
+class UpdaterChain(Generic[Rt]):
+    """
+    Wrapper for multiple updaters.
+
+    Allows realizers to have multiple updaters which fire in a pre-defined 
+    sequence. 
+    """
+
+    def __init__(self, *updaters: Updater[Rt]):
+        """
+        Initialize an UpdaterChain instance.
+        
+        :param updaters: A sequence of updaters.
+        """
+
+        self.updaters = updaters
+
+    def __call__(self, realizer: Rt) -> None:
+        """
+        Update persistent information in realizer.
+        
+        Issues calls to member updaters in the order that they appear in 
+        self.updaters.
+        """
+
+        for updater in self.updaters:
+            updater(realizer)
