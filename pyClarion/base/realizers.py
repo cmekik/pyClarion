@@ -66,7 +66,7 @@ class Realizer(Generic[Et]):
 
         self._construct = name
         self._inputs: Dict[Symbol, Callable[[], Any]] = {}
-        self._output: Optional[Any] = None
+        self._output: Optional[Any] = emitter.emit()
 
         self.emitter = emitter
         self.updater = updater
@@ -124,7 +124,7 @@ class Realizer(Generic[Et]):
     def view(self) -> Any:
         """Return current output of self."""
         
-        return self.output
+        return self._output
 
     @property
     def construct(self) -> Symbol:
@@ -140,10 +140,13 @@ class Realizer(Generic[Et]):
 
     @property
     def output(self) -> Any:
-        """Current output of self."""
+        """
+        Current output of self.
+        
+        Deleteing this attribute will simply revert it to the default value set 
+        by self.emitter.
+        """
 
-        if self._output is None:
-            self._output = self.emitter.emit() # Default/empty output.
         return self._output
 
     @output.setter
@@ -154,7 +157,7 @@ class Realizer(Generic[Et]):
     @output.deleter
     def output(self) -> None:
         
-        self._output = None
+        self._output = self.emitter.emit() # default/empty output
 
 
 Pt = TypeVar("Pt", bound="Propagator")
@@ -222,7 +225,7 @@ class Structure(Realizer[Ct]):
 
         super().__init__(name=name, emitter=emitter, updater=updater)
         
-        self._dict: Dict = {}
+        self._dict: Dict[ConstructType, Dict[Symbol, Realizer]] = {}
         self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructRef) -> bool:
@@ -253,7 +256,7 @@ class Structure(Realizer[Ct]):
             return self._dict[key.ctype][key]
 
     # Recursive application needs testing. - Can
-    def __delitem__(self, key: Symbol) -> None:
+    def __delitem__(self, key: ConstructRef) -> None:
 
         if isinstance(key, tuple):
             if len(key) == 0:
@@ -307,7 +310,12 @@ class Structure(Realizer[Ct]):
         self._dict.clear()
 
     def keys(self, ctype: ConstructType = None) -> Iterator[Symbol]:
-        """Return iterator over all construct symbols in self."""
+        """
+        Return iterator over all construct symbols in self.
+        
+        :param ctype: If provided, only constructs of a type that have a 
+            non-empty intersection with ctype will be included.
+        """
 
         for ct in self._dict:
             if ctype is None or bool(ct & ctype):
@@ -315,7 +323,12 @@ class Structure(Realizer[Ct]):
                     yield construct
 
     def values(self, ctype: ConstructType = None) -> Iterator[Realizer]:
-        """Return iterator over all construct realizers in self."""
+        """
+        Return iterator over all construct realizers in self.
+        
+        :param ctype: If provided, only constructs of a type that have a 
+            non-empty intersection with ctype will be included.
+        """
 
         for ct in self._dict:
             if ctype is None or bool(ct & ctype):
@@ -323,7 +336,12 @@ class Structure(Realizer[Ct]):
                     yield realizer
 
     def items(self, ctype: ConstructType = None) -> Iterator[StructureItem]:
-        """Return iterator over all symbol, realizer pairs in self."""
+        """
+        Return iterator over all symbol, realizer pairs in self.
+        
+        :param ctype: If provided, only constructs of a type that have a 
+            non-empty intersection with ctype will be included.
+        """
 
         for ct in self._dict:
             if ctype is None or bool(ct & ctype):
@@ -506,9 +524,10 @@ class Cycle(Emitter[Xt, Ot]):
         self.sequence = sequence
     
 
-# Decorator @no_type_check should disable type_checking for Assets (but not 
-# sub- or superclasses). @no_type_check is not supported on mypy as of 
-# 2020-06-10. 'type: ignore' is set until @no_type_check is supported. - Can
+# @no_type_check disables type_checking for Assets (but not subclasses). 
+# Included b/c dynamic usage of Assets causes mypy to complain.
+# @no_type_check is not supported on mypy as of 2020-06-10. 'type: ignore' will 
+# do for now. - Can
 @no_type_check
 class Assets(SimpleNamespace): # type: ignore
     """
