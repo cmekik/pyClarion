@@ -52,7 +52,7 @@ class PropagatorA(
     """
 
     def emit(
-        self, data: Mapping[Symbol, float] = None
+        self, data: Dict[Symbol, float] = None
     ) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()

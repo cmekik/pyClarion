@@ -5,18 +5,7 @@ import pprint
 alice = Structure(
     name=agent("Alice"),
     emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks()),
-    updater=ChunkAdder(
-        emitter=MaxNode(
-            MatchSet(
-                ctype=ConstructType.flow_xt,
-                constructs={buffer("Stimulus")}
-            ),
-        ),
-        prefix="bl-state",
-        terminus=terminus("bl-state"),
-        subsystem=subsystem("NACS")
-    )
+    assets=Assets(chunks=Chunks())
 )
 
 wmud = WMUpdater(
@@ -101,6 +90,17 @@ nacs = Structure(
     name=subsystem("NACS"),
     emitter=NACSCycle(
         matches={buffer("Stimulus"), buffer("WM"), buffer("WM-defaults")}
+    ),
+    updater=ChunkAdder(
+        chunks=alice.assets.chunks,
+        terminus=terminus("bl-state"),
+        emitter=MaxNode(
+            MatchSet(
+                ctype=ConstructType.flow_xt,
+                constructs={buffer("Stimulus")}
+            ),
+        ),
+        prefix="bl-state"
     )
 )
 alice.add(nacs)
@@ -108,11 +108,11 @@ alice.add(nacs)
 nacs.add(
     Construct(
         name=flow_bt("Main"), 
-        emitter=BottomUp(chunks=alice.assets.chunks) # type: ignore
+        emitter=BottomUp(chunks=alice.assets.chunks) 
     ),
     Construct(
         name=flow_tb("Main"), 
-        emitter=TopDown(chunks=alice.assets.chunks) # type: ignore
+        emitter=TopDown(chunks=alice.assets.chunks)
     )
 )
 

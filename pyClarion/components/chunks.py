@@ -12,9 +12,9 @@ Provides:
 
 
 from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
-from pyClarion.components.propagators import PropagatorA
+from pyClarion.components.propagators import PropagatorN, PropagatorA
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
-from typing import Mapping, Iterable
+from typing import Mapping, Iterable, Union, Tuple, Set
 from collections import namedtuple
 from statistics import mean
 from itertools import count
@@ -358,7 +358,7 @@ class ChunkConstructor(object):
         for symbol in features:
             if not symbol.ctype in ConstructType.feature:
                 raise TypeError(
-                    "Cannot construct chunk containing {}".format(symbol)
+                    "Cannot construct chunk containing {}.".format(symbol)
                 )
 
         form = Chunks.update_form({}, *features, op=self.op) # weights?
@@ -368,85 +368,57 @@ class ChunkConstructor(object):
 
 class ChunkAdder(object):
     """
-    Adds new chunk nodes to client constructs.
+    Adds new chunk nodes to client subsystem.
     
-    Constructs Node objects for new chunks from a given template and adds them 
-    to client realizers.
+    Constructs and adds a new entry reference chunk database and a 
+    corresponding Construct object to client subsystem. 
 
-    Does not allow adding updaters.
+    Assumes client chunk database is included in client subsystem located at 
+    client.assets.chunks.
 
-    Warning: This implementation relies on (shallow) copying. If propagators 
-        have mutable attributes unexpected behavior may occur. To mitigate 
-        this, propagators must define appropriate `__copy__()` methods.
+    New Construct instances may not have updaters (only emitters), and 
+    dimensional weights are set to 1. These limitations may be lifted in a 
+    future iteration.
     """
 
     def __init__(
         self, 
-        emitter, 
-        prefix,
-        terminus, 
-        subsystem=None, 
-        clients=None, 
-        op="max"
+        chunks: Chunks,
+        terminus: Symbol, 
+        emitter: PropagatorN, 
+        prefix: str,
+        constructor: ChunkConstructor = None
     ):
         """
         Initialize a new `ChunkAdder` instance.
         
-        :param template: A ChunkAdder.Template object defining the form of 
-            `Node` instances representing new chunks.
-        :param terminus: Construct symbol for a terminus construct emmiting new 
-            chunk recommendations. 
-        :param subsystem: The subsystem that should be monitored. Used only if 
-            the chunk adder is located at the `Agent` level.
-        :param clients: Subsystem(s) to which new chunk nodes should be added. 
-            If None, it will be assumed that the sole client is the realizer 
-            housing this updater.
+        :param chunks: Client chunk database.
+        :param terminus: Symbol for a terminus construct in client emmitting 
+            new chunk recommendations. 
+        :param emitter: An emitter instance serving as a template for new 
+            Construct instances. Implementation relies on (shallow) copying 
+            through emitter.__copy__(), which must handle mutable attributes 
+            appropriately.
         :param prefix: Prefix added to created chunk names.
-        :param op: Chunk op.
+        :param constructor: A chunk constructor. If 'None', defaults to 
+            ChunkConstructor(op="max").
         """
 
-        self.constructor = ChunkConstructor(op=op)
+        self.chunks = chunks
+        self.terminus = terminus
+        self.constructor = constructor or ChunkConstructor(op="max")
         self.emitter = emitter
         self.prefix = prefix
         self.count = count(start=1, step=1)
 
-        self.terminus = terminus
-        self.subsystem = subsystem
-        self.clients = {subsystem} if clients is None else clients
-
     def __call__(self, realizer):
 
-        if not isinstance(realizer.assets.chunks, Chunks):
-            raise TypeError(
-                "Realizer must have a `chunks` asset of type Chunks."
-            )
-
-        db: Chunks = realizer.assets.chunks
-        subsystem = (
-            realizer[self.subsystem] if self.subsystem is not None 
-            else realizer
-        )
-
-        features = subsystem.output[self.terminus]
-        form = self.constructor(features=features)
-        chunks = db.find_form(form)
-        added = set()
-        if len(chunks) == 0:
-            ch = chunk("{}-{}".format(self.prefix, next(self.count)))
-            db.set_chunk(ch, form)
-            added.add(ch)
-        elif len(chunks) == 1:
-            pass
-        else:
-            raise ValueError("Corrupt chunk database.")
-
-        clients = self.clients if self.clients is not None else (None,)
-        for construct in clients:
-            client = realizer[construct] if construct is not None else realizer
-            for ch in added: 
-                client.add(
-                    Construct(
-                        name=ch,
-                        emitter=copy(self.emitter)
-                    )
-                )
+        features = realizer.output[self.terminus]
+        if len(features) > 0:
+            form = self.constructor(features=features)
+            chunks = self.chunks.find_form(form)
+            if len(chunks) == 0:
+                ch = chunk("{}-{}".format(self.prefix, next(self.count)))
+                ch_re = Construct(name=ch, emitter=copy(self.emitter))
+                self.chunks.set_chunk(ch, form)
+                realizer.add(ch_re)

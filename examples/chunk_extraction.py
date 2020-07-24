@@ -40,18 +40,7 @@ import pprint
 alice = Structure(
     name=agent("Alice"),
     emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks()),
-    updater=ChunkAdder(
-        emitter=MaxNode(
-            MatchSet(
-                ctype=ConstructType.flow_xt,
-                constructs={buffer("Stimulus")}
-            ),
-        ),
-        prefix="bl-state",
-        terminus=terminus("bl-state"),
-        subsystem=subsystem("NACS")
-    )
+    assets=Assets(chunks=Chunks())
 )
 
 stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
@@ -62,7 +51,18 @@ alice.add(stimulus)
 
 nacs = Structure(
     name=subsystem("NACS"),
-    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")}))
+    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")})),
+    updater=ChunkAdder(
+        chunks=alice.assets.chunks,
+        terminus=terminus("bl-state"),
+        emitter=MaxNode(
+            MatchSet(
+                ctype=ConstructType.flow_xt,
+                constructs={buffer("Stimulus")}
+            ),
+        ),
+        prefix="bl-state",
+    )
 )
 alice.add(nacs)
 
