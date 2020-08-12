@@ -185,8 +185,8 @@ class WMUpdater(object):
 
         if not isinstance(realizer.emitter, WorkingMemory):
             raise TypeError(
-                "Expected emitter of type WorkingMemory," 
-                "got {} instead.".format(type(realizer))
+                "Expected emitter of type WorkingMemory, " 
+                "got {} instead.".format(type(realizer.emitter))
             )
         if len(self.write_dims) != len(realizer.emitter.slots):
             raise TypeError(

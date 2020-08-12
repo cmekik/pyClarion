@@ -148,7 +148,7 @@ nacs.add(*fnodes)
 nacs.add(
     Construct(
         name=terminus("retrieval"),
-        emitter=FilteredR(
+        emitter=FilteredT(
             base=BoltzmannSelector(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)

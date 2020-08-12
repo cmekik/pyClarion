@@ -23,7 +23,7 @@ from pyClarion import (
     # These objects define how realizers process activations in the forward 
     # direction.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
-    FilteredR, NACSCycle, AgentCycle
+    FilteredT, NACSCycle, AgentCycle
 )
 import pprint
 
@@ -186,7 +186,7 @@ nacs.add(
 nacs.add(
     Construct(
         name=terminus("Main"),
-        emitter=FilteredR(
+        emitter=FilteredT(
             base=BoltzmannSelector(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)

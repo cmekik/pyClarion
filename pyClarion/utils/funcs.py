@@ -84,8 +84,8 @@ def multiplicative_filter(filter_weights, strengths, fdefault=0.0):
 
 def scale_strengths(weight, strengths):
 
-   scaled_strengths = {
-       construct: weight * strength 
-       for construct, strength in strengths.items()
-   }
-   return scaled_strengths
+    scaled_strengths = {
+        construct: weight * strength 
+        for construct, strength in strengths.items()
+    }
+    return scaled_strengths

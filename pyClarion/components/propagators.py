@@ -4,7 +4,7 @@
 __all__ = [
     "PropagatorN", "PropagatorA", "PropagatorT", "PropagatorB",
     "MaxNode", "Lag", "ThresholdSelector", "ActionSelector", 
-    "BoltzmannSelector", "ConstantBuffer", "Stimulus", "FilteredA", "FilteredR"
+    "BoltzmannSelector", "ConstantBuffer", "Stimulus", "FilteredN", "FilteredT"
 ]
 
 
@@ -287,12 +287,13 @@ class Stimulus(PropagatorB):
 
 # WARNING: Filtering may be broken after changes to propagators... - Can
 
-class FilteredA(PropagatorA):
+
+class FilteredN(PropagatorN):
     """Filters input and output activations of an activation propagator."""
     
     def __init__(
         self, 
-        base: PropagatorA, 
+        base: PropagatorN, 
         source_filter: Symbol = None, 
         input_filter: Symbol = None, 
         output_filter: Symbol = None, 
@@ -371,7 +372,7 @@ class FilteredA(PropagatorA):
         return output
 
 
-class FilteredR(PropagatorT):
+class FilteredT(PropagatorT):
     """Filters input and output activations of a decision propagator."""
     
     def __init__(
