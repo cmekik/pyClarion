@@ -8,37 +8,37 @@ alice = Structure(
     assets=Assets(chunks=Chunks())
 )
 
-wmud = WMUpdater(
-    source=subsystem("NACS"),
-    controller=(subsystem("ACS"), terminus("wm")),
-    reset_dim="wm-reset",
-    reset_vals={"release": True, "standby": False},
-    write_dims=["wm-w0", "wm-w1", "wm-w2", "wm-w3", "wm-w4", "wm-w5", "wm-w6"],
-    write_clear="clear",
-    write_standby="standby",
-    write_channels={
-        "retrieve": terminus("retrieval"), 
-        "extract": terminus("bl-state")
-    },
-    switch_dims=["wm-s0", "wm-s1", "wm-s2", "wm-s3", "wm-s4", "wm-s5", "wm-s6"],
-    switch_vals={"toggle": True, "standby": False},
-    chunks=alice.assets.chunks
-)
-
 wm = Construct(
     name=buffer("WM"),
     emitter=WorkingMemory(
-        slots=[0, 1, 2, 3, 4, 5, 6],
-        dims=("wm-state", "wm-exclude"),
-        matches=MatchSet(constructs={subsystem("ACS"), subsystem("NACS")}),
+        controller=(subsystem("ACS"), terminus("WM")),
+        source=subsystem("NACS"),
+        interface=WorkingMemory.Interface(
+            dims=tuple("wm-w{}".format(i) for i in range(7)),
+            standby="standby",
+            clear="clear",
+            channel_map=(
+                ("retrieve", terminus("retrieval")),
+                ("extract",  terminus("bl-state"))
+            ),
+            reset_dim="wm-reset",
+            reset_vals=("standby", "release"),
+            switch_dims=tuple("wm-s{}".format(i) for i in range(7)),
+            switch_vals=("standby", "toggle"),
+        ) 
     ),
-    updater=wmud
+    updater=WorkingMemory.StateUpdater()
 )
 alice.add(wm)
 
+# This default activation can be worked into the WM object, simplifying agent 
+# construction...
+
 wm_defaults = Construct(
     name=buffer("WM-defaults"),
-    emitter=ConstantBuffer(strengths={f: 0.5 for f in wmud.defaults})
+    emitter=ConstantBuffer(
+        strengths={f: 0.5 for f in wm.emitter.interface.defaults}
+    )
 )
 alice.add(wm_defaults)
 
@@ -57,8 +57,6 @@ acs = Structure(
 )
 alice.add(acs)
 
-# print(wmud.interface)
-
 fnodes = [
     Construct(
         name=f, 
@@ -72,16 +70,16 @@ fnodes = [
             )
         )
     ) 
-    for f in wmud.interface
+    for f in wm.emitter.interface.features
 ]
 acs.add(*fnodes)
 
 acs.add(
     Construct(
-        name=terminus("wm"),
+        name=terminus("WM"),
         emitter=ActionSelector(
             temperature=.01,
-            dims=wmud.dims
+            dims=[f.dim for f in wm.emitter.interface.defaults]
         )
     )
 )

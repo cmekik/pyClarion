@@ -16,7 +16,7 @@ from pyClarion.utils.funcs import (
     scale_strengths, linear_rule_strength
 )
 from typing import (
-    Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict
+    Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, Sequence
 )
 from types import MappingProxyType
 from collections import namedtuple
@@ -24,9 +24,9 @@ from typing import Iterable, Any
 from copy import copy
 
 
-############################
-### Abstract Propagators ###
-############################
+####################
+### Abstractions ###
+####################
 
 
 class PropagatorN(Propagator[Mapping[Symbol, float], float, float]):
@@ -88,6 +88,35 @@ class PropagatorB(
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
 
+    def update(self, construct, inputs):
+        """
+        Update buffer state based on inputs.
+        
+        :param construct: Name of the client construct. 
+        :param inputs: Pairs the names of input constructs with their outputs.
+        """
+
+        pass
+
+    class StateUpdater(object):
+        """
+        Updater for PropagatorB instances.
+
+        Delegates to propagator's `update()` method.
+        """
+
+        def __call__(self, realizer):
+
+            # Add a check here to make sure that the updater behaves as 
+            # intended? Seems difficult to implement correctly. - Can
+
+            _inputs = realizer.inputs
+            
+            construct = realizer.construct
+            inputs = {src: pull_func() for src, pull_func in _inputs.items()}
+
+            realizer.emitter.update(construct, inputs)
+
 
 ########################
 ### Node Propagators ###
@@ -117,8 +146,9 @@ class MaxNode(PropagatorN):
 class Lag(PropagatorA):
     """Lags strengths for given features."""
 
-    # Expected dimension type. Really only looks for a `lag` attribute, which 
-    # is an int specifying lag amount.
+    # Expected dimension type. Lag object looks for a `lag` attribute, which 
+    # is an int specifying lag amount. Any symbolic object satisfying this 
+    # requirement may be used.
     Dim = namedtuple("LagDim", ["name", "lag"])
 
     def __init__(self, max_lag=1, matches=None):
@@ -148,7 +178,7 @@ class Lag(PropagatorA):
 
 
 ############################
-### Response Propagators ###
+### Terminus Propagators ###
 ############################
 
 
@@ -261,7 +291,7 @@ class ConstantBuffer(PropagatorB):
 
         return self.strengths
 
-    def update(self, strengths):
+    def update_strengths(self, strengths):
         """Update self with contents of dict-like strengths."""
 
         self.strengths = self.strengths.copy()
