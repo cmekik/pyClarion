@@ -1,6 +1,7 @@
+"""Definitions for memory constructs, most notably working memory."""
 
 
-__all__ = ["MemoryCell", "WorkingMemory"]
+__all__ = ["Register", "WorkingMemory"]
 
 
 from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
@@ -11,11 +12,11 @@ from itertools import chain, product, groupby
 from typing import Callable, Hashable, Tuple, NamedTuple, List
 
 
-class MemoryCell(PropagatorB):
-    """Activates a stored set of nodes."""
+class Register(PropagatorB):
+    """Dynamically stores and activates nodes."""
 
     class Interface(NamedTuple):
-        """Control interface for MemoryCell instances."""
+        """Control interface for Register instances."""
 
         dim: Hashable
         standby: Hashable
@@ -59,7 +60,7 @@ class MemoryCell(PropagatorB):
 
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
-        :param interface: Defines features for controlling self.
+        :param interface: Defines features for controlling updates to self.
         :param filter: Optional filter for state updates.
         :param level: Output activation level for stored features.
         """
@@ -99,7 +100,7 @@ class MemoryCell(PropagatorB):
         return construct == ctl_subsystem or construct == src_subsystem
 
     def call(self, construct, inputs, **kwds):
-        """Return stored strengths."""
+        """Activate stored nodes."""
 
         return {node: self.level for node in self.store}
 
@@ -136,10 +137,14 @@ class MemoryCell(PropagatorB):
         return cmds
 
     def clear(self):
+        """Clear any nodes stored in self."""
+
         self.store.clear()
 
     @property
     def is_empty(self):
+        """True if no nodes are stored in self."""
+
         return len(self.store) == 0
 
     @property
@@ -155,8 +160,20 @@ class MemoryCell(PropagatorB):
 
 
 class WorkingMemory(PropagatorB):
+    """
+    A simple working memory mechanism.
+
+    The mechanism follows a slot-based storage and control architecture. It 
+    supports writing data to slots, clearing slots, excluding slots from the 
+    output and resetting the memory state. 
+
+    This class defines the basic datastructure and memory update method. For 
+    minimality, it does not report mechanism states (i.e., which slots are 
+    filled, which slots are open for emitting output etc.).
+    """
 
     class Interface(NamedTuple):
+        """Represents control interface for WorkingMemory propagators."""
 
         dims: Tuple[Hashable, ...]
         standby: Hashable
@@ -177,7 +194,7 @@ class WorkingMemory(PropagatorB):
         # TODO: Cache output for better efficiency? - Can
         @property
         def features(self):
-            """Tuple listing all interface features associated with self."""
+            """Tuple listing all interface features."""
 
             # 'w' for 'write'
             w_dims = self.dims
@@ -195,7 +212,7 @@ class WorkingMemory(PropagatorB):
 
         @property
         def defaults(self):
-            """Tuple listing default action features associated with self."""
+            """Tuple listing default action features."""
 
             # 'w' for 'write', 'r' for 'reset', 's' for 'switch' 
             
@@ -219,6 +236,15 @@ class WorkingMemory(PropagatorB):
         level: float = 1.0,
         filter: MatchSet = None
     ) -> None:
+        """
+        Initialize a new WorkingMemory instance.
+
+        :param controller: Reference for construct issuing commands to self.
+        :param source: Reference for construct from which to pull data.
+        :param interface: Defines features for controlling updates to self.
+        :param filter: Optional filter for state updates.
+        :param level: Output activation level for stored features.
+        """
 
         self.controller = controller
         self.source = source
@@ -227,10 +253,10 @@ class WorkingMemory(PropagatorB):
 
         self.switches: List[bool] = [False for _ in interface.switch_dims]
         self.cells = tuple(
-            MemoryCell(
+            Register(
                 controller=controller,
                 source=source,
-                interface=MemoryCell.Interface(
+                interface=Register.Interface(
                     dim=dim,
                     standby=interface.standby,
                     clear=interface.clear,
@@ -250,26 +276,38 @@ class WorkingMemory(PropagatorB):
 
     def toggle(self, slot):
         """
-        Toggle whether to exclude slot contents from output.
-
-        Toggling an empty slot has no effect.
+        Toggle slot's output switch.
+        
+        The switch state determines whether to exclude slot contents from 
+        output. Toggling an empty slot has no effect.
         """
 
         if not self.cells[slot].is_empty:
             self.switches[slot] = not self.switches[slot]
 
     def reset(self):
-        """Reset memory state."""
+        """
+        Reset memory state.
+        
+        Clears all memory slots and closes all switches.
+        """
 
         self.switches: Any = [False for _ in self._slots]
         for cell in self.cells:
             cell.clear()
 
-    def reset_switch(self, slot):
+    def close_switch(self, slot):
+        """Set output switch to closed position."""
 
         self.switches[slot] = False
 
     def call(self, construct, inputs, **kwds):
+        """
+        Activate stored nodes.
+
+        Only activates stored nodes in slots whose corresponding switches are 
+        open.        
+        """
 
         # Could possibly also use collections.ChainMap. Need to check how it 
         # will interact w/ downstream processing. - Can
@@ -283,17 +321,23 @@ class WorkingMemory(PropagatorB):
         return d
 
     def update(self, construct, inputs):
+        """
+        Update the memory state.
+
+        Updates are controlled by matching features emitted in the output of 
+        self.controller to those defined in self.interface. If no commands are 
+        encountered, default/standby behavior will be executed. The default 
+        behavior is to maintain the current memory and switch states.
+        
+        The update cycle processes global resets first, switch toggles are 
+        processed next and slot contents are updated last. As a result, it is 
+        possible to clear the memory globally and populate it with new 
+        information (e.g., in the service of a new goal) in one single update. 
+        The switch for an empty slot will ALWAYS be closed by the end of 
+        the update cycle (even if it is opened during the cycle). 
+        """
 
         cmds = self._parse_commands(inputs.copy())
-
-        # NOTE: The order in which updates are implemented matters:
-        #   Global WM reset preceeds switch toggling which, in turn, preceeds 
-        #   slot updates. This has two notable consequences:
-        #       1. Clearing the WM and populating it w/ new information (e.g., 
-        #       in the service of a new goal) can be done in one step. 
-        #       2. A slot will never be in an open switch state if it contains 
-        #       nothing. 
-        # - Can
 
         # global reset
         if self.interface.reset_dim in cmds:
@@ -313,11 +357,11 @@ class WorkingMemory(PropagatorB):
             cell.update(construct, inputs.copy())
             # Clearing a slot automatically sets corresponding switch to False.
             if cell.is_empty:
-                self.reset_switch(slot)
+                self.close_switch(slot)
 
     def _parse_commands(self, inputs):
 
-        # Filter irrelevant data
+        # Filter irrelevant feature symbols
         cmd_set = set(
             f for f in inputs if f in self.interface.features and (
                 f.dim == self.interface.reset_dim or
@@ -332,11 +376,6 @@ class WorkingMemory(PropagatorB):
             if len(g) > 1:
                 raise ValueError("Multiple commands for {} in WM.".format(k))
             cmds[k] = g.pop()
-        # TODO: Need to better handle missing commands. Missing command should 
-        # simply mean 'default'. Otherwise, complicates agent initialization. 
-        # - Can
-        # if len(cmds) != len(self.interface.switch_dims) + 1:
-        #     raise ValueError("Missing WM command.")
         
         return cmds
 
