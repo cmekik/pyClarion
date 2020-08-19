@@ -1,12 +1,39 @@
+
+from pyClarion.base import Symbol
 import random
 import math
 
+from typing import Iterable, Dict, Hashable, Tuple
+from itertools import groupby
+
 
 __all__ = [
-    "max_strength", "simple_junction", "max_junction", "linear_rule_strength", 
-    "select", "boltzmann_distribution", "multiplicative_filter", 
-    "scale_strengths"
+    "group_by_dims", "max_strength", "simple_junction", "max_junction", 
+    "linear_rule_strength", "select", "boltzmann_distribution", 
+    "multiplicative_filter", "scale_strengths"
 ]
+
+
+def group_by_dims(
+    features: Iterable[Symbol]
+) -> Dict[Hashable, Tuple[Symbol, ...]]:
+    """
+    Construct a dict grouping features by their dimensions.
+    
+    Returns a dict where each dim is mapped to a tuple of features of that dim.
+    Does not check for duplicate features.
+
+    :param features: An iterable of features to be grouped by dimension.
+    """
+
+    groups = {}
+    # Ignore type of key due to mypy false alarm. - Can
+    key = Symbol.dim.fget # type: ignore 
+    s = sorted(features, key=key)
+    for k, g in groupby(s, key):
+        groups[k] = tuple(g)
+    
+    return groups
 
 
 def max_strength(construct, packets):

@@ -1,15 +1,187 @@
 """Definitions for memory constructs, most notably working memory."""
 
 
-__all__ = ["Register", "WorkingMemory"]
+__all__ = ["Bus", "FilterBus", "Register", "WorkingMemory"]
 
 
 from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
 from pyClarion.components.propagators import PropagatorB
-from pyClarion.utils import simple_junction
+from pyClarion.utils import simple_junction, group_by_dims
 
 from itertools import chain, product, groupby
 from typing import Callable, Hashable, Tuple, NamedTuple, List
+
+
+class Bus(PropagatorB):
+    """
+    Bus for commands & parameters.
+    
+    Relays commands issued at some terminus of a controller subsystem to any 
+    listeners.
+    """
+
+    def __init__(
+        self,
+        source: Tuple[Symbol, Symbol],
+        filter: MatchSet = None,
+        level: float = 1.0
+    ) -> None:
+        
+        super().__init__()
+        
+        self.source = source
+        self.filter = filter
+        self.level = level
+
+    def expects(self, construct):
+
+        return construct == self.source[0]
+
+    def call(self, construct, inputs, **kwds):
+
+        subsystem, terminus = self.source
+        data = inputs[subsystem][terminus]
+        d = {node: self.level for node in data if node in self.filter}
+
+        return d
+
+
+class FilterBus(PropagatorB):
+    """Relays filter parameters as set by a controller."""
+    
+    class Interface(NamedTuple):
+        """Control interface for filter bus."""
+
+        symbols: Tuple[Symbol, ...]
+        dims: Tuple[Hashable, ...]
+        vals: Tuple[Tuple[Hashable, ...], ...]
+
+        @property
+        def features(self):
+            """Filter setting features."""
+
+            return tuple(
+                feature(dim, val) for dim, vals in zip(self.dims, self.vals)
+                for val in vals
+            )
+
+        @property
+        def defaults(self):
+            """Features for default filter settings."""
+            
+            return tuple(
+                feature(dim, vals[0]) 
+                for dim, vals in zip(self.dims, self.vals)
+            )
+
+    class InterfaceError(Exception):
+        """Raised when a passed a malformed interface."""
+        pass
+
+    @classmethod
+    def _validate_interface(cls, interface: Interface) -> None:
+
+        if len(interface.symbols) != len(interface.dims):
+            raise cls.InterfaceError(
+                "Number of dims must be equal to number of symbols."
+            )
+        if len(interface.symbols) != len(interface.vals):
+            raise cls.InterfaceError(
+                "Number of value tuples must be equal to number of symbols."
+            )
+        for i, val_tuple in enumerate(interface.vals):
+            if len(val_tuple) < 2:
+                raise cls.InterfaceError(
+                    (
+                        "Value tuples must define at least 2 values. "
+                        "Check tuple {}."
+                    ).format(i)
+                )
+            if len(val_tuple) != len(set(val_tuple)):
+                raise cls.InterfaceError(
+                    (
+                        "Value tuples may not "
+                        "contain duplicates. Check tuple {}."
+                    ).format(i)
+                )
+
+    @staticmethod
+    def _validate_source(source):
+
+        subsystem, terminus = source
+        if subsystem.ctype not in ConstructType.subsystem:
+            raise ValueError(
+                "Arg `source` must name a subsystem at index 0."
+            )
+        if terminus.ctype not in ConstructType.terminus:
+            raise ValueError(
+                "Arg `source` must name a terminus at index 1."
+            )
+
+    @staticmethod
+    def _validate_interval(interval):
+
+        if interval[0] >= interval[1]:
+            raise ValueError(
+                "Interval minimum must be strictly less than maximum."
+            )
+
+    def __init__(
+        self,
+        source: Tuple[Symbol, Symbol],
+        interface: Interface,
+        interval: Tuple[float, float] = (0.0, 1.0),
+    ) -> None:
+
+
+        self._validate_source(source)
+        self._validate_interface(interface)
+        self._validate_interval(interval)
+
+        super().__init__()
+        self.source = source
+        self.interface = interface
+        self.interval = interval
+
+    def _parse_commands(self, inputs):
+
+        subsystem, terminus = self.source
+        data = inputs[subsystem][terminus]
+        
+        # Filter irrelevant feature symbols
+        cmd_set = set(
+            f for f in inputs if 
+            f in self.interface.features and 
+            f.dim in self.interface.dims
+        )
+        groups = group_by_dims(features=cmd_set)
+        cmds = {}
+        for k, g in groups.items():
+            if len(g) > 1:
+                raise ValueError(
+                "Multiple commands for dim '{}' in FilterBus.".format(k)
+            )
+            cmds[k] = g.pop()
+        
+        return cmds
+
+    def _compute_strength(self, i: int, level: int) -> float:
+
+        offset = self.interval[0]
+        multiplier = self.interval[1] - self.interval[0]
+        degree = level / (len(self.interface[i]) - 1) 
+        
+        return offset + multiplier * degree
+
+    def call(self, construct, inputs, **kwds):
+        
+        d, cmds = {}, self._parse_commands(inputs)
+        for i, dim in enumerate(self.interface.dims):
+            cmd = cmds.get(dim, self.interface.defaults[i])
+            level = self.interface.vals[i].index(cmd.val)
+            d[self.interface.symbols] = self._compute_strength(i, level)
+        
+        return d
 
 
 class Register(PropagatorB):
@@ -369,17 +541,13 @@ class WorkingMemory(PropagatorB):
             )
         )
 
+        groups = group_by_dims(features=cmd_set)
         cmds = {}
-        s = sorted(cmd_set, key=self._key_func)
-        for k, g in groupby(s, self._key_func):
-            g = list(g)
+        for k, g in groups.items():
             if len(g) > 1:
-                raise ValueError("Multiple commands for {} in WM.".format(k))
+                raise ValueError(
+                "Multiple commands for dim '{}' in WorkingMemory.".format(k)
+            )
             cmds[k] = g.pop()
-        
+
         return cmds
-
-    @staticmethod
-    def _key_func(ftr):
-
-        return ftr.dim
