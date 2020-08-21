@@ -8,8 +8,8 @@ from itertools import groupby
 
 
 __all__ = [
-    "group_by_dims", "max_strength", "simple_junction", "max_junction", 
-    "linear_rule_strength", "select", "boltzmann_distribution", 
+    "group_by_dims", "max_strength", "invert_strengths", "simple_junction", 
+    "max_junction", "linear_rule_strength", "select", "boltzmann_distribution", 
     "multiplicative_filter", "scale_strengths"
 ]
 
@@ -47,6 +47,12 @@ def max_strength(construct, packets):
     for packet in packets:
         strength = max(packet.get(construct, 0.0), strength)
     return strength
+
+
+def invert_strengths(strengths):
+
+    inverted = {c: 1.0 - s for c, s in strengths.items()}
+    return inverted
 
 
 def simple_junction(packets):
@@ -100,10 +106,10 @@ def boltzmann_distribution(strengths, temperature):
     return probabilities
 
 
-def multiplicative_filter(filter_weights, strengths, fdefault=0.0):
+def multiplicative_filter(weights, strengths, fdefault=0.0):
 
     d = {
-        node: strengths[node] * (1.0 - filter_weights.get(node, fdefault)) 
+        node: strengths[node] * weights.get(node, fdefault) 
         for node in strengths
     }
     return d

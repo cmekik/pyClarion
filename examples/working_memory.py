@@ -151,7 +151,8 @@ nacs.add(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)
             ),
-            input_filter=buffer("Stimulus"))
+            filter=buffer("Stimulus")
+        )
     ),
     Construct(
         name=terminus("bl-state"),
@@ -254,12 +255,3 @@ alice.update()
 
 alice.propagate(kwds={})
 pprint.pprint(alice.output)
-
-
-##################
-### CONCLUSION ###
-##################
-
-# This simple simulation sought to demonstrate the following:
-#   - The basics of using updaters for learning, and
-#   - A recipe for chunk extraction from the state of the bottom level. 

@@ -3,8 +3,8 @@
 
 __all__ = [
     "PropagatorN", "PropagatorA", "PropagatorT", "PropagatorB",
-    "MaxNode", "Lag", "ThresholdSelector", "ActionSelector", 
-    "BoltzmannSelector", "ConstantBuffer", "Stimulus", "FilteredN", "FilteredT"
+    "MaxNode", "Repeater", "Lag", "ThresholdSelector", "ActionSelector", 
+    "BoltzmannSelector", "ConstantBuffer", "Stimulus"
 ]
 
 
@@ -12,8 +12,8 @@ from pyClarion.base import (
     ConstructType, Symbol,  MatchSet, Propagator, chunk, feature,
 )
 from pyClarion.utils.funcs import (
-    max_strength, boltzmann_distribution, select, multiplicative_filter, 
-    scale_strengths, linear_rule_strength
+    max_strength, invert_strengths, boltzmann_distribution, select, 
+    multiplicative_filter, scale_strengths, linear_rule_strength
 )
 from typing import (
     Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, Sequence
@@ -46,7 +46,7 @@ class PropagatorA(
     Propagator[float, Dict[Symbol, float], Mapping[Symbol, float]]
 ):
     """
-    Propagator for a collection of nodes or a single flows.
+    Propagator for flows and other activation propagators.
 
     Maps activations to activations.
     """
@@ -141,6 +141,23 @@ class MaxNode(PropagatorN):
 ########################
 ### Flow Propagators ###
 ########################
+
+
+class Repeater(PropagatorA):
+    """Copies the output of a single source construct."""
+
+    def __init__(self, source: Symbol) -> None:
+
+        super().__init__()
+        self.source = source
+
+    def expects(self, construct):
+
+        return construct == self.source
+
+    def call(self, construct, inputs, **kwds):
+
+        return dict(inputs[self.source])
 
 
 class Lag(PropagatorA):
@@ -309,154 +326,3 @@ class Stimulus(PropagatorB):
     def call(self, construct, inputs, stimulus=None, **kwds):
 
         return stimulus or {}
-
-
-##########################
-### Filtering Wrappers ###
-##########################
-
-# WARNING: Filtering may be broken after changes to propagators... - Can
-
-
-class FilteredN(PropagatorN):
-    """Filters input and output activations of an activation propagator."""
-    
-    def __init__(
-        self, 
-        base: PropagatorN, 
-        source_filter: Symbol = None, 
-        input_filter: Symbol = None, 
-        output_filter: Symbol = None, 
-        fdefault=0.0,
-    ):
-
-        self.base = base
-        # Expected types for source_filter, input_filter and output_filter 
-        # should be construct symbols.
-        self.source_filter = source_filter
-        self.input_filter = input_filter
-        self.output_filter = output_filter
-        self.fdefault = fdefault
-
-    def __copy__(self):
-
-        return type(self)(
-            base=copy(self.base),
-            source_filter=copy(self.source_filter),
-            input_filter=copy(self.input_filter),
-            output_filter=copy(self.output_filter),
-            fdefault=copy(self.fdefault)
-        )
-
-    def expects(self, construct):
-
-        b = False
-        for c in (self.source_filter, self.input_filter, self.output_filter):
-            if c is not None:
-                b |= construct == c 
-
-        return b or self.base.expects(construct=construct)
-
-    def call(self, construct, inputs, **kwds):
-
-        # Get filter settings and remove filter info from inputs dict so they 
-        # are not processed by self.base.
-        if self.source_filter is not None:
-            source_weights = inputs.pop(self.source_filter)
-        if self.input_filter is not None:
-            input_weights = inputs.pop(self.input_filter)
-        if self.output_filter is not None:
-            output_weights = inputs.pop(self.output_filter)
-
-        # Apply source filtering
-        if self.source_filter is not None:
-            inputs = {
-                source: scale_strengths(
-                    weight=source_weights.get(source, 1.0 - self.fdefault), 
-                    strengths=packet, 
-                ) 
-                for source, packet in inputs.items()
-            }
-
-        # Filter inputs to base
-        if self.input_filter is not None:
-            inputs = multiplicative_filter(
-                filter_weights=input_weights, 
-                strengths=inputs, 
-                fdefault=self.fdefault
-            )
-        
-        # Call base on (potentially) filtered inputs. Note that call is to 
-        # `base.call()` instead of `base.__call__()`. This is because we rely 
-        # on `self.__call__()` instead.
-        output = self.base.call(construct, inputs, **kwds)
-
-        # Filter outputs of base
-        if self.output_filter is not None:
-            output = multiplicative_filter(
-                filter_weights=output_weights, 
-                strengths=output, 
-                fdefault=self.fdefault
-            )
-
-        return output
-
-
-class FilteredT(PropagatorT):
-    """Filters input and output activations of a decision propagator."""
-    
-    def __init__(
-        self, 
-        base: PropagatorT, 
-        source_filter: Symbol = None,
-        input_filter: Symbol = None, 
-        fdefault=0.0
-    ):
-
-        self.base = base
-        self.source_filter = source_filter
-        self.input_filter = input_filter
-        self.fdefault = fdefault
-
-    def expects(self, construct):
-
-        b = False
-        for c in (self.source_filter, self.input_filter):
-            if c is not None:
-                b |= construct == c 
-
-        return b or self.base.expects(construct=construct)
-
-    def call(self, construct, inputs, **kwds):
-
-        # Get filter settings and remove filter info from inputs dict so they 
-        # are not processed by self.base
-        if self.source_filter is not None:
-            source_weights = inputs.pop(self.source_filter)
-        if self.input_filter is not None:
-            input_weights = inputs.pop(self.input_filter)
-
-        # Apply source filtering
-        if self.source_filter is not None:
-            inputs = {
-                source: scale_strengths(
-                    weight=source_weights.get(source, 1.0 - self.fdefault), 
-                    strengths=packet, 
-                ) 
-                for source, packet in inputs.items()
-            }
-
-        # Filter inputs to base
-        if self.input_filter is not None:
-            inputs = multiplicative_filter(
-                filter_weights=input_weights, 
-                strengths=inputs, 
-                fdefault=self.fdefault
-            )
-        
-        # Call base on (potentially) filtered inputs. Note that call is to 
-        # `base.call()` instead of `base.__call__()`. This is because we rely 
-        # on `self.__call__()` instead.
-        output = self.base.call(construct, inputs, **kwds)
-
-        return output

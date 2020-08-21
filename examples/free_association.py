@@ -191,7 +191,7 @@ nacs.add(
                 temperature=.1,
                 matches=MatchSet(ctype=ConstructType.chunk)
             ),
-            input_filter=buffer("Stimulus")
+            filter=buffer("Stimulus")
         )
     )
 )
