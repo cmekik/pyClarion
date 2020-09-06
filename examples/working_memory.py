@@ -8,13 +8,14 @@ alice = Structure(
     assets=Assets(chunks=Chunks())
 )
 
+WMSLOTS = 3
 wm = Construct(
     name=buffer("WM"),
     emitter=WorkingMemory(
         controller=(subsystem("ACS"), terminus("WM")),
         source=subsystem("NACS"),
         interface=WorkingMemory.Interface(
-            dims=tuple("wm-w{}".format(i) for i in range(7)),
+            dims=tuple("wm-w{}".format(i) for i in range(WMSLOTS)),
             standby="standby",
             clear="clear",
             channel_map=(
@@ -23,7 +24,7 @@ wm = Construct(
             ),
             reset_dim="wm-reset",
             reset_vals=("standby", "release"),
-            switch_dims=tuple("wm-s{}".format(i) for i in range(7)),
+            switch_dims=tuple("wm-s{}".format(i) for i in range(WMSLOTS)),
             switch_vals=("standby", "toggle"),
         ) 
     ),
@@ -166,6 +167,12 @@ nacs.add(
 ### Simulation ###
 ##################
 
+print(
+    "Each simulation example consists of two propagation cycles.\n"
+    "In the first, the WM is updated through the ACS; the commands are shown.\n"
+    "In the secondg, we probe the WM output to demonstrate the effect.\n"
+)
+
 # standby (empty wm)
 print("Standby (Empty WM)")
 
@@ -175,20 +182,32 @@ d = {
 }
 
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
 # toggle empty (should do nothing)
 print("Toggle (Empty WM; does nothing)")
 
 d = {feature("wm-s1", "toggle"): 1.0}
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
 # single write
 print("Single Write")
@@ -196,14 +215,20 @@ print("Single Write")
 d = {
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
-    feature("wm-w0", "retrieve"): 1.0
+    feature("wm-w0", "retrieve"): 1.0,
+    feature("wm-s0", "toggle"): 1.0
 }
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
-
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
 # reset
 print("Reset")
@@ -214,10 +239,16 @@ d = {
     feature("wm-reset", "release"): 1.0
 }
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
 
 # double write
@@ -227,31 +258,51 @@ d = {
     feature("fruit", "banana"): 1.0,
     feature("price", "expensive"): 1.0,
     feature("wm-w0", "retrieve"): 1.0,
-    feature("wm-w1", "extract"): 1.0
+    feature("wm-s0", "toggle"): 1.0,
+    feature("wm-w1", "extract"): 1.0,
+    feature("wm-s1", "toggle"): 1.0
 }
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
-# Toggle Slot 1
-print("Toggle Slot 1")
+# Toggle Slot 2, removing it
+print("Toggle Slot 1, removing it from output")
 
 d = {feature("wm-s1", "toggle"): 1.0}
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
 
 # single delete
-print("Single Delete")
+print("Single Delete (clear slot 0)")
 
-d = {feature("wm-w1", "clear"): 1.0}
+d = {feature("wm-w0", "clear"): 1.0}
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
+print(
+    "Step 1: {} -> {}".format(
+        wm.emitter.controller, 
+        alice[wm.emitter.controller].output
+    )
+)
 alice.update()
 
 alice.propagate(kwds={})
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))

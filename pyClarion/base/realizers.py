@@ -205,6 +205,12 @@ class Structure(Realizer[Ct]):
     subsystems, which may contain other constructs. 
     """
 
+    # NOTE: It would be nice to have structures automatically connect to 
+    # elements that their members accept. My first past attempt at this failed 
+    # miserably. Does not seem doable w/o allowing realizers to have knowledge 
+    # of their parents. I don't really want to do that unless it is absolutely 
+    # necessary. - Can
+
     def __init__(
         self: S, 
         name: Symbol, 
@@ -481,11 +487,14 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
         """
         Execute construct's forward propagation cycle.
 
-        Pulls data from inputs constructs, delegates processing to self.call(),
-        and passes result to self.emit().
+        Pulls expected data from inputs constructs, delegates processing to 
+        self.call(), and passes result to self.emit().
         """
 
-        inputs_ = {source: pull_func() for source, pull_func in inputs.items()}
+        inputs_ = {
+            source: pull_func() for source, pull_func in inputs.items()
+            if self.expects(source)
+        }
         intermediate: Xt = self.call(construct, inputs_, **kwds)
         
         return self.emit(intermediate)

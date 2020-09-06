@@ -1,12 +1,12 @@
 """Tools for filtering inputs and outputs of propagators."""
 
 
-__all__ = ["GatedA", "FilteredT", "FilteringRelay"]
+__all__ = ["GatedN", "GatedA", "FilteredT", "FilteringRelay"]
 
 
 from pyClarion.base.symbols import Symbol, ConstructType, feature
 from pyClarion.components.propagators import (
-    PropagatorA, PropagatorB, PropagatorT
+    PropagatorN, PropagatorA, PropagatorB, PropagatorT
 )
 from pyClarion.utils.funcs import (
     scale_strengths, multiplicative_filter, group_by_dims, invert_strengths
@@ -17,8 +17,33 @@ from typing import NamedTuple, Tuple, Hashable, Union
 import pprint
 
 
+class GatedN(PropagatorN):
+    """Gates output of a node."""
+    
+    def __init__(self, base: PropagatorN, gate: Symbol) -> None:
+
+        self.base = base
+        self.gate = gate
+
+    def __copy__(self):
+
+        return type(self)(self.base, self.gate)
+
+    def expects(self, construct):
+
+        return construct == self.gate or self.base.expects(construct)
+
+    def call(self, construct, inputs, **kwds):
+
+        weight = inputs.pop(self.gate)[construct]
+        base_strength = self.base.call(construct, inputs, **kwds)
+        output = weight * base_strength
+
+        return output
+
+
 class GatedA(PropagatorA):
-    """Filters output of an activation propagator."""
+    """Gates output of an activation propagator."""
     
     def __init__(self, base: PropagatorA, gate: Symbol) -> None:
 
@@ -62,7 +87,7 @@ class FilteredT(PropagatorT):
 
 
 class FilteringRelay(PropagatorB):
-    """Computes flow output gate settings as directed by a controller."""
+    """Computes gate and filter settings as directed by a controller."""
     
     class Interface(NamedTuple):
         """

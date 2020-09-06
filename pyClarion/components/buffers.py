@@ -326,8 +326,8 @@ class WorkingMemory(PropagatorB):
         Clears all memory slots and closes all switches.
         """
 
-        self.switches: Any = [False for _ in self._slots]
-        for cell in self.cells:
+        for i, cell in enumerate(self.cells):
+            self.switches[i] = False
             cell.clear()
 
     def close_switch(self, slot):
@@ -350,7 +350,7 @@ class WorkingMemory(PropagatorB):
         for switch, cell in zip(self.switches, self.cells):
             if switch is True:
                 d_cell = cell.call(construct, inputs.copy(), **kwds)
-                d.extend(d_cell)
+                d.update(d_cell)
         
         return d
 
@@ -363,15 +363,17 @@ class WorkingMemory(PropagatorB):
         encountered, default/standby behavior will be executed. The default 
         behavior is to maintain the current memory and switch states.
         
-        The update cycle processes global resets first, switch toggles are 
-        processed next and slot contents are updated last. As a result, it is 
+        The update cycle processes global resets first, slot contents are 
+        updated next and switch toggles are processed last. As a result, it is 
         possible to clear the memory globally and populate it with new 
         information (e.g., in the service of a new goal) in one single update. 
         The switch for an empty slot will ALWAYS be closed by the end of 
         the update cycle (even if it is opened during the cycle). 
         """
 
-        cmds = self._parse_commands(inputs.copy())
+        _ctrl_subsystem, _ctrl_terminus = self.controller
+        raw_cmds = inputs[_ctrl_subsystem][_ctrl_terminus]
+        cmds = self._parse_commands(raw_cmds.copy())
 
         # global reset
         if self.interface.reset_dim in cmds:
@@ -379,19 +381,19 @@ class WorkingMemory(PropagatorB):
             if self.interface.reset_vals[1] == val:
                 self.reset()
 
-        # toggle switches
-        for slot, dim in enumerate(self.interface.switch_dims):
-            if dim in cmds:
-                val = cmds[dim]
-                if val == self.switch_vals[1]:
-                    self.toggle(slot)
-
         # cell/slot updates
         for slot, cell in enumerate(self.cells):
             cell.update(construct, inputs.copy())
             # Clearing a slot automatically sets corresponding switch to False.
             if cell.is_empty:
                 self.close_switch(slot)
+
+        # toggle switches
+        for slot, dim in enumerate(self.interface.switch_dims):
+            if dim in cmds:
+                val = cmds[dim]
+                if val == self.interface.switch_vals[1]:
+                    self.toggle(slot)
 
     def _parse_commands(self, inputs):
 
@@ -410,6 +412,6 @@ class WorkingMemory(PropagatorB):
                 raise ValueError(
                 "Multiple commands for dim '{}' in WorkingMemory.".format(k)
             )
-            cmds[k] = g.pop()
+            cmds[k] = g[0].val
 
         return cmds
