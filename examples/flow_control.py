@@ -181,15 +181,20 @@ print("CYCLE 1: Open stimulus only.")
 
 alice.propagate(
     kwds={
-        buffer("stimulus"): {"stimulus": {feature("nacs-stimulus", 1.0): 1.0}}
+        buffer("stimulus"): {"stimulus": {feature("nacs-stim", 1.0): 1.0}}
     }
 )
 alice.update()
-pprint.pprint(alice.output)
+print(
+    "Step 1: {} -> {}".format(
+        gate.emitter.controller, 
+        alice[gate.emitter.controller].output
+    )
+)
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
 
 
 print("CYCLE 2: Open stimulus & associations only.")
@@ -198,18 +203,23 @@ alice.propagate(
     kwds={
         buffer("stimulus"): {
             "stimulus": {
-                feature("nacs-stimulus", 1.): 1.,
-                feature("nacs-associations", 1.): 1.
+                feature("nacs-stim", 1.): 1.,
+                feature("nacs-assoc", 1.): 1.
             }
         }
     }
 )
 alice.update()
-pprint.pprint(alice.output)
+print(
+    "Step 1: {} -> {}".format(
+        gate.emitter.controller, 
+        alice[gate.emitter.controller].output
+    )
+)
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
 
 
 print("CYCLE 3: Open stimulus & bottom-up only.")
@@ -218,15 +228,20 @@ alice.propagate(
     kwds={
         buffer("stimulus"): {
             "stimulus": {
-                feature("nacs-stimulus", 1.): 1.,
+                feature("nacs-stim", 1.): 1.,
                 feature("nacs-bt", 1.): 1.
             }
         }
     }
 )
 alice.update()
-pprint.pprint(alice.output)
+print(
+    "Step 1: {} -> {}".format(
+        gate.emitter.controller, 
+        alice[gate.emitter.controller].output
+    )
+)
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-pprint.pprint(alice.output)
+print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
