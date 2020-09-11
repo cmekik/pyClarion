@@ -8,9 +8,9 @@ from itertools import groupby
 
 
 __all__ = [
-    "group_by_dims", "max_strength", "invert_strengths", "simple_junction", 
-    "max_junction", "linear_rule_strength", "select", "boltzmann_distribution", 
-    "multiplicative_filter", "scale_strengths"
+    "group_by_dims", "eye", "inv", "max_strength", "invert_strengths", 
+    "simple_junction", "max_junction", "linear_rule_strength", "select", 
+    "boltzmann_distribution", "multiplicative_filter", "scale_strengths"
 ]
 
 
@@ -34,6 +34,18 @@ def group_by_dims(
         groups[k] = tuple(g)
     
     return groups
+
+
+def eye(strength):
+    """Return strength."""
+
+    return strength
+
+
+def inv(strength):
+    """Return inverted strength (i.e., 1 - strength)."""
+
+    return 1.0 - strength
 
 
 def max_strength(construct, packets):

@@ -9,7 +9,8 @@ from pyClarion.components.propagators import (
     PropagatorN, PropagatorA, PropagatorB, PropagatorT
 )
 from pyClarion.utils.funcs import (
-    scale_strengths, multiplicative_filter, group_by_dims, invert_strengths
+    scale_strengths, multiplicative_filter, group_by_dims, invert_strengths, 
+    eye, inv
 )
 
 from itertools import product
@@ -20,10 +21,18 @@ import pprint
 class GatedN(PropagatorN):
     """Gates output of a node."""
     
-    def __init__(self, base: PropagatorN, gate: Symbol) -> None:
+    tfms = {"eye": eye, "inv": inv}
+
+    def __init__(
+        self, 
+        base: PropagatorN, 
+        gate: Symbol,
+        tfm: str = "inv"
+    ) -> None:
 
         self.base = base
         self.gate = gate
+        self.tfm = self.tfms[tfm]
 
     def __copy__(self):
 
@@ -37,7 +46,7 @@ class GatedN(PropagatorN):
 
         weight = inputs.pop(self.gate)[construct]
         base_strength = self.base.call(construct, inputs, **kwds)
-        output = weight * base_strength
+        output = self.tfm(weight) * base_strength
 
         return output
 
@@ -45,10 +54,18 @@ class GatedN(PropagatorN):
 class GatedA(PropagatorA):
     """Gates output of an activation propagator."""
     
-    def __init__(self, base: PropagatorA, gate: Symbol) -> None:
+    tfms = {"eye": eye, "inv": inv}
+
+    def __init__(
+        self, 
+        base: PropagatorA, 
+        gate: Symbol,
+        tfm: str = "eye"
+    ) -> None:
 
         self.base = base
         self.gate = gate
+        self.tfm = self.tfms[tfm]
 
     def expects(self, construct):
 
@@ -58,7 +75,10 @@ class GatedA(PropagatorA):
 
         weight = inputs.pop(self.gate)[construct]
         base_strengths = self.base.call(construct, inputs, **kwds)
-        output = scale_strengths(weight=weight, strengths=base_strengths)
+        output = scale_strengths(
+            weight=self.tfm(weight), 
+            strengths=base_strengths
+        )
 
         return output
 
