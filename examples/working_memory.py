@@ -25,7 +25,7 @@ wm = Construct(
             reset_dim="wm-reset",
             reset_vals=("standby", "release"),
             switch_dims=tuple("wm-s{}".format(i) for i in range(WMSLOTS)),
-            switch_vals=("standby", "toggle"),
+            switch_vals=("standby", "open"),
         ) 
     ),
     updater=WorkingMemory.StateUpdater()
@@ -193,10 +193,10 @@ alice.update()
 alice.propagate(kwds={})
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
-# toggle empty (should do nothing)
-print("Toggle (Empty WM; does nothing)")
+# open empty (should do nothing)
+print("Open (Empty WM; does nothing)")
 
-d = {feature("wm-s1", "toggle"): 1.0}
+d = {feature("wm-s1", "open"): 1.0}
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 print(
     "Step 1: {} -> {}".format(
@@ -216,7 +216,7 @@ d = {
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
     feature("wm-w0", "retrieve"): 1.0,
-    feature("wm-s0", "toggle"): 1.0
+    feature("wm-s0", "open"): 1.0
 }
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 print(
@@ -258,9 +258,9 @@ d = {
     feature("fruit", "banana"): 1.0,
     feature("price", "expensive"): 1.0,
     feature("wm-w0", "retrieve"): 1.0,
-    feature("wm-s0", "toggle"): 1.0,
+    feature("wm-s0", "open"): 1.0,
     feature("wm-w1", "extract"): 1.0,
-    feature("wm-s1", "toggle"): 1.0
+    feature("wm-s1", "open"): 1.0
 }
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 print(
@@ -274,10 +274,10 @@ alice.update()
 alice.propagate(kwds={})
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
-# Toggle Slot 2, removing it
-print("Toggle Slot 1, removing it from output")
+# Open Slot 2, removing it
+print("Open Slot 1, removing it from output")
 
-d = {feature("wm-s1", "toggle"): 1.0}
+d = {feature("wm-s1", "open"): 1.0}
 alice.propagate(kwds={buffer("Stimulus"): {"stimulus": d}})
 print(
     "Step 1: {} -> {}".format(

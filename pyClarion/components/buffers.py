@@ -285,7 +285,6 @@ class WorkingMemory(PropagatorB):
         self.interface = interface
         self.level = level
 
-        self.switches: List[bool] = [False for _ in interface.switch_dims]
         self.cells = tuple(
             Register(
                 controller=controller,
@@ -308,17 +307,6 @@ class WorkingMemory(PropagatorB):
 
         return construct == ctl_subsystem or construct == src_subsystem
 
-    def toggle(self, slot):
-        """
-        Toggle slot's output switch.
-        
-        The switch state determines whether to exclude slot contents from 
-        output. Toggling an empty slot has no effect.
-        """
-
-        if not self.cells[slot].is_empty:
-            self.switches[slot] = not self.switches[slot]
-
     def reset(self):
         """
         Reset memory state.
@@ -326,28 +314,31 @@ class WorkingMemory(PropagatorB):
         Clears all memory slots and closes all switches.
         """
 
-        for i, cell in enumerate(self.cells):
-            self.switches[i] = False
+        for cell in self.cells:
             cell.clear()
-
-    def close_switch(self, slot):
-        """Set output switch to closed position."""
-
-        self.switches[slot] = False
 
     def call(self, construct, inputs, **kwds):
         """
         Activate stored nodes.
 
-        Only activates stored nodes in slots whose corresponding switches are 
-        open.        
+        Only activates stored nodes in opened slots.
         """
 
         # Could possibly also use collections.ChainMap. Need to check how it 
         # will interact w/ downstream processing. - Can
         
+        cmds = self._parse_commands(inputs)
+
+        # toggle switches
+        switches = []
+        for slot, dim in enumerate(self.interface.switch_dims):
+            if dim in cmds:
+                val = cmds[dim]
+                switch = (val == self.interface.switch_vals[1])
+                switches.append(switch)
+                    
         d = {}
-        for switch, cell in zip(self.switches, self.cells):
+        for switch, cell in zip(switches, self.cells):
             if switch is True:
                 d_cell = cell.call(construct, inputs.copy(), **kwds)
                 d.update(d_cell)
@@ -361,19 +352,15 @@ class WorkingMemory(PropagatorB):
         Updates are controlled by matching features emitted in the output of 
         self.controller to those defined in self.interface. If no commands are 
         encountered, default/standby behavior will be executed. The default 
-        behavior is to maintain the current memory and switch states.
+        behavior is to maintain the current memory state.
         
         The update cycle processes global resets first, slot contents are 
-        updated next and switch toggles are processed last. As a result, it is 
-        possible to clear the memory globally and populate it with new 
-        information (e.g., in the service of a new goal) in one single update. 
-        The switch for an empty slot will ALWAYS be closed by the end of 
-        the update cycle (even if it is opened during the cycle). 
+        updated next. As a result, it is possible to clear the memory globally 
+        and populate it with new information (e.g., in the service of a new 
+        goal) in one single update. 
         """
 
-        _ctrl_subsystem, _ctrl_terminus = self.controller
-        raw_cmds = inputs[_ctrl_subsystem][_ctrl_terminus]
-        cmds = self._parse_commands(raw_cmds.copy())
+        cmds = self._parse_commands(inputs)
 
         # global reset
         if self.interface.reset_dim in cmds:
@@ -383,23 +370,25 @@ class WorkingMemory(PropagatorB):
 
         # cell/slot updates
         for slot, cell in enumerate(self.cells):
+            # The copy here is for safety... better option may be to make 
+            # inputs immutable. - Cans
             cell.update(construct, inputs.copy())
             # Clearing a slot automatically sets corresponding switch to False.
-            if cell.is_empty:
-                self.close_switch(slot)
-
-        # toggle switches
-        for slot, dim in enumerate(self.interface.switch_dims):
-            if dim in cmds:
-                val = cmds[dim]
-                if val == self.interface.switch_vals[1]:
-                    self.toggle(slot)
 
     def _parse_commands(self, inputs):
 
+        subsystem, terminus = self.controller
+        try:
+            raw_cmds = inputs[subsystem][terminus]
+        except KeyError:
+            # if command interface cannot be found, assume default commands.
+            raw_cmds = set(self.interface.defaults)
+            # This should publish a warning in a log; remember to do this when 
+            # setting up logging. - Can
+
         # Filter irrelevant feature symbols
         cmd_set = set(
-            f for f in inputs if f in self.interface.features and (
+            f for f in raw_cmds if f in self.interface.features and (
                 f.dim == self.interface.reset_dim or
                 f.dim in self.interface.switch_dims
             )
