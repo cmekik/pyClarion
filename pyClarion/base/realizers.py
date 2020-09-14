@@ -75,6 +75,8 @@ class Realizer(Generic[Et]):
         # If not, do nothing.
         global _pyClarion_add_stack
         try:
+            # type ignore here b/c mypy complains that _pyClarion_add_stack is 
+            # undefined despite being global & wrapped in try except.
             _pyClarion_add_stack.append(self) # type: ignore
         except NameError:
             pass
