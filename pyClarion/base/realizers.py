@@ -71,6 +71,14 @@ class Realizer(Generic[Et]):
         self.emitter = emitter
         self.updater = updater
 
+        # If current context contains an add stack, add self to it. 
+        # If not, do nothing.
+        global _pyClarion_add_stack
+        try:
+            _pyClarion_add_stack.append(self) # type: ignore
+        except NameError:
+            pass
+
     def __repr__(self) -> Text:
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
@@ -276,6 +284,31 @@ class Structure(Realizer[Ct]):
         else:
             self.drop_links(construct=key)
             del self._dict[key.ctype][key]
+
+    def __enter__(self):
+
+        # Check if a global add stack exists. If not, create one.
+        global _pyClarion_add_stack
+        try:
+            _pyClarion_add_stack
+        except NameError:
+            _pyClarion_add_stack = []
+
+    def __exit__(self, exc_type, exc_value, traceback):
+
+        # Add any newly defined realizers to self and clean up the add stack.
+        global _pyClarion_add_stack
+        for i, realizer in enumerate(reversed(_pyClarion_add_stack)):
+            if realizer is not self:
+                self.add(realizer)
+                # TODO: Instead of printing below, add it to a log. Will be 
+                # very useful for debugging. - Can
+                # print("adding {} to {}".format(realizer, self) )
+            else:
+                _pyClarion_add_stack = _pyClarion_add_stack[:-i]
+                break
+        else:
+            del _pyClarion_add_stack
 
     def propagate(self, kwds: Dict = None) -> None:
 

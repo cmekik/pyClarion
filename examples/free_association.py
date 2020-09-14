@@ -10,17 +10,19 @@ a cue.
 # Import notes may be skipped on first reading. They are for clarification 
 # purposes only.
 from pyClarion import (
-    # These are realizer objects, implementing behavior of simulated constructs.
+    # Below are realizer objects, implementing the behavior of simulated 
+    # constructs.
     Structure, Construct,
-    # Construct types are used in controlling construct behavior
+    # Construct types are used in controlling construct behavior.
     ConstructType, MatchSet, Assets,
-    # These functions are constructors for construct symbols, which are used to 
+    # Below are functions for constructing construct symbols, which are used to 
     # name, index and reference simulated constructs
     agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 
     flow_bt,
-    # These objects house datastructures handling various important concerns.
+    # The objects below house datastructures handling various important 
+    # concerns.
     Chunks, Rules,
-    # These objects define how realizers process activations in the forward 
+    # The objects below define how realizers process activations in the forward 
     # direction.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
     FilteredT, NACSCycle, AgentCycle
@@ -55,232 +57,258 @@ alice = Structure(
 # The `name` argument to the Structure constructor serves to label the 
 # construct. It is mandatory to provide a name argument to construct realizers, 
 # as names enable automation of important behavior, such as linking/unlinking 
-# constructs.  
+# constructs. 
 
-# To keep track of concepts that Alice knows about, we equip Alice with a chunk 
-# database (more on chunks below). This is done by passing an `Assets` object, 
-# which is given a chunk database to be stored in its `chunks` attribute, as 
-# the agent's 'assets' attribute. The `assets` attribute provides a namespace 
-# for convenient storage of resources shared by construct realizers subordinate 
-# to Alice. All Structure objects have the `assets` attribute. The `Assets` 
-# object is uncomplicated. It simply records all arguments passed to 
-# it as an attribute. 
+# Constructs are named using 'construct symbols'. Here, we see a construct 
+# symbol explicitly invoked for the first time through the convenience function 
+# `agent()`, which takes a hashable object and returns a construct symbol for 
+# an agent construct. Typically, construct symbols are created through 
+# convenience functions, as manually specifying them is rather tedious. For 
+# instance, the result of `agent("Alice")` can be directly created with the 
+# longer expression `Symbol("agent", "Alice")`.
+
+# To keep track of the concepts that Alice knows about, we equip Alice with a 
+# chunk database (more on chunks below). This is done by passing an `Assets` 
+# object, which is given a chunk database to be stored in its `chunks` 
+# attribute, as the agent's 'assets' attribute. The `assets` attribute provides 
+# a namespace for convenient storage of resources shared by construct realizers 
+# subordinate to Alice. All Structure objects have the `assets` attribute. The 
+# `Assets` object is uncomplicated. It simply records all arguments passed to 
+# it as attributes. 
 
 # A good rule of thumb is to place shared resources in the structure directly 
-# in or above the highest-level construct realizer using the resource.
+# in or above the highest-level construct using the resource.
 
-# For this simulation, there are two main constructs at the agent-level: the 
-# stimulus and the non-action-centered subsystem (NACS). The stimulus is 
-# uncomplicated: it is simply an abstract representation of the task cue. The 
-# NACS, on the other hand, is the Clarion subsystem that is responsible for 
-# processing declarative knowledge. Knowledge is represented by chunk and 
-# feature nodes within the NACS. These nodes receive activations from external 
-# buffers and each other, and they compete to be selected as the output of NACS 
-# at each simulation step.
+# The next step in agent construction is to populate `alice` with components 
+# representing various cognitive structures postulated by the Clarion theory.
+# This amounts to constructing, node by node, a complex network of networks.
 
-# Stimulus
-
-# We begin by adding the stimulus component to the model. 
-
-stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
-alice.add(stimulus)
-
-# We represent the stimulus with a buffer construct, which is a top-level 
-# construct within an agent that stores and relays activations to various 
-# subsystems. As before, we first create a construct realizer. We then pass it 
-# to `alice` using `alice.add()`. This automatically stores the buffer within 
-# the `alice` object.
- 
-# We provide the Buffer constructor with a `propagator` object. The propagator 
-# object is a callable that defines how the buffer processes information. The 
-# Stimulus object passed in as proc allows us to set stimulus values on the fly, 
-# as demonstrated below. 
-
-# Non-Action Centered Subsystem
-
-# Next, we set up a realizer for the Non-Action-Centered Subsystem. The setup is 
-# syntactically similar, but differs a bit in its semantics. The propagator is,
-# this time, a callable that implements the desired activation cycle for NACS. 
-
-nacs = Structure(
-    name=subsystem("NACS"),
-    emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")})),
-    assets=Assets(rules=Rules())
-)
-
-# The 'matches' argument lets the subsystem know that it should receive input 
-# from the stimulus (more specifically, from the buffer construct representing 
-# the stimulus).
-
-# In this example, we see a construct symbol explicitly invoked for the first 
-# time through the convenience function `buffer()`, which takes a hashable 
-# object and returns a construct symbol for a buffer construct. Typically, 
-# construct symbols are created through convenience functions, as manually 
-# specifying them is rather tedious. For instance, the result of 
-# `buffer("stimulus")` can be directly created with the longer expression 
-# `Symbol("buffer", "Stimulus")`, or the abbreviated but still verbose 
-# ConSymb("buffer", "Stimulus").
-
-# As before, we add assets. In this case, we are interested in equipping the 
-# NACS with a rule database, to be used in reasoning. In reality, this database 
-# is only used by a single construct realizer. However, it helps to keep a 
-# reference to it at the level of NACS as other objects/processes, such as 
-# learning rules, base-level activation trackers, loggers etc., may need access 
-# to the rule database.
-
-alice.add(nacs)
-
-# A call to alice.add() places the NACS within Alice's cognitive apparatus and 
-# establishes all specified links (i.e., the link from stimulus buffer to NACS). 
-# To do this, the agent object automatically checks all constructs it contains 
+# Constructs may be added to `Structure` objects using the `add()` method, like 
+# `alice.add()`. A call to alice.add() on some construct, places that construct 
+# within Alice's cognitive apparatus and establishes any links specified 
+# between the new construct and any existing consturct within Alice. To do 
+# this, the `Structure` object automatically checks all constructs it contains 
 # and links up those that match.
 
-# Now, it is time to populate the NACS. This involves adding in chunk and 
-# feature nodes to represent any initial knowledge we think `alice` should have 
-# and adding in various other components for processing given information and 
-# selecting responses. 
+# To facilitate the construction process, pyClarion borrows a pattern from 
+# the nengo library. When a pyClarion construct is initialized in a with 
+# statement where the context manager is a pyClarion `Structure`, the construct 
+# is automatically added to the structure serving as the context manager. Under 
+# the hood, the with syntax simply stores constructs created within it in a 
+# temporary helper variable and, upon exit, adds the constructs to the parent 
+# structure using its `add()` methtod (the actual process is slightly more 
+# complex because it allows nested use of the with statement in this way).
 
-# Flows
+with alice:
 
-# Flows are an abstraction native to `pyClarion`; they represent processes 
-# within subsystems that map node activations to node activations. In other 
-# words, 'flow' is pyClarion's umbrella term for the various neural networks and 
-# rule systems that may live within a Clarion subsystem. For example, a 
-# collection of associative rules in the top level of the NACS or some neural 
-# network module in the bottom level would each be represented by a 
-# corresponding `Flow` object.
+    # For this simulation, there are two main constructs at the agent-level: 
+    # the stimulus and the non-action-centered subsystem (NACS). The stimulus 
+    # is uncomplicated: it is simply an abstract representation of the task 
+    # cue. The NACS, on the other hand, is the Clarion subsystem that is 
+    # responsible for processing declarative knowledge. Knowledge is 
+    # represented by chunk and feature nodes within the NACS. These nodes 
+    # receive activations from external buffers and each other, and they 
+    # compete to be selected as the output of NACS at each simulation step.
 
-# For this simulation, we will create three flows. The first processes (in the 
-# top level) associative rules known to Alice, the other two links Alice's 
-# explicit (top-level) and implicit (bottom-level) declarative knowledge.
+    # Stimulus
 
-# We instantiate flows by constructing `Flow` objects.
+    # We begin by adding the stimulus component to the model. 
 
-nacs.add(
-    Construct(
-        name=flow_tt("Associations"),
-        emitter=AssociativeRules(rules=nacs.assets.rules) 
-    ),
-    Construct(
-        name=flow_bt("Main"), 
-        emitter=BottomUp(chunks=alice.assets.chunks) 
-    ),
-    Construct(
-        name=flow_tb("Main"), 
-        emitter=TopDown(chunks=alice.assets.chunks) 
-    )
-)
+    stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
 
-# Note that the syntax for initializing Flows is essentially the same as before, 
-# only requiring appropriate argument choices.
+    # We represent the stimulus with a buffer construct, which is a top-level 
+    # construct within an agent that stores and relays activations to various 
+    # subsystems. As before, we first create a construct realizer. 
 
-# Responses
+    # The Stimulus object passed in as the emitter allows us to set stimulus 
+    # values on the fly. 
 
-# It is necessary to specify how the NACS should choose its output at the end of 
-# an activation cycle. The construct realizer for this job is given by the 
-# `Response` class. The interface here is essentially the same, but an 
-# additional `effector` argument may be used to directly map responses to 
-# callbacks, enabling `pyClarion` agents to automatically execute actions when 
-# necessary. This feature is not used in the present simulation.
+    # Non-Action-Centered Subsystem
 
-nacs.add(
-    Construct(
-        name=terminus("Main"),
-        emitter=FilteredT(
-            base=BoltzmannSelector(
-                temperature=.1,
-                matches=MatchSet(ctype=ConstructType.chunk)
-            ),
-            filter=buffer("Stimulus")
-        )
-    )
-)
+    # Next, we set up a realizer for the Non-Action-Centered Subsystem. The 
+    # setup is similar, but we create a Structure object because subsystems may 
+    # contain other constructs. The emitter is one that implements the desired 
+    # activation cycle for NACS. 
 
-# The output selection procedure in this example involves the construction of 
-# a Boltzmann distribution from chunk node activations. A chunk is then 
-# sampled from this distribution and passed on as the selected output.
-
-# Furthermore, to prevent information in the stimulus from interfering with 
-# output selection, the `BoltzmanSelector` is wrapped in a `FilteredD` object. 
-# This object is set to filter inputs to the selector proportionally to their 
-# strengths in the stimulus buffer. This amounts to cue-suppression.
-
-# In this case, the output terminus is identified with the construct symbol 
-# `terminus("Main")`. In some cases (e.g., a complex ACS), a single subsystem 
-# may contain several terminus nodes. In such cases, we add several termini.
-
-# Nodes
-
-# We must add feature nodes for all features that we assume Alice may perceive 
-# for the purposes of the simulation. Feature nodes represent Alice's implicit 
-# knowledge about the world.
-
-# Each feature node is associated with a unique dimension-value pair indicating 
-# its dimension (e.g., color) and value (e.g., red). For this simulation, we 
-# include (somewhat arbitrarily) feature nodes for the colors red and green and 
-# a feature for each of tastiness, sweetness and the liquid state. 
-
-# In the lines below, a list comprehension is used to construct the five 
-# feature nodes in the simulation. Once the feature list is constructed, we 
-# simply pass it to alice.add() to complete feature addition.
-
-fnodes = [
-    Construct(
-        name=feature(dim, val), 
-        emitter=MaxNode(
-            matches=MatchSet(ctype=ConstructType.flow_xb)
-        )
-    ) for dim, val in [
-        ("color", "#ff0000"), # red
-        ("color", "#008000"), # green
-        ("tasty", True),
-        ("state", "liquid"),
-        ("sweet", True)
-    ]
-]
-
-nacs.add(*fnodes)
-
-# The `matches` argument specifies that the features should take inputs from 
-# bottom-level flows and flows linking the top level to the bottom level (i.e., 
-# flows ending at the bottom level, or flow_xb). The propagator `MaxNode()` 
-# simply outputs the maximum activation value recommended for the client 
-# construct by linked flows. 
-
-# Feature values for red and green are given in hex code to emphasize the idea 
-# that features in Clarion theory represent implicit knowledge (since most 
-# people don't know the meaning of hex color codes off the top of their head). 
-# In practice, it is better to label features in a way that is intelligible to 
-# readers.
-
-# Next, we initialize the chunk nodes. These correspond roughly to concepts 
-# known to Alice.
-
-# Chunk nodes are simpler to identify than feature nodes in that they are 
-# differentiated only by name. We will represent chunk nodes for the concepts 
-# FRUIT, APPLE, and JUICE.
-
-# As with feature nodes, we construct the chunk nodes with a list comprehension 
-# and pass them to `alice.add()`.
-
-cnodes = [
-    Construct(
-        name=chunk(name),
-        emitter=MaxNode(
+    nacs = Structure(
+        name=subsystem("NACS"),
+        emitter=NACSCycle(
             matches=MatchSet(
-                ctype=ConstructType.flow_xt | ConstructType.buffer
+                constructs={buffer("Stimulus")}
+            )
+        ),
+        assets=Assets(rules=Rules())
+    )
+
+    # The 'matches' argument lets the subsystem know that it should receive 
+    # input from the stimulus (more specifically, from the buffer construct 
+    # representing the stimulus).
+
+    # As before, we add assets. In this case, we are interested in equipping 
+    # the NACS with a rule database, to be used in reasoning. In reality, this 
+    # database is only used by a single construct realizer. However, it helps 
+    # to keep a reference to it at the level of NACS as other objects or 
+    # processes, such as learning rules, base-level activation trackers, 
+    # loggers etc., may need access to the rule database.
+
+    # Now, it is time to populate the NACS. This involves adding in chunk and 
+    # feature nodes to represent any initial knowledge we think `alice` should 
+    # have and adding in various other components for processing given 
+    # information and selecting responses. 
+
+    # Note that we can use nested with statements to add constructs into the 
+    # NACS. The library will do this correctly and add objects constructed in 
+    # the nested statement only to the parent Structure object (i.e., the 
+    # NACS).
+
+    with nacs:
+
+        # Flows
+
+        # Flows are an abstraction native to `pyClarion`; they represent 
+        # processes within subsystems that map node activations to node 
+        # activations. In other words, 'flow' is pyClarion's umbrella term for 
+        # the various neural networks and rule systems that may live within a 
+        # Clarion subsystem. For example, a collection of associative rules in 
+        # the top level of the NACS or some neural network module in the bottom 
+        # level would each be represented by a corresponding flow construct.
+
+        # For this simulation, we will create three flows. The first processes 
+        # (in the top level) associative rules known to Alice, the other two 
+        # links Alice's explicit (top-level) and implicit (bottom-level) 
+        # declarative knowledge.
+
+        Construct(
+            name=flow_tt("Associations"),
+            emitter=AssociativeRules(rules=nacs.assets.rules) 
+        )
+
+        Construct(
+            name=flow_bt("Main"), 
+            emitter=BottomUp(chunks=alice.assets.chunks) 
+        )
+
+        Construct(
+            name=flow_tb("Main"), 
+            emitter=TopDown(chunks=alice.assets.chunks) 
+        )
+
+        # Note that the syntax for initializing flows is essentially the same 
+        # as before, only requiring appropriate argument choices.
+
+        # There are different kinds of flows, as indicated by the different 
+        # constructors `flow_tt`, `flow_tb`, and `flow_bt`. The subdivisions 
+        # are based on the source and destination of flows. For instance 'tb' 
+        # stands for 'from the top level to the bottom level'. These 
+        # designations serve to help accurately connect constructs and control 
+        # activation cycles.
+
+        # Responses
+
+        # It is necessary to specify how the NACS should choose its output at 
+        # the end of an activation cycle. To do this, we add a terminus 
+        # construct.
+
+        # The output terminus is identified with the construct symbol 
+        # `terminus("Main")`. In more complex simulations, a single subsystem 
+        # may contain several terminus nodes.
+        
+        Construct(
+            name=terminus("Main"),
+            emitter=FilteredT(
+                base=BoltzmannSelector(
+                    temperature=.1,
+                    matches=MatchSet(ctype=ConstructType.chunk)
+                ),
+                filter=buffer("Stimulus")
             )
         )
-    ) for name in ["FRUIT", "APPLE", "JUICE"]
-]
 
-nacs.add(*cnodes)
+        # The output selection process in this example involves the 
+        # construction of a Boltzmann distribution from chunk node activations. 
+        # On each activation cycle, a chunk is sampled from this distribution 
+        # and passed on as the selected output.
 
-# This time, the `matches` argument takes a compound ConstructType value. This 
-# is because in the NACS, chunk nodes receive input from incoming flows 
-# (i.e., bottom-up and top-level flows) as well as the stimulus, which we 
-# represent as a buffer construct. In other words, information coming into the 
-# NACS from the stimulus buffer activates the top level first.
+        # To prevent information in the stimulus from interfering with output 
+        # selection, the `BoltzmanSelector` is wrapped in a `FilteredT` object. 
+        # This object is configured to filter inputs to the selector 
+        # proportionally to their strengths in the stimulus buffer. This is an 
+        # example of cue-suppression.
+
+        # Nodes
+
+        # We must add feature nodes for all features that we assume Alice may 
+        # perceive for the purposes of the simulation. Feature nodes represent 
+        # Alice's implicit knowledge about the world.
+
+        # Each feature node is associated with a unique dimension-value pair 
+        # indicating its dimension (e.g., color) and value (e.g., red). For 
+        # this simulation, we include (somewhat arbitrarily) feature nodes for 
+        # the colors red and green and a feature for each of tastiness, 
+        # sweetness and the liquid state. 
+
+        dim_val_pairs = [
+            ("color", "#ff0000"), # red
+            ("color", "#008000"), # green
+            ("tasty", True),
+            ("state", "liquid"),
+            ("sweet", True)
+        ]
+
+        # Feature values for red and green are given in hex code to emphasize 
+        # the idea that features in Clarion theory represent implicit knowledge 
+        # (since most people don't know the meaning of hex color codes off the 
+        # top of their head). In practice, it is better to label features in a 
+        # way that is intelligible to readers.
+
+        # We simply iterate over the dimension-value pairs to construct each 
+        # feature node. The context manager automatically tracks the new node 
+        # objects when they are initialized.
+
+        for dim, val in dim_val_pairs:
+            Construct(
+                name=feature(dim, val), 
+                emitter=MaxNode(
+                    matches=MatchSet(ctype=ConstructType.flow_xb)
+                )
+            ) 
+
+        # The `matches` argument specifies that the features should take inputs 
+        # from bottom-level flows and flows linking the top level to the bottom 
+        # level (i.e., flows ending at the bottom level, or flow_xb). The 
+        # emitter `MaxNode()` simply outputs the maximum activation value 
+        # recommended for the client construct by linked flows. 
+
+        # Next, we initialize the chunk nodes. These correspond roughly to 
+        # concepts known to Alice.
+
+        # Chunk nodes are simpler to identify than feature nodes in that they 
+        # are differentiated only by name. We will represent chunk nodes for 
+        # the concepts FRUIT, APPLE, and JUICE.
+
+        chunk_names = ["FRUIT", "APPLE", "JUICE"]
+
+        # As with feature nodes, we construct the chunk nodes iteratively.
+
+        for name in chunk_names:
+            Construct(
+                name=chunk(name),
+                emitter=MaxNode(
+                    matches=MatchSet(
+                        ctype=ConstructType.flow_xt | ConstructType.buffer
+                    )
+                )
+            ) 
+
+        # This time, the `matches` argument takes a compound ConstructType 
+        # value. This is because in the NACS, chunk nodes receive input from 
+        # incoming flows (i.e., bottom-up and top-level flows) as well as the 
+        # stimulus, which we represent as a buffer construct. In other words, 
+        # information coming into the NACS from the stimulus buffer activates 
+        # the top level first.
+
+# We are now done populating Alice with constructs, but we still need to give 
+# her some knowledge. 
 
 # Linking Up Nodes within NACS
 
@@ -385,8 +413,6 @@ alice.clear_outputs()
 #   - The basics of running simulations using pyClarion 
 
 # Some functionalities that are supported but not demonstrated include:
-#   - Streamlined initialization of standard constructs (like NACS),  
-#   - Executing action callbacks through subsystems responses,
 #   - Dynamic modification of agent components,
 #   - Learning and state/parameter updates,
-#   - Deep customization (e.g., custom propagators, construct symbols etc.).
+#   - Deep customization (e.g., custom emitters, construct symbols etc.).
