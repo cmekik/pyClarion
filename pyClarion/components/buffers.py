@@ -50,7 +50,15 @@ class Register(PropagatorB):
     """Dynamically stores and activates nodes."""
 
     class Interface(NamedTuple):
-        """Control interface for Register instances."""
+        """
+        Control interface for Register instances.
+        
+        :param dim: Dimension controlling write operations to register.
+        :param standby: Value corresponding to standby operation.
+        :param clear: Value corresponding to clear operation.
+        :param channel_map: Tuple pairing values to terminuses for write 
+            operation.
+        """
 
         dim: Hashable
         standby: Hashable
@@ -81,6 +89,38 @@ class Register(PropagatorB):
 
             return (feature(self.dim, self.standby),)
 
+    class InterfaceError(Exception):
+        """Raised when a passed a malformed interface."""
+        pass
+
+    @classmethod
+    def _validate_interface(cls, interface):
+
+        channel_vals = [v for v, s in interface.channel_map]
+        if len(set(channel_vals)) != len(channel_vals):
+            raise cls.InterfaceError(
+                "Arg `channel_map` may not contain duplicate values."
+            )
+
+    @staticmethod
+    def _validate_controller(controller):
+
+        subsystem, terminus = controller
+        if subsystem.ctype not in ConstructType.subsystem:
+            raise ValueError(
+                "Arg `controller` must name a subsystem at index 0."
+            )
+        if terminus.ctype not in ConstructType.terminus:
+            raise ValueError(
+                "Arg `controller` must name a terminus at index 1."
+            )
+
+    @staticmethod
+    def _validate_source(source):
+
+        if source.ctype not in ConstructType.subsystem:
+            raise ValueError("Arg `source` must name a subsystem.")
+
     def __init__(
         self, 
         controller: Tuple[Symbol, Symbol], 
@@ -99,7 +139,9 @@ class Register(PropagatorB):
         :param level: Output activation level for stored features.
         """
 
-        self._validate_init_args(controller, source, interface, filter, level)
+        self._validate_controller(controller)
+        self._validate_source(source)
+        self._validate_interface(interface)
 
         super().__init__()
         self.store: list = list() # TODO: Improve type annotation. - Can
@@ -109,23 +151,6 @@ class Register(PropagatorB):
         self.interface = interface
         self.filter = filter
         self.level = level
-
-    @staticmethod
-    def _validate_init_args(controller, source, interface, filter, level):
-
-        # TODO: Add more comprehensive validation? - Can
-
-        ctl_subsystem, ctl_terminus = controller
-        if ctl_subsystem.ctype not in ConstructType.subsystem:
-            raise ValueError(
-                "Arg `controller` does not name a subsystem at index 0."
-            )
-        if ctl_terminus.ctype not in ConstructType.terminus:
-            raise ValueError(
-                "Arg `controller` must name a terminus at index 1."
-            )
-        if source.ctype not in ConstructType.subsystem:
-            raise ValueError("Arg `source` must name a subsystem.")
 
     def expects(self, construct):
         
@@ -202,12 +227,31 @@ class WorkingMemory(PropagatorB):
     output and resetting the memory state. 
 
     This class defines the basic datastructure and memory update method. For 
-    minimality, it does not report mechanism states (i.e., which slots are 
-    filled, which slots are open for emitting output etc.).
+    minimality, it does not report mechanism states (e.g., which slots are 
+    filled).
     """
 
+    # TODO: In the future, WorkingMemory should return a special flag feature 
+    # if an empty slot is opened to signify retrieval failure from that slot. 
+    # This requires extensions to the interface. - Can
+
     class Interface(NamedTuple):
-        """Represents control interface for WorkingMemory propagators."""
+        """
+        Control interface for WorkingMemory propagator.
+
+        :param dims: Dimensions for controlling WM slot write operations.
+        :param standby: Value for standby action on writing operations.
+        :param clear: Value for clear action on writing operations.
+        :param channel_map: Tuple pairing a write operation value with a 
+            terminus from the source subsystem. Signals WM to write contents of 
+            terminus to a slot.
+        :param reset_dim: Dimension for controlling global WM state resets.
+        :param reset_vals: Global reset control values. First value corresponds 
+            to standby. Second value corresponds to reset initiation.
+        :param switch_dims: Dimension for controlling WM slot read operations.
+        :param switch_vals: Read operation control values. First value 
+            corresponds to standby (i.e., no read), second value to read action. 
+        """
 
         dims: Tuple[Hashable, ...]
         standby: Hashable
@@ -262,6 +306,53 @@ class WorkingMemory(PropagatorB):
 
     # TODO: Add validation checks for interface. - Can
 
+    class InterfaceError(Exception):
+        """Raised when a passed a malformed interface."""
+        pass
+
+    @classmethod
+    def _validate_interface(cls, interface: Interface) -> None:
+
+        if len(interface.dims) != len(interface.switch_dims):
+            raise cls.InterfaceError("Len of dims and switch_dims must match.") 
+
+        if len(set(interface.dims)) != len(interface.dims):
+            raise cls.InterfaceError("dims may not contain duplicates.")
+
+        channel_vals = [v for v, s in interface.channel_map]
+        if len(set(channel_vals)) != len(channel_vals):
+            raise cls.InterfaceError(
+                "Arg `channel_map` may not contain duplicate values."
+            )
+
+        if len(set(interface.switch_dims)) != len(interface.switch_dims):
+            raise cls.InterfaceError("switch_dims may not contain duplicates.")
+
+        if len(set(interface.reset_vals)) != 2:
+            raise cls.InterfaceError("Must provide two distinct reset_vals")
+
+        if len(set(interface.reset_vals)) != 2:
+            raise cls.InterfaceError("Must provide two distinct switch_vals")
+
+    @staticmethod
+    def _validate_controller(controller):
+
+        subsystem, terminus = controller
+        if subsystem.ctype not in ConstructType.subsystem:
+            raise ValueError(
+                "Arg `controller` must name a subsystem at index 0."
+            )
+        if terminus.ctype not in ConstructType.terminus:
+            raise ValueError(
+                "Arg `controller` must name a terminus at index 1."
+            )
+
+    @staticmethod
+    def _validate_source(source):
+
+        if source.ctype not in ConstructType.subsystem:
+            raise ValueError("Arg `source` must name a subsystem.")
+
     def __init__(
         self,
         controller: Tuple[Symbol, Symbol],
@@ -279,6 +370,10 @@ class WorkingMemory(PropagatorB):
         :param filter: Optional filter for state updates.
         :param level: Output activation level for stored features.
         """
+
+        self._validate_controller(controller)
+        self._validate_source(source)
+        self._validate_interface(interface)
 
         self.controller = controller
         self.source = source
@@ -383,8 +478,8 @@ class WorkingMemory(PropagatorB):
         except KeyError:
             # if command interface cannot be found, assume default commands.
             raw_cmds = set(self.interface.defaults)
-            # This should publish a warning in a log; remember to do this when 
-            # setting up logging. - Can
+            # TODO: This should publish a warning in a log; remember to do this 
+            # when setting up logging. - Can
 
         # Filter irrelevant feature symbols
         cmd_set = set(
