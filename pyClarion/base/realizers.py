@@ -331,7 +331,19 @@ class Structure(Realizer[Ct]):
             realizer.update()
 
     def add(self, *realizers: Realizer) -> None:
-        """Add realizers to self and any associated links."""
+        """
+        Add realizers to self and any associated links.
+        
+        Calling add directly when building an agent may be error-prone, not to 
+        mention cumbersome. A better approach may be to try using self as a 
+        context manager. 
+        
+        When self is used as a context manager, any construct initialized 
+        within the body of a with statement having self as its context manager 
+        will automatically be added to self upon exit from the context. Nested 
+        use of with statements in this way (e.g. to add objects to subsystems 
+        within an agent) is well-behaved.
+        """
 
         for realizer in realizers:
             ctype = realizer.construct.ctype
