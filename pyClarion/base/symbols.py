@@ -129,6 +129,8 @@ class Symbol(Token):
     Consists of a construct type (see ConstructType) and an identifier.
     """
 
+    __slots__ = ()
+
     def __init__(
         self, ctype: Union[ConstructType, str, int], *cid: Hashable
     ) -> None:
@@ -197,6 +199,8 @@ class feature(Symbol):
     to be of different dimensions.
     """
 
+    __slots__ = ()
+
     def __init__(self, dlb: Hashable, val: Hashable, lag: int = 0) -> None:
         """
         Initialize a new feature symbol.
@@ -243,6 +247,8 @@ class feature(Symbol):
 class chunk(Symbol):
     """A chunk symbol."""
 
+    __slots__ = ()
+
     def __init__(self, cid: Hashable) -> None:
         """
         Initialize a new chunk symbol.
@@ -255,6 +261,8 @@ class chunk(Symbol):
 
 class flow_in(Symbol):
     """An input flow symbol."""
+
+    __slots__ = ()
 
     def __init__(self, cid: Hashable) -> None:
         """
@@ -269,6 +277,8 @@ class flow_in(Symbol):
 class flow_bt(Symbol):
     """A bottom-up flow symbol."""
 
+    __slots__ = ()
+
     def __init__(self, cid: Hashable) -> None:
         """
         Initialize a new bottom-up flow symbol.
@@ -281,6 +291,8 @@ class flow_bt(Symbol):
 
 class flow_tb(Symbol):
     """A top-down flow symbol."""
+
+    __slots__ = ()
 
     def __init__(self, cid: Hashable) -> None:
         """
@@ -295,6 +307,8 @@ class flow_tb(Symbol):
 class flow_tt(Symbol):
     """A top level flow symbol."""
 
+    __slots__ = ()
+
     def __init__(self, cid: Hashable) -> None:
         """
         Initialize a new top-level flow symbol.
@@ -307,6 +321,8 @@ class flow_tt(Symbol):
 
 class flow_bb(Symbol):
     """A bottom level flow symbol."""
+
+    __slots__ = ()
 
     def __init__(self, cid: Hashable) -> None:
         """
@@ -321,6 +337,8 @@ class flow_bb(Symbol):
 class terminus(Symbol):
     """A terminus symbol."""
 
+    __slots__ = ()
+
     def __init__(self, cid) -> None:
         """
         Initialize a new terminus symbol.
@@ -333,6 +351,8 @@ class terminus(Symbol):
 
 class buffer(Symbol):
     """A buffer symbol."""
+
+    __slots__ = ()
 
     def __init__(self, cid) -> None:
         """
@@ -347,6 +367,8 @@ class buffer(Symbol):
 class subsystem(Symbol):
     """A subsystem symbol."""
 
+    __slots__ = ()
+
     def __init__(self, cid) -> None:
         """
         Initialize a new subsystem symbol.
@@ -359,6 +381,8 @@ class subsystem(Symbol):
 
 class agent(Symbol):
     """An agent symbol."""
+
+    __slots__ = ()
 
     def __init__(self, cid) -> None:
         """
