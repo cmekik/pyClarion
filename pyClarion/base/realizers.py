@@ -15,6 +15,7 @@ from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
     Text, Iterator, Iterable, Mapping, ClassVar, cast, no_type_check
 )
+import logging
 
 
 Dt = TypeVar('Dt') # type variable for inputs to emitters
@@ -81,6 +82,9 @@ class Realizer(Generic[Et]):
         except NameError:
             pass
 
+        # Log construction.
+        logging.info("Built %s %s.", type(self).__name__, self.construct)
+
     def __repr__(self) -> Text:
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
@@ -118,6 +122,9 @@ class Realizer(Generic[Et]):
 
         self._inputs[construct] = callback
 
+        # Log connection.
+        logging.info("Connected %s to %s.", construct, self.construct)
+
     def drop(self, construct: Symbol) -> None:
         """Remove link from construct to self."""
 
@@ -125,6 +132,9 @@ class Realizer(Generic[Et]):
             del self._inputs[construct]
         except KeyError:
             pass
+        else:
+            # Log connection.
+            logging.info("Disconnected %s from %s.", construct, self.construct)
 
     def clear_inputs(self) -> None:
         """Clear self.inputs."""
@@ -271,7 +281,7 @@ class Structure(Realizer[Ct]):
         else:
             return self._dict[key.ctype][key]
 
-    # Recursive application needs testing. - Can
+    # TODO: Recursive application needs testing. - Can
     def __delitem__(self, key: ConstructRef) -> None:
 
         if isinstance(key, tuple):
@@ -286,6 +296,9 @@ class Structure(Realizer[Ct]):
         else:
             self.drop_links(construct=key)
             del self._dict[key.ctype][key]
+
+            # TODO: Check if this is correct. - Can
+            logging.info("Removed %s from %s.", key, self.construct)
 
     def __enter__(self):
 
@@ -350,6 +363,8 @@ class Structure(Realizer[Ct]):
             d = self._dict.setdefault(ctype, {})
             d[realizer.construct] = realizer
             self.update_links(construct=realizer.construct)
+
+            logging.info("Added %s to %s.", realizer.construct, self.construct)
 
     def remove(self, *constructs: Symbol) -> None:
         """Remove constructs from self and any associated links."""
