@@ -163,11 +163,6 @@ class Repeater(PropagatorA):
 class Lag(PropagatorA):
     """Lags strengths for given features."""
 
-    # Expected dimension type. Lag object looks for a `lag` attribute, which 
-    # is an int specifying lag amount. Any symbolic object satisfying this 
-    # requirement may be used.
-    Dim = namedtuple("LagDim", ["name", "lag"])
-
     def __init__(self, max_lag=1, matches=None):
         """
         Initialize a new `Lag` propagator.
@@ -184,11 +179,8 @@ class Lag(PropagatorA):
     def call(self, construct, inputs, **kwds):
 
         d = {
-            feature(
-                dim=type(self).Dim(name=f.dim.name, lag=f.dim.lag + 1), 
-                val=f.val
-            ): s 
-            for f, s in inputs.items() if f.dim.lag < self.max_lag
+            feature(f.dlb, f.val, f.lag + 1): s 
+            for f, s in inputs.items() if f.lag < self.max_lag
         }
 
         return d

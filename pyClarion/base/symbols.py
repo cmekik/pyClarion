@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "ConstructType", "Symbol", "ConstructRef", "MatchSet", "feature", "chunk", 
-    "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", 
+    "ConstructType", "Token", "Symbol", "ConstructRef", "MatchSet", "feature", 
+    "chunk", "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", 
     "buffer", "subsystem", "agent"
 ]
 
@@ -11,11 +11,6 @@ __all__ = [
 from enum import Flag, auto
 from typing import Hashable, Tuple, Union, Iterable, Callable, MutableSet
 
-
-#########################
-### Class Definitions ###
-#########################
- 
 
 class ConstructType(Flag):
     """
@@ -75,16 +70,64 @@ class ConstructType(Flag):
     container_construct = subsystem | agent
 
 
-class Symbol(object):
+class Token(object):
+    """
+    A symbolic token. 
+    
+    Intended as a base class for constructing symbolic structures.
+    
+    Constructs a hashable object from hashable args. Supports '==' and '<'. 
+    Does not support mutation.
+    """
+
+    __slots__ = ("_args")
+
+    def __init__(self, *args: Hashable):
+
+        super().__setattr__("_args", tuple(args))
+
+    def __hash__(self):
+
+        return hash(self._args)
+
+    def __repr__(self):
+
+        cls_name = type(self).__name__
+        args = ", ".join(repr(item) for item in self._args)
+        
+        return "{}({})".format(cls_name, args)
+
+    def __setattr__(self, name, value):
+
+        cls_name = type(self).__name__
+        msg = "Mutation of {} instance not permitted.".format(cls_name)
+        raise AttributeError(msg)
+
+    def __eq__(self, other):
+
+        if isinstance(other, Token):
+            return self._args == other._args
+        else:
+            template = "'==' not supported between instances of '{}' and '{}'."
+            msg = template.format(type(self).__name__, type(other).__name__)
+            raise TypeError(msg)
+    
+    def __lt__(self, other):
+
+        if isinstance(other, Token):
+            return self._args < other._args
+        else:
+            template = "'<' not supported between instances of '{}' and '{}'."
+            msg = template.format(type(self).__name__, type(other).__name__)
+            raise TypeError(msg)
+
+
+class Symbol(Token):
     """
     Symbol for naming Clarion constructs.
 
     Consists of a construct type (see ConstructType) and an identifier.
     """
-
-    __slots__ = ('_data')
-    
-    _data: Tuple[ConstructType, Tuple[Hashable, ...]]
 
     def __init__(
         self, ctype: Union[ConstructType, str, int], *cid: Hashable
@@ -95,6 +138,9 @@ class Symbol(object):
         :param ctype: Construct type.
         :param cid: Hashable sequence serving as identifier.
         """
+
+        if len(cid) == 0:
+            raise ValueError("Must pass at least one identifier.")
 
         if isinstance(ctype, str):
             ctype = ConstructType[ctype]
@@ -110,104 +156,218 @@ class Symbol(object):
                 )
             )
 
-        if ctype in ConstructType.feature and len(cid) < 2:
-            raise TypeError(
-                "Feature symbols must specify at least a dim and a val, but "
-                "only {} objects passed as cid.".format(len(cid))
-            )
-        
-        super().__setattr__('_data', (ctype, tuple(cid)))
-
-    def __setattr__(self, name, value):
-
-        raise AttributeError(
-            "{} instance is immutable.".format(type(self).__name__)
-        )
-    
-    def __hash__(self):
-
-        return hash(self._data)
-
-    def __eq__(self, other):
-
-        if isinstance(other, Symbol):
-            return self._data == other._data
-        else:
-            raise TypeError(
-                "'==' not supported between instances of '{}' and '{}'.".format(
-                    type(self).__name__, type(other).__name__
-                )
-            )
-    
-    def __lt__(self, other):
-
-        if isinstance(other, Symbol) and self.ctype == other.ctype:
-            return self._data < other._data
-        else:
-            raise TypeError(
-                "'<' not supported between instances of '{}' and '{}'.".format(
-                    type(self).__name__, type(other).__name__
-                )
-            ) 
+        super().__init__(ctype, cid)
 
     def __repr__(self):
 
-        ctr = "ConstructType({})".format(self.ctype.value)
-        if self.ctype.name is not None:
-            ctr = repr(self.ctype.name)
-        args = ctr + ', ' + ', '.join(map(repr, self.cid))
-        r = "{}({})".format(type(self).__name__, args)
-
-        return r
-
-    def __str__(self):
-
-        if self.ctype.name is not None:
-            ctype_str = self.ctype.name
-            cid_repr = ', '.join(map(repr, self.cid))
-            s = '{}({})'.format(ctype_str, cid_repr)
-        else:
-            s = repr(self)
-
-        return s
+        cls_name = type(self).__name__
+        args = ", ".join(repr(item) for item in self.cid)
+        
+        return "{}({})".format(cls_name, args)
 
     @property
     def ctype(self) -> ConstructType:
         """Construct type associated with self."""
 
-        return self._data[0]
+        # NOTE: mypy complains that self._args not defined. So, ignore. - Can
+        return self._args[0] # type: ignore
 
     @property
     def cid(self) -> Tuple[Hashable, ...]:
         """Construct identifier associated with self."""
 
-        return self._data[1]
-
-    @property
-    def dim(self) -> Hashable:
-        """Dimension of a feature."""
-
-        if self.ctype in ConstructType.feature:
-            return self.cid[0]
-        else:
-            raise TypeError(
-                "Attribute 'dim' not defined for {}".format(self.ctype)
-            )
-
-    @property
-    def val(self) -> Hashable:
-        """Value of a feature."""
-
-        if self.ctype in ConstructType.feature:
-            return self.cid[1]
-        else:
-            raise TypeError(
-                "Attribute 'dim' not defined for {}".format(self.ctype)
-            )
+        # NOTE: mypy complains that self._args not defined. So, ignore. - Can
+        return self._args[1] # type: ignore
 
 
 # Address for a construct w/in a simulated agent or component.
 ConstructRef = Union[Symbol, Tuple[Symbol, ...]]
+
+
+class feature(Symbol):
+    """
+    A feature symbol.
+
+    Each feature is identified by a dimension label, a value, and a lag. By 
+    default, the lag is set to 0.
+
+    In pyClarion, the dimension of a feature is considered to be its dimension 
+    label together with its lag value. That is to say, two features initialized 
+    with identical dimension labels but different lag values will be considered 
+    to be of different dimensions.
+    """
+
+    def __init__(self, dlb: Hashable, val: Hashable, lag: int = 0) -> None:
+        """
+        Initialize a new feature symbol.
+
+        :param dlb: Dimension label.
+        :param val: Value of feature.
+        :param lag: Lag indicator.
+        """
+
+        super().__init__("feature", (dlb, lag), val)
+
+    def __repr__(self):
+
+        cls_name = type(self).__name__
+        args = ", ".join(map(repr, (self.dlb, self.val, self.lag)))
+        
+        return "{}({})".format(cls_name, args)
+
+    @property
+    def dim(self):
+        """Feature dimension, equal to (self.dlb, self.lag)."""
+
+        return self.cid[0]
+    
+    @property
+    def val(self):
+        """Feature value."""
+        
+        return self.cid[1]
+
+    @property
+    def dlb(self):
+        """Dimension label."""
+        
+        return self.cid[0][0]
+
+    @property
+    def lag(self):
+        """Lag value."""
+        
+        return self.cid[0][1]
+
+
+class chunk(Symbol):
+    """A chunk symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new chunk symbol.
+
+        :param cid: Chunk identifier.
+        """
+
+        super().__init__("chunk", cid)
+
+
+class flow_in(Symbol):
+    """An input flow symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new input flow symbol.
+
+        :param cid: Flow identifier.
+        """
+
+        super().__init__("flow_in", cid)
+
+
+class flow_bt(Symbol):
+    """A bottom-up flow symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new bottom-up flow symbol.
+
+        :param cid: Flow identifier.
+        """
+
+        super().__init__("flow_bt", cid)
+
+
+class flow_tb(Symbol):
+    """A top-down flow symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new top-down flow symbol.
+
+        :param cid: Flow identifier.
+        """
+
+        super().__init__("flow_tb", cid)
+
+
+class flow_tt(Symbol):
+    """A top level flow symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new top-level flow symbol.
+
+        :param cid: Flow identifier.
+        """
+
+        super().__init__("flow_tt", cid)
+
+
+class flow_bb(Symbol):
+    """A bottom level flow symbol."""
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new bottom level flow symbol.
+
+        :param cid: Flow identifier.
+        """
+
+        super().__init__("flow_bb", cid)
+
+
+class terminus(Symbol):
+    """A terminus symbol."""
+
+    def __init__(self, cid) -> None:
+        """
+        Initialize a new terminus symbol.
+
+        :param cid: Terminus identifier.
+        """
+
+        super().__init__("terminus", cid)
+
+
+class buffer(Symbol):
+    """A buffer symbol."""
+
+    def __init__(self, cid) -> None:
+        """
+        Initialize a new buffer symbol.
+
+        :param cid: Buffer identifier.
+        """
+
+        super().__init__("buffer", cid)
+
+
+class subsystem(Symbol):
+    """A subsystem symbol."""
+
+    def __init__(self, cid) -> None:
+        """
+        Initialize a new subsystem symbol.
+
+        :param cid: Subsystem identifier.
+        """
+
+        super().__init__("subsystem", cid)
+
+
+class agent(Symbol):
+    """An agent symbol."""
+
+    def __init__(self, cid) -> None:
+        """
+        Initialize a new agent symbol.
+
+        :param cid: Agent identifier.
+        """
+
+        super().__init__("agent", cid)
 
 
 class MatchSet(object):
@@ -327,122 +487,3 @@ class MatchSet(object):
             self.constructs -= set(constructs)
         if predicates is not None:
             self.predicates -= set(predicates)
-
-
-##################################
-### Construct Symbol Factories ###
-##################################
-
-# These are convenience functions for constructing construct symbols.
-# They simply wrap the appropriate Symbol constructor.
-
-
-def feature(dim: Hashable, val: Hashable) -> Symbol:
-    """
-    Return a new feature symbol.
-
-    :param dim: Dimension of feature.
-    :param val: Value of feature.
-    """
-
-    return Symbol(ConstructType.feature, dim, val)
-
-
-def chunk(name: Hashable) -> Symbol:
-    """
-    Return a new chunk symbol.
-
-    :param cid: Chunk identifier.
-    """
-
-    return Symbol(ConstructType.chunk, name)
-
-
-def flow_in(name: Hashable) -> Symbol:
-    """
-    Return a new input flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return Symbol(ConstructType.flow_in, name)
-
-
-def flow_bt(name: Hashable) -> Symbol:
-    """
-    Return a new bottom-up flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return Symbol(ConstructType.flow_bt, name)
-
-
-def flow_tb(name: Hashable) -> Symbol:
-    """
-    Return a new top-down flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return Symbol(ConstructType.flow_tb, name)
-
-
-def flow_tt(name: Hashable) -> Symbol:
-    """
-    Return a new top-level flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return Symbol(ConstructType.flow_tt, name)
-
-
-def flow_bb(name: Hashable) -> Symbol:
-    """
-    Return a new bottom-level flow symbol.
-
-    :param cid: Name of flow.
-    """
-
-    return Symbol(ConstructType.flow_bb, name)
-
-
-def terminus(name: Hashable) -> Symbol:
-    """
-    Return a new terminus symbol.
-
-    :param name: Name of terminus.
-    """
-
-    return Symbol(ConstructType.terminus, name)
-
-
-def buffer(name: Hashable) -> Symbol:
-    """
-    Return a new buffer symbol.
-
-    :param name: Name of buffer.
-    """
-
-    return Symbol(ConstructType.buffer, name)
-
-
-def subsystem(name: Hashable) -> Symbol:
-    """
-    Return a new subsystem symbol.
-
-    :param name: Name of subsystem.
-    """
-
-    return Symbol(ConstructType.subsystem, name)
-
-
-def agent(name: Hashable) -> Symbol:
-    """
-    Return a new agent symbol.
-
-    :param name: Name of agent.
-    """
-
-    return Symbol(ConstructType.agent, name)
