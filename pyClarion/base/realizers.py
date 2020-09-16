@@ -72,6 +72,8 @@ class Realizer(Generic[Et]):
         self.emitter = emitter
         self.updater = updater
 
+            
+
         # If current context contains an add stack, add self to it. 
         # If not, do nothing.
         global _pyClarion_add_stack
@@ -83,7 +85,25 @@ class Realizer(Generic[Et]):
             pass
 
         # Log construction.
-        logging.info("Built %s %s.", type(self).__name__, self.construct)
+        log_args = ("Built %s %s.", type(self).__name__, self.construct)
+        log_args = self._contextualize_log_args(*log_args)
+        logging.debug(*log_args)
+
+    @staticmethod
+    def _contextualize_log_args(msg, *args):
+
+        global _pyClarion_context
+
+        log_args: tuple
+        try:
+            context = _pyClarion_context[-1] # type: ignore
+        except NameError:
+            log_args = (msg, *args)
+        else:
+            msg: str
+            log_args = (msg.strip(".") + " in context %s.", *args, context)
+
+        return log_args
 
     def __repr__(self) -> Text:
 
@@ -123,7 +143,9 @@ class Realizer(Generic[Et]):
         self._inputs[construct] = callback
 
         # Log connection.
-        logging.info("Connected %s to %s.", construct, self.construct)
+        log_args = ("Connected %s to %s.", construct, self.construct)
+        log_args = self._contextualize_log_args(*log_args)
+        logging.debug(*log_args)
 
     def drop(self, construct: Symbol) -> None:
         """Remove link from construct to self."""
@@ -134,7 +156,9 @@ class Realizer(Generic[Et]):
             pass
         else:
             # Log connection.
-            logging.info("Disconnected %s from %s.", construct, self.construct)
+            log_args = ("Disconnected %s from %s.", construct, self.construct)
+            log_args = self._contextualize_log_args(*log_args)
+            logging.debug(*log_args)
 
     def clear_inputs(self) -> None:
         """Clear self.inputs."""
@@ -298,9 +322,21 @@ class Structure(Realizer[Ct]):
             del self._dict[key.ctype][key]
 
             # TODO: Check if this is correct. - Can
-            logging.info("Removed %s from %s.", key, self.construct)
+            log_args = ("Removed %s from %s.", key, self.construct)
+            log_args = self._contextualize_log_args(*log_args)
+            logging.debug(*log_args)
 
     def __enter__(self):
+
+        # Add client construct to current pyClarion context, if it exists. If 
+        # not, create one first.
+        global _pyClarion_context
+        try:
+            _pyClarion_context
+        except NameError:
+            _pyClarion_context = [self.construct]
+        else:
+            _pyClarion_context.append(self.construct)
 
         # Check if a global add stack exists. If not, create one.
         global _pyClarion_add_stack
@@ -324,6 +360,12 @@ class Structure(Realizer[Ct]):
                 break
         else:
             del _pyClarion_add_stack
+
+        # Pop self from current pyClarion context and remove context if empty.
+        global _pyClarion_context
+        _pyClarion_context.pop() 
+        if len(_pyClarion_context) == 0:
+            del _pyClarion_context
 
     def propagate(self, kwds: Dict = None) -> None:
 
@@ -364,7 +406,9 @@ class Structure(Realizer[Ct]):
             d[realizer.construct] = realizer
             self.update_links(construct=realizer.construct)
 
-            logging.info("Added %s to %s.", realizer.construct, self.construct)
+            log_args = ("Added %s to %s.", realizer.construct, self.construct)
+            log_args = self._contextualize_log_args(*log_args)
+            logging.debug(*log_args)
 
     def remove(self, *constructs: Symbol) -> None:
         """Remove constructs from self and any associated links."""
