@@ -72,8 +72,6 @@ class Realizer(Generic[Et]):
         self.emitter = emitter
         self.updater = updater
 
-            
-
         # If current context contains an add stack, add self to it. 
         # If not, do nothing.
         global _pyClarion_add_stack
