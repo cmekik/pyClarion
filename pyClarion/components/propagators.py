@@ -313,8 +313,28 @@ class ConstantBuffer(PropagatorB):
 
 
 class Stimulus(PropagatorB):
-    """Propagates externally provided stimulus."""
+    """
+    Propagates externally provided stimulus.
+    
+    Offers two possible ways to input stimulus. One possibility is to pass in 
+    the 'stimulus' keyword to the client construct at propagation time. The 
+    other possibility is to pass the in put in a call to `self.input()`. If 
+    both are done the keyword arg dominates.
+    """
+
+    def __init__(self):
+
+        super().__init__()
+        self.stimulus = {}
+
+    def input(self, data):
+
+        self.stimulus.update(data)
 
     def call(self, construct, inputs, stimulus=None, **kwds):
 
-        return stimulus or {}
+
+        d = stimulus if stimulus is not None else self.stimulus
+        self.stimulus = {}
+
+        return d
