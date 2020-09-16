@@ -28,7 +28,9 @@ from pyClarion import (
     FilteredT, NACSCycle, AgentCycle
 )
 import pprint
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 #############
 ### Setup ###

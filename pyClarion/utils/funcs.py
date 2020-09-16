@@ -1,5 +1,5 @@
 
-from pyClarion.base import Symbol
+from pyClarion.base import feature
 import random
 import math
 
@@ -15,8 +15,8 @@ __all__ = [
 
 
 def group_by_dims(
-    features: Iterable[Symbol]
-) -> Dict[Hashable, Tuple[Symbol, ...]]:
+    features: Iterable[feature]
+) -> Dict[Hashable, Tuple[feature, ...]]:
     """
     Construct a dict grouping features by their dimensions.
     
@@ -28,7 +28,7 @@ def group_by_dims(
 
     groups = {}
     # Ignore type of key due to mypy false alarm. - Can
-    key = Symbol.dim.fget # type: ignore 
+    key = feature.dim.fget # type: ignore 
     s = sorted(features, key=key)
     for k, g in groupby(s, key):
         groups[k] = tuple(g)
