@@ -108,9 +108,7 @@ class Token(object):
         if isinstance(other, Token):
             return self._args == other._args
         else:
-            template = "'==' not supported between instances of '{}' and '{}'."
-            msg = template.format(type(self).__name__, type(other).__name__)
-            raise TypeError(msg)
+            return False
     
     def __lt__(self, other):
 
