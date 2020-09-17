@@ -322,7 +322,7 @@ class WorkingMemory(PropagatorB):
             stby_s = self.read_vals[0]
 
             w_defaults = tuple(feature(dim, stby_w) for dim in self.write_dlbs)
-            r_defaults = (feature(self.reset_dim, stby_r),)
+            r_defaults = (feature(self.reset_dlb, stby_r),)
             s_defaults = tuple(feature(dim, stby_s) for dim in self.read_dlbs)
 
             return w_defaults + r_defaults + s_defaults
@@ -481,7 +481,7 @@ class WorkingMemory(PropagatorB):
 
         cmds = self._parse_commands(inputs)
 
-        # global reset
+        # global wm reset
         if self.interface.reset_dim in cmds:
             val = cmds[self.interface.reset_dim]
             if self.interface.reset_vals[1] == val:

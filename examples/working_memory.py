@@ -192,6 +192,10 @@ alice.update()
 
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
+
 # open empty (should do nothing)
 print("Open (Empty WM; does nothing)")
 
@@ -212,6 +216,11 @@ alice.propagate(kwds={})
 alice.update()
 
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
+
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
+
 
 # single write
 print("Single Write")
@@ -239,6 +248,11 @@ alice.update()
 
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
 
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
+
+
 # reset
 print("Reset")
 
@@ -263,6 +277,10 @@ alice.propagate(kwds={})
 alice.update()
 
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
+
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
 
 
 # double write
@@ -291,7 +309,14 @@ print(
 alice.propagate()
 alice.update()
 
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
+
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
+
 
 # Open Slot 1, removing it
 print("Open Slot 1 only, removing Slot 0 from output")
@@ -313,6 +338,10 @@ alice.propagate()
 alice.update()
 
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
+
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
+print()
 
 
 # single delete
@@ -337,4 +366,8 @@ print(
 alice.propagate()
 alice.update()
 
+
 print("Step 2: {} -> {}\n".format(buffer("WM"), alice.output[buffer("WM")]))
+
+print("Current WM state.")
+pprint.pprint([cell.store for cell in wm.emitter.cells])
