@@ -94,7 +94,9 @@ class Realizer(Generic[Et]):
 
         log_args: tuple
         try:
-            context = _pyClarion_context[-1] # type: ignore
+            context: ConstructRef = tuple(_pyClarion_context) # type: ignore
+            if len(context) == 1:
+                context = context[-1]
         except NameError:
             log_args = (msg, *args)
         else:
@@ -469,9 +471,26 @@ class Structure(Realizer[Ct]):
         """
 
         super().watch(construct, callback)
+  
+        # TODO: Clean up the context tracking gizmo! Very ugly. - Can
+        # Add client construct to current pyClarion context, if it exists. If 
+        # not, create one first.
+        global _pyClarion_context # type: ignore
+        try:
+            _pyClarion_context # type: ignore
+        except NameError:
+            _pyClarion_context = [self.construct] # type: ignore
+        else:
+            _pyClarion_context.append(self.construct) # type: ignore
+
         for realizer in self.values():
             if realizer.accepts(construct):
                 realizer.watch(construct, callback)
+
+        # Pop self from current pyClarion context and remove context if empty.
+        _pyClarion_context.pop() # type: ignore
+        if len(_pyClarion_context) == 0: # type: ignore
+            del _pyClarion_context # type: ignore
 
     def drop(self, construct: Symbol) -> None:
         """Remove links from construct to self and any accepting members."""

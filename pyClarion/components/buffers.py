@@ -53,14 +53,14 @@ class Register(PropagatorB):
         """
         Control interface for Register instances.
         
-        :param dim: Dimension controlling write operations to register.
+        :param dlb: Dimension label for controlling write ops to register.
         :param standby: Value corresponding to standby operation.
         :param clear: Value corresponding to clear operation.
         :param channel_map: Tuple pairing values to terminuses for write 
             operation.
         """
 
-        dim: Hashable
+        dlb: Hashable
         standby: Hashable
         clear: Hashable
         channel_map: Tuple[Tuple[Hashable, Symbol], ...]
@@ -79,15 +79,20 @@ class Register(PropagatorB):
                 standby, clear, channel_1, ..., channel_n
             """
 
-            dim = self.dim
+            dlb = self.dlb
             vals = chain((self.standby,), (self.clear,), self.channels)
 
-            return tuple(feature(dim, val) for val in vals)
+            return tuple(feature(dlb, val) for val in vals)
+
+        # @property
+        # def dim(self):
+
+        #     return (dlb, 0)
 
         @property
         def defaults(self):
 
-            return (feature(self.dim, self.standby),)
+            return (feature(self.dlb, self.standby),)
 
     class InterfaceError(Exception):
         """Raised when a passed a malformed interface."""
@@ -253,16 +258,16 @@ class WorkingMemory(PropagatorB):
             corresponds to standby (i.e., no read), second value to read action. 
         """
 
-        dims: Tuple[Hashable, ...]
+        write_dlbs: Tuple[Hashable, ...]
         standby: Hashable
         clear: Hashable
         channel_map: Tuple[Tuple[Hashable, Symbol], ...]
 
-        reset_dim: Hashable
+        reset_dlb: Hashable
         reset_vals: Tuple[Hashable, Hashable]
 
-        switch_dims: Tuple[Hashable, ...]
-        switch_vals: Tuple[Hashable, Hashable]
+        read_dlbs: Tuple[Hashable, ...]
+        read_vals: Tuple[Hashable, Hashable]
 
         @property
         def channels(self):
@@ -274,19 +279,37 @@ class WorkingMemory(PropagatorB):
         def features(self):
             """Tuple listing all interface features."""
 
-            # 'w' for 'write'
-            w_dims = self.dims
+            w_dlbs = self.write_dlbs
             w_vals = chain((self.standby,), (self.clear,), self.channels)
 
-            # 's' for 'switch'
-            s_dims = self.switch_dims
-            s_vals = self.switch_vals
+            r_dlbs = self.read_dlbs
+            r_vals = self.read_vals
 
-            w = tuple(feature(dim, val) for dim, val in product(w_dims, w_vals))
-            r = tuple(feature(self.reset_dim, val) for val in self.reset_vals)
-            s = tuple(feature(dim, val) for dim, val in product(s_dims, s_vals))
+            w = tuple(feature(dlb, val) for dlb, val in product(w_dlbs, w_vals))
+            r = tuple(feature(self.reset_dlb, val) for val in self.reset_vals)
+            s = tuple(feature(dlb, val) for dlb, val in product(r_dlbs, r_vals))
 
             return w + r + s
+
+        @property
+        def write_dims(self):
+
+            return tuple((dlb, 0) for dlb in self.write_dlbs)
+
+        @property
+        def reset_dim(self):
+
+            return (self.reset_dlb, 0)
+
+        @property
+        def read_dims(self):
+
+            return tuple((dlb, 0) for dlb in self.read_dlbs)
+
+        @property
+        def dims(self):
+
+            return self.write_dims + (self.reset_dim,) + self.read_dims
 
         @property
         def defaults(self):
@@ -296,11 +319,11 @@ class WorkingMemory(PropagatorB):
             
             stby_w = self.standby
             stby_r = self.reset_vals[0]
-            stby_s = self.switch_vals[0]
+            stby_s = self.read_vals[0]
 
-            w_defaults = tuple(feature(dim, stby_w) for dim in self.dims)
+            w_defaults = tuple(feature(dim, stby_w) for dim in self.write_dlbs)
             r_defaults = (feature(self.reset_dim, stby_r),)
-            s_defaults = tuple(feature(dim, stby_s) for dim in self.switch_dims)
+            s_defaults = tuple(feature(dim, stby_s) for dim in self.read_dlbs)
 
             return w_defaults + r_defaults + s_defaults
 
@@ -313,10 +336,11 @@ class WorkingMemory(PropagatorB):
     @classmethod
     def _validate_interface(cls, interface: Interface) -> None:
 
-        if len(interface.dims) != len(interface.switch_dims):
-            raise cls.InterfaceError("Len of dims and switch_dims must match.") 
+        if len(interface.write_dlbs) != len(interface.read_dlbs):
+            msg = "Len of write_dlbs and read_dlbs must match."
+            raise cls.InterfaceError(msg) 
 
-        if len(set(interface.dims)) != len(interface.dims):
+        if len(set(interface.write_dlbs)) != len(interface.write_dlbs):
             raise cls.InterfaceError("dims may not contain duplicates.")
 
         channel_vals = [v for v, s in interface.channel_map]
@@ -325,7 +349,7 @@ class WorkingMemory(PropagatorB):
                 "Arg `channel_map` may not contain duplicate values."
             )
 
-        if len(set(interface.switch_dims)) != len(interface.switch_dims):
+        if len(set(interface.read_dlbs)) != len(interface.read_dlbs):
             raise cls.InterfaceError("switch_dims may not contain duplicates.")
 
         if len(set(interface.reset_vals)) != 2:
@@ -385,7 +409,7 @@ class WorkingMemory(PropagatorB):
                 controller=controller,
                 source=source,
                 interface=Register.Interface(
-                    dim=dim,
+                    dlb=dlb,
                     standby=interface.standby,
                     clear=interface.clear,
                     channel_map=interface.channel_map
@@ -393,7 +417,7 @@ class WorkingMemory(PropagatorB):
                 filter=filter,
                 level=level
             )
-            for dim in interface.dims
+            for dlb in interface.write_dlbs
         )
 
     def expects(self, construct):
@@ -426,10 +450,10 @@ class WorkingMemory(PropagatorB):
 
         # toggle switches
         switches = []
-        for slot, dim in enumerate(self.interface.switch_dims):
+        for slot, dim in enumerate(self.interface.read_dims):
             if dim in cmds:
                 val = cmds[dim]
-                switch = (val == self.interface.switch_vals[1])
+                switch = (val == self.interface.read_vals[1])
                 switches.append(switch)
                     
         d = {}
@@ -485,7 +509,7 @@ class WorkingMemory(PropagatorB):
         cmd_set = set(
             f for f in raw_cmds if f in self.interface.features and (
                 f.dim == self.interface.reset_dim or
-                f.dim in self.interface.switch_dims
+                f.dim in self.interface.read_dims
             )
         )
 
