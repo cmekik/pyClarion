@@ -3,7 +3,7 @@
 
 __all__ = [
     "Realizer", "Construct", "Structure", "Emitter", "Propagator", "Cycle", 
-    "Assets", "UpdaterChain"
+    "Assets", "Updater"
 ]
 
 
@@ -379,7 +379,13 @@ class Structure(Realizer[Ct]):
         self.output = self.emitter.emit(data)
 
     def update(self):
-        """Update persistent data in self and all members."""
+        """
+        Update persistent data in self and all members.
+        
+        First calls `self.updater`, then calls `realizer.update()` on members. 
+        In otherwords, updates are applied in a top-down manner relative to
+        construct containment.
+        """
 
         super().update()
         for realizer in self.values():
@@ -670,33 +676,3 @@ class Assets(SimpleNamespace): # type: ignore
     different components of a container construct are considered assets. 
     """
     pass
-
-
-# Remember: Rt = TypeVar("Rt", bound="Realizer")
-class UpdaterChain(Generic[Rt]):
-    """
-    Wrapper for multiple updaters.
-
-    Allows realizers to have multiple updaters which fire in a pre-defined 
-    sequence. 
-    """
-
-    def __init__(self, *updaters: Updater[Rt]):
-        """
-        Initialize an UpdaterChain instance.
-        
-        :param updaters: A sequence of updaters.
-        """
-
-        self.updaters = updaters
-
-    def __call__(self, realizer: Rt) -> None:
-        """
-        Update persistent information in realizer.
-        
-        Issues calls to member updaters in the order that they appear in 
-        self.updaters.
-        """
-
-        for updater in self.updaters:
-            updater(realizer)

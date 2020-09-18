@@ -1,14 +1,4 @@
-"""
-Objects associated with defining, managing, and processing chunks.
-
-Provides:
-    `Chunks`: A simple datastructure for storing chunk definitions.
-    `TopDown`:
-    `BottomUp`:
-    `ChunkConstructor`:  
-    `ChunkExtractor`: 
-    `ChunkAdder`:
-"""
+"""Objects associated with defining, managing, and processing chunks."""
 
 
 from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
@@ -370,15 +360,12 @@ class ChunkAdder(object):
     """
     Adds new chunk nodes to client subsystem.
     
-    Constructs and adds a new entry reference chunk database and a 
-    corresponding Construct object to client subsystem. 
+    Constructs and adds a new entry in the reference chunk database and a 
+    corresponding Construct object to the client subsystem. 
 
-    Assumes client chunk database is included in client subsystem located at 
-    client.assets.chunks.
-
-    New Construct instances may not have updaters (only emitters), and 
-    dimensional weights are set to 1. These limitations may be lifted in a 
-    future iteration.
+    In the current implementation, new Construct instances may not have 
+    updaters (only emitters), and dimensional weights are set to 1. These 
+    limitations may be lifted in a future iteration.
     """
 
     def __init__(
@@ -387,6 +374,7 @@ class ChunkAdder(object):
         terminus: Symbol, 
         emitter: PropagatorN, 
         prefix: str,
+        client: Symbol = None,
         constructor: ChunkConstructor = None
     ):
         """
@@ -400,6 +388,8 @@ class ChunkAdder(object):
             through emitter.__copy__(), which must handle mutable attributes 
             appropriately.
         :param prefix: Prefix added to created chunk names.
+        :param client: The client subsystem. If None, the parent realizer is 
+            considered to be the client.
         :param constructor: A chunk constructor. If 'None', defaults to 
             ChunkConstructor(op="max").
         """
@@ -409,9 +399,13 @@ class ChunkAdder(object):
         self.constructor = constructor or ChunkConstructor(op="max")
         self.emitter = emitter
         self.prefix = prefix
+        self.client = client
         self.count = count(start=1, step=1)
 
     def __call__(self, realizer):
+
+        if self.client is not None:
+            realizer = realizer[self.client]
 
         features = realizer.output[self.terminus]
         if len(features) > 0:

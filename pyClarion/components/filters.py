@@ -86,10 +86,16 @@ class GatedA(PropagatorA):
 class FilteredT(PropagatorT):
     """Filters input to a terminus."""
     
-    def __init__(self, base: PropagatorT, filter: Symbol) -> None:
+    def __init__(
+        self, 
+        base: PropagatorT, 
+        filter: Symbol, 
+        invert_weights: bool = False
+    ) -> None:
 
         self.base = base
         self.filter = filter
+        self.invert_weights = invert_weights
 
     def expects(self, construct):
 
@@ -97,7 +103,11 @@ class FilteredT(PropagatorT):
 
     def call(self, construct, inputs, **kwds):
 
-        weights = invert_strengths(inputs.pop(self.filter))
+        weights = inputs.pop(self.filter)
+        
+        if self.invert_weights:
+            weights = invert_strengths(weights)
+
         filtered_inputs = multiplicative_filter(
             weights=weights, strengths=inputs, fdefault=1.0
         )

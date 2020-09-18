@@ -5,7 +5,8 @@ __all__ = ["Bus", "Register", "WorkingMemory"]
 
 
 from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
-from pyClarion.components.propagators import PropagatorB
+from pyClarion.components.propagators import PropagatorB, PropagatorN
+from pyClarion.components.chunks import Chunks, ChunkAdder, ChunkConstructor
 from pyClarion.utils import simple_junction, group_by_dims
 
 from itertools import chain, product, groupby
@@ -175,15 +176,14 @@ class Register(PropagatorB):
         if cmd.val == self.interface.standby:
             pass
         elif cmd.val == self.interface.clear:
-            self.store.clear()
+            self.clear()
         else: # cmd.val in self.interface.channels
             channel = self._channel_dict[cmd.val]
             nodes = (
                 node for node in inputs[self.source][channel] if
                 self.filter is None or node in self.filter
             )
-            self.store.clear()
-            self.store.extend(nodes)
+            self.write(nodes)
 
     def _parse_commands(self, inputs):
 
@@ -194,11 +194,17 @@ class Register(PropagatorB):
         if len(cmds) > 1:
             raise ValueError("Multiple commands received.")
         elif len(cmds) == 0:
-            raise ValueError("No command received.")
+            cmds = set(self.interface.defaults)
         else:
             pass
 
         return cmds
+
+    def write(self, nodes):
+        """Write nodes to self.store."""
+
+        self.store.clear()
+        self.store.extend(nodes)
 
     def clear(self):
         """Clear any nodes stored in self."""
