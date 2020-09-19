@@ -48,7 +48,12 @@ class Bus(PropagatorB):
 
 
 class Register(PropagatorB):
-    """Dynamically stores and activates nodes."""
+    """
+    Dynamically stores and activates nodes.
+    
+    Consists of a node store plus a flag buffer. Stored nodes are persistent, 
+    flags are cleared at update time.
+    """
 
     class Interface(NamedTuple):
         """
@@ -136,7 +141,7 @@ class Register(PropagatorB):
         level: float = 1.0
     ) -> None:
         """
-        Initialize a SimpleMemory instance.
+        Initialize a Register instance.
 
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
@@ -151,6 +156,7 @@ class Register(PropagatorB):
 
         super().__init__()
         self.store: list = list() # TODO: Improve type annotation. - Can
+        self.flags: list = list()
 
         self.controller = controller
         self.source = source
@@ -167,9 +173,13 @@ class Register(PropagatorB):
     def call(self, construct, inputs, **kwds):
         """Activate stored nodes."""
 
-        return {node: self.level for node in self.store}
+        return {node: self.level for node in chain(self.store, self.flags)}
 
     def update(self, construct, inputs):
+
+        # Flags get cleared on each update. New flags may then be added for the 
+        # next cycle.
+        self.clear_flags()
 
         cmds = self._parse_commands(inputs)
         cmd = cmds.pop()
@@ -210,6 +220,14 @@ class Register(PropagatorB):
         """Clear any nodes stored in self."""
 
         self.store.clear()
+
+    def write_flags(self, flags):
+
+        self.flags.extend(flags)
+
+    def clear_flags(self):
+
+        self.flags.clear()
 
     @property
     def is_empty(self):
