@@ -13,9 +13,10 @@ from abc import abstractmethod
 from types import MappingProxyType, SimpleNamespace
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Iterable, Mapping, ClassVar, cast, no_type_check
+    Text, Iterator, Iterable, Mapping, ClassVar, List, cast, no_type_check
 )
 import logging
+from contextvars import ContextVar
 
 
 Dt = TypeVar('Dt') # type variable for inputs to emitters
@@ -30,6 +31,10 @@ StructureItem = Tuple[Symbol, "Realizer"]
 It = TypeVar('It', contravariant=True) # type variable for emitter inputs
 Ot = TypeVar('Ot', covariant=True) # type variable for emitter outputs
 
+# Context variables for automating/simplifying agent construction. Helps track
+# items to be added to structures. 
+build_ctx: ContextVar[ConstructRef] = ContextVar("build_ctx")
+build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
 
 # Autocomplete only works properly when bound is str. Why? - Can
 # Et = TypeVar("Et", bound="Emitter[It, Ot]") is more desirable and similar 
@@ -74,36 +79,15 @@ class Realizer(Generic[Et]):
 
         # If current context contains an add stack, add self to it. 
         # If not, do nothing.
-        global _pyClarion_add_stack
         try:
-            # type ignore here b/c mypy complains that _pyClarion_add_stack is 
-            # undefined despite being global & wrapped in try except.
-            _pyClarion_add_stack.append(self) # type: ignore
-        except NameError:
-            pass
-
-        # Log construction.
-        log_args = ("Built %s %s.", type(self).__name__, self.construct)
-        log_args = self._contextualize_log_args(*log_args)
-        logging.debug(*log_args)
-
-    @staticmethod
-    def _contextualize_log_args(msg, *args):
-
-        global _pyClarion_context
-
-        log_args: tuple
-        try:
-            context: ConstructRef = tuple(_pyClarion_context) # type: ignore
-            if len(context) == 1:
-                context = context[-1]
-        except NameError:
-            log_args = (msg, *args)
-        else:
-            msg: str
-            log_args = (msg.strip(".") + " in context %s.", *args, context)
-
-        return log_args
+            parent, lst = build_ctx.get(), build_list.get()
+            lst.append(self)
+            logging.debug(
+                "Built %s %s in %s.", 
+                type(self).__name__, self.construct, parent
+            )
+        except LookupError:
+            logging.debug("Built %s %s.", type(self).__name__, self.construct)
 
     def __repr__(self) -> Text:
 
@@ -140,25 +124,34 @@ class Realizer(Generic[Et]):
             Realizer instance.
         """
 
+        try:
+            parent = build_ctx.get()
+            logging.debug(
+                "Connecting %s to %s in %s.", construct, self.construct, parent
+            )
+        except LookupError:
+            logging.debug("Connecting %s to %s.", construct, self.construct)
+            
         self._inputs[construct] = callback
-
-        # Log connection.
-        log_args = ("Connected %s to %s.", construct, self.construct)
-        log_args = self._contextualize_log_args(*log_args)
-        logging.debug(*log_args)
 
     def drop(self, construct: Symbol) -> None:
         """Remove link from construct to self."""
 
         try:
+            parent = build_ctx.get()
+            logging.debug(
+                "Disconnecting %s from %s in %s.", 
+                construct, self.construct, parent
+            )
+        except LookupError:
+            logging.debug(
+                "Disconnecting %s from %s.", construct, self.construct
+            )
+
+        try:
             del self._inputs[construct]
         except KeyError:
             pass
-        else:
-            # Log connection.
-            log_args = ("Disconnected %s from %s.", construct, self.construct)
-            log_args = self._contextualize_log_args(*log_args)
-            logging.debug(*log_args)
 
     def clear_inputs(self) -> None:
         """Clear self.inputs."""
@@ -318,54 +311,38 @@ class Structure(Realizer[Ct]):
                 head = self[key[0]]
                 del head[key[1:]] 
         else:
+            
             self.drop_links(construct=key)
-            del self._dict[key.ctype][key]
 
-            # TODO: Check if this is correct. - Can
-            log_args = ("Removed %s from %s.", key, self.construct)
-            log_args = self._contextualize_log_args(*log_args)
-            logging.debug(*log_args)
+            try:
+                parent = build_ctx.get()
+                logging.debug(
+                    "Removing %s from %s in %s.", key, self.construct, parent
+                )
+            except LookupError:
+                logging.debug("Removing %s from %s.", key, self.construct)
+
+            del self._dict[key.ctype][key]
 
     def __enter__(self):
 
-        # Add client construct to current pyClarion context, if it exists. If 
-        # not, create one first.
-        global _pyClarion_context
-        try:
-            _pyClarion_context
-        except NameError:
-            _pyClarion_context = [self.construct]
-        else:
-            _pyClarion_context.append(self.construct)
+        logging.debug("Entering context %s.", self.construct)
+        # This sets the context variable up to track objects to be added to 
+        # self.
+        parent = build_ctx.get(())
+        self._build_ctx_token = build_ctx.set(parent + (self.construct,))
+        self._build_list_token = build_list.set([])
 
-        # Check if a global add stack exists. If not, create one.
-        global _pyClarion_add_stack
-        try:
-            _pyClarion_add_stack
-        except NameError:
-            _pyClarion_add_stack = []
 
     def __exit__(self, exc_type, exc_value, traceback):
 
-        # Add any newly defined realizers to self and clean up the add stack.
-        global _pyClarion_add_stack
-        for i, realizer in enumerate(reversed(_pyClarion_add_stack)):
-            if realizer is not self:
-                self.add(realizer)
-                # TODO: Instead of printing below, add it to a log. Will be 
-                # very useful for debugging. - Can
-                # print("adding {} to {}".format(realizer, self) )
-            else:
-                _pyClarion_add_stack = _pyClarion_add_stack[:-i]
-                break
-        else:
-            del _pyClarion_add_stack
-
-        # Pop self from current pyClarion context and remove context if empty.
-        global _pyClarion_context
-        _pyClarion_context.pop() 
-        if len(_pyClarion_context) == 0:
-            del _pyClarion_context
+        # Add any newly defined realizers to self and clean up the context.
+        _, add_list = build_ctx.get(), build_list.get()
+        for realizer in add_list:
+            self.add(realizer)
+        build_ctx.reset(self._build_ctx_token)
+        build_list.reset(self._build_list_token)
+        logging.debug("Exiting context %s.", self.construct)
 
     def propagate(self, kwds: Dict = None) -> None:
 
@@ -407,14 +384,22 @@ class Structure(Realizer[Ct]):
         """
 
         for realizer in realizers:
+
+            try:
+                parent = build_ctx.get()
+                logging.debug(
+                    "Adding %s to %s in %s.", 
+                    realizer.construct, self.construct, parent
+                )
+            except LookupError:
+                logging.debug(
+                    "Adding %s to %s.", realizer.construct, self.construct
+                )
+
             ctype = realizer.construct.ctype
             d = self._dict.setdefault(ctype, {})
             d[realizer.construct] = realizer
             self.update_links(construct=realizer.construct)
-
-            log_args = ("Added %s to %s.", realizer.construct, self.construct)
-            log_args = self._contextualize_log_args(*log_args)
-            logging.debug(*log_args)
 
     def remove(self, *constructs: Symbol) -> None:
         """Remove constructs from self and any associated links."""
@@ -478,25 +463,11 @@ class Structure(Realizer[Ct]):
 
         super().watch(construct, callback)
   
-        # TODO: Clean up the context tracking gizmo! Very ugly. - Can
-        # Add client construct to current pyClarion context, if it exists. If 
-        # not, create one first.
-        global _pyClarion_context # type: ignore
-        try:
-            _pyClarion_context # type: ignore
-        except NameError:
-            _pyClarion_context = [self.construct] # type: ignore
-        else:
-            _pyClarion_context.append(self.construct) # type: ignore
-
-        for realizer in self.values():
-            if realizer.accepts(construct):
-                realizer.watch(construct, callback)
-
-        # Pop self from current pyClarion context and remove context if empty.
-        _pyClarion_context.pop() # type: ignore
-        if len(_pyClarion_context) == 0: # type: ignore
-            del _pyClarion_context # type: ignore
+        # Context included for logging purposes only.
+        with self:
+            for realizer in self.values():
+                if realizer.accepts(construct):
+                    realizer.watch(construct, callback)
 
     def drop(self, construct: Symbol) -> None:
         """Remove links from construct to self and any accepting members."""
