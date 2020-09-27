@@ -107,9 +107,12 @@ class FilteredT(PropagatorT):
         
         if self.invert_weights:
             weights = invert_strengths(weights)
+            fdefault=1.0
+        else:
+            fdefault=0.0
 
         filtered_inputs = multiplicative_filter(
-            weights=weights, strengths=inputs, fdefault=1.0
+            weights=weights, strengths=inputs, fdefault=fdefault
         )
         output = self.base.call(construct, filtered_inputs, **kwds)
 
