@@ -221,7 +221,7 @@ class Register(PropagatorB):
 
         self.store.clear()
 
-    def write_flags(self, flags):
+    def write_flags(self, *flags):
 
         self.flags.extend(flags)
 
@@ -428,6 +428,7 @@ class WorkingMemory(PropagatorB):
         self.interface = interface
         self.level = level
 
+        self.flags: List[Symbol] = []
         self.cells = tuple(
             Register(
                 controller=controller,
@@ -460,6 +461,14 @@ class WorkingMemory(PropagatorB):
         for cell in self.cells:
             cell.clear()
 
+    def write_flags(self, *flags):
+
+        self.flags.extend(flags)
+
+    def clear_flags(self):
+
+        self.flags.clear()
+
     def call(self, construct, inputs, **kwds):
         """
         Activate stored nodes.
@@ -480,7 +489,7 @@ class WorkingMemory(PropagatorB):
                 switch = (val == self.interface.read_vals[1])
                 switches.append(switch)
                     
-        d = {}
+        d = {f: self.level for f in self.flags}
         for switch, cell in zip(switches, self.cells):
             if switch is True:
                 d_cell = cell.call(construct, inputs.copy(), **kwds)
@@ -504,6 +513,10 @@ class WorkingMemory(PropagatorB):
         """
 
         cmds = self._parse_commands(inputs)
+
+        # Flags get cleared on each update. New flags may then be added for the 
+        # next cycle.
+        self.clear_flags()
 
         # global wm reset
         if self.interface.reset_dim in cmds:
