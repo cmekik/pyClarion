@@ -90,7 +90,7 @@ class FilteredT(PropagatorT):
         self, 
         base: PropagatorT, 
         filter: Symbol, 
-        invert_weights: bool = False
+        invert_weights: bool = True
     ) -> None:
 
         self.base = base
