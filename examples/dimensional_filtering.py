@@ -80,14 +80,6 @@ with alice:
             )
         )
 
-        # for f in relay.emitter.interface.features:
-        #     Construct(
-        #         name=f, 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(ctype=ConstructType.buffer)
-        #         )
-        #     ) 
-
     nacs = Structure(
         name=subsystem("nacs"),
         emitter=NACSCycle(
@@ -118,17 +110,6 @@ with alice:
                 filter=buffer("dimensional-filter")
             )
         )
-
-        # for dim, val in features:
-        #     Construct(
-        #         name=feature(dim, val), 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(
-        #                 ctype=ConstructType.flow_xb,
-        #                 constructs={buffer("stimulus")}
-        #             )
-        #         )
-        #     ) 
 
 
 ##################

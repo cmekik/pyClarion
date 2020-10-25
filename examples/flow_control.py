@@ -67,14 +67,6 @@ with alice:
             )
         )
 
-        # for f in gate.emitter.interface.features:
-        #     Construct(
-        #         name=f, 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(ctype=ConstructType.buffer)
-        #         )
-        #     ) 
-
     nacs = Structure(
         name=subsystem("nacs"),
         emitter=NACSCycle(       
@@ -157,37 +149,6 @@ with alice:
             )
         )
 
-        # fspecs = [
-        #     ("color", "#ff0000"), # red
-        #     ("color", "#008000"), # green
-        #     ("tasty", True),
-        #     ("state", "liquid"),
-        #     ("sweet", True)
-        # ]
-
-        # for dlb, val in fspecs:
-        #     Construct(
-        #         name=feature(dlb, val), 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(
-        #                 ctype=ConstructType.flow_xb,
-        #                 constructs={flow_in("stimulus")}
-        #             )
-        #         )
-        #     ) 
-
-        # cnames = ["FRUIT", "APPLE", "JUICE"]
-
-        # for cname in cnames:
-        #     Construct(
-        #         name=chunk(cname),
-        #         emitter=MaxNode(
-        #             matches=MatchSet(
-        #                 ctype=ConstructType.flow_xt,
-        #                 constructs={flow_in("stimulus")}
-        #             )
-        #         )
-        #     ) 
 
 nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
 

@@ -66,8 +66,8 @@ alice = Structure(
 # `agent()`, which takes a hashable object and returns a construct symbol for 
 # an agent construct. Typically, construct symbols are created through 
 # convenience functions, as manually specifying them is rather tedious. For 
-# instance, the result of `agent("Alice")` can be directly created with the 
-# longer expression `Symbol("agent", "Alice")`.
+# instance, the result of `agent("alice")` can be directly created with the 
+# longer expression `Symbol("agent", "alice")`.
 
 # To keep track of the concepts that Alice knows about, we equip Alice with a 
 # chunk database (more on chunks below). This is done by passing an `Assets` 
@@ -83,7 +83,7 @@ alice = Structure(
 
 # The next step in agent construction is to populate `alice` with components 
 # representing various cognitive structures postulated by the Clarion theory.
-# This amounts to constructing, node by node, a complex network of networks.
+# This amounts to constructing a network of networks.
 
 # Constructs may be added to `Structure` objects using the `add()` method, like 
 # `alice.add()`. A call to alice.add() on some construct, places that construct 
@@ -95,11 +95,8 @@ alice = Structure(
 # To facilitate the construction process, pyClarion borrows a pattern from 
 # the nengo library. When a pyClarion construct is initialized in a with 
 # statement where the context manager is a pyClarion `Structure`, the construct 
-# is automatically added to the structure serving as the context manager. Under 
-# the hood, the with syntax simply stores constructs created within it in a 
-# temporary helper variable and, upon exit, adds the constructs to the parent 
-# structure using its `add()` methtod (the actual process is slightly more 
-# complex because it allows nested use of the with statement in this way).
+# is automatically added to the structure serving as the context manager. 
+# Nested use of the with statement is supported.
 
 with alice:
 
@@ -107,7 +104,7 @@ with alice:
     # the stimulus and the non-action-centered subsystem (NACS). The stimulus 
     # is uncomplicated: it is simply an abstract representation of the task 
     # cue. The NACS, on the other hand, is the Clarion subsystem that is 
-    # responsible for processing declarative knowledge. Knowledge is 
+    # responsible for processing non-procedural knowledge. Knowledge is 
     # represented by chunk and feature nodes within the NACS. These nodes 
     # receive activations from external buffers and each other, and they 
     # compete to be selected as the output of NACS at each simulation step.
@@ -121,9 +118,6 @@ with alice:
     # We represent the stimulus with a buffer construct, which is a top-level 
     # construct within an agent that stores and relays activations to various 
     # subsystems. As before, we first create a construct realizer. 
-
-    # The Stimulus object passed in as the emitter allows us to set stimulus 
-    # values on the fly. 
 
     # Non-Action-Centered Subsystem
 
@@ -140,7 +134,7 @@ with alice:
         assets=Assets(rules=Rules())
     )
 
-    # The 'matches' argument lets the subsystem know that it should receive 
+    # The 'sources' argument lets the subsystem know that it should receive 
     # input from the stimulus (more specifically, from the buffer construct 
     # representing the stimulus).
 
@@ -151,24 +145,40 @@ with alice:
     # processes, such as learning rules, base-level activation trackers, 
     # loggers etc., may need access to the rule database.
 
-    # Now, it is time to populate the NACS. This involves adding in chunk and 
-    # feature nodes to represent any initial knowledge we think `alice` should 
-    # have and adding in various other components for processing given 
-    # information and selecting responses. 
+    # Now, it is time to populate the NACS. 
 
-    # Note that we can use nested with statements to add constructs into the 
-    # NACS. The library will do this correctly and add objects constructed in 
-    # the nested statement only to the parent Structure object (i.e., the 
-    # NACS).
 
     with nacs:
 
         # Chunk and Feature Pools
 
+        # In the standard implementation of pyClarion, chunk and feature nodes 
+        # are not explicitly represented in the system (older versions did take 
+        # this approach). Instead, chunk and feature pools are used. These 
+        # handle computing the strengths of chunk and feature nodes in bulk.
+         
+        # This design is flexible (we do not need to register new chunk or 
+        # feature nodes), efficient (all chunk and feature node activations 
+        # are computed by one single object in one pass), simple (it reduces 
+        # bookeeping requirements when adding and removing nodes) and more 
+        # intelligible (nodes do not cause clutter in large models). 
+
+        # One downside to this approach is that we have to be careful about 
+        # tracking the feature domain, which is defined in a piecemeal fashion 
+        # by individual modules. Each module defines the features that it works 
+        # with, and we must make sure that modules that collaborate agree about 
+        # the feature and chunk symbols they use.
+
+        # Below, two constructs are initialized, one for the feature pool 
+        # dubbed 'features("main")' and one for the chunk pool dubbed 
+        # 'chunks("main")'. We will see symbols for individual chunk and 
+        # feature nodes later on.
+
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={flow_tb("main")}
+                sources={flow_tb("main")},
+                ctype=ConstructType.feature
             )
         )
 
@@ -179,19 +189,20 @@ with alice:
                     buffer("stimulus"), 
                     flow_bt("main"), 
                     flow_tt("associations")
-                }
+                },
+                ctype=ConstructType.chunk
             )
         )
 
         # Flows
 
-        # Flows are an abstraction native to `pyClarion`; they represent 
-        # processes within subsystems that map node activations to node 
-        # activations. In other words, 'flow' is pyClarion's umbrella term for 
-        # the various neural networks and rule systems that may live within a 
-        # Clarion subsystem. For example, a collection of associative rules in 
-        # the top level of the NACS or some neural network module in the bottom 
-        # level would each be represented by a corresponding flow construct.
+        # Flows are an abstraction native representing processes within 
+        # subsystems that map node activations to node activations. In other 
+        # words, 'flow' is pyClarion's umbrella term for the various neural 
+        # networks and rule systems that may live within a Clarion subsystem. 
+        # For example, a collection of associative rules in the top level of 
+        # the NACS or some neural network module in the bottom level would each 
+        # be represented by a corresponding flow construct.
 
         # For this simulation, we will create three flows. The first processes 
         # (in the top level) associative rules known to Alice, the other two 
@@ -239,7 +250,7 @@ with alice:
         # construct.
 
         # The output terminus is identified with the construct symbol 
-        # `terminus("Main")`. In more complex simulations, a single subsystem 
+        # `terminus("main")`. In more complex simulations, a single subsystem 
         # may contain several terminus nodes.
         
         Construct(
@@ -261,25 +272,18 @@ with alice:
         # To prevent information in the stimulus from interfering with output 
         # selection, the `BoltzmanSelector` is wrapped in a `FilteredT` object. 
         # This object is configured to filter inputs to the selector 
-        # proportionally to their strengths in the stimulus buffer. This is an 
-        # example of cue-suppression.
+        # proportionally to their strengths in the stimulus buffer. This is one 
+        # way to achieve cue-suppression.
 
 # We are now done populating Alice with constructs, but we still need to give 
 # her some knowledge. 
 
-# Linking Up Nodes within NACS
 
-# For Alice to produce associations between concepts, we must establish some 
-# direct and indirect links among the concepts within her mind. We do this by 
-# providing some initial knowledge to NACS flows in the form of some associative 
-# rules and some links between top-level chunk nodes and bottom-level feature 
-# nodes.
-
-# Defining our Working Nodes
+# Defining Chunk and Feature Nodes
 
 # We must first define the feature and chunk nodes we will use in the 
-# simulation. These definitions are for ease of use. In practice, nodes are 
-# defined by the constructs that use them. 
+# simulation. These definitions are for ease of use. In practice, many nodes 
+# are defined by the constructs that use them. 
 
 # Feature nodes represent Alice's implicit knowledge about the world. Each 
 # feature node is associated with a unique dimension-value pair (dv pair) 
@@ -311,6 +315,15 @@ chunk_names = ["FRUIT", "APPLE", "JUICE"]
 
 # Now that we've defined the symbols we will be working with, we populate Alice 
 # with some knowledge.
+
+
+# Linking Up Nodes within NACS
+
+# For Alice to produce associations between concepts, we must establish some 
+# direct and indirect links among the concepts within her mind. We do this by 
+# providing some initial knowledge to NACS flows in the form of some associative 
+# rules and some links between top-level chunk nodes and bottom-level feature 
+# nodes.
 
 # We can add rules to the `link()` method of the rule database (i.e., the 
 # `Rules()` object stored in NACS). 

@@ -59,20 +59,6 @@ with alice:
 
     with acs:
 
-        # for f in wm.emitter.interface.features:
-        #     Construct(
-        #         name=f, 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(
-        #                 ctype=ConstructType.flow_xb, 
-        #                 constructs={
-        #                     buffer("Stimulus"), 
-        #                     buffer("WM-defaults")
-        #                 }
-        #             )
-        #         )
-        #     ) 
-
         Construct(
             name=features("main"),
             emitter=MaxNodes(
@@ -149,22 +135,6 @@ with alice:
             ("price", "expensive"),
             ("price", "very expensive"),
         ]
-
-        # for dlb, val in fspecs:
-        #     Construct(
-        #         name=feature(dlb, val), 
-        #         emitter=MaxNode(
-        #             matches=MatchSet(
-        #                 ctype=ConstructType.flow_xb, 
-        #                 constructs={buffer("Stimulus")}
-        #             )
-        #         )
-        #     ) 
-
-        # As mentioned, we need to create a special terminus construct that 
-        # produces new chunk recommendations. This is achieved with a 
-        # `ChunkExtractor` object, which assumes that chunks are stored in a 
-        # `Chunks` object.
 
         Construct(
             name=terminus("retrieval"),
