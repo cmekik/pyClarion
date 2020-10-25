@@ -38,88 +38,71 @@ import pprint
 # level, it is also told which subsystem it should monitor.
 
 alice = Structure(
-    name=agent("Alice"),
+    name=agent("alice"),
     emitter=AgentCycle(),
     assets=Assets(chunks=Chunks())
 )
 
 with alice:
 
-    stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
-
+    stimulus = Construct(
+        name=buffer("stimulus"), 
+        emitter=Stimulus()
+    )
 
     # For this example, we create a simple NACS w/ horizontal flows (no rules, 
     # no associative memory networks).
 
     nacs = Structure(
-        name=subsystem("NACS"),
-        emitter=NACSCycle(matches=MatchSet(constructs={buffer("Stimulus")})),
+        name=subsystem("nacs"),
+        emitter=NACSCycle(
+            sources={buffer("stimulus")}
+        ),
         updater=ChunkAdder(
             chunks=alice.assets.chunks,
             terminus=terminus("bl-state"),
-            emitter=MaxNode(
-                MatchSet(
-                    ctype=ConstructType.flow_xt,
-                    constructs={buffer("Stimulus")}
-                ),
-            ),
-            prefix="bl-state",
+            prefix="bl-state"
         )
     )
 
     with nacs:
 
         Construct(
-            name=flow_bt("Main"), 
-            emitter=BottomUp(chunks=alice.assets.chunks) # type: ignore
+            name=features("main"),
+            emitter=MaxNodes(
+                sources={buffer("stimulus"), flow_tb("main")}
+            )
         )
 
         Construct(
-            name=flow_tb("Main"), 
-            emitter=TopDown(chunks=alice.assets.chunks) # type: ignore
+            name=chunks("main"),
+            emitter=MaxNodes(
+                sources={flow_bt("main")}
+            )
         )
 
-        # For the purposes of this example, we continue in the domain of 
-        # fruits. Fruits are coded as individual values of a "fruits" 
-        # dimension. Prices are also coded on a five-point scale ranging from 
-        # "very cheap" to "fair" to "very expensive". This encoding is not 
-        # particularly sophisticated from a psychological point of view, and 
-        # probably completely unrealistic. It is for illustration purposes 
-        # only. 
-
-        fspecs = [
-            ("fruit", "banana"),
-            ("fruit", "kiwi"),
-            ("fruit", "blueberry"),
-            ("fruit", "dragon fruit"),
-            ("fruit", "orange"),
-            ("fruit", "strawberry"),
-            ("price", "very cheap"),
-            ("price", "cheap"),
-            ("price", "fair"),
-            ("price", "expensive"),
-            ("price", "very expensive"),
-        ]
-
-        for dlb, val in fspecs:
-            Construct(
-                name=feature(dlb, val),  
-                emitter=MaxNode(
-                    matches=MatchSet(
-                        ctype=ConstructType.flow_xb, 
-                        constructs={buffer("Stimulus")}
-                    ),
-                )
+        Construct(
+            name=flow_bt("main"), 
+            emitter=BottomUp( # type: ignore
+                source=features("main"),
+                chunks=alice.assets.chunks
             ) 
+        )
 
-        # As mentioned, we need to create a special terminus construct that 
-        # produces new chunk recommendations. This is achieved with a 
-        # `ChunkExtractor` object, which assumes that chunks are stored in a 
-        # `Chunks` object.
+        Construct(
+            name=flow_tb("main"), 
+            emitter=TopDown( # type: ignore
+                source=chunks("main"),
+                chunks=alice.assets.chunks
+            ) 
+        )
 
         Construct(
             name=terminus("bl-state"),
-            emitter=ThresholdSelector(threshold=0.9)
+            emitter=ThresholdSelector(
+                source=features("main"),
+                threshold=0.9
+            )
         )
 
 # Agent setup is now complete!

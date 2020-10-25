@@ -5,8 +5,8 @@ __all__ = ["Bus", "Register", "WorkingMemory"]
 
 
 from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
-from pyClarion.components.propagators import PropagatorB, PropagatorN
-from pyClarion.components.chunks import Chunks, ChunkAdder, ChunkConstructor
+from pyClarion.components.propagators import PropagatorB
+from pyClarion.components.chunks_ import Chunks, ChunkAdder, ChunkConstructor
 from pyClarion.utils import simple_junction, group_by_dims
 
 from itertools import chain, product, groupby

@@ -2,7 +2,7 @@
 
 
 from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
-from pyClarion.components.propagators import PropagatorN, PropagatorA
+from pyClarion.components.propagators import PropagatorA
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from typing import Mapping, Iterable, Union, Tuple, Set
 from collections import namedtuple
@@ -240,15 +240,16 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    def __init__(self, chunks=None, op=None, default=0.0, matches=None):
+    def __init__(self, source: Symbol, chunks=None, op=None, default=0.0):
 
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.chunk)  
-        super().__init__(matches=matches)
-        
+        self.source = source
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.op = op if op is not None else max
         self.default = default
+
+    def expects(self, construct: Symbol):
+
+        return construct == self.source
 
     def call(self, construct, inputs, **kwds):
         """
@@ -267,9 +268,10 @@ class TopDown(PropagatorA):
             )
 
         d = {}
+        strengths = inputs[self.source]
         for ch, dim_dict in self.chunks.items():
             for _, data in dim_dict.items():
-                s = data["weight"] * inputs.get(ch, self.default)
+                s = data["weight"] * strengths.get(ch, self.default)
                 for feat in data["values"]:
                     l = d.setdefault(feat, [])
                     l.append(s)
@@ -291,15 +293,16 @@ class BottomUp(PropagatorA):
 
     default_ops = {"max": max, "min": min, "mean": mean}
 
-    def __init__(self, chunks=None, ops=None, default=0.0, matches=None):
+    def __init__(self, source: Symbol, chunks=None, ops=None, default=0.0):
 
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.feature)  
-        super().__init__(matches=matches)
-        
+        self.source = source
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
         self.default = default
         self.ops = ops if ops is not None else self.default_ops.copy()
+
+    def expects(self, construct: Symbol):
+
+        return construct == self.source
 
     def call(self, construct, inputs, **kwds): 
         """
@@ -318,11 +321,12 @@ class BottomUp(PropagatorA):
             )
 
         d = {}
+        strengths = inputs[self.source]
         for ch, ch_data in self.chunks.items():
             divisor = sum(data["weight"] for data in ch_data.values())
             for dim, data in ch_data.items():
                 op = self.ops[data["op"]]
-                s = op(inputs.get(f, self.default) for f in data["values"])
+                s = op(strengths.get(f, self.default) for f in data["values"])
                 d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
         
         return d
@@ -372,7 +376,6 @@ class ChunkAdder(object):
         self, 
         chunks: Chunks,
         terminus: Symbol, 
-        emitter: PropagatorN, 
         prefix: str,
         client: Symbol = None,
         constructor: ChunkConstructor = None
@@ -397,7 +400,6 @@ class ChunkAdder(object):
         self.chunks = chunks
         self.terminus = terminus
         self.constructor = constructor or ChunkConstructor(op="max")
-        self.emitter = emitter
         self.prefix = prefix
         self.client = client
         self.count = count(start=1, step=1)
@@ -413,6 +415,4 @@ class ChunkAdder(object):
             chunks = self.chunks.find_form(form)
             if len(chunks) == 0:
                 ch = chunk("{}-{}".format(self.prefix, next(self.count)))
-                ch_re = Construct(name=ch, emitter=copy(self.emitter))
                 self.chunks.set_chunk(ch, form)
-                realizer.add(ch_re)

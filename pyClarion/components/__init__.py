@@ -1,4 +1,4 @@
-from pyClarion.components.chunks import *
+from pyClarion.components.chunks_ import *
 from pyClarion.components.rules import *
 from pyClarion.components.nn import *
 from pyClarion.components.propagators import *

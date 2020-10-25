@@ -18,13 +18,13 @@ from pyClarion import (
     # Below are functions for constructing construct symbols, which are used to 
     # name, index and reference simulated constructs
     agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 
-    flow_bt,
+    flow_bt, chunks, features,
     # The objects below house datastructures handling various important 
     # concerns.
     Chunks, Rules,
     # The objects below define how realizers process activations in the forward 
     # direction.
-    Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNode, 
+    Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNodes, 
     FilteredT, NACSCycle, AgentCycle
 )
 import pprint
@@ -51,7 +51,7 @@ logging.basicConfig(level=logging.DEBUG)
 # the agent Alice.
 
 alice = Structure(
-    name=agent("Alice"),
+    name=agent("alice"),
     emitter=AgentCycle(),
     assets=Assets(chunks=Chunks())
 )
@@ -116,7 +116,7 @@ with alice:
 
     # We begin by adding the stimulus component to the model. 
 
-    stimulus = Construct(name=buffer("Stimulus"), emitter=Stimulus())
+    stimulus = Construct(name=buffer("stimulus"), emitter=Stimulus())
 
     # We represent the stimulus with a buffer construct, which is a top-level 
     # construct within an agent that stores and relays activations to various 
@@ -133,11 +133,9 @@ with alice:
     # activation cycle for NACS. 
 
     nacs = Structure(
-        name=subsystem("NACS"),
+        name=subsystem("nacs"),
         emitter=NACSCycle(
-            matches=MatchSet(
-                constructs={buffer("Stimulus")}
-            )
+            sources={buffer("stimulus")}
         ),
         assets=Assets(rules=Rules())
     )
@@ -165,6 +163,26 @@ with alice:
 
     with nacs:
 
+        # Chunk and Feature Pools
+
+        Construct(
+            name=features("main"),
+            emitter=MaxNodes(
+                sources={flow_tb("main")}
+            )
+        )
+
+        Construct(
+            name=chunks("main"),
+            emitter=MaxNodes(
+                sources={
+                    buffer("stimulus"), 
+                    flow_bt("main"), 
+                    flow_tt("associations")
+                }
+            )
+        )
+
         # Flows
 
         # Flows are an abstraction native to `pyClarion`; they represent 
@@ -181,18 +199,27 @@ with alice:
         # declarative knowledge.
 
         Construct(
-            name=flow_tt("Associations"),
-            emitter=AssociativeRules(rules=nacs.assets.rules) 
+            name=flow_tt("associations"),
+            emitter=AssociativeRules(
+                source=chunks("main"),
+                rules=nacs.assets.rules
+            ) 
         )
 
         Construct(
-            name=flow_bt("Main"), 
-            emitter=BottomUp(chunks=alice.assets.chunks) 
+            name=flow_bt("main"), 
+            emitter=BottomUp(
+                source=features("main"),
+                chunks=alice.assets.chunks
+            ) 
         )
 
         Construct(
-            name=flow_tb("Main"), 
-            emitter=TopDown(chunks=alice.assets.chunks) 
+            name=flow_tb("main"), 
+            emitter=TopDown(
+                source=chunks("main"),
+                chunks=alice.assets.chunks
+            ) 
         )
 
         # Note that the syntax for initializing flows is essentially the same 
@@ -216,13 +243,13 @@ with alice:
         # may contain several terminus nodes.
         
         Construct(
-            name=terminus("Main"),
+            name=terminus("main"),
             emitter=FilteredT(
                 base=BoltzmannSelector(
-                    temperature=.1,
-                    matches=MatchSet(ctype=ConstructType.chunk)
+                    source=chunks("main"),
+                    temperature=.1
                 ),
-                filter=buffer("Stimulus")
+                filter=buffer("stimulus")
             )
         )
 
@@ -237,78 +264,6 @@ with alice:
         # proportionally to their strengths in the stimulus buffer. This is an 
         # example of cue-suppression.
 
-        # Nodes
-
-        # We must add feature nodes for all features that we assume Alice may 
-        # perceive for the purposes of the simulation. Feature nodes represent 
-        # Alice's implicit knowledge about the world.
-
-        # Each feature node is associated with a unique dimension-value pair 
-        # indicating its dimension (e.g., color) and value (e.g., red). For 
-        # this simulation, we include (somewhat arbitrarily) feature nodes for 
-        # the colors red and green and a feature for each of tastiness, 
-        # sweetness and the liquid state. 
-
-        dim_val_pairs = [
-            ("color", "#ff0000"), # red
-            ("color", "#008000"), # green
-            ("tasty", True),
-            ("state", "liquid"),
-            ("sweet", True)
-        ]
-
-        # Feature values for red and green are given in hex code to emphasize 
-        # the idea that features in Clarion theory represent implicit knowledge 
-        # (since most people don't know the meaning of hex color codes off the 
-        # top of their head). In practice, it is better to label features in a 
-        # way that is intelligible to readers.
-
-        # We simply iterate over the dimension-value pairs to construct each 
-        # feature node. The context manager automatically tracks the new node 
-        # objects when they are initialized.
-
-        for dim, val in dim_val_pairs:
-            Construct(
-                name=feature(dim, val), 
-                emitter=MaxNode(
-                    matches=MatchSet(ctype=ConstructType.flow_xb)
-                )
-            ) 
-
-        # The `matches` argument specifies that the features should take inputs 
-        # from bottom-level flows and flows linking the top level to the bottom 
-        # level (i.e., flows ending at the bottom level, or flow_xb). The 
-        # emitter `MaxNode()` simply outputs the maximum activation value 
-        # recommended for the client construct by linked flows. 
-
-        # Next, we initialize the chunk nodes. These correspond roughly to 
-        # concepts known to Alice.
-
-        # Chunk nodes are simpler to identify than feature nodes in that they 
-        # are differentiated only by name. We will represent chunk nodes for 
-        # the concepts FRUIT, APPLE, and JUICE.
-
-        chunk_names = ["FRUIT", "APPLE", "JUICE"]
-
-        # As with feature nodes, we construct the chunk nodes iteratively.
-
-        for name in chunk_names:
-            Construct(
-                name=chunk(name),
-                emitter=MaxNode(
-                    matches=MatchSet(
-                        ctype=ConstructType.flow_xt | ConstructType.buffer
-                    )
-                )
-            ) 
-
-        # This time, the `matches` argument takes a compound ConstructType 
-        # value. This is because in the NACS, chunk nodes receive input from 
-        # incoming flows (i.e., bottom-up and top-level flows) as well as the 
-        # stimulus, which we represent as a buffer construct. In other words, 
-        # information coming into the NACS from the stimulus buffer activates 
-        # the top level first.
-
 # We are now done populating Alice with constructs, but we still need to give 
 # her some knowledge. 
 
@@ -319,6 +274,43 @@ with alice:
 # providing some initial knowledge to NACS flows in the form of some associative 
 # rules and some links between top-level chunk nodes and bottom-level feature 
 # nodes.
+
+# Defining our Working Nodes
+
+# We must first define the feature and chunk nodes we will use in the 
+# simulation. These definitions are for ease of use. In practice, nodes are 
+# defined by the constructs that use them. 
+
+# Feature nodes represent Alice's implicit knowledge about the world. Each 
+# feature node is associated with a unique dimension-value pair (dv pair) 
+# indicating its dimension (e.g., color) and value (e.g., red). For this 
+# simulation, we include (somewhat arbitrarily) feature nodes for the colors 
+# red and green and a feature for each of tastiness, sweetness and the liquid 
+# state. These dv pairs are listed below.
+
+dim_val_pairs = [
+    ("color", "#ff0000"), # red
+    ("color", "#008000"), # green
+    ("tasty", True),
+    ("state", "liquid"),
+    ("sweet", True)
+]
+
+# Feature values for red and green are given in hex code to emphasize 
+# the idea that features in Clarion theory represent implicit knowledge 
+# (since most people don't know the meaning of hex color codes off the 
+# top of their head). In practice, it is better to label features in a 
+# way that is intelligible to readers.
+
+# Chunk nodes correspond roughly to concepts known to Alice. Chunk nodes are 
+# simpler to identify than feature nodes in that they are differentiated only 
+# by their names, which are taken to be purely formal labels. We will represent 
+# chunk nodes for the concepts FRUIT, APPLE, and JUICE.
+
+chunk_names = ["FRUIT", "APPLE", "JUICE"]
+
+# Now that we've defined the symbols we will be working with, we populate Alice 
+# with some knowledge.
 
 # We can add rules to the `link()` method of the rule database (i.e., the 
 # `Rules()` object stored in NACS). 
@@ -382,7 +374,7 @@ alice.assets.chunks.link( # type: ignore
 # Alice performs one NACS cycle. 
 
 alice.propagate(
-    kwds={buffer("Stimulus"): {"stimulus": {chunk("APPLE"): 1.}}}
+    kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}}
 )
 
 # To see what came to Alice's mind, we can simply inspect the output state of 

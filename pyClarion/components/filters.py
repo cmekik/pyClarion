@@ -1,12 +1,12 @@
 """Tools for filtering inputs and outputs of propagators."""
 
 
-__all__ = ["GatedN", "GatedA", "FilteredT", "FilteringRelay"]
+__all__ = ["GatedA", "FilteredT", "FilteringRelay"]
 
 
 from pyClarion.base.symbols import Symbol, ConstructType, feature
 from pyClarion.components.propagators import (
-    PropagatorN, PropagatorA, PropagatorB, PropagatorT
+    PropagatorA, PropagatorB, PropagatorT
 )
 from pyClarion.utils.funcs import (
     scale_strengths, multiplicative_filter, group_by_dims, invert_strengths, 
@@ -16,39 +16,6 @@ from pyClarion.utils.funcs import (
 from itertools import product
 from typing import NamedTuple, Tuple, Hashable, Union
 import pprint
-
-
-class GatedN(PropagatorN):
-    """Gates output of a node."""
-    
-    tfms = {"eye": eye, "inv": inv}
-
-    def __init__(
-        self, 
-        base: PropagatorN, 
-        gate: Symbol,
-        tfm: str = "inv"
-    ) -> None:
-
-        self.base = base
-        self.gate = gate
-        self.tfm = self.tfms[tfm]
-
-    def __copy__(self):
-
-        return type(self)(self.base, self.gate)
-
-    def expects(self, construct):
-
-        return construct == self.gate or self.base.expects(construct)
-
-    def call(self, construct, inputs, **kwds):
-
-        weight = inputs.pop(self.gate)[construct]
-        base_strength = self.base.call(construct, inputs, **kwds)
-        output = self.tfm(weight) * base_strength
-
-        return output
 
 
 class GatedA(PropagatorA):
@@ -111,9 +78,12 @@ class FilteredT(PropagatorT):
         else:
             fdefault=0.0
 
-        filtered_inputs = multiplicative_filter(
-            weights=weights, strengths=inputs, fdefault=fdefault
-        )
+        filtered_inputs = {
+            source: multiplicative_filter(
+                weights=weights, strengths=strengths, fdefault=fdefault
+                )
+            for source, strengths in inputs.items()
+        }
         output = self.base.call(construct, filtered_inputs, **kwds)
 
         return output

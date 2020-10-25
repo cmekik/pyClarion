@@ -4,7 +4,7 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from pyClarion.base import ConstructType, MatchSet
+from pyClarion.base import ConstructType, MatchSet, Symbol
 from pyClarion.components.propagators import PropagatorA
 from pyClarion.utils.funcs import linear_rule_strength
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
@@ -273,15 +273,16 @@ class AssociativeRules(PropagatorA):
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
-    def __init__(self, rules: Rules, op=None, default=0.0, matches=None):
+    def __init__(self, source: Symbol, rules: Rules, op=None, default=0.0):
 
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.chunk)  
-        super().__init__(matches=matches)
-        
+        self.source = source
         self.rules = rules
         self.op = op if op is not None else max
         self.default = default
+
+    def expects(self, construct):
+
+        return construct == self.source
 
     def call(self, construct, inputs, **kwds):
 
@@ -293,8 +294,9 @@ class AssociativeRules(PropagatorA):
             )
         
         d = {}
+        strengths = inputs[self.source]
         for conc, cond_dict in self.rules:
-            s = linear_rule_strength(cond_dict, inputs, self.default)
+            s = linear_rule_strength(cond_dict, strengths, self.default)
             l = d.setdefault(conc, [])
             l.append(s) 
         d = {c: self.op(l) for c, l in d.items()}

@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "PropagatorN", "PropagatorA", "PropagatorT", "PropagatorB",
-    "MaxNode", "Repeater", "Lag", "ThresholdSelector", "ActionSelector", 
+    "PropagatorA", "PropagatorT", "PropagatorB",
+    "MaxNodes", "Repeater", "Lag", "ThresholdSelector", "ActionSelector", 
     "BoltzmannSelector", "ConstantBuffer", "Stimulus"
 ]
 
@@ -16,7 +16,8 @@ from pyClarion.utils.funcs import (
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
 from typing import (
-    Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, Sequence
+    Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, 
+    Sequence, Container
 )
 from types import MappingProxyType
 from collections import namedtuple
@@ -29,21 +30,8 @@ from copy import copy
 ####################
 
 
-class PropagatorN(Propagator[Mapping[Symbol, float], float, float]):
-    """
-    Propagator for individual nodes.
-
-    Maps activations to activations. Default activation is assumed to be zero.
-    """
-
-    def emit(self, data: float = None) -> float:
-
-        output = data if data is not None else 0.0
-        return output
-
-
 class PropagatorA(
-    Propagator[float, Dict[Symbol, float], Mapping[Symbol, float]]
+    Propagator[Mapping[Symbol, float], Dict[Symbol, float], Mapping[Symbol, float]]
 ):
     """
     Propagator for flows and other activation propagators.
@@ -123,19 +111,26 @@ class PropagatorB(
 ########################
 
 
-class MaxNode(PropagatorN):
-    """Simple node returning maximum strength for given construct."""
+class MaxNodes(PropagatorA):
 
-    def __copy__(self):
+    def __init__(self, sources: Container[Symbol], ctype = None):
 
-        return type(self)(matches=copy(self.matches))
+        self.sources = sources
+        self.ctype = ctype
+
+    def expects(self, construct):
+
+        return construct in self.sources
 
     def call(self, construct, inputs, **kwds):
 
-        packets = inputs.values()
-        strength = max_strength(construct, packets)
-        
-        return strength
+        d = {}
+        for strengths in inputs.values():
+            for node, s in strengths.items():
+                if self.ctype is None or node.ctype in self.ctype:
+                    d[node] = max(d.get(node, 0.0), s)
+
+        return d
 
 
 ########################
@@ -148,7 +143,6 @@ class Repeater(PropagatorA):
 
     def __init__(self, source: Symbol) -> None:
 
-        super().__init__()
         self.source = source
 
     def expects(self, construct):
@@ -161,26 +155,32 @@ class Repeater(PropagatorA):
 
 
 class Lag(PropagatorA):
-    """Lags strengths for given features."""
+    """Lags strengths for given set of features."""
 
-    def __init__(self, max_lag=1, matches=None):
+    def __init__(self, source: Symbol, max_lag=1):
         """
         Initialize a new `Lag` propagator.
 
+        :param source: Pool of features from which to computed lagged strengths.
         :param max_lag: Do not compute lags beyond this value.
         """
 
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.feature)  
-        super().__init__(matches=matches)
+        if source.ctype not in ConstructType.features:
+            raise ValueError("Expected construct type to be 'features'.")
 
+        self.source = source
         self.max_lag = max_lag
+
+    def expects(self, construct: Symbol):
+
+        return construct == self.source
 
     def call(self, construct, inputs, **kwds):
 
+        strengths = inputs[self.source]
         d = {
             feature(f.dlb, f.val, f.lag + 1): s 
-            for f, s in inputs.items() if f.lag < self.max_lag
+            for f, s in strengths.items() if f.lag < self.max_lag
         }
 
         return d
@@ -198,45 +198,50 @@ class ThresholdSelector(PropagatorT):
     Targets feature nodes by default.
     """
 
-    def __init__(self, threshold=0.85, matches=None):
+    def __init__(self, source: Symbol, threshold: float = 0.85):
 
-        if matches is None: 
-            matches = MatchSet(ctype=ConstructType.feature)  
-        super().__init__(matches=matches)
+        self.source = source
         self.threshold = threshold
         
+    def expects(self, construct: Symbol):
+
+        return construct == self.source
+
     def call(self, construct, inputs, **kwds):
 
-        eligible = (f for f, s in inputs.items() if s > self.threshold)
+        strengths = inputs[self.source]
+        eligible = (f for f, s in strengths.items() if s > self.threshold)
         return set(eligible)  
 
 
 class BoltzmannSelector(PropagatorT):
     """Selects a chunk according to a Boltzmann distribution."""
 
-    def __init__(self, temperature, threshold=0.25, matches=None):
+    def __init__(self, source, temperature=0.01, threshold=0.25):
         """
         Initialize a ``BoltzmannSelector`` instance.
 
         :param temperature: Temperature of the Boltzmann distribution.
         """
 
-        super().__init__(matches=matches)
-
+        self.source = source
         self.temperature = temperature
         self.threshold = threshold
+
+    def expects(self, construct: Symbol):
+
+        return construct == self.source
 
     def call(self, construct, inputs, **kwds):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
         Boltzmann distribution.
-
-        :param strengths: Mapping of node strengths.
         """
 
-        inputs = {n: s for n, s in inputs.items() if self.threshold < s}
-        probabilities = boltzmann_distribution(inputs, self.temperature)
+        raw_strengths = inputs[self.source].items()
+        strengths = {n: s for n, s in raw_strengths if self.threshold < s}
+        probabilities = boltzmann_distribution(strengths, self.temperature)
         selection = select(probabilities, 1)
 
         return selection
@@ -245,7 +250,7 @@ class BoltzmannSelector(PropagatorT):
 class ActionSelector(PropagatorT):
     """Selects action paramaters according to Boltzmann distributions."""
 
-    def __init__(self, dims, temperature):
+    def __init__(self, source, dims, temperature):
         """
         Initialize a ``ActionSelector`` instance.
 
@@ -253,15 +258,20 @@ class ActionSelector(PropagatorT):
         :param temperature: Temperature of the Boltzmann distribution.
         """
 
+        if source.ctype not in ConstructType.features:
+            raise ValueError("Expected source to be of ctype 'features'.")
+
+        # Need to make sure that sparse activation representation doesn't cause 
+        # problems. Add self.features to make sure selection is done 
+        # consistently? - CSM
+
+        self.source = source
         self.dims = dims
         self.temperature = temperature
 
     def expects(self, construct):
         
-        return (
-            construct.ctype in ConstructType.feature and 
-            construct.dim in self.dims
-        )
+        return construct == self.source 
 
     def call(self, construct, inputs, **kwds):
         """Select actionable chunks for execution. 
@@ -271,9 +281,11 @@ class ActionSelector(PropagatorT):
         computed separately.
         """
 
+        strengths = inputs[self.source]
         probabilities, selection = dict(), set()
         for dim in self.dims:
-            ipt = {f: s for f, s in inputs.items() if f.dim == dim}
+            # Should there be thresholding here? - CSM
+            ipt = {f: s for f, s in strengths.items() if f.dim == dim}
             prs = boltzmann_distribution(ipt, self.temperature)
             sel = select(prs, 1)
             probabilities.update(prs)
@@ -290,10 +302,13 @@ class ActionSelector(PropagatorT):
 class ConstantBuffer(PropagatorB):
     """Outputs a stored activation packet."""
 
-    def __init__(self, strengths = None, matches = None) -> None:
+    def __init__(self, strengths = None) -> None:
 
-        super().__init__(matches=matches)
         self.strengths = strengths or dict()
+
+    def expects(self, construct: Symbol):
+
+        return False
 
     def call(self, construct, inputs, **kwds):
         """Return stored strengths."""
@@ -324,8 +339,11 @@ class Stimulus(PropagatorB):
 
     def __init__(self):
 
-        super().__init__()
         self.stimulus = {}
+
+    def expects(self, construct: Symbol):
+
+        return False
 
     def input(self, data):
 

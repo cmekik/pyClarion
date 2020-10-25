@@ -21,7 +21,7 @@ with alice:
     gate = Construct(
         name=buffer("flow-gate"),
         emitter=FilteringRelay(
-            controller=(subsystem("ACS"), terminus("NACS")),
+            controller=(subsystem("acs"), terminus("nacs")),
             interface=FilteringRelay.Interface(
                 clients=(
                     flow_in("stimulus"), 
@@ -41,47 +41,72 @@ with alice:
         )
     )
 
-
     acs = Structure(
-        name=subsystem("ACS"),
+        name=subsystem("acs"),
         emitter=ACSCycle(
-            matches=MatchSet(
-                constructs={buffer("stimulus"), buffer("defaults")}
-            )
+            sources={buffer("stimulus"), buffer("defaults")}
         )
     )
 
     with acs:
 
         Construct(
-            name=terminus("NACS"),
+            name=features("main"),
+            emitter=MaxNodes(
+                sources={buffer("stimulus"), buffer("defaults")},
+                ctype=ConstructType.feature
+            )
+        )
+
+        Construct(
+            name=terminus("nacs"),
             emitter=ActionSelector(
+                source=features("main"),
                 dims=gate.emitter.interface.dims,
                 temperature=0.01
             )
         )
 
-        for f in gate.emitter.interface.features:
-            Construct(
-                name=f, 
-                emitter=MaxNode(
-                    matches=MatchSet(ctype=ConstructType.buffer)
-                )
-            ) 
+        # for f in gate.emitter.interface.features:
+        #     Construct(
+        #         name=f, 
+        #         emitter=MaxNode(
+        #             matches=MatchSet(ctype=ConstructType.buffer)
+        #         )
+        #     ) 
 
     nacs = Structure(
-        name=subsystem("NACS"),
-        emitter=NACSCycle(        
-            matches=MatchSet(
-                constructs={
-                    buffer("stimulus"), buffer("defaults"), buffer("flow-gate")
-                }
-            )
+        name=subsystem("nacs"),
+        emitter=NACSCycle(       
+            sources={
+                buffer("stimulus"), 
+                buffer("flow-gate")
+            }
         ),
         assets=Assets(rules=Rules())
     )
 
     with nacs:
+
+        Construct(
+            name=features("main"),
+            emitter=MaxNodes(
+                sources={flow_tb("main")},
+                ctype=ConstructType.feature
+            )
+        )
+
+        Construct(
+            name=chunks("main"),
+            emitter=MaxNodes(
+                sources={
+                    buffer("stimulus"), 
+                    flow_bt("main"), 
+                    flow_tt("associations")
+                },
+                ctype=ConstructType.chunk
+            )
+        )
 
         Construct(
             name=flow_in("stimulus"),
@@ -94,7 +119,10 @@ with alice:
         Construct(
             name=flow_tt("associations"),
             emitter=GatedA(
-                base=AssociativeRules(rules=nacs.assets.rules),
+                base=AssociativeRules(
+                    source=chunks("main"),
+                    rules=nacs.assets.rules
+                ),
                 gate=buffer("flow-gate")
             ) 
         )
@@ -102,58 +130,64 @@ with alice:
         Construct(
             name=flow_bt("main"), 
             emitter=GatedA(
-                base=BottomUp(chunks=alice.assets.chunks),
+                base=BottomUp(
+                    source=features("main"),
+                    chunks=alice.assets.chunks
+                ),
                 gate=buffer("flow-gate") 
             )
         )
 
         Construct(
             name=flow_tb("main"), 
-            emitter=TopDown(chunks=alice.assets.chunks) 
+            emitter=TopDown(
+                source=chunks("main"),
+                chunks=alice.assets.chunks
+            ) 
         )
 
         Construct(
             name=terminus("retrieval"),
             emitter=FilteredT(
                 base=BoltzmannSelector(
-                    temperature=.1,
-                    matches=MatchSet(ctype=ConstructType.chunk)
+                    source=chunks("main"),
+                    temperature=.1
                 ),
                 filter=flow_in("stimulus")
             )
         )
 
-        fspecs = [
-            ("color", "#ff0000"), # red
-            ("color", "#008000"), # green
-            ("tasty", True),
-            ("state", "liquid"),
-            ("sweet", True)
-        ]
+        # fspecs = [
+        #     ("color", "#ff0000"), # red
+        #     ("color", "#008000"), # green
+        #     ("tasty", True),
+        #     ("state", "liquid"),
+        #     ("sweet", True)
+        # ]
 
-        for dlb, val in fspecs:
-            Construct(
-                name=feature(dlb, val), 
-                emitter=MaxNode(
-                    matches=MatchSet(
-                        ctype=ConstructType.flow_xb,
-                        constructs={flow_in("stimulus")}
-                    )
-                )
-            ) 
+        # for dlb, val in fspecs:
+        #     Construct(
+        #         name=feature(dlb, val), 
+        #         emitter=MaxNode(
+        #             matches=MatchSet(
+        #                 ctype=ConstructType.flow_xb,
+        #                 constructs={flow_in("stimulus")}
+        #             )
+        #         )
+        #     ) 
 
-        cnames = ["FRUIT", "APPLE", "JUICE"]
+        # cnames = ["FRUIT", "APPLE", "JUICE"]
 
-        for cname in cnames:
-            Construct(
-                name=chunk(cname),
-                emitter=MaxNode(
-                    matches=MatchSet(
-                        ctype=ConstructType.flow_xt,
-                        constructs={flow_in("stimulus")}
-                    )
-                )
-            ) 
+        # for cname in cnames:
+        #     Construct(
+        #         name=chunk(cname),
+        #         emitter=MaxNode(
+        #             matches=MatchSet(
+        #                 ctype=ConstructType.flow_xt,
+        #                 constructs={flow_in("stimulus")}
+        #             )
+        #         )
+        #     ) 
 
 nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
 
@@ -195,7 +229,9 @@ print(
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
+print("Step 2: {} ->".format(subsystem("nacs")))
+pprint.pprint(alice[subsystem("nacs")].output)
+print()
 
 
 print("CYCLE 2: Open stimulus & associations only.")
@@ -220,8 +256,9 @@ print(
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
-
+print("Step 2: {} ->".format(subsystem("nacs")))
+pprint.pprint(alice[subsystem("nacs")].output)
+print()
 
 print("CYCLE 3: Open stimulus & bottom-up only.")
 
@@ -245,4 +282,6 @@ print(
 
 alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
 alice.update()
-print("Step 2: {} -> {}\n".format(subsystem("NACS"), alice[subsystem("NACS")].output))
+print("Step 2: {} ->".format(subsystem("nacs")))
+pprint.pprint(alice[subsystem("nacs")].output)
+print()

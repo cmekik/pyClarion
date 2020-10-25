@@ -3,8 +3,8 @@
 
 __all__ = [
     "ConstructType", "Token", "Symbol", "ConstructRef", "MatchSet", "feature", 
-    "chunk", "flow_in", "flow_bt", "flow_tb", "flow_tt", "flow_bb", "terminus", 
-    "buffer", "subsystem", "agent"
+    "chunk", "chunks", "features", "flow_in", "flow_bt", "flow_tb", "flow_tt", 
+    "flow_bb", "terminus", "buffer", "subsystem", "agent"
 ]
 
 
@@ -22,6 +22,9 @@ class ConstructType(Flag):
         null_construct: Empty construct type (corresponds to flag null).
         feature: Feature node.
         chunk: Chunk node.
+        rule: Rule node.
+        features: A pool of feature nodes.
+        chunks: A pool of chunk nodes.
         flow_in: Activation input to a subsystem.
         flow_tb: Activation flow from top to bottom level.
         flow_bt: Activation flow from bottom to top level.
@@ -34,6 +37,7 @@ class ConstructType(Flag):
 
     Other members: 
         node: A chunk or (micro)feature.
+        nodes: A pool of chunk or microfeature nodes.
         flow_bx: Flow originating in bottom level.
         flow_tx: Flow originating in top level.
         flow_xb: Flow ending in bottom level.
@@ -48,6 +52,8 @@ class ConstructType(Flag):
     null_construct = 0
     feature = auto()
     chunk = auto()
+    features = auto()
+    chunks = auto()
     flow_in = auto()
     flow_tb = auto()
     flow_bt = auto()
@@ -59,6 +65,7 @@ class ConstructType(Flag):
     agent = auto()
 
     node = feature | chunk
+    nodes = features | chunks
     flow_bx = flow_bt | flow_bb 
     flow_tx = flow_tb | flow_tt 
     flow_xb = flow_tb | flow_bb 
@@ -255,6 +262,36 @@ class chunk(Symbol):
         """
 
         super().__init__("chunk", cid)
+
+
+class features(Symbol):
+    """A pool of feature nodes."""
+
+    __slots__ = ()
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new feature pool symbol.
+
+        :param cid: Name of feature node pool.
+        """
+
+        super().__init__("features", cid)
+
+
+class chunks(Symbol):
+    """A pool of chunk nodes."""
+
+    __slots__ = ()
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new chunk pool symbol.
+
+        :param cid: Name of chunk node pool.
+        """
+
+        super().__init__("chunks", cid)
 
 
 class flow_in(Symbol):

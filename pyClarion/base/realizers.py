@@ -539,21 +539,11 @@ class Emitter(Generic[Xt, Ot]):
     Emitters define how constructs connect, process inputs, and set outputs.
     """
 
-    matches: MatchSet
-
-    def __init__(self, matches: MatchSet = None):
-        """
-        Initialize a new Emitter instance.
-
-        :param matches: Constructs from which self expects input.
-        """
-
-        self.matches = matches if matches is not None else MatchSet()
-
+    @abstractmethod
     def expects(self, construct: Symbol):
         """Return True iff self expects input from construct."""
 
-        return construct in self.matches
+        raise NotImplementedError
 
     @abstractmethod
     def emit(self, data: Xt = None) -> Ot:
@@ -618,19 +608,7 @@ class Cycle(Emitter[Xt, Ot]):
 
     # Specifies data required to construct the output packet
     output: ClassVar[ConstructType] = ConstructType.null_construct
-
-    def __init__(
-        self, sequence: Iterable[ConstructType], matches: MatchSet = None
-    ) -> None:
-        """
-        Initialize a new Cycle instance.
-
-        :param sequence: Activation propagation sequence for client construct.
-        :param matches: Constructs from which self expects input.
-        """
-
-        super().__init__(matches=matches)
-        self.sequence = sequence
+    sequence: Iterable[ConstructType]
     
 
 # @no_type_check disables type_checking for Assets (but not subclasses). 

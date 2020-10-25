@@ -6,22 +6,25 @@ __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 from pyClarion.base import ConstructType, Symbol, MatchSet, Cycle
 from types import MappingProxyType
-from typing import Dict, Mapping, Tuple
+from typing import Dict, Mapping, Tuple, Container
 
 
 class AgentCycle(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
     """Represents an agent activation cycle."""
 
     output = ConstructType.buffer | ConstructType.subsystem
+    sequence = [
+        ConstructType.buffer,
+        ConstructType.subsystem
+    ]
 
     def __init__(self):
+       
+        self.sequence = type(self).sequence
 
-        super().__init__(
-            sequence = [
-                ConstructType.buffer,
-                ConstructType.subsystem
-            ] 
-        )
+    def expects(self, construct: Symbol):
+
+        return False
 
     def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
@@ -32,11 +35,16 @@ class AgentCycle(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
 class CycleS(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
     """Represents a subsystem activation cycle."""
 
-    output = ConstructType.node | ConstructType.terminus
+    output = ConstructType.nodes | ConstructType.terminus
 
-    def __init__(self, sequence, matches: MatchSet = None):
+    def __init__(self, sources: Container[Symbol] = None):
 
-        super().__init__(sequence=sequence, matches=matches)
+        self.sources = sources if sources is not None else set()
+        self.sequence = type(self).sequence
+
+    def expects(self, construct: Symbol):
+
+        return construct in self.sources
 
     def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
@@ -46,39 +54,30 @@ class CycleS(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
 
 class ACSCycle(CycleS):
 
-    def __init__(self, matches = None):
-
-        super().__init__(
-            sequence = [
-                ConstructType.flow_in,
-                ConstructType.feature,
-                ConstructType.flow_bt,
-                ConstructType.chunk,
-                ConstructType.flow_h,
-                ConstructType.chunk,
-                ConstructType.flow_tb,
-                ConstructType.feature,
-                ConstructType.terminus
-            ],
-            matches = matches
-        )
+    sequence = [
+        ConstructType.flow_in,
+        ConstructType.features,
+        ConstructType.flow_bt,
+        ConstructType.chunks,
+        ConstructType.flow_h,
+        ConstructType.chunks,
+        ConstructType.flow_tb,
+        ConstructType.features,
+        ConstructType.terminus
+    ]
 
 
 class NACSCycle(CycleS):
 
-    def __init__(self, matches = None):
+    sequence = [
+        ConstructType.flow_in,
+        ConstructType.chunks,
+        ConstructType.flow_tb,
+        ConstructType.features,
+        ConstructType.flow_h,
+        ConstructType.features,
+        ConstructType.flow_bt,
+        ConstructType.chunks,
+        ConstructType.terminus
+    ]
 
-        super().__init__(
-            sequence = [
-                ConstructType.flow_in,
-                ConstructType.chunk,
-                ConstructType.flow_tb,
-                ConstructType.feature,
-                ConstructType.flow_h,
-                ConstructType.feature,
-                ConstructType.flow_bt,
-                ConstructType.chunk,
-                ConstructType.terminus
-            ],
-            matches = matches
-        )
