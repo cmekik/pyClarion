@@ -122,7 +122,7 @@ class MaxNodes(PropagatorA):
 
         return construct in self.sources
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         d = {}
         for strengths in inputs.values():
@@ -149,7 +149,7 @@ class Repeater(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         return dict(inputs[self.source])
 
@@ -175,7 +175,7 @@ class Lag(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         strengths = inputs[self.source]
         d = {
@@ -207,7 +207,7 @@ class ThresholdSelector(PropagatorT):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         strengths = inputs[self.source]
         eligible = (f for f, s in strengths.items() if s > self.threshold)
@@ -232,7 +232,7 @@ class BoltzmannSelector(PropagatorT):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -273,7 +273,7 @@ class ActionSelector(PropagatorT):
         
         return construct == self.source 
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with feature strengths according to a 
@@ -310,7 +310,7 @@ class ConstantBuffer(PropagatorB):
 
         return False
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """Return stored strengths."""
 
         return self.strengths
@@ -349,7 +349,7 @@ class Stimulus(PropagatorB):
 
         self.stimulus.update(data)
 
-    def call(self, construct, inputs, stimulus=None, **kwds):
+    def call(self, construct, inputs, stimulus=None):
 
 
         d = stimulus if stimulus is not None else self.stimulus

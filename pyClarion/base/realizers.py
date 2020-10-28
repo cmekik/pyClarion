@@ -52,6 +52,9 @@ class Realizer(Generic[Et]):
     a blackboard pattern for updates to persistent data. 
     """
 
+    _inputs: Dict[Symbol, Callable[[], Any]]
+    _output: Optional[Any]
+
     def __init__(
         self: R, name: Symbol, emitter: Et, updater: Updater[R] = None
     ) -> None:
@@ -64,104 +67,21 @@ class Realizer(Generic[Et]):
         :param updater: Procedure for updating persistent construct data.
         """
 
-        if not isinstance(name, Symbol):
-            raise TypeError(
-                "Agrument 'name' must be of type Symbol "
-                "got '{}' instead.".format(type(name).__name__)
-            )
+        self._validate_name(name)
+        self._log_init(name)
 
         self._construct = name
-        self._inputs: Dict[Symbol, Callable[[], Any]] = {}
-        self._output: Optional[Any] = emitter.emit()
+        self._inputs = {}
+        self._output = emitter.emit()
 
         self.emitter = emitter
         self.updater = updater
 
-        # If current context contains an add stack, add self to it. 
-        # If not, do nothing.
-        try:
-            parent, lst = build_ctx.get(), build_list.get()
-            lst.append(self)
-            logging.debug(
-                "Built %s %s in %s.", 
-                type(self).__name__, self.construct, parent
-            )
-        except LookupError:
-            logging.debug("Built %s %s.", type(self).__name__, self.construct)
+        self._update_add_queue()
 
     def __repr__(self) -> Text:
 
         return "<{}: {}>".format(self.__class__.__name__, str(self.construct))
-
-    @abstractmethod
-    def propagate(self, kwds: Dict = None) -> None:
-        """
-        Propagate activations.
-
-        :param kwds: Keyword arguments for emitter.
-        """
-
-        raise NotImplementedError()
-
-    def update(self: R) -> None:
-        """Update persistent data associated with self."""
-        
-        if self.updater is not None:
-            self.updater(self)
-
-    def accepts(self, source: Symbol) -> bool:
-        """Return true iff self pulls information from source."""
-
-        return self.emitter.expects(source)
-
-    def watch(self, construct: Symbol, callback: PullFunc[Any]) -> None:
-        """
-        Add link from construct to self.
-        
-        :param construct: Symbol for target construct.
-        :param callback: A callable that returns data representing the output 
-            of construct. Typically this will be the `view()` method of a 
-            Realizer instance.
-        """
-
-        try:
-            parent = build_ctx.get()
-            logging.debug(
-                "Connecting %s to %s in %s.", construct, self.construct, parent
-            )
-        except LookupError:
-            logging.debug("Connecting %s to %s.", construct, self.construct)
-            
-        self._inputs[construct] = callback
-
-    def drop(self, construct: Symbol) -> None:
-        """Remove link from construct to self."""
-
-        try:
-            parent = build_ctx.get()
-            logging.debug(
-                "Disconnecting %s from %s in %s.", 
-                construct, self.construct, parent
-            )
-        except LookupError:
-            logging.debug(
-                "Disconnecting %s from %s.", construct, self.construct
-            )
-
-        try:
-            del self._inputs[construct]
-        except KeyError:
-            pass
-
-    def clear_inputs(self) -> None:
-        """Clear self.inputs."""
-
-        self._inputs.clear()
-
-    def view(self) -> Any:
-        """Return current output of self."""
-        
-        return self._output
 
     @property
     def construct(self) -> Symbol:
@@ -196,6 +116,111 @@ class Realizer(Generic[Et]):
         
         self._output = self.emitter.emit() # default/empty output
 
+    @abstractmethod
+    def propagate(self) -> None:
+        """
+        Propagate activations.
+
+        :param kwds: Keyword arguments for emitter.
+        """
+
+        raise NotImplementedError()
+
+    def update(self: R) -> None:
+        """Update persistent data associated with self."""
+        
+        if self.updater is not None:
+            self.updater(self)
+
+    def accepts(self, source: Symbol) -> bool:
+        """Return true iff self pulls information from source."""
+
+        return self.emitter.expects(source)
+
+    def offer(self, construct: Symbol, callback: PullFunc[Any]) -> None:
+        """
+        Add link from construct to self if self accepts construct.
+        
+        :param construct: Symbol for target construct.
+        :param callback: A callable that returns data representing the output 
+            of construct. Typically this will be the `view()` method of a 
+            Realizer instance.
+        """
+
+        if self.accepts(construct):
+            self._log_watch(construct)            
+            self._inputs[construct] = callback
+
+    def drop(self, construct: Symbol) -> None:
+        """Remove link from construct to self."""
+
+        self._log_drop(construct)
+        try:
+            del self._inputs[construct]
+        except KeyError:
+            pass
+
+    def clear_inputs(self) -> None:
+        """Clear self.inputs."""
+
+        for construct in self.inputs:
+            self.drop(construct)
+
+    def view(self) -> Any:
+        """Return current output of self."""
+        
+        return self._output
+
+    def _update_add_queue(self) -> None:
+        """If current context contains an add queue, add self to it."""
+
+        try:
+            lst = build_list.get()
+        except LookupError:
+            pass
+        else:
+            lst.append(self)
+
+    def _log_init(self, construct) -> None:
+
+        tname = type(self).__name__
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            msg = "Initializing %s %s."
+            logging.debug(msg, tname, construct)
+        else:
+            msg = "Initializing %s %s in %s."
+            logging.debug(msg, tname, construct, context)
+
+    def _log_watch(self, construct: Symbol) -> None:
+
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            logging.debug("Connecting %s to %s.", construct, self.construct)
+        else:
+            msg = "Connecting %s to %s in %s."
+            logging.debug(msg, construct, self.construct, context)
+
+    def _log_drop(self, construct: Symbol) -> None:
+
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            msg = "Disconnecting %s from %s."
+            logging.debug(msg, construct, self.construct)
+        else:
+            msg = "Disconnecting %s from %s in %s."
+            logging.debug(msg, construct, self.construct, context)
+
+    @staticmethod
+    def _validate_name(name) -> None:
+
+        if not isinstance(name, Symbol):
+            msg = "Agrument 'name' must be of type Symbol got '{}' instead."
+            raise TypeError(msg.format(type(name).__name__))
+
 
 Pt = TypeVar("Pt", bound="Propagator")
 C = TypeVar("C", bound="Construct")
@@ -225,11 +250,11 @@ class Construct(Realizer[Pt]):
 
         super().__init__(name=name, emitter=emitter, updater=updater)
 
-    def propagate(self, kwds: Dict = None) -> None:
+    def propagate(self) -> None:
 
-        inputs = self.inputs
-        kwds = kwds or dict()
-        self.output = self.emitter(self.construct, inputs, **kwds)
+        items = self.inputs.items()
+        inputs = {src: ask() for src, ask in items if self.emitter.expects(src)}
+        self.output = self.emitter(self.construct, inputs)
 
 
 Ct = TypeVar("Ct", bound="Cycle")
@@ -311,17 +336,8 @@ class Structure(Realizer[Ct]):
                 head = self[key[0]]
                 del head[key[1:]] 
         else:
-            
-            self.drop_links(construct=key)
-
-            try:
-                parent = build_ctx.get()
-                logging.debug(
-                    "Removing %s from %s in %s.", key, self.construct, parent
-                )
-            except LookupError:
-                logging.debug("Removing %s from %s.", key, self.construct)
-
+            self._log_del(key)
+            self.drop(construct=key)
             del self._dict[key.ctype][key]
 
     def __enter__(self):
@@ -333,7 +349,6 @@ class Structure(Realizer[Ct]):
         self._build_ctx_token = build_ctx.set(parent + (self.construct,))
         self._build_list_token = build_list.set([])
 
-
     def __exit__(self, exc_type, exc_value, traceback):
 
         # Add any newly defined realizers to self and clean up the context.
@@ -344,12 +359,11 @@ class Structure(Realizer[Ct]):
         build_list.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)
 
-    def propagate(self, kwds: Dict = None) -> None:
+    def propagate(self) -> None:
 
-        kwds = kwds or dict()
         for ctype in self.emitter.sequence:
             for c in self.values(ctype=ctype):
-                c.propagate(kwds=kwds.get(c.construct))
+                c.propagate()
 
         ctype = self.emitter.output
         data = {sym: c.output for sym, c in self.items(ctype=ctype)}
@@ -384,18 +398,7 @@ class Structure(Realizer[Ct]):
         """
 
         for realizer in realizers:
-
-            try:
-                parent = build_ctx.get()
-                logging.debug(
-                    "Adding %s to %s in %s.", 
-                    realizer.construct, self.construct, parent
-                )
-            except LookupError:
-                logging.debug(
-                    "Adding %s to %s.", realizer.construct, self.construct
-                )
-
+            self._log_add(realizer.construct)
             ctype = realizer.construct.ctype
             d = self._dict.setdefault(ctype, {})
             d[realizer.construct] = realizer
@@ -410,7 +413,7 @@ class Structure(Realizer[Ct]):
     def clear(self):
         """Remove all constructs in self."""
 
-        self._dict.clear()
+        self.remove(*self.keys())
 
     def keys(self, ctype: ConstructType = None) -> Iterator[Symbol]:
         """
@@ -451,7 +454,7 @@ class Structure(Realizer[Ct]):
                 for construct, realizer in self._dict[ct].items():
                     yield construct, realizer
 
-    def watch(self, construct: Symbol, callback: PullFunc) -> None:
+    def offer(self, construct: Symbol, callback: PullFunc) -> None:
         """
         Add links from construct to self and any accepting members.
         
@@ -461,13 +464,10 @@ class Structure(Realizer[Ct]):
             Realizer instance.
         """
 
-        super().watch(construct, callback)
-  
-        # Context included for logging purposes only.
+        super().offer(construct, callback)  
         with self:
             for realizer in self.values():
-                if realizer.accepts(construct):
-                    realizer.watch(construct, callback)
+                realizer.offer(construct, callback)
 
     def drop(self, construct: Symbol) -> None:
         """Remove links from construct to self and any accepting members."""
@@ -479,29 +479,21 @@ class Structure(Realizer[Ct]):
     def clear_inputs(self) -> None:
         """Clear self.inputs and remove all associated links."""
 
-        for construct in self._inputs:
+        for construct in self.inputs:
             for realizer in self.values():
                 realizer.drop(construct)
         super().clear_inputs()           
 
     def update_links(self, construct: Symbol) -> None:
-        """Add any acceptable links associated with construct."""
+        """Add any acceptable links associated with member construct."""
 
         target = self[construct]
-        for c, realizer in self.items():
-            if realizer.accepts(target.construct):
-                realizer.watch(target.construct, target.view)
-            if target.accepts(c):
-                target.watch(c, realizer.view)
-        for c, callback in self._inputs.items():
-            if target.accepts(c):
-                target.watch(c, callback)
-
-    def drop_links(self, construct: Symbol) -> None:
-        """Remove any existing links from construct to any member of self."""
-
         for realizer in self.values():
-            realizer.drop(construct)
+            if target.construct != realizer.construct:
+                realizer.offer(target.construct, target.view)
+                target.offer(realizer.construct, realizer.view)
+        for c, callback in self.inputs.items():
+            target.offer(c, callback)
 
     def clear_links(self) -> None:
         """Remove all links to, among, and within all members of self."""
@@ -523,12 +515,32 @@ class Structure(Realizer[Ct]):
     def clear_outputs(self) -> None:
         """Clear output of self and all members."""
 
-        del self._output
+        del self.output
         for realizer in self.values():
             if isinstance(realizer, Structure):
                 realizer.clear_outputs()
             else:
                 del realizer.output
+
+    def _log_del(self, construct):
+
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            logging.debug("Removing %s from %s.", construct, self.construct)
+        else:
+            msg = "Removing %s from %s in %s."
+            logging.debug(msg, construct, self.construct, context)
+
+    def _log_add(self, construct):
+
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            logging.debug("Adding %s to %s.", construct, self.construct)
+        else:
+            msg = "Adding %s to %s in %s." 
+            logging.debug(msg, construct, self.construct, context)
 
 
 Xt = TypeVar("Xt")
@@ -545,14 +557,15 @@ class Emitter(Generic[Xt, Ot]):
 
         raise NotImplementedError
 
+    @staticmethod
     @abstractmethod
-    def emit(self, data: Xt = None) -> Ot:
+    def emit(data: Xt = None) -> Ot:
         """
         Emit output.
 
         If no data is passed in, emits a default or null value of the expected
         output type. Otherwise, ensures output is of the expected type and 
-        before returning the result. 
+        (preferably) immutable before returning the result. 
         """
 
         raise NotImplementedError()
@@ -571,9 +584,7 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
         """
         raise NotImplementedError() 
 
-    def __call__(
-        self, construct: Symbol, inputs: PullFuncs[It], **kwds: Any
-    ) -> Ot:
+    def __call__(self, construct: Symbol, inputs: Inputs[It]) -> Ot:
         """
         Execute construct's forward propagation cycle.
 
@@ -581,16 +592,10 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
         self.call(), and passes result to self.emit().
         """
 
-        inputs_ = {
-            source: pull_func() for source, pull_func in inputs.items()
-            if self.expects(source)
-        }
-        intermediate: Xt = self.call(construct, inputs_, **kwds)
-        
-        return self.emit(intermediate)
+        return self.emit(self.call(construct, inputs))
 
     @abstractmethod
-    def call(self, construct: Symbol, inputs: Inputs[It], **kwds: Any) -> Xt:
+    def call(self, construct: Symbol, inputs: Inputs[It]) -> Xt:
         """
         Compute construct's output.
 

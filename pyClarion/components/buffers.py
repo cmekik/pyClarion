@@ -38,7 +38,7 @@ class Bus(PropagatorB):
 
         return construct == self.source[0]
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         subsystem, terminus = self.source
         data = inputs[subsystem][terminus]
@@ -170,7 +170,7 @@ class Register(PropagatorB):
 
         return construct == ctl_subsystem or construct == src_subsystem
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """Activate stored nodes."""
 
         return {node: self.level for node in chain(self.store, self.flags)}
@@ -469,7 +469,7 @@ class WorkingMemory(PropagatorB):
 
         self.flags.clear()
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """
         Activate stored nodes.
 
@@ -492,7 +492,7 @@ class WorkingMemory(PropagatorB):
         d = {f: self.level for f in self.flags}
         for switch, cell in zip(switches, self.cells):
             if switch is True:
-                d_cell = cell.call(construct, inputs.copy(), **kwds)
+                d_cell = cell.call(construct, inputs.copy())
                 d.update(d_cell)
         
         return d

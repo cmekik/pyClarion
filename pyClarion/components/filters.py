@@ -38,10 +38,10 @@ class GatedA(PropagatorA):
 
         return construct == self.gate or self.base.expects(construct)
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         weight = inputs.pop(self.gate)[construct]
-        base_strengths = self.base.call(construct, inputs, **kwds)
+        base_strengths = self.base.call(construct, inputs)
         output = scale_strengths(
             weight=self.tfm(weight), 
             strengths=base_strengths
@@ -68,7 +68,7 @@ class FilteredT(PropagatorT):
 
         return construct == self.filter or self.base.expects(construct)
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
         weights = inputs.pop(self.filter)
         
@@ -84,7 +84,7 @@ class FilteredT(PropagatorT):
                 )
             for source, strengths in inputs.items()
         }
-        output = self.base.call(construct, filtered_inputs, **kwds)
+        output = self.base.call(construct, filtered_inputs)
 
         return output
 
@@ -208,7 +208,7 @@ class FilteringRelay(PropagatorB):
 
         return cmds
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         
         d, cmds = {}, self._parse_commands(inputs)
         for i, dlb in enumerate(self.interface.dlbs):

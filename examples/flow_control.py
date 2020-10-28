@@ -188,7 +188,8 @@ print(
     )
 )
 
-alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
+stimulus.emitter.input({chunk("APPLE"): 1.})
+alice.propagate()
 alice.update()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)
@@ -197,16 +198,11 @@ print()
 
 print("CYCLE 2: Open stimulus & associations only.")
 
-alice.propagate(
-    kwds={
-        buffer("stimulus"): {
-            "stimulus": {
-                feature("nacs-stim", 1.): 1.,
-                feature("nacs-assoc", 1.): 1.
-            }
-        }
-    }
-)
+stimulus.emitter.input({
+    feature("nacs-stim", 1.): 1., 
+    feature("nacs-assoc", 1.): 1.
+})
+alice.propagate()
 alice.update()
 print(
     "Step 1: {} -> {}".format(
@@ -215,7 +211,8 @@ print(
     )
 )
 
-alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
+stimulus.emitter.input({chunk("APPLE"): 1.})
+alice.propagate()
 alice.update()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)
@@ -223,16 +220,11 @@ print()
 
 print("CYCLE 3: Open stimulus & bottom-up only.")
 
-alice.propagate(
-    kwds={
-        buffer("stimulus"): {
-            "stimulus": {
-                feature("nacs-stim", 1.): 1.,
-                feature("nacs-bt", 1.): 1.
-            }
-        }
-    }
-)
+stimulus.emitter.input({
+    feature("nacs-stim", 1.): 1.,
+    feature("nacs-bt", 1.): 1.
+})
+alice.propagate()
 alice.update()
 print(
     "Step 1: {} -> {}".format(
@@ -241,7 +233,8 @@ print(
     )
 )
 
-alice.propagate(kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}})
+stimulus.emitter.input({chunk("APPLE"): 1.})
+alice.propagate()
 alice.update()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)

@@ -284,15 +284,8 @@ class AssociativeRules(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
 
-        if len(kwds) > 0:
-            raise ValueError(
-                (
-                    "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwds.keys())))
-            )
-        
         d = {}
         strengths = inputs[self.source]
         for conc, cond_dict in self.rules:

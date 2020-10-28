@@ -386,9 +386,8 @@ alice.assets.chunks.link( # type: ignore
 
 # Alice performs one NACS cycle. 
 
-alice.propagate(
-    kwds={buffer("stimulus"): {"stimulus": {chunk("APPLE"): 1.}}}
-)
+stimulus.emitter.input({chunk("APPLE"): 1.})
+alice.propagate()
 
 # To see what came to Alice's mind, we can simply inspect the output state of 
 # the NACS at the end of the cycle. 

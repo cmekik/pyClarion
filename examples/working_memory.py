@@ -209,7 +209,7 @@ print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate(kwds={})
+alice.propagate()
 alice.update()
 
 print("Step 2: {} ->".format(buffer("wm")))
@@ -270,7 +270,7 @@ print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate(kwds={})
+alice.propagate()
 alice.update()
 
 print("Step 2: {} ->".format(buffer("wm")))

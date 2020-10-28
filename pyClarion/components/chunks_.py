@@ -251,7 +251,7 @@ class TopDown(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds):
+    def call(self, construct, inputs):
         """
         Execute a top-down activation cycle.
 
@@ -259,13 +259,6 @@ class TopDown(PropagatorA):
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
-
-        if len(kwds) > 0:
-            raise ValueError(
-                (
-                    "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwds.keys())))
-            )
 
         d = {}
         strengths = inputs[self.source]
@@ -304,7 +297,7 @@ class BottomUp(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs, **kwds): 
+    def call(self, construct, inputs): 
         """
         Execute a bottom-up activation cycle.
 
@@ -312,14 +305,7 @@ class BottomUp(PropagatorA):
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
-
-        if len(kwds) > 0:
-            raise ValueError(
-                (
-                    "Unexpected keyword arguments passed to {}.call(): '{}'."
-                ).format(self.__class__.__name__, next(iter(kwds.keys())))
-            )
-
+        
         d = {}
         strengths = inputs[self.source]
         for ch, ch_data in self.chunks.items():

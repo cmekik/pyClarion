@@ -70,7 +70,8 @@ stimulus_states = [
 
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
-    alice.propagate(kwds={buffer("stimulus"): {"stimulus": stimulus_state}})
+    stimulus.emitter.input(stimulus_state)
+    alice.propagate()
     pprint.pprint(alice.output)
 
 # Clearing outputs during the presentation sequence will interrupt lagged 
