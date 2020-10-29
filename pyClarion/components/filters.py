@@ -101,42 +101,42 @@ class FilteringRelay(PropagatorB):
 
         :param clients: Tuple containing either symbols naming individual 
             clients or a tuple of construct symbols for groups. It is expected 
-            that len(clients) == len(dlbs).
-        :param dlbs: Tuple listing control dimension labels. The i-th dlb 
+            that len(clients) == len(tags).
+        :param tags: Tuple listing control dimension labels. The i-th tag 
         controls the strength assigned to the i-th entry in param `symbols` 
-        based on the value of the dimension (dlb, 0).
+        based on the value of the dimension (tag, 0).
         :param vals: A tuple defining feature values corresponding to each 
             strength degree. The i-th value is taken to correspond to a filter 
             weighting level of i / (len(vals) - 1).
         """
 
         clients: Tuple[Union[Symbol, Tuple[Symbol, ...]], ...]
-        dlbs: Tuple[Hashable, ...]
+        tags: Tuple[Hashable, ...]
         vals: Tuple[Hashable, ...]
 
         @property
         def features(self):
             """Filter setting features."""
 
-            dvpairs = product(self.dlbs, self.vals)
+            dvpairs = product(self.tags, self.vals)
 
-            return tuple(feature(dlb, val, 0) for dlb, val in dvpairs)
+            return tuple(feature(tag, val, 0) for tag, val in dvpairs)
 
         @property
         def dims(self):
             """
             Dimensions associated with self.
             
-            Has form (dlb, 0) for each dlb in self.dlbs, returned in order.
+            Has form (tag, 0) for each tag in self.tags, returned in order.
             """
 
-            return tuple((dlb, 0) for dlb in self.dlbs)
+            return tuple((tag, 0) for tag in self.tags)
 
         @property
         def defaults(self):
             """Features for default filter settings."""
             
-            return tuple(feature(dlb, self.vals[0], 0) for dlb in self.dlbs)
+            return tuple(feature(tag, self.vals[0], 0) for tag in self.tags)
 
     class InterfaceError(Exception):
         """Raised when a passed a malformed interface."""
@@ -145,7 +145,7 @@ class FilteringRelay(PropagatorB):
     @classmethod
     def _validate_interface(cls, interface: Interface) -> None:
 
-        if len(interface.clients) != len(interface.dlbs):
+        if len(interface.clients) != len(interface.tags):
             raise cls.InterfaceError(
                 "Number of dims must be equal to number of entries in symbols."
             )
@@ -193,7 +193,7 @@ class FilteringRelay(PropagatorB):
         cmd_set = set(
             f for f in data if 
             f in self.interface.features and 
-            f.dlb in self.interface.dlbs and
+            f.tag in self.interface.tags and
             f.lag == 0
         )
 
@@ -211,8 +211,8 @@ class FilteringRelay(PropagatorB):
     def call(self, construct, inputs):
         
         d, cmds = {}, self._parse_commands(inputs)
-        for i, dlb in enumerate(self.interface.dlbs):
-            cmd = cmds.get((dlb, 0), self.interface.defaults[i])
+        for i, tag in enumerate(self.interface.tags):
+            cmd = cmds.get((tag, 0), self.interface.defaults[i])
             level = self.interface.vals.index(cmd.val)
             strength = level / (len(self.interface.vals) - 1)
             entry = self.interface.clients[i]

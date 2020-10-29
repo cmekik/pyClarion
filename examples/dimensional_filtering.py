@@ -32,7 +32,7 @@ with alice:
 
     grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
     _dims, _clients = zip(*list(grouped.items()))
-    dlbs = tuple(("dof", "nacs", dim) for dim in _dims) 
+    tags = tuple(("dof", "nacs", dim) for dim in _dims) 
     clients = tuple(tuple(entry) for entry in _clients)
 
     relay = Construct(
@@ -41,7 +41,7 @@ with alice:
             controller=(subsystem("acs"), terminus("nacs")),
             interface=FilteringRelay.Interface(
                 clients=clients,
-                dlbs=dlbs,
+                tags=tags,
                 vals=(0, 1)
             )
         )

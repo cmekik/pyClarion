@@ -206,27 +206,27 @@ class feature(Symbol):
 
     __slots__ = ()
 
-    def __init__(self, dlb: Hashable, val: Hashable, lag: int = 0) -> None:
+    def __init__(self, tag: Hashable, val: Hashable, lag: int = 0) -> None:
         """
         Initialize a new feature symbol.
 
-        :param dlb: Dimension label.
+        :param tag: Dimension label.
         :param val: Value of feature.
         :param lag: Lag indicator.
         """
 
-        super().__init__("feature", (dlb, lag), val)
+        super().__init__("feature", (tag, lag), val)
 
     def __repr__(self):
 
         cls_name = type(self).__name__
-        args = ", ".join(map(repr, (self.dlb, self.val, self.lag)))
+        args = ", ".join(map(repr, (self.tag, self.val, self.lag)))
         
         return "{}({})".format(cls_name, args)
 
     @property
     def dim(self):
-        """Feature dimension, equal to (self.dlb, self.lag)."""
+        """Feature dimension, equal to (self.tag, self.lag)."""
 
         return self.cid[0]
     
@@ -237,7 +237,7 @@ class feature(Symbol):
         return self.cid[1]
 
     @property
-    def dlb(self):
+    def tag(self):
         """Dimension label."""
         
         return self.cid[0][0]

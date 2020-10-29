@@ -59,14 +59,14 @@ class Register(PropagatorB):
         """
         Control interface for Register instances.
         
-        :param dlb: Dimension label for controlling write ops to register.
+        :param tag: Dimension label for controlling write ops to register.
         :param standby: Value corresponding to standby operation.
         :param clear: Value corresponding to clear operation.
         :param channel_map: Tuple pairing values to terminuses for write 
             operation.
         """
 
-        dlb: Hashable
+        tag: Hashable
         standby: Hashable
         clear: Hashable
         channel_map: Tuple[Tuple[Hashable, Symbol], ...]
@@ -85,20 +85,20 @@ class Register(PropagatorB):
                 standby, clear, channel_1, ..., channel_n
             """
 
-            dlb = self.dlb
+            tag = self.tag
             vals = chain((self.standby,), (self.clear,), self.channels)
 
-            return tuple(feature(dlb, val) for val in vals)
+            return tuple(feature(tag, val) for val in vals)
 
         # @property
         # def dim(self):
 
-        #     return (dlb, 0)
+        #     return (tag, 0)
 
         @property
         def defaults(self):
 
-            return (feature(self.dlb, self.standby),)
+            return (feature(self.tag, self.standby),)
 
     class InterfaceError(Exception):
         """Raised when a passed a malformed interface."""
@@ -282,15 +282,15 @@ class WorkingMemory(PropagatorB):
             corresponds to standby (i.e., no read), second value to read action. 
         """
 
-        write_dlbs: Tuple[Hashable, ...]
+        write_tags: Tuple[Hashable, ...]
         standby: Hashable
         clear: Hashable
         channel_map: Tuple[Tuple[Hashable, Symbol], ...]
 
-        reset_dlb: Hashable
+        reset_tag: Hashable
         reset_vals: Tuple[Hashable, Hashable]
 
-        read_dlbs: Tuple[Hashable, ...]
+        read_tags: Tuple[Hashable, ...]
         read_vals: Tuple[Hashable, Hashable]
 
         @property
@@ -303,32 +303,32 @@ class WorkingMemory(PropagatorB):
         def features(self):
             """Tuple listing all interface features."""
 
-            w_dlbs = self.write_dlbs
+            w_tags = self.write_tags
             w_vals = chain((self.standby,), (self.clear,), self.channels)
 
-            r_dlbs = self.read_dlbs
+            r_tags = self.read_tags
             r_vals = self.read_vals
 
-            w = tuple(feature(dlb, val) for dlb, val in product(w_dlbs, w_vals))
-            r = tuple(feature(self.reset_dlb, val) for val in self.reset_vals)
-            s = tuple(feature(dlb, val) for dlb, val in product(r_dlbs, r_vals))
+            w = tuple(feature(tag, val) for tag, val in product(w_tags, w_vals))
+            r = tuple(feature(self.reset_tag, val) for val in self.reset_vals)
+            s = tuple(feature(tag, val) for tag, val in product(r_tags, r_vals))
 
             return w + r + s
 
         @property
         def write_dims(self):
 
-            return tuple((dlb, 0) for dlb in self.write_dlbs)
+            return tuple((tag, 0) for tag in self.write_tags)
 
         @property
         def reset_dim(self):
 
-            return (self.reset_dlb, 0)
+            return (self.reset_tag, 0)
 
         @property
         def read_dims(self):
 
-            return tuple((dlb, 0) for dlb in self.read_dlbs)
+            return tuple((tag, 0) for tag in self.read_tags)
 
         @property
         def dims(self):
@@ -345,9 +345,9 @@ class WorkingMemory(PropagatorB):
             stby_r = self.reset_vals[0]
             stby_s = self.read_vals[0]
 
-            w_defaults = tuple(feature(dim, stby_w) for dim in self.write_dlbs)
-            r_defaults = (feature(self.reset_dlb, stby_r),)
-            s_defaults = tuple(feature(dim, stby_s) for dim in self.read_dlbs)
+            w_defaults = tuple(feature(dim, stby_w) for dim in self.write_tags)
+            r_defaults = (feature(self.reset_tag, stby_r),)
+            s_defaults = tuple(feature(dim, stby_s) for dim in self.read_tags)
 
             return w_defaults + r_defaults + s_defaults
 
@@ -360,11 +360,11 @@ class WorkingMemory(PropagatorB):
     @classmethod
     def _validate_interface(cls, interface: Interface) -> None:
 
-        if len(interface.write_dlbs) != len(interface.read_dlbs):
-            msg = "Len of write_dlbs and read_dlbs must match."
+        if len(interface.write_tags) != len(interface.read_tags):
+            msg = "Len of write_tags and read_tags must match."
             raise cls.InterfaceError(msg) 
 
-        if len(set(interface.write_dlbs)) != len(interface.write_dlbs):
+        if len(set(interface.write_tags)) != len(interface.write_tags):
             raise cls.InterfaceError("dims may not contain duplicates.")
 
         channel_vals = [v for v, s in interface.channel_map]
@@ -373,7 +373,7 @@ class WorkingMemory(PropagatorB):
                 "Arg `channel_map` may not contain duplicate values."
             )
 
-        if len(set(interface.read_dlbs)) != len(interface.read_dlbs):
+        if len(set(interface.read_tags)) != len(interface.read_tags):
             raise cls.InterfaceError("switch_dims may not contain duplicates.")
 
         if len(set(interface.reset_vals)) != 2:
@@ -434,7 +434,7 @@ class WorkingMemory(PropagatorB):
                 controller=controller,
                 source=source,
                 interface=Register.Interface(
-                    dlb=dlb,
+                    tag=tag,
                     standby=interface.standby,
                     clear=interface.clear,
                     channel_map=interface.channel_map
@@ -442,7 +442,7 @@ class WorkingMemory(PropagatorB):
                 filter=filter,
                 level=level
             )
-            for dlb in interface.write_dlbs
+            for tag in interface.write_tags
         )
 
     def expects(self, construct):

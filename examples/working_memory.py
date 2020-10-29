@@ -22,16 +22,16 @@ with alice:
             controller=(subsystem("acs"), terminus("wm")),
             source=subsystem("nacs"),
             interface=WorkingMemory.Interface(
-                write_dlbs=tuple("wm-w{}".format(i) for i in range(WMSLOTS)),
+                write_tags=tuple("wm-w{}".format(i) for i in range(WMSLOTS)),
                 standby="standby",
                 clear="clear",
                 channel_map=(
                     ("retrieve", terminus("retrieval")),
                     ("extract",  terminus("bl-state"))
                 ),
-                reset_dlb="wm-reset",
+                reset_tag="wm-reset",
                 reset_vals=("standby", "release"),
-                read_dlbs=tuple("wm-r{}".format(i) for i in range(WMSLOTS)),
+                read_tags=tuple("wm-r{}".format(i) for i in range(WMSLOTS)),
                 read_vals=("standby", "open"),
             ) 
         ),

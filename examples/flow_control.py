@@ -28,7 +28,7 @@ with alice:
                     flow_tt("associations"), 
                     flow_bt("main")
                 ),
-                dlbs=("nacs-stim", "nacs-assoc", "nacs-bt"),
+                tags=("nacs-stim", "nacs-assoc", "nacs-bt"),
                 vals=(0, 1)
             )
         )

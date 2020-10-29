@@ -3,7 +3,7 @@
 
 __all__ = [
     "Realizer", "Construct", "Structure", "Emitter", "Propagator", "Cycle", 
-    "Assets", "Updater"
+    "Assets", "Updater", "FeatureInterface"
 ]
 
 
@@ -13,7 +13,8 @@ from abc import abstractmethod
 from types import MappingProxyType, SimpleNamespace
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Iterable, Mapping, ClassVar, List, cast, no_type_check
+    Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, cast, 
+    no_type_check
 )
 import logging
 from contextvars import ContextVar

@@ -39,8 +39,8 @@ class PropagatorA(
     Maps activations to activations.
     """
 
-    def emit(
-        self, data: Dict[Symbol, float] = None
+    @staticmethod
+    def emit(data: Dict[Symbol, float] = None
     ) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()
@@ -54,7 +54,8 @@ class PropagatorT(Propagator[float, Set[Symbol], FrozenSet[Symbol]]):
     Maps activations to decisions.
     """
 
-    def emit(self, data: Set[Symbol] = None) -> FrozenSet[Symbol]:
+    @staticmethod
+    def emit(data: Set[Symbol] = None) -> FrozenSet[Symbol]:
         
         selection = data or set()
         return frozenset(selection)
@@ -71,7 +72,8 @@ class PropagatorB(
     Maps subsystem outputs to activations.
     """
     
-    def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
+    @staticmethod
+    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
@@ -179,7 +181,7 @@ class Lag(PropagatorA):
 
         strengths = inputs[self.source]
         d = {
-            feature(f.dlb, f.val, f.lag + 1): s 
+            feature(f.tag, f.val, f.lag + 1): s 
             for f, s in strengths.items() if f.lag < self.max_lag
         }
 
