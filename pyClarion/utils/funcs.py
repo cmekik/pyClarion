@@ -1,16 +1,18 @@
 
-from pyClarion.base import feature
+from pyClarion.base.symbols import feature
 import random
 import math
 
 from typing import Iterable, Dict, Hashable, Tuple
 from itertools import groupby
+import logging
 
 
 __all__ = [
-    "group_by_dims", "eye", "inv", "max_strength", "invert_strengths", 
-    "simple_junction", "max_junction", "linear_rule_strength", "select", 
-    "boltzmann_distribution", "multiplicative_filter", "scale_strengths"
+    "group_by_dims", "collect_cmd_data", "eye", "inv", "max_strength", 
+    "invert_strengths", "simple_junction", "max_junction", 
+    "linear_rule_strength", "select", "boltzmann_distribution", 
+    "multiplicative_filter", "scale_strengths"
 ]
 
 
@@ -34,6 +36,19 @@ def group_by_dims(
         groups[k] = tuple(g)
     
     return groups
+
+
+def collect_cmd_data(construct, inputs, controller):
+
+    subsystem, terminus = controller
+    try:
+        data = inputs[subsystem][terminus]
+    except KeyError:
+        data = frozenset()
+        msg = "Failed data pull from %s in %s."
+        logging.warning(msg, controller, construct)
+    
+    return data
 
 
 def eye(strength):

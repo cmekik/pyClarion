@@ -26,7 +26,8 @@ class AgentCycle(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
 
         return False
 
-    def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
+    @staticmethod
+    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
         mapping = data if data is not None else dict()
         return MappingProxyType(mapping=mapping)
@@ -46,7 +47,8 @@ class CycleS(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
 
         return construct in self.sources
 
-    def emit(self, data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
+    @staticmethod
+    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
         mapping = data if data is not None else dict()
         return MappingProxyType(mapping=mapping)

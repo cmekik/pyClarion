@@ -1,6 +1,9 @@
 from pyClarion import *
 from typing import cast
 import pprint
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 wm_interface = WorkingMemory.Interface(
     slots=7,
@@ -48,7 +51,7 @@ with alice:
     wm_defaults = Construct(
         name=buffer("wm-defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in wm_interface.defaults.values()}
+            strengths={f: 0.5 for f in wm_interface.defaults}
         )
     )
 

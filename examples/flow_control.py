@@ -38,7 +38,7 @@ with alice:
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in gate_interface.defaults.values()}
+            strengths={f: 0.5 for f in gate_interface.defaults}
         )
     )
 

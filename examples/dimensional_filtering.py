@@ -18,13 +18,9 @@ fdomain = [
 
 grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
 mapping = {("dof", "nacs", dim): set(entry) for dim, entry in grouped.items()}
-# _dims, _clients = zip(*list(grouped.items()))
-# tags = tuple(("dof", "nacs", dim) for dim in _dims) 
-# clients = tuple(tuple(entry) for entry in _clients)
-print(mapping)
 
 filter_interface = FilteringRelay.Interface(
-    mapping=mapping,
+    mapping=mapping, # type: ignore
     vals=(0, 1)
 )
 
@@ -52,7 +48,7 @@ with alice:
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in filter_interface.defaults.values()}
+            strengths={f: 0.5 for f in filter_interface.defaults}
         )
     )
 

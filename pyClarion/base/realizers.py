@@ -8,6 +8,7 @@ __all__ = [
 
 
 from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef, feature
+from pyClarion.utils.funcs import group_by_dims
 from itertools import combinations, chain
 from abc import abstractmethod
 from types import MappingProxyType, SimpleNamespace
@@ -257,6 +258,9 @@ class Construct(Realizer[Pt]):
         inputs = {src: ask() for src, ask in items if self.emitter.expects(src)}
         self.output = self.emitter(self.construct, inputs)
 
+
+# TODO: Make sure that structure outputs reflect their contents accurately even 
+# on the first cycle.
 
 Ct = TypeVar("Ct", bound="Cycle")
 S = TypeVar("S", bound="Structure")
@@ -633,12 +637,25 @@ class Assets(SimpleNamespace): # type: ignore
     pass
 
 class FeatureInterface(object):
-    """Features constituting the control interface for a component."""
+    """
+    Control interface for a component.
+    
+    Defines control features and default values. Provides parsing utilities.
+    Each defined feature dimension is interpreted as defining a specific set of 
+    alternate actions. A default value must be defined for each dimension, 
+    representing the 'do nothing' action.
+    """
 
     _features: FrozenSet[feature]
-    _defaults: Mapping[Tuple[Hashable, int], feature]
+    _defaults: FrozenSet[feature]
     _tags: FrozenSet[Hashable]
     _dims: FrozenSet[Tuple[Hashable, int]]
+
+    def __post_init__(self):
+
+        self._validate_data()
+        self._set_interface_properties()
+        self._validate_interface_properties()
 
     @property
     def features(self):
@@ -663,3 +680,52 @@ class FeatureInterface(object):
         """The set of feature dimensions (w/ lags) defined by self."""
         
         return self._dims
+
+    def parse_commands(self, data):
+        """
+        Determine the value associated with each control dimension.
+        
+        :param data: A set of features.
+        """
+
+        _cmds = set(f for f in data if f in self.features)
+
+        cmds, groups = {}, group_by_dims(features=_cmds)
+        for k, g in groups.items():
+            if len(g) > 1:
+                msg = "Received multiple commands for dim '{}'."
+                raise ValueError(msg.format(k))
+            cmds[k] = g[0].val
+        
+        for f in self.defaults:
+            if f.dim not in cmds:
+                cmds[f.dim] = f.val
+
+        return cmds
+
+    def _validate_data(self):
+
+        raise NotImplementedError()
+
+    def _set_interface_properties(self):
+
+        raise NotImplementedError()
+
+    def _validate_interface_properties(self):
+
+        _features_dims = set(f.dim for f in self.features)
+        _features_tags = set(f.tag for f in self.features)
+        _defaults_dims = set(f.dim for f in self.defaults)
+
+        # TODO: Use a more suitable exception class. - Can
+
+        if self.tags != _features_tags:
+            raise ValueError("self.tag conflicts with self.features.")
+        if self.dims != _features_dims:
+            raise ValueError("self.dims conflicts with self.features.")
+        if not self.defaults.issubset(self.features):
+            raise ValueError("self.defaults not a subset of self.features.")
+        if not self.dims.issubset(_defaults_dims):
+            raise ValueError("self.defaults conflicts with self.dims.")
+        if len(self.dims) != len(_defaults_dims):
+            raise ValueError("multiple defaults assigned to a single dim.")

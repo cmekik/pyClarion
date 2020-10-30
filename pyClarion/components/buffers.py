@@ -4,16 +4,19 @@
 __all__ = ["Bus", "Register", "WorkingMemory"]
 
 
-from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
+from pyClarion.base.symbols import (
+    Symbol, MatchSet, ConstructType, feature, subsystem, terminus
+)
 from pyClarion.base.realizers import FeatureInterface
 from pyClarion.components.propagators import PropagatorB
 from pyClarion.components.chunks_ import Chunks, ChunkAdder, ChunkConstructor
-from pyClarion.utils import simple_junction, group_by_dims
+from pyClarion.utils import simple_junction, group_by_dims, collect_cmd_data
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby
 from typing import Callable, Hashable, Tuple, NamedTuple, List, Mapping
 from types import MappingProxyType
+import logging
 
 
 class Bus(PropagatorB):
@@ -30,8 +33,6 @@ class Bus(PropagatorB):
         filter: MatchSet = None,
         level: float = 1.0
     ) -> None:
-        
-        super().__init__()
         
         self.source = source
         self.filter = filter
@@ -75,18 +76,13 @@ class Register(PropagatorB):
         standby: Hashable
         clear: Hashable
 
-        def __post_init__(self):
-
-            self._validate_data()
-            self._set_interface_properties()
-
         def _set_interface_properties(self) -> None:
             
             vals = chain((self.standby, self.clear), self.mapping)
             default = feature(self.tag, self.standby)
             
             self._features = frozenset(feature(self.tag, val) for val in vals)
-            self._defaults = MappingProxyType({default.dim: default})
+            self._defaults = frozenset({default})
             self._tags = frozenset(f.tag for f in self._features)
             self._dims = frozenset(f.dim for f in self._features)
 
@@ -98,8 +94,8 @@ class Register(PropagatorB):
 
     def __init__(
         self, 
-        controller: Tuple[Symbol, Symbol], 
-        source: Symbol,
+        controller: Tuple[subsystem, terminus], 
+        source: subsystem,
         interface: Interface,
         filter: MatchSet = None,
         level: float = 1.0
@@ -114,10 +110,6 @@ class Register(PropagatorB):
         :param level: Output activation level for stored features.
         """
 
-        self._validate_controller(controller)
-        self._validate_source(source)
-
-        super().__init__()
         self.store: list = list() # TODO: Improve type annotation. - Can
         self.flags: list = list()
 
@@ -146,38 +138,27 @@ class Register(PropagatorB):
 
     def update(self, construct, inputs):
 
+        data = collect_cmd_data(construct, inputs, self.controller)
+        cmds = self.interface.parse_commands(data)
+
         # Flags get cleared on each update. New flags may then be added for the 
         # next cycle.
         self.clear_flags()
 
-        cmds = self._parse_commands(inputs)
-        cmd = cmds.pop()
-        if cmd.val == self.interface.standby:
-            pass
-        elif cmd.val == self.interface.clear:
-            self.clear()
-        else: # cmd.val in self.interface.mapping
-            channel = self.interface.mapping[cmd.val]
-            nodes = (
-                node for node in inputs[self.source][channel] if
-                self.filter is None or node in self.filter
-            )
-            self.write(nodes)
-
-    def _parse_commands(self, inputs):
-
-        ctl_subsystem, ctl_terminus = self.controller
-        _cmds = inputs[ctl_subsystem][ctl_terminus]
-        cmds = {cmd for cmd in _cmds if cmd in self.interface.features}
-
-        if len(cmds) > 1:
-            raise ValueError("Multiple commands received.")
-        elif len(cmds) == 0:
-            cmds = set(self.interface.defaults.values())
-        else:
-            pass
-
-        return cmds
+        # There should be exactly one command, but given the structure of the 
+        # parse dict, a for loop is used.
+        for dim, val in cmds.items():
+            if val == self.interface.standby:
+                pass
+            elif val == self.interface.clear:
+                self.clear()
+            elif val in self.interface.mapping: 
+                channel = self.interface.mapping[val]
+                nodes = (
+                    node for node in inputs[self.source][channel] if
+                    self.filter is None or node in self.filter
+                )
+                self.write(nodes)
 
     def write(self, nodes):
         """Write nodes to self.store."""
@@ -197,25 +178,6 @@ class Register(PropagatorB):
     def clear_flags(self):
 
         self.flags.clear()
-
-    @staticmethod
-    def _validate_controller(controller):
-
-        subsystem, terminus = controller
-        if subsystem.ctype not in ConstructType.subsystem:
-            raise ValueError(
-                "Arg `controller` must name a subsystem at index 0."
-            )
-        if terminus.ctype not in ConstructType.terminus:
-            raise ValueError(
-                "Arg `controller` must name a terminus at index 1."
-            )
-
-    @staticmethod
-    def _validate_source(source):
-
-        if source.ctype not in ConstructType.subsystem:
-            raise ValueError("Arg `source` must name a subsystem.")
 
 
 class WorkingMemory(PropagatorB):
@@ -267,11 +229,6 @@ class WorkingMemory(PropagatorB):
         mapping: Mapping[Hashable, Symbol]
         reset_vals: Tuple[Hashable, Hashable]
         read_vals: Tuple[Hashable, Hashable]
-
-        def __post_init__(self):
-
-            self._validate_data()
-            self._set_interface_properties()
 
         @property
         def write_tags(self):
@@ -332,9 +289,9 @@ class WorkingMemory(PropagatorB):
             _r_features = frozenset(feature(tag, val) for tag, val in _r_gen)
             _re_features = frozenset(feature(tag, val) for tag, val in _re_gen)
 
-            _w_defaults = set(feature(tag, _w_d_val) for tag in _w_tags)
-            _r_defaults = set(feature(tag, _r_d_val) for tag in _r_tags)
-            _re_defaults = {feature(_re_tag, _re_d_val),}
+            _w_defaults = frozenset(feature(tag, _w_d_val) for tag in _w_tags)
+            _r_defaults = frozenset(feature(tag, _r_d_val) for tag in _r_tags)
+            _re_defaults = frozenset({feature(_re_tag, _re_d_val)})
             _defaults = _w_defaults | _r_defaults | _re_defaults
 
             self._write_tags = _w_tags
@@ -346,7 +303,7 @@ class WorkingMemory(PropagatorB):
             self._reset_dim = (_re_tag, 0)
 
             self._features = _w_features | _r_features | _re_features
-            self._defaults = MappingProxyType({f.dim: f for f in _defaults})
+            self._defaults = _defaults
             self._tags = frozenset(f.tag for f in self._features)
             self._dims = frozenset(f.dim for f in self._features)
 
@@ -366,8 +323,8 @@ class WorkingMemory(PropagatorB):
 
     def __init__(
         self,
-        controller: Tuple[Symbol, Symbol],
-        source: Symbol,
+        controller: Tuple[subsystem, terminus],
+        source: subsystem,
         interface: Interface,
         level: float = 1.0,
         filter: MatchSet = None
@@ -381,9 +338,6 @@ class WorkingMemory(PropagatorB):
         :param filter: Optional filter for state updates.
         :param level: Output activation level for stored features.
         """
-
-        self._validate_controller(controller)
-        self._validate_source(source)
 
         self.controller = controller
         self.source = source
@@ -407,6 +361,12 @@ class WorkingMemory(PropagatorB):
             for tag in interface.write_tags
         )
 
+    def expects(self, construct):
+        
+        ctl_subsystem, src_subsystem = self.controller[0], self.source
+
+        return construct == ctl_subsystem or construct == src_subsystem
+
     def call(self, construct, inputs):
         """
         Activate stored nodes.
@@ -414,10 +374,8 @@ class WorkingMemory(PropagatorB):
         Only activates stored nodes in opened slots.
         """
 
-        # Could possibly also use collections.ChainMap. Need to check how it 
-        # will interact w/ downstream processing. - Can
-        
-        cmds = self._parse_commands(inputs)
+        data = collect_cmd_data(construct, inputs, self.controller)
+        cmds = self.interface.parse_commands(data)
 
         # toggle switches
         switches = []
@@ -434,12 +392,6 @@ class WorkingMemory(PropagatorB):
                 d.update(d_cell)
         
         return d
-
-    def expects(self, construct):
-        
-        ctl_subsystem, src_subsystem = self.controller[0], self.source
-
-        return construct == ctl_subsystem or construct == src_subsystem
 
     def reset(self):
         """
@@ -474,7 +426,8 @@ class WorkingMemory(PropagatorB):
         goal) in one single update. 
         """
 
-        cmds = self._parse_commands(inputs)
+        data = collect_cmd_data(construct, inputs, self.controller)
+        cmds = self.interface.parse_commands(data)
 
         # Flags get cleared on each update. New flags may then be added for the 
         # next cycle.
@@ -489,52 +442,6 @@ class WorkingMemory(PropagatorB):
         # cell/slot updates
         for slot, cell in enumerate(self.cells):
             # The copy here is for safety... better option may be to make 
-            # inputs immutable. - Cans
+            # inputs immutable. - Can
             cell.update(construct, inputs.copy())
             # Clearing a slot automatically sets corresponding switch to False.
-
-    def _parse_commands(self, inputs):
-
-        subsystem, terminus = self.controller
-        try:
-            raw_cmds = inputs[subsystem][terminus]
-        except KeyError:
-            # if command interface cannot be found, assume default commands.
-            raw_cmds = set(self.interface.defaults.values())
-            # TODO: This should publish a warning in a log; remember to do this 
-            # when setting up logging. - Can
-
-        # Filter irrelevant feature symbols
-        cmd_set = set(
-            f for f in raw_cmds if f in self.interface.features and (
-                f.dim == self.interface.reset_dim or
-                f.dim in self.interface.read_dims
-            )
-        )
-
-        groups = group_by_dims(features=cmd_set)
-        cmds = {}
-        for k, g in groups.items():
-            if len(g) > 1:
-                msg = "Multiple commands for dim '{}' in WorkingMemory."
-                raise ValueError(msg.format(k))
-            cmds[k] = g[0].val
-
-        return cmds
-
-    @staticmethod
-    def _validate_controller(controller):
-
-        subsystem, terminus = controller
-        if subsystem.ctype not in ConstructType.subsystem:
-            msg = "Arg `controller` must name a subsystem at index 0."
-            raise ValueError(msg)
-        if terminus.ctype not in ConstructType.terminus:
-            msg = "Arg `controller` must name a terminus at index 1."
-            raise ValueError(msg)
-
-    @staticmethod
-    def _validate_source(source):
-
-        if source.ctype not in ConstructType.subsystem:
-            raise ValueError("Arg `source` must name a subsystem.")
