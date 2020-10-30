@@ -15,6 +15,19 @@ fdomain = [
     ("shape", "circle")
 ]
 
+
+grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
+mapping = {("dof", "nacs", dim): set(entry) for dim, entry in grouped.items()}
+# _dims, _clients = zip(*list(grouped.items()))
+# tags = tuple(("dof", "nacs", dim) for dim in _dims) 
+# clients = tuple(tuple(entry) for entry in _clients)
+print(mapping)
+
+filter_interface = FilteringRelay.Interface(
+    mapping=mapping,
+    vals=(0, 1)
+)
+
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
@@ -28,29 +41,18 @@ with alice:
         emitter=Stimulus()
     )
 
-    # setting up the filtering relay.
-
-    grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
-    _dims, _clients = zip(*list(grouped.items()))
-    tags = tuple(("dof", "nacs", dim) for dim in _dims) 
-    clients = tuple(tuple(entry) for entry in _clients)
-
     relay = Construct(
         name=buffer("dimensional-filter"),
         emitter=FilteringRelay(
             controller=(subsystem("acs"), terminus("nacs")),
-            interface=FilteringRelay.Interface(
-                clients=clients,
-                tags=tags,
-                vals=(0, 1)
-            )
+            interface=filter_interface
         )
     )
 
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in relay.emitter.interface.defaults}
+            strengths={f: 0.5 for f in filter_interface.defaults.values()}
         )
     )
 

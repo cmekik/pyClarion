@@ -5,6 +5,7 @@ __all__ = ["GatedA", "FilteredT", "FilteringRelay"]
 
 
 from pyClarion.base.symbols import Symbol, ConstructType, feature
+from pyClarion.base.realizers import FeatureInterface
 from pyClarion.components.propagators import (
     PropagatorA, PropagatorB, PropagatorT
 )
@@ -14,7 +15,9 @@ from pyClarion.utils.funcs import (
 )
 
 from itertools import product
-from typing import NamedTuple, Tuple, Hashable, Union
+from dataclasses import dataclass
+from typing import NamedTuple, Tuple, Hashable, Union, Mapping, Set, Iterable
+from types import MappingProxyType
 import pprint
 
 
@@ -92,80 +95,51 @@ class FilteredT(PropagatorT):
 class FilteringRelay(PropagatorB):
     """Computes gate and filter settings as directed by a controller."""
     
-    class Interface(NamedTuple):
+    @dataclass
+    class Interface(FeatureInterface):
         """
-        Control interface for filtering relay.
+        Control features for filtering relay.
         
         Defines mapping for assignment of filter weights to cilent constructs 
         based on controller instructions.
 
-        :param clients: Tuple containing either symbols naming individual 
-            clients or a tuple of construct symbols for groups. It is expected 
-            that len(clients) == len(tags).
-        :param tags: Tuple listing control dimension labels. The i-th tag 
-        controls the strength assigned to the i-th entry in param `symbols` 
-        based on the value of the dimension (tag, 0).
+        Warning: Do not mutate attributes after creation. Changes will not be 
+        reflected.
+
+        :param mapping: Mapping from controller dimension tags to either 
+            symbols naming individual clients or a set of symbols for a 
+            group of clients. 
         :param vals: A tuple defining feature values corresponding to each 
-            strength degree. The i-th value is taken to correspond to a filter 
-            weighting level of i / (len(vals) - 1).
+            strength degree. The i-th value is taken to correspond to a 
+            filter weighting level of i / (len(vals) - 1).
         """
 
-        clients: Tuple[Union[Symbol, Tuple[Symbol, ...]], ...]
-        tags: Tuple[Hashable, ...]
+        mapping: Mapping[Hashable, Union[Symbol, Set[Symbol]]]
         vals: Tuple[Hashable, ...]
 
-        @property
-        def features(self):
-            """Filter setting features."""
+        def __post_init__(self):
 
-            dvpairs = product(self.tags, self.vals)
+            self._validate_data(self.mapping, self.vals)
+            self._set_interface_properties()
 
-            return tuple(feature(tag, val, 0) for tag, val in dvpairs)
+        def _set_interface_properties(self) -> None:
 
-        @property
-        def dims(self):
-            """
-            Dimensions associated with self.
-            
-            Has form (tag, 0) for each tag in self.tags, returned in order.
-            """
+            tv_pairs = product(self.mapping, self.vals)
+            feature_list = list(feature(tag, val) for tag, val in tv_pairs)
+            default = self.vals[0]
+            default_set = set(feature(tag, default) for tag in self.mapping)
+            default_dict = {f.dim: f for f in default_set}
 
-            return tuple((tag, 0) for tag in self.tags)
+            self._features = frozenset(feature_list)
+            self._defaults = MappingProxyType(default_dict)
+            self._tags = frozenset(f.tag for f in self._features)
+            self._dims = frozenset(f.dim for f in self._features)
 
-        @property
-        def defaults(self):
-            """Features for default filter settings."""
-            
-            return tuple(feature(tag, self.vals[0], 0) for tag in self.tags)
+        def _validate_data(self, mapping, vals):
 
-    class InterfaceError(Exception):
-        """Raised when a passed a malformed interface."""
-        pass
-
-    @classmethod
-    def _validate_interface(cls, interface: Interface) -> None:
-
-        if len(interface.clients) != len(interface.tags):
-            raise cls.InterfaceError(
-                "Number of dims must be equal to number of entries in symbols."
-            )
-        if len(interface.vals) < 2:
-            raise cls.InterfaceError("Vals must define at least 2 values.")
-        if len(interface.vals) != len(set(interface.vals)):
-            raise cls.InterfaceError("Vals may not contain duplicates.")
-
-    @staticmethod
-    def _validate_controller(controller):
-
-        subsystem, terminus = controller
-        if subsystem.ctype not in ConstructType.subsystem:
-            raise ValueError(
-                "Arg `controller` must name a subsystem at index 0."
-            )
-        if terminus.ctype not in ConstructType.terminus:
-            raise ValueError(
-                "Arg `controller` must name a terminus at index 1."
-            )
+            if len(set(vals)) < 2:
+                msg = "Arg `vals` must define at least 2 unique values."
+                raise ValueError(msg)
 
     def __init__(
         self,
@@ -174,7 +148,6 @@ class FilteringRelay(PropagatorB):
     ) -> None:
 
         self._validate_controller(controller)
-        self._validate_interface(interface)
 
         super().__init__()
         self.controller = controller
@@ -183,6 +156,22 @@ class FilteringRelay(PropagatorB):
     def expects(self, construct):
 
         return construct == self.controller[0]
+
+    def call(self, construct, inputs):
+        
+        d, cmds = {}, self._parse_commands(inputs)
+        for dim in self.interface.dims:
+            tag, lag = dim
+            cmd = cmds.get(dim, self.interface.defaults[dim])
+            level = self.interface.vals.index(cmd.val)
+            strength = level / (len(self.interface.vals) - 1)
+            entry = self.interface.mapping[tag]
+            if not isinstance(entry, Symbol): # entry of type Set[Symbol, ...]
+                for client in entry:
+                    d[client] = strength
+            else: # entry of type Symbol
+                d[entry] = strength
+        return d
 
     def _parse_commands(self, inputs):
 
@@ -208,18 +197,16 @@ class FilteringRelay(PropagatorB):
 
         return cmds
 
-    def call(self, construct, inputs):
-        
-        d, cmds = {}, self._parse_commands(inputs)
-        for i, tag in enumerate(self.interface.tags):
-            cmd = cmds.get((tag, 0), self.interface.defaults[i])
-            level = self.interface.vals.index(cmd.val)
-            strength = level / (len(self.interface.vals) - 1)
-            entry = self.interface.clients[i]
-            if isinstance(entry, tuple): # entry of type Tuple[Symbol, ...]
-                for client in entry:
-                    d[client] = strength
-            else: # entry of type Symbol
-                d[entry] = strength
+    @staticmethod
+    def _validate_controller(controller):
 
-        return d
+        subsystem, terminus = controller
+        if subsystem.ctype not in ConstructType.subsystem:
+            raise ValueError(
+                "Arg `controller` must name a subsystem at index 0."
+            )
+        if terminus.ctype not in ConstructType.terminus:
+            raise ValueError(
+                "Arg `controller` must name a terminus at index 1."
+            )
+

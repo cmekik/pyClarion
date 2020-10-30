@@ -5,12 +5,15 @@ __all__ = ["Bus", "Register", "WorkingMemory"]
 
 
 from pyClarion.base.symbols import Symbol, MatchSet, ConstructType, feature
+from pyClarion.base.realizers import FeatureInterface
 from pyClarion.components.propagators import PropagatorB
 from pyClarion.components.chunks_ import Chunks, ChunkAdder, ChunkConstructor
 from pyClarion.utils import simple_junction, group_by_dims
 
+from dataclasses import dataclass
 from itertools import chain, product, groupby
-from typing import Callable, Hashable, Tuple, NamedTuple, List
+from typing import Callable, Hashable, Tuple, NamedTuple, List, Mapping
+from types import MappingProxyType
 
 
 class Bus(PropagatorB):
@@ -55,7 +58,8 @@ class Register(PropagatorB):
     flags are cleared at update time.
     """
 
-    class Interface(NamedTuple):
+    @dataclass
+    class Interface(FeatureInterface):
         """
         Control interface for Register instances.
         
@@ -66,71 +70,31 @@ class Register(PropagatorB):
             operation.
         """
 
+        mapping: Mapping[Hashable, Symbol]
         tag: Hashable
         standby: Hashable
         clear: Hashable
-        channel_map: Tuple[Tuple[Hashable, Symbol], ...]
 
-        @property
-        def channels(self):
+        def __post_init__(self):
 
-            return tuple(channel for channel, _ in self.channel_map)
+            self._validate_data()
+            self._set_interface_properties()
 
-        @property
-        def features(self):
-            """
-            Tuple listing all control features associated with self.
+        def _set_interface_properties(self) -> None:
             
-            Features are listed in the following order:
-                standby, clear, channel_1, ..., channel_n
-            """
+            vals = chain((self.standby, self.clear), self.mapping)
+            default = feature(self.tag, self.standby)
+            
+            self._features = frozenset(feature(self.tag, val) for val in vals)
+            self._defaults = MappingProxyType({default.dim: default})
+            self._tags = frozenset(f.tag for f in self._features)
+            self._dims = frozenset(f.dim for f in self._features)
 
-            tag = self.tag
-            vals = chain((self.standby,), (self.clear,), self.channels)
-
-            return tuple(feature(tag, val) for val in vals)
-
-        # @property
-        # def dim(self):
-
-        #     return (tag, 0)
-
-        @property
-        def defaults(self):
-
-            return (feature(self.tag, self.standby),)
-
-    class InterfaceError(Exception):
-        """Raised when a passed a malformed interface."""
-        pass
-
-    @classmethod
-    def _validate_interface(cls, interface):
-
-        channel_vals = [v for v, s in interface.channel_map]
-        if len(set(channel_vals)) != len(channel_vals):
-            raise cls.InterfaceError(
-                "Arg `channel_map` may not contain duplicate values."
-            )
-
-    @staticmethod
-    def _validate_controller(controller):
-
-        subsystem, terminus = controller
-        if subsystem.ctype not in ConstructType.subsystem:
-            raise ValueError(
-                "Arg `controller` must name a subsystem at index 0."
-            )
-        if terminus.ctype not in ConstructType.terminus:
-            raise ValueError(
-                "Arg `controller` must name a terminus at index 1."
-            )
-
-    @staticmethod
-    def _validate_source(source):
-
-        if source.ctype not in ConstructType.subsystem:
-            raise ValueError("Arg `source` must name a subsystem.")
+        def _validate_data(self):
+            
+            value_set = set(chain((self.standby, self.clear), self.mapping))
+            if len(value_set) < len(self.mapping) + 2:
+                raise ValueError("Value set may not contain duplicates.") 
 
     def __init__(
         self, 
@@ -152,7 +116,6 @@ class Register(PropagatorB):
 
         self._validate_controller(controller)
         self._validate_source(source)
-        self._validate_interface(interface)
 
         super().__init__()
         self.store: list = list() # TODO: Improve type annotation. - Can
@@ -163,6 +126,12 @@ class Register(PropagatorB):
         self.interface = interface
         self.filter = filter
         self.level = level
+
+    @property
+    def is_empty(self):
+        """True if no nodes are stored in self."""
+
+        return len(self.store) == 0
 
     def expects(self, construct):
         
@@ -187,8 +156,8 @@ class Register(PropagatorB):
             pass
         elif cmd.val == self.interface.clear:
             self.clear()
-        else: # cmd.val in self.interface.channels
-            channel = self._channel_dict[cmd.val]
+        else: # cmd.val in self.interface.mapping
+            channel = self.interface.mapping[cmd.val]
             nodes = (
                 node for node in inputs[self.source][channel] if
                 self.filter is None or node in self.filter
@@ -204,7 +173,7 @@ class Register(PropagatorB):
         if len(cmds) > 1:
             raise ValueError("Multiple commands received.")
         elif len(cmds) == 0:
-            cmds = set(self.interface.defaults)
+            cmds = set(self.interface.defaults.values())
         else:
             pass
 
@@ -229,22 +198,24 @@ class Register(PropagatorB):
 
         self.flags.clear()
 
-    @property
-    def is_empty(self):
-        """True if no nodes are stored in self."""
+    @staticmethod
+    def _validate_controller(controller):
 
-        return len(self.store) == 0
+        subsystem, terminus = controller
+        if subsystem.ctype not in ConstructType.subsystem:
+            raise ValueError(
+                "Arg `controller` must name a subsystem at index 0."
+            )
+        if terminus.ctype not in ConstructType.terminus:
+            raise ValueError(
+                "Arg `controller` must name a terminus at index 1."
+            )
 
-    @property
-    def interface(self):
+    @staticmethod
+    def _validate_source(source):
 
-        return self._interface
-
-    @interface.setter
-    def interface(self, obj: Interface):
-
-        self._interface = obj
-        self._channel_dict = dict(obj.channel_map)
+        if source.ctype not in ConstructType.subsystem:
+            raise ValueError("Arg `source` must name a subsystem.")
 
 
 class WorkingMemory(PropagatorB):
@@ -264,142 +235,134 @@ class WorkingMemory(PropagatorB):
     # if an empty slot is opened to signify retrieval failure from that slot. 
     # This requires extensions to the interface. - Can
 
-    class Interface(NamedTuple):
+    @dataclass
+    class Interface(FeatureInterface):
         """
         Control interface for WorkingMemory propagator.
 
-        :param dims: Dimensions for controlling WM slot write operations.
+        :param slots: Number of working memory slots.
+        :param prefix: Marker for identifying this particular set of control 
+            features.
+        :param write_marker: Marker for controlling WM slot write operations.
+        :param read_marker: Marker for controlling WM slot read operations.
+        :param reset_marker: Marker for controlling global WM state resets.
         :param standby: Value for standby action on writing operations.
         :param clear: Value for clear action on writing operations.
-        :param channel_map: Tuple pairing a write operation value with a 
+        :param mapping: Mapping pairing a write operation value with a 
             terminus from the source subsystem. Signals WM to write contents of 
             terminus to a slot.
-        :param reset_dim: Dimension for controlling global WM state resets.
         :param reset_vals: Global reset control values. First value corresponds 
             to standby. Second value corresponds to reset initiation.
-        :param switch_dims: Dimension for controlling WM slot read operations.
-        :param switch_vals: Read operation control values. First value 
+        :param read_vals: Read operation control values. First value 
             corresponds to standby (i.e., no read), second value to read action. 
         """
 
-        write_tags: Tuple[Hashable, ...]
+        slots: int
+        prefix: Hashable
+        write_marker: Hashable
+        read_marker: Hashable
+        reset_marker: Hashable
         standby: Hashable
         clear: Hashable
-        channel_map: Tuple[Tuple[Hashable, Symbol], ...]
-
-        reset_tag: Hashable
+        mapping: Mapping[Hashable, Symbol]
         reset_vals: Tuple[Hashable, Hashable]
-
-        read_tags: Tuple[Hashable, ...]
         read_vals: Tuple[Hashable, Hashable]
 
+        def __post_init__(self):
+
+            self._validate_data()
+            self._set_interface_properties()
+
         @property
-        def channels(self):
+        def write_tags(self):
 
-            return tuple(channel for channel, _ in self.channel_map)
+            return self._write_tags
 
-        # TODO: Cache output for better efficiency? - Can
         @property
-        def features(self):
-            """Tuple listing all interface features."""
+        def read_tags(self):
 
-            w_tags = self.write_tags
-            w_vals = chain((self.standby,), (self.clear,), self.channels)
+            return self._read_tags
 
-            r_tags = self.read_tags
-            r_vals = self.read_vals
+        @property
+        def reset_tag(self):
 
-            w = tuple(feature(tag, val) for tag, val in product(w_tags, w_vals))
-            r = tuple(feature(self.reset_tag, val) for val in self.reset_vals)
-            s = tuple(feature(tag, val) for tag, val in product(r_tags, r_vals))
-
-            return w + r + s
+            return self._reset_tag
 
         @property
         def write_dims(self):
 
-            return tuple((tag, 0) for tag in self.write_tags)
-
-        @property
-        def reset_dim(self):
-
-            return (self.reset_tag, 0)
+            return self._write_dims
 
         @property
         def read_dims(self):
 
-            return tuple((tag, 0) for tag in self.read_tags)
+            return self._read_dims
 
         @property
-        def dims(self):
+        def reset_dim(self):
 
-            return self.write_dims + (self.reset_dim,) + self.read_dims
+            return self._reset_dim
 
-        @property
-        def defaults(self):
-            """Tuple listing default action features."""
-
-            # 'w' for 'write', 'r' for 'reset', 's' for 'switch' 
+        def _set_interface_properties(self) -> None:
             
-            stby_w = self.standby
-            stby_r = self.reset_vals[0]
-            stby_s = self.read_vals[0]
+            slots, pre = self.slots, self.prefix
+            w, r, re = self.write_marker, self.read_marker, self.reset_marker
 
-            w_defaults = tuple(feature(dim, stby_w) for dim in self.write_tags)
-            r_defaults = (feature(self.reset_tag, stby_r),)
-            s_defaults = tuple(feature(dim, stby_s) for dim in self.read_tags)
+            _w_tags = tuple((pre, w, i) for i in range(slots))
+            _r_tags = tuple((pre, r, i) for i in range(slots))
+            _re_tag = (pre, re)
 
-            return w_defaults + r_defaults + s_defaults
+            _w_vals = set(chain((self.standby, self.clear), self.mapping))
+            _r_vals = self.read_vals
+            _re_vals = self.reset_vals
 
-    # TODO: Add validation checks for interface. - Can
+            _w_d_val = self.standby
+            _r_d_val = _r_vals[0]
+            _re_d_val = _re_vals[0]
 
-    class InterfaceError(Exception):
-        """Raised when a passed a malformed interface."""
-        pass
+            _w_gen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
+            _r_gen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
+            _re_gen = ((_re_tag, val) for val in _re_vals)
 
-    @classmethod
-    def _validate_interface(cls, interface: Interface) -> None:
+            _w_dgen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
+            _r_dgen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
+            _re_dgen = ((_re_tag, val) for val in _re_vals)
 
-        if len(interface.write_tags) != len(interface.read_tags):
-            msg = "Len of write_tags and read_tags must match."
-            raise cls.InterfaceError(msg) 
+            _w_features = frozenset(feature(tag, val) for tag, val in _w_gen)
+            _r_features = frozenset(feature(tag, val) for tag, val in _r_gen)
+            _re_features = frozenset(feature(tag, val) for tag, val in _re_gen)
 
-        if len(set(interface.write_tags)) != len(interface.write_tags):
-            raise cls.InterfaceError("dims may not contain duplicates.")
+            _w_defaults = set(feature(tag, _w_d_val) for tag in _w_tags)
+            _r_defaults = set(feature(tag, _r_d_val) for tag in _r_tags)
+            _re_defaults = {feature(_re_tag, _re_d_val),}
+            _defaults = _w_defaults | _r_defaults | _re_defaults
 
-        channel_vals = [v for v, s in interface.channel_map]
-        if len(set(channel_vals)) != len(channel_vals):
-            raise cls.InterfaceError(
-                "Arg `channel_map` may not contain duplicate values."
-            )
+            self._write_tags = _w_tags
+            self._read_tags = _r_tags
+            self._reset_tag = _re_tag
 
-        if len(set(interface.read_tags)) != len(interface.read_tags):
-            raise cls.InterfaceError("switch_dims may not contain duplicates.")
+            self._write_dims = tuple(sorted(f.dim for f in _w_features))
+            self._read_dims = tuple(sorted(f.dim for f in _r_features))
+            self._reset_dim = (_re_tag, 0)
 
-        if len(set(interface.reset_vals)) != 2:
-            raise cls.InterfaceError("Must provide two distinct reset_vals")
+            self._features = _w_features | _r_features | _re_features
+            self._defaults = MappingProxyType({f.dim: f for f in _defaults})
+            self._tags = frozenset(f.tag for f in self._features)
+            self._dims = frozenset(f.dim for f in self._features)
 
-        if len(set(interface.reset_vals)) != 2:
-            raise cls.InterfaceError("Must provide two distinct switch_vals")
-
-    @staticmethod
-    def _validate_controller(controller):
-
-        subsystem, terminus = controller
-        if subsystem.ctype not in ConstructType.subsystem:
-            raise ValueError(
-                "Arg `controller` must name a subsystem at index 0."
-            )
-        if terminus.ctype not in ConstructType.terminus:
-            raise ValueError(
-                "Arg `controller` must name a terminus at index 1."
-            )
-
-    @staticmethod
-    def _validate_source(source):
-
-        if source.ctype not in ConstructType.subsystem:
-            raise ValueError("Arg `source` must name a subsystem.")
+        def _validate_data(self):
+            
+            markers = (self.write_marker, self.read_marker, self.reset_marker)
+            w_vals = set(chain((self.standby, self.clear), self.mapping))
+            
+            if len(set(markers)) < 3:
+                raise ValueError("Marker arguments must be mutually distinct.")
+            if len(set(w_vals)) < len(self.mapping) + 2:
+                raise ValueError("Write vals may not contain duplicates.")
+            if len(set(self.read_vals)) < len(self.read_vals):
+                raise ValueError("Read vals may not contain duplicates.")
+            if len(set(self.reset_vals)) < len(self.reset_vals):
+                raise ValueError("Reset vals may not contain duplicates.")
 
     def __init__(
         self,
@@ -421,7 +384,6 @@ class WorkingMemory(PropagatorB):
 
         self._validate_controller(controller)
         self._validate_source(source)
-        self._validate_interface(interface)
 
         self.controller = controller
         self.source = source
@@ -434,40 +396,16 @@ class WorkingMemory(PropagatorB):
                 controller=controller,
                 source=source,
                 interface=Register.Interface(
+                    mapping=interface.mapping,
                     tag=tag,
                     standby=interface.standby,
-                    clear=interface.clear,
-                    channel_map=interface.channel_map
+                    clear=interface.clear
                 ),
                 filter=filter,
                 level=level
             )
             for tag in interface.write_tags
         )
-
-    def expects(self, construct):
-        
-        ctl_subsystem, src_subsystem = self.controller[0], self.source
-
-        return construct == ctl_subsystem or construct == src_subsystem
-
-    def reset(self):
-        """
-        Reset memory state.
-        
-        Clears all memory slots and closes all switches.
-        """
-
-        for cell in self.cells:
-            cell.clear()
-
-    def write_flags(self, *flags):
-
-        self.flags.extend(flags)
-
-    def clear_flags(self):
-
-        self.flags.clear()
 
     def call(self, construct, inputs):
         """
@@ -496,6 +434,30 @@ class WorkingMemory(PropagatorB):
                 d.update(d_cell)
         
         return d
+
+    def expects(self, construct):
+        
+        ctl_subsystem, src_subsystem = self.controller[0], self.source
+
+        return construct == ctl_subsystem or construct == src_subsystem
+
+    def reset(self):
+        """
+        Reset memory state.
+        
+        Clears all memory slots and closes all switches.
+        """
+
+        for cell in self.cells:
+            cell.clear()
+
+    def write_flags(self, *flags):
+
+        self.flags.extend(flags)
+
+    def clear_flags(self):
+
+        self.flags.clear()
 
     def update(self, construct, inputs):
         """
@@ -538,7 +500,7 @@ class WorkingMemory(PropagatorB):
             raw_cmds = inputs[subsystem][terminus]
         except KeyError:
             # if command interface cannot be found, assume default commands.
-            raw_cmds = set(self.interface.defaults)
+            raw_cmds = set(self.interface.defaults.values())
             # TODO: This should publish a warning in a log; remember to do this 
             # when setting up logging. - Can
 
@@ -554,9 +516,25 @@ class WorkingMemory(PropagatorB):
         cmds = {}
         for k, g in groups.items():
             if len(g) > 1:
-                raise ValueError(
-                "Multiple commands for dim '{}' in WorkingMemory.".format(k)
-            )
+                msg = "Multiple commands for dim '{}' in WorkingMemory."
+                raise ValueError(msg.format(k))
             cmds[k] = g[0].val
 
         return cmds
+
+    @staticmethod
+    def _validate_controller(controller):
+
+        subsystem, terminus = controller
+        if subsystem.ctype not in ConstructType.subsystem:
+            msg = "Arg `controller` must name a subsystem at index 0."
+            raise ValueError(msg)
+        if terminus.ctype not in ConstructType.terminus:
+            msg = "Arg `controller` must name a terminus at index 1."
+            raise ValueError(msg)
+
+    @staticmethod
+    def _validate_source(source):
+
+        if source.ctype not in ConstructType.subsystem:
+            raise ValueError("Arg `source` must name a subsystem.")

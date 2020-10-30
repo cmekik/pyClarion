@@ -5,6 +5,15 @@ from pyClarion import *
 import pprint
 
 
+gate_interface = FilteringRelay.Interface(
+    mapping={
+        "nacs-stim": flow_in("stimulus"),
+        "nacs-assoc": flow_tt("associations"),
+        "nacs-bt": flow_bt("main")
+    },
+    vals=(0, 1)
+)
+
 alice = Structure(
     name=agent("Alice"),
     emitter=AgentCycle(),
@@ -19,25 +28,17 @@ with alice:
     )
 
     gate = Construct(
-        name=buffer("flow-gate"),
+        name=buffer("gate"),
         emitter=FilteringRelay(
             controller=(subsystem("acs"), terminus("nacs")),
-            interface=FilteringRelay.Interface(
-                clients=(
-                    flow_in("stimulus"), 
-                    flow_tt("associations"), 
-                    flow_bt("main")
-                ),
-                tags=("nacs-stim", "nacs-assoc", "nacs-bt"),
-                vals=(0, 1)
-            )
+            interface=gate_interface
         )
     )
 
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in gate.emitter.interface.defaults}
+            strengths={f: 0.5 for f in gate_interface.defaults.values()}
         )
     )
 
@@ -62,7 +63,7 @@ with alice:
             name=terminus("nacs"),
             emitter=ActionSelector(
                 source=features("main"),
-                dims=gate.emitter.interface.dims,
+                dims=gate_interface.dims,
                 temperature=0.01
             )
         )
@@ -72,7 +73,7 @@ with alice:
         emitter=NACSCycle(       
             sources={
                 buffer("stimulus"), 
-                buffer("flow-gate")
+                buffer("gate")
             }
         ),
         assets=Assets(rules=Rules())
@@ -104,7 +105,7 @@ with alice:
             name=flow_in("stimulus"),
             emitter=GatedA(
                 base=Repeater(source=buffer("stimulus")),
-                gate=buffer("flow-gate")
+                gate=buffer("gate")
             )
         )
 
@@ -115,7 +116,7 @@ with alice:
                     source=chunks("main"),
                     rules=nacs.assets.rules
                 ),
-                gate=buffer("flow-gate")
+                gate=buffer("gate")
             ) 
         )
 
@@ -126,7 +127,7 @@ with alice:
                     source=features("main"),
                     chunks=alice.assets.chunks
                 ),
-                gate=buffer("flow-gate") 
+                gate=buffer("gate") 
             )
         )
 

@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef, MatchSet
+from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef, feature
 from itertools import combinations, chain
 from abc import abstractmethod
 from types import MappingProxyType, SimpleNamespace
@@ -631,3 +631,35 @@ class Assets(SimpleNamespace): # type: ignore
     different components of a container construct are considered assets. 
     """
     pass
+
+class FeatureInterface(object):
+    """Features constituting the control interface for a component."""
+
+    _features: FrozenSet[feature]
+    _defaults: Mapping[Tuple[Hashable, int], feature]
+    _tags: FrozenSet[Hashable]
+    _dims: FrozenSet[Tuple[Hashable, int]]
+
+    @property
+    def features(self):
+        """The set of features defined by self."""
+        
+        return self._features
+
+    @property
+    def defaults(self):
+        """Feature, defined by self, indicating default values, if any."""
+        
+        return self._defaults
+
+    @property
+    def tags(self):
+        """The set of dimensional labels defined by self."""
+        
+        return self._tags
+
+    @property
+    def dims(self):
+        """The set of feature dimensions (w/ lags) defined by self."""
+        
+        return self._dims

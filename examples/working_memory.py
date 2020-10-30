@@ -2,6 +2,22 @@ from pyClarion import *
 from typing import cast
 import pprint
 
+wm_interface = WorkingMemory.Interface(
+    slots=7,
+    prefix="wm",
+    write_marker="w",
+    read_marker="r",
+    reset_marker="re",
+    standby="standby",
+    clear="clear",
+    mapping={
+        "retrieve": terminus("retrieval"),
+        "extract":  terminus("bl-state")
+    },
+    reset_vals=("standby", "release"),
+    read_vals=("standby", "open"),
+) 
+
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
@@ -21,19 +37,7 @@ with alice:
         emitter=WorkingMemory(
             controller=(subsystem("acs"), terminus("wm")),
             source=subsystem("nacs"),
-            interface=WorkingMemory.Interface(
-                write_tags=tuple("wm-w{}".format(i) for i in range(WMSLOTS)),
-                standby="standby",
-                clear="clear",
-                channel_map=(
-                    ("retrieve", terminus("retrieval")),
-                    ("extract",  terminus("bl-state"))
-                ),
-                reset_tag="wm-reset",
-                reset_vals=("standby", "release"),
-                read_tags=tuple("wm-r{}".format(i) for i in range(WMSLOTS)),
-                read_vals=("standby", "open"),
-            ) 
+            interface=wm_interface
         ),
         updater=WorkingMemory.StateUpdater()
     )
@@ -44,7 +48,7 @@ with alice:
     wm_defaults = Construct(
         name=buffer("wm-defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in wm.emitter.interface.defaults}
+            strengths={f: 0.5 for f in wm_interface.defaults.values()}
         )
     )
 
@@ -199,7 +203,7 @@ print()
 print("Open (Empty WM; does nothing)")
 print()
 
-d = {feature("wm-r1", "open"): 1.0}
+d = {feature(("wm", "r", 1), "open"): 1.0}
 
 stimulus.emitter.input(d)
 alice.propagate()
@@ -228,8 +232,8 @@ print()
 d = {
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
-    feature("wm-w0", "retrieve"): 1.0,
-    feature("wm-r0", "open"): 1.0
+    feature(("wm", "w", 0), "retrieve"): 1.0,
+    feature(("wm", "r", 0), "open"): 1.0
 }
 
 stimulus.emitter.input(d)
@@ -289,10 +293,10 @@ print()
 d = {
     feature("fruit", "banana"): 1.0,
     feature("price", "expensive"): 1.0,
-    feature("wm-w0", "retrieve"): 1.0,
-    feature("wm-r0", "open"): 1.0,
-    feature("wm-w1", "extract"): 1.0,
-    feature("wm-r1", "open"): 1.0
+    feature(("wm", "w", 0), "retrieve"): 1.0,
+    feature(("wm", "r", 0), "open"): 1.0,
+    feature(("wm", "w", 1), "extract"): 1.0,
+    feature(("wm", "r", 1), "open"): 1.0
 }
 
 stimulus.emitter.input(d)
@@ -321,7 +325,7 @@ print()
 print("Open Slot 1 only, removing Slot 0 from output")
 print()
 
-d = {feature("wm-r1", "open"): 1.0}
+d = {feature(("wm", "r", 1), "open"): 1.0}
 
 stimulus.emitter.input(d)
 alice.propagate()
@@ -348,8 +352,8 @@ print("Single Delete (clear & open slot 0)")
 print()
 
 d = {
-    feature("wm-w0", "clear"): 1.0,
-    feature("wm-r0", "open"): 1.0
+    feature(("wm", "w", 0), "clear"): 1.0,
+    feature(("wm", "r", 0), "open"): 1.0
 }
 
 stimulus.emitter.input(d)
