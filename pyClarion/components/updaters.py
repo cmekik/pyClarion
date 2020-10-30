@@ -4,7 +4,7 @@
 __all__ = ["UpdaterChain", "CommandDrivenUpdater"]
 
 
-from pyClarion import Symbol, MatchSet, Updater, Realizer, Structure
+from pyClarion.base import Symbol, MatchSet, Updater, Realizer, Structure
 from typing import Container, Tuple, TypeVar, cast, Generic
 
 

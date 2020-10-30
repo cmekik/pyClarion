@@ -7,7 +7,7 @@ __all__ = ["GatedA", "FilteredT", "FilteringRelay"]
 from pyClarion.base.symbols import (
     Symbol, ConstructType, feature, subsystem, terminus
 )
-from pyClarion.base.realizers import FeatureInterface
+from pyClarion.base.components import FeatureInterface
 from pyClarion.components.propagators import (
     PropagatorA, PropagatorB, PropagatorT
 )

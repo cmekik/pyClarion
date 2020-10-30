@@ -7,7 +7,7 @@ __all__ = ["Bus", "Register", "WorkingMemory"]
 from pyClarion.base.symbols import (
     Symbol, MatchSet, ConstructType, feature, subsystem, terminus
 )
-from pyClarion.base.realizers import FeatureInterface
+from pyClarion.base.components import FeatureInterface
 from pyClarion.components.propagators import PropagatorB
 from pyClarion.components.chunks_ import Chunks, ChunkAdder, ChunkConstructor
 from pyClarion.utils import simple_junction, group_by_dims, collect_cmd_data
