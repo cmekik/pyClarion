@@ -56,7 +56,7 @@ class Emitter(Component):
 class Propagator(Emitter, Generic[Ft]):
     """Emitter for basic constructs."""
 
-    interface: Ft
+    interface: Optional[Ft] = None
 
     def __call__(self, construct: Symbol, inputs: Inputs) -> Any:
         """
@@ -101,8 +101,9 @@ class Cycle(Emitter):
     sequence: Iterable[ConstructType]
 
 
-class Updater(Component):
-    pass
+class Updater(Component, Generic[Ft]):
+
+    interface: Optional[Ft] = None
 
 
 class UpdaterC(Updater, Generic[Pt]):
