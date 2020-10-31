@@ -134,12 +134,13 @@ stimulus_states = [
     }    
 ]
 
+alice.start()
+
 for i, state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
 
     stimulus.emitter.input(state)
-    alice.propagate()
-    alice.update()
+    alice.step()
 
     pprint.pprint(alice.output)
     

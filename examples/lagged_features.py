@@ -68,10 +68,12 @@ stimulus_states = [
     {feature("dim", "val-3", 0): 1.0}
 ]
 
+alice.start()
+
 for i, stimulus_state in enumerate(stimulus_states):
     print("Presentation {}".format(i + 1))
     stimulus.emitter.input(stimulus_state)
-    alice.propagate()
+    alice.step()
     pprint.pprint(alice.output)
 
 # Clearing outputs during the presentation sequence will interrupt lagged 

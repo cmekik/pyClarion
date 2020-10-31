@@ -379,15 +379,20 @@ alice.assets.chunks.link( # type: ignore
 ### Simulation Basics ###
 #########################
 
-# To start, the stimulus buffer is set to activate the APPLE chunk. This 
-# represents presentation of the concept APPLE. Remember that we assume Alice 
-# understands that the cue is APPLE, the fruit, and not e.g., APPLE, the 
-# company. 
+# We need to perform some final pre-simulation initialization to ensure that 
+# realizer outputs are consistent. To do this we call alice.start().
 
-# Alice performs one NACS cycle. 
+alice.start()
+
+# To start off the simulation, the stimulus buffer is set to activate the APPLE 
+# chunk. This represents presentation of the concept APPLE. Remember that we 
+# assume Alice understands that the cue is APPLE, the fruit, and not e.g., 
+# APPLE, the company. 
+
+# Alice performs one simulation step. 
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
-alice.propagate()
+alice.step()
 
 # To see what came to Alice's mind, we can simply inspect the output state of 
 # the NACS at the end of the cycle. 

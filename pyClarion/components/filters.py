@@ -45,8 +45,10 @@ class GatedA(PropagatorA):
 
     def call(self, construct, inputs):
 
-        weight = inputs.pop(self.gate)[construct]
-        base_strengths = self.base.call(construct, inputs)
+        weight = inputs[self.gate][construct]
+        items = inputs.items()
+        _inputs = {src: data for src, data in items if self.base.expects(src)}
+        base_strengths = self.base.call(construct, MappingProxyType(_inputs))
         output = scale_strengths(
             weight=self.tfm(weight), 
             strengths=base_strengths
@@ -75,7 +77,7 @@ class FilteredT(PropagatorT):
 
     def call(self, construct, inputs):
 
-        weights = inputs.pop(self.filter)
+        weights = inputs[self.filter]
         
         if self.invert_weights:
             weights = invert_strengths(weights)
@@ -84,10 +86,10 @@ class FilteredT(PropagatorT):
             fdefault=0.0
 
         filtered_inputs = {
-            source: multiplicative_filter(weights, strengths, fdefault)
-            for source, strengths in inputs.items()
+            src: multiplicative_filter(weights, strengths, fdefault)
+            for src, strengths in inputs.items() if self.base.expects(src)
         }
-        output = self.base.call(construct, filtered_inputs)
+        output = self.base.call(construct, MappingProxyType(filtered_inputs))
 
         return output
 

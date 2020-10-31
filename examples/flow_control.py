@@ -177,11 +177,12 @@ alice.assets.chunks.link( # type: ignore
 ### Simulation ###
 ##################
 
+alice.start()
+
 print("CYCLE 1: Open stimulus only.") 
 
 stimulus.emitter.input({feature("nacs-stim", 1.0): 1.0})
-alice.propagate()
-alice.update()
+alice.step()
 print(
     "Step 1: {} -> {}".format(
         gate.emitter.controller, 
@@ -190,8 +191,7 @@ print(
 )
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
-alice.propagate()
-alice.update()
+alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)
 print()
@@ -203,8 +203,7 @@ stimulus.emitter.input({
     feature("nacs-stim", 1.): 1., 
     feature("nacs-assoc", 1.): 1.
 })
-alice.propagate()
-alice.update()
+alice.step()
 print(
     "Step 1: {} -> {}".format(
         gate.emitter.controller, 
@@ -213,8 +212,7 @@ print(
 )
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
-alice.propagate()
-alice.update()
+alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)
 print()
@@ -225,8 +223,7 @@ stimulus.emitter.input({
     feature("nacs-stim", 1.): 1.,
     feature("nacs-bt", 1.): 1.
 })
-alice.propagate()
-alice.update()
+alice.step()
 print(
     "Step 1: {} -> {}".format(
         gate.emitter.controller, 
@@ -235,8 +232,7 @@ print(
 )
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
-alice.propagate()
-alice.update()
+alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
 pprint.pprint(alice[subsystem("nacs")].output)
 print()

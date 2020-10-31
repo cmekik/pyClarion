@@ -41,8 +41,7 @@ with alice:
             controller=(subsystem("acs"), terminus("wm")),
             source=subsystem("nacs"),
             interface=wm_interface
-        ),
-        updater=WorkingMemory.StateUpdater()
+        )
     )
 
     # This default activation can be worked into the WM object, simplifying 
@@ -174,6 +173,8 @@ print(
     "In the second, we probe the WM output & state to demonstrate the effect.\n"
 )
 
+alice.start()
+
 # standby (empty wm)
 print("Standby (Empty WM)")
 print()
@@ -184,15 +185,13 @@ d = {
 }
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])
@@ -209,15 +208,13 @@ print()
 d = {feature(("wm", "r", 1), "open"): 1.0}
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])
@@ -240,15 +237,13 @@ d = {
 }
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])
@@ -270,15 +265,13 @@ d = {
 }
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])
@@ -303,15 +296,13 @@ d = {
 }
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 pprint.pprint([cell.store for cell in wm.emitter.cells])
 
@@ -331,15 +322,13 @@ print()
 d = {feature(("wm", "r", 1), "open"): 1.0}
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])
@@ -360,16 +349,13 @@ d = {
 }
 
 stimulus.emitter.input(d)
-alice.propagate()
-alice.update()
+alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
 pprint.pprint(alice[wm.emitter.controller].output)
 print()
 
-alice.propagate()
-alice.update()
-
+alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
 pprint.pprint(alice.output[buffer("wm")])

@@ -1,7 +1,10 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-from pyClarion.base import MatchSet, Construct, ConstructType, Symbol, chunk
+from pyClarion.base import (
+    MatchSet, Construct, ConstructType, Symbol, chunk, UpdaterS, terminus, 
+    subsystem
+)
 from pyClarion.components.propagators import PropagatorA
 from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from typing import Mapping, Iterable, Union, Tuple, Set
@@ -305,7 +308,7 @@ class BottomUp(PropagatorA):
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
-        
+
         d = {}
         strengths = inputs[self.source]
         for ch, ch_data in self.chunks.items():
@@ -346,7 +349,7 @@ class ChunkConstructor(object):
         return form
 
 
-class ChunkAdder(object):
+class ChunkAdder(UpdaterS):
     """
     Adds new chunk nodes to client subsystem.
     
@@ -361,9 +364,9 @@ class ChunkAdder(object):
     def __init__(
         self, 
         chunks: Chunks,
-        terminus: Symbol, 
+        terminus: terminus, 
         prefix: str,
-        client: Symbol = None,
+        subsystem: subsystem = None,
         constructor: ChunkConstructor = None
     ):
         """
@@ -387,18 +390,26 @@ class ChunkAdder(object):
         self.terminus = terminus
         self.constructor = constructor or ChunkConstructor(op="max")
         self.prefix = prefix
-        self.client = client
+        self.subsystem = subsystem
         self.count = count(start=1, step=1)
 
-    def __call__(self, realizer):
+    def __call__(self, construct, inputs, output, update_data):
 
-        if self.client is not None:
-            realizer = realizer[self.client]
-
-        features = realizer.output[self.terminus]
-        if len(features) > 0:
-            form = self.constructor(features=features)
+        if self.subsystem is None:
+            feature_set = output[self.terminus]
+        else:
+            feature_set = output[self.subsystem][self.terminus]
+        
+        if len(feature_set) > 0:
+            form = self.constructor(features=feature_set)
             chunks = self.chunks.find_form(form)
             if len(chunks) == 0:
                 ch = chunk("{}-{}".format(self.prefix, next(self.count)))
                 self.chunks.set_chunk(ch, form)
+
+    def expects(self, construct):
+
+        if self.subsystem is not None:
+            return construct == self.subsystem 
+        else:
+            return False

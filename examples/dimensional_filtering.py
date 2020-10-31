@@ -15,7 +15,6 @@ fdomain = [
     ("shape", "circle")
 ]
 
-
 grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
 mapping = {("dof", "nacs", dim): set(entry) for dim, entry in grouped.items()}
 
@@ -117,18 +116,18 @@ with alice:
 
 stimulus_1 = {feature("shape", "square"): 1.0, feature("color", "red"): 1.0}
 
+alice.start()
+
 print("CYCLE 1: All open.") 
 
 print("Step 1: Set filter values.")
-alice.propagate()
-alice.update()
+alice.step()
 pprint.pprint(alice.output)
 print() # Empty line
 
 print("Step 2: Propagate stimulus.")
 stimulus.emitter.input(stimulus_1)
-alice.propagate()
-alice.update()
+alice.step()
 pprint.pprint(alice.output)
 print() # Empty line
 
@@ -137,14 +136,12 @@ print("CYCLE 2: Block shape only.")
 
 print("Step 1: Set filter values.")
 stimulus.emitter.input({feature(("dof", "nacs", ("shape", 0)), 1): 1.})
-alice.propagate()
-alice.update()
+alice.step()
 pprint.pprint(alice.output)
 print() # Empty line
 
 print("Step 2: Propagate stimulus.")
 stimulus.emitter.input(stimulus_1)
-alice.propagate()
-alice.update()
+alice.step()
 pprint.pprint(alice.output)
 print() # Empty line

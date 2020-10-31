@@ -78,35 +78,6 @@ class PropagatorB(
         data = data if data is not None else dict()
         return MappingProxyType(mapping=data)
 
-    def update(self, construct, inputs):
-        """
-        Update buffer state based on inputs.
-        
-        :param construct: Name of the client construct. 
-        :param inputs: Pairs the names of input constructs with their outputs.
-        """
-
-        pass
-
-    class StateUpdater(object):
-        """
-        Updater for PropagatorB instances.
-
-        Delegates to propagator's `update()` method.
-        """
-
-        def __call__(self, realizer):
-
-            # Add a check here to make sure that the updater behaves as 
-            # intended? Seems difficult to implement correctly. - Can
-
-            _inputs = realizer.inputs
-            
-            construct = realizer.construct
-            inputs = {src: pull_func() for src, pull_func in _inputs.items()}
-
-            realizer.emitter.update(construct, inputs)
-
 
 ########################
 ### Node Propagators ###

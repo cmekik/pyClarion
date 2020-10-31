@@ -136,7 +136,7 @@ class Register(PropagatorB):
 
         return {node: self.level for node in chain(self.store, self.flags)}
 
-    def update(self, construct, inputs):
+    def update(self, construct, inputs, output):
 
         data = collect_cmd_data(construct, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
@@ -393,25 +393,7 @@ class WorkingMemory(PropagatorB):
         
         return d
 
-    def reset(self):
-        """
-        Reset memory state.
-        
-        Clears all memory slots and closes all switches.
-        """
-
-        for cell in self.cells:
-            cell.clear()
-
-    def write_flags(self, *flags):
-
-        self.flags.extend(flags)
-
-    def clear_flags(self):
-
-        self.flags.clear()
-
-    def update(self, construct, inputs):
+    def update(self, construct, inputs, output):
         """
         Update the memory state.
 
@@ -443,5 +425,23 @@ class WorkingMemory(PropagatorB):
         for slot, cell in enumerate(self.cells):
             # The copy here is for safety... better option may be to make 
             # inputs immutable. - Can
-            cell.update(construct, inputs.copy())
+            cell.update(construct, inputs, output)
             # Clearing a slot automatically sets corresponding switch to False.
+
+    def reset(self):
+        """
+        Reset memory state.
+        
+        Clears all memory slots and closes all switches.
+        """
+
+        for cell in self.cells:
+            cell.clear()
+
+    def write_flags(self, *flags):
+
+        self.flags.extend(flags)
+
+    def clear_flags(self):
+
+        self.flags.clear()

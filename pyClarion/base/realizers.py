@@ -5,7 +5,9 @@ __all__ = ["Realizer", "Construct", "Structure", "Updater"]
 
 
 from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef, feature
-from pyClarion.base.components import Emitter, Propagator, Cycle, Assets
+from pyClarion.base.components import (
+    Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
+)
 from itertools import combinations, chain
 from abc import abstractmethod
 from types import MappingProxyType
@@ -20,9 +22,9 @@ from contextvars import ContextVar
 Dt = TypeVar('Dt') # type variable for inputs to emitters
 PullFunc = Callable[[], Dt]
 PullFuncs = Mapping[Symbol, Callable[[], Dt]]
+Inputs = Mapping[Symbol, Any]
 
 Rt = TypeVar('Rt', bound="Realizer") 
-Updater = Callable[[Rt], None] # Could this be improved? - Can
 StructureItem = Tuple[Symbol, "Realizer"]
 
 # Context variables for automating/simplifying agent construction. Helps track
@@ -34,7 +36,7 @@ build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
 # Et = TypeVar("Et", bound="Emitter[It, Ot]") is more desirable and similar 
 # for Pt & Ct below; but, this is not supported as of 2020-07-20. - Can
 Et = TypeVar("Et", bound="Emitter")
-R = TypeVar("R", bound="Realizer")
+Ut = TypeVar("Ut", bound="Updater")
 class Realizer(Generic[Et]):
     """
     Base class for construct realizers.
@@ -48,10 +50,10 @@ class Realizer(Generic[Et]):
 
     _inputs: Dict[Symbol, Callable[[], Any]]
     _output: Optional[Any]
+    _input_cache: Inputs
+    _update_cache: Inputs
 
-    def __init__(
-        self: R, name: Symbol, emitter: Et, updater: Updater[R] = None
-    ) -> None:
+    def __init__(self, name: Symbol, emitter: Et, updater: Ut = None) -> None:
         """
         Initialize a new Realizer instance.
         
@@ -67,6 +69,8 @@ class Realizer(Generic[Et]):
         self._construct = name
         self._inputs = {}
         self._output = emitter.emit()
+        self._input_cache = {}
+        self._update_cache = {}
 
         self.emitter = emitter
         self.updater = updater
@@ -110,26 +114,20 @@ class Realizer(Generic[Et]):
         
         self._output = self.emitter.emit() # default/empty output
 
-    @abstractmethod
-    def propagate(self) -> None:
-        """
-        Propagate activations.
+    def step(self) -> None:
+        """Advance the simulation by one time step."""
 
-        :param kwds: Keyword arguments for emitter.
-        """
-
-        raise NotImplementedError()
-
-    def update(self: R) -> None:
-        """Update persistent data associated with self."""
-        
-        if self.updater is not None:
-            self.updater(self)
+        self._propagate()
+        self._update()
 
     def accepts(self, source: Symbol) -> bool:
         """Return true iff self pulls information from source."""
 
-        return self.emitter.expects(source)
+        val = self.emitter.expects(source)
+        if self.updater is not None:
+            val |= self.updater.expects(source)
+
+        return val
 
     def offer(self, construct: Symbol, callback: PullFunc[Any]) -> None:
         """
@@ -164,6 +162,36 @@ class Realizer(Generic[Et]):
         """Return current output of self."""
         
         return self._output
+
+    @abstractmethod
+    def _propagate(self) -> None:
+        """
+        Propagate activations.
+
+        :param kwds: Keyword arguments for emitter.
+        """
+
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _update(self) -> None:
+        """Update persistent data associated with self."""
+        
+        raise NotImplementedError()
+
+    def _pull_input_data(self) -> None:
+
+        items = self.inputs.items()
+        data = {src: ask() for src, ask in items if self.emitter.expects(src)}
+        self._input_cache = MappingProxyType(data)
+
+    def _pull_update_data(self) -> None:
+
+        if self.updater is not None:
+            items = self.inputs.items()
+            condition = self.updater.expects
+            data = {src: ask() for src, ask in items if condition(src)}
+            self._update_cache = MappingProxyType(data)
 
     def _update_add_queue(self) -> None:
         """If current context contains an add queue, add self to it."""
@@ -217,7 +245,6 @@ class Realizer(Generic[Et]):
 
 
 Pt = TypeVar("Pt", bound="Propagator")
-C = TypeVar("C", bound="Construct")
 class Construct(Realizer[Pt]):
     """
     A basic construct.
@@ -228,10 +255,10 @@ class Construct(Realizer[Pt]):
     """
 
     def __init__(
-        self: C,
+        self,
         name: Symbol,
         emitter: Pt,
-        updater: Updater[C] = None,
+        updater: UpdaterC[Pt] = None,
     ) -> None:
         """
         Initialize a new construct realizer.
@@ -244,13 +271,26 @@ class Construct(Realizer[Pt]):
 
         super().__init__(name=name, emitter=emitter, updater=updater)
 
-    def propagate(self) -> None:
+    def _propagate(self) -> None:
 
-        items = self.inputs.items()
-        inputs = {src: ask() for src, ask in items if self.emitter.expects(src)}
-        self.output = self.emitter(self.construct, inputs)
+        self._pull_input_data()
+        self.output = self.emitter(self.construct, self._input_cache)
 
+    def _update(self) -> None:
 
+        self.emitter.update(self.construct, self._input_cache, self.output)
+        self._pull_update_data()
+        if self.updater is not None:
+            updater = cast(UpdaterC[Pt], self.updater)
+            updater(
+                construct=self.construct, 
+                propagator=self.emitter, 
+                inputs=self._input_cache, 
+                output=self.output, 
+                update_data=self._update_cache
+            )
+
+        
 # TODO: Make sure that structure outputs reflect their contents accurately even 
 # on the first cycle.
 
@@ -270,12 +310,16 @@ class Structure(Realizer[Ct]):
     # of their parents. I don't really want to do that unless it is absolutely 
     # necessary. - Can
 
+    _started: bool
+    _dict: Dict[ConstructType, Dict[Symbol, Realizer]]
+    _assets: Any
+
     def __init__(
-        self: S, 
+        self, 
         name: Symbol, 
         emitter: Ct,
         assets: Any = None,
-        updater: Updater[S] = None,
+        updater: UpdaterS = None,
     ) -> None:
         """
         Initialize a new Structure instance.
@@ -290,7 +334,8 @@ class Structure(Realizer[Ct]):
 
         super().__init__(name=name, emitter=emitter, updater=updater)
         
-        self._dict: Dict[ConstructType, Dict[Symbol, Realizer]] = {}
+        self._started = False
+        self._dict = {}
         self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: ConstructRef) -> bool:
@@ -356,28 +401,19 @@ class Structure(Realizer[Ct]):
         build_list.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)
 
-    def propagate(self) -> None:
+    def start(self) -> None:
 
-        for ctype in self.emitter.sequence:
-            for c in self.values(ctype=ctype):
-                c.propagate()
-
-        ctype = self.emitter.output
-        data = {sym: c.output for sym, c in self.items(ctype=ctype)}
-        self.output = self.emitter.emit(data)
-
-    def update(self):
-        """
-        Update persistent data in self and all members.
-        
-        First calls `self.updater`, then calls `realizer.update()` on members. 
-        In otherwords, updates are applied in a top-down manner relative to
-        construct containment.
-        """
-
-        super().update()
+        self._update_output()
         for realizer in self.values():
-            realizer.update()
+            if isinstance(realizer, Structure):
+                realizer.start()
+        self._started = True
+
+    def step(self) -> None:
+
+        if not self._started:
+            raise ValueError("Must call Structure.start() prior to stepping.")
+        super().step()
 
     def add(self, *realizers: Realizer) -> None:
         """
@@ -512,12 +548,47 @@ class Structure(Realizer[Ct]):
     def clear_outputs(self) -> None:
         """Clear output of self and all members."""
 
-        del self.output
         for realizer in self.values():
             if isinstance(realizer, Structure):
                 realizer.clear_outputs()
             else:
                 del realizer.output
+
+        self._update_output()
+
+    def _propagate(self) -> None:
+
+        for ctype in self.emitter.sequence:
+            for c in self.values(ctype=ctype):
+                c._propagate()
+        self._update_output()
+
+    def _update(self) -> None:
+        """
+        Update persistent data in self and all members.
+        
+        First calls `self.updater`, then calls `realizer.update()` on members. 
+        In otherwords, updates are applied in a top-down manner relative to
+        construct containment.
+        """
+
+        self._pull_update_data()
+        if self.updater is not None:
+            updater = cast(UpdaterS, self.updater)
+            updater(
+                construct=self.construct,
+                inputs=self._input_cache,
+                output=self.output,
+                update_data=self._update_cache
+            )
+        for realizer in self.values():
+            realizer._update()
+
+    def _update_output(self) -> None:
+
+        ctype = self.emitter.output
+        data = {sym: c.output for sym, c in self.items(ctype=ctype)}
+        self.output = self.emitter.emit(data)
 
     def _log_del(self, construct):
 

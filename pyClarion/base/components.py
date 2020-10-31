@@ -1,7 +1,10 @@
 """Basic definitions for constructing components."""
 
 
-__all__ = ["Emitter", "Propagator", "Cycle", "Assets", "FeatureInterface"]
+__all__ = [
+    "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
+    "Assets", "FeatureInterface"
+]
 
 
 from pyClarion.base.symbols import ConstructType, Symbol, feature
@@ -19,21 +22,25 @@ Dt = TypeVar('Dt') # type variable for inputs to emitters
 Inputs = Mapping[Symbol, Dt]
 
 It = TypeVar('It', contravariant=True) # type variable for emitter inputs
-Ot = TypeVar('Ot', covariant=True) # type variable for emitter outputs
+Ot = TypeVar('Ot') # type variable for emitter outputs
 
-Xt = TypeVar("Xt")
-class Emitter(Generic[Xt, Ot]):
-    """
-    Base class for propagating strengths, decisions, etc.
 
-    Emitters define how constructs connect, process inputs, and set outputs.
-    """
+class Component(object):
 
     @abstractmethod
     def expects(self, construct: Symbol):
         """Return True iff self expects input from construct."""
 
-        raise NotImplementedError
+        raise NotImplementedError()
+
+
+Xt = TypeVar("Xt")
+class Emitter(Component, Generic[Xt, Ot]):
+    """
+    Base class for propagating strengths, decisions, etc.
+
+    Emitters define how constructs connect, process inputs, and set outputs.
+    """
 
     @staticmethod
     @abstractmethod
@@ -49,18 +56,8 @@ class Emitter(Generic[Xt, Ot]):
         raise NotImplementedError()
 
 
-T = TypeVar('T', bound="Propagator")
 class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
     """Emitter for basic constructs."""
-
-    def __copy__(self: T) -> T:
-        """
-        Make a copy of self.
-
-        Enables use of propagator instances as templates. Should ensure that 
-        mutation of copies do not have unwanted side-effects.
-        """
-        raise NotImplementedError() 
 
     def __call__(self, construct: Symbol, inputs: Inputs[It]) -> Ot:
         """
@@ -85,6 +82,19 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
 
         raise NotImplementedError()
 
+    def update(
+        self, construct: Symbol, inputs: Inputs[It], output: Ot
+    ) -> None:
+        """
+        Apply essential updates to self.
+        
+        Some components require state updates as part of their basic semantics 
+        (e.g. memory components). This method is a hook for such essential 
+        update routines. 
+        """
+
+        pass
+
 
 class Cycle(Emitter[Xt, Ot]):
     """Emitter for composite constructs."""
@@ -92,7 +102,43 @@ class Cycle(Emitter[Xt, Ot]):
     # Specifies data required to construct the output packet
     output: ClassVar[ConstructType] = ConstructType.null_construct
     sequence: Iterable[ConstructType]
-    
+
+
+class Updater(Component):
+    pass
+
+
+Pt = TypeVar("Pt", bound="Propagator")
+class UpdaterC(Updater, Generic[Pt]):
+
+    @abstractmethod
+    def __call__(
+        self, 
+        construct: Symbol, 
+        propagator: Pt, 
+        inputs: Inputs, 
+        output: Any, 
+        update_data: Inputs
+    ) -> None:
+                
+        raise NotImplementedError()
+
+
+class UpdaterS(Updater):
+
+    # TODO: Improve type annotations. - Can
+
+    @abstractmethod
+    def __call__(
+        self, 
+        construct: Symbol, 
+        inputs: Inputs, 
+        output: Any, 
+        update_data: Inputs
+    ) -> None:
+        
+        raise NotImplementedError()
+
 
 # @no_type_check disables type_checking for Assets (but not subclasses). 
 # Included b/c dynamic usage of Assets causes mypy to complain.
@@ -117,7 +163,11 @@ class FeatureInterface(object):
     Each defined feature dimension is interpreted as defining a specific set of 
     alternate actions. A default value must be defined for each dimension, 
     representing the 'do nothing' action.
+
+    Intended to be used as a dataclass.
     """
+
+    has_defaults: ClassVar[bool] = True
 
     _features: FrozenSet[feature]
     _defaults: FrozenSet[feature]
@@ -198,7 +248,9 @@ class FeatureInterface(object):
             raise ValueError("self.dims conflicts with self.features.")
         if not self.defaults.issubset(self.features):
             raise ValueError("self.defaults not a subset of self.features.")
-        if not self.dims.issubset(_defaults_dims):
+        if self.has_defaults and not self.dims.issubset(_defaults_dims):
             raise ValueError("self.defaults conflicts with self.dims.")
-        if len(self.dims) != len(_defaults_dims):
+        if self.has_defaults and len(self.dims) != len(_defaults_dims):
             raise ValueError("multiple defaults assigned to a single dim.")
+        if not self.has_defaults and len(self.defaults) != 0:
+            raise ValueError("interface should not expose any defaults.")
