@@ -18,11 +18,9 @@ from typing import (
 )
 
 
-Dt = TypeVar('Dt') # type variable for inputs to emitters
-Inputs = Mapping[Symbol, Dt]
-
-It = TypeVar('It', contravariant=True) # type variable for emitter inputs
-Ot = TypeVar('Ot') # type variable for emitter outputs
+Inputs = Mapping[Symbol, Any]
+Ft = TypeVar("Ft", bound="FeatureInterface")
+Pt = TypeVar("Pt", bound="Propagator")
 
 
 class Component(object):
@@ -34,8 +32,7 @@ class Component(object):
         raise NotImplementedError()
 
 
-Xt = TypeVar("Xt")
-class Emitter(Component, Generic[Xt, Ot]):
+class Emitter(Component):
     """
     Base class for propagating strengths, decisions, etc.
 
@@ -44,7 +41,7 @@ class Emitter(Component, Generic[Xt, Ot]):
 
     @staticmethod
     @abstractmethod
-    def emit(data: Xt = None) -> Ot:
+    def emit(data: Any = None) -> Any:
         """
         Emit output.
 
@@ -56,10 +53,12 @@ class Emitter(Component, Generic[Xt, Ot]):
         raise NotImplementedError()
 
 
-class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
+class Propagator(Emitter, Generic[Ft]):
     """Emitter for basic constructs."""
 
-    def __call__(self, construct: Symbol, inputs: Inputs[It]) -> Ot:
+    interface: Ft
+
+    def __call__(self, construct: Symbol, inputs: Inputs) -> Any:
         """
         Execute construct's forward propagation cycle.
 
@@ -70,7 +69,7 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
         return self.emit(self.call(construct, inputs))
 
     @abstractmethod
-    def call(self, construct: Symbol, inputs: Inputs[It]) -> Xt:
+    def call(self, construct: Symbol, inputs: Inputs) -> Any:
         """
         Compute construct's output.
 
@@ -82,9 +81,7 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
 
         raise NotImplementedError()
 
-    def update(
-        self, construct: Symbol, inputs: Inputs[It], output: Ot
-    ) -> None:
+    def update(self, construct: Symbol, inputs: Inputs, output: Any) -> None:
         """
         Apply essential updates to self.
         
@@ -96,7 +93,7 @@ class Propagator(Emitter[Xt, Ot], Generic[It, Xt, Ot]):
         pass
 
 
-class Cycle(Emitter[Xt, Ot]):
+class Cycle(Emitter):
     """Emitter for composite constructs."""
 
     # Specifies data required to construct the output packet
@@ -108,7 +105,6 @@ class Updater(Component):
     pass
 
 
-Pt = TypeVar("Pt", bound="Propagator")
 class UpdaterC(Updater, Generic[Pt]):
 
     @abstractmethod
@@ -154,6 +150,7 @@ class Assets(SimpleNamespace): # type: ignore
     different components of a container construct are considered assets. 
     """
     pass
+
 
 class FeatureInterface(object):
     """

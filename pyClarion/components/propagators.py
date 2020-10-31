@@ -30,9 +30,7 @@ from copy import copy
 ####################
 
 
-class PropagatorA(
-    Propagator[Mapping[Symbol, float], Dict[Symbol, float], Mapping[Symbol, float]]
-):
+class PropagatorA(Propagator):
     """
     Propagator for flows and other activation propagators.
 
@@ -47,7 +45,7 @@ class PropagatorA(
         return MappingProxyType(mapping=data)
 
 
-class PropagatorT(Propagator[float, Set[Symbol], FrozenSet[Symbol]]):
+class PropagatorT(Propagator):
     """
     Propagator for subsystem termini.
 
@@ -61,11 +59,7 @@ class PropagatorT(Propagator[float, Set[Symbol], FrozenSet[Symbol]]):
         return frozenset(selection)
 
 
-class PropagatorB(
-    Propagator[
-        Mapping[Symbol, Any], Dict[Symbol, float], Mapping[Symbol, float]
-    ]
-):
+class PropagatorB(Propagator):
     """
     Propagator for buffers.
 

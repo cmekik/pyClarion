@@ -9,7 +9,7 @@ from types import MappingProxyType
 from typing import Dict, Mapping, Tuple, Container
 
 
-class AgentCycle(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
+class AgentCycle(Cycle):
     """Represents an agent activation cycle."""
 
     output = ConstructType.buffer | ConstructType.subsystem
@@ -33,7 +33,7 @@ class AgentCycle(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
         return MappingProxyType(mapping=mapping)
 
 
-class CycleS(Cycle[Dict[Symbol, float], Mapping[Symbol, float]]):
+class CycleS(Cycle):
     """Represents a subsystem activation cycle."""
 
     output = ConstructType.nodes | ConstructType.terminus
