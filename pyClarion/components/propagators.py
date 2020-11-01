@@ -8,10 +8,10 @@ __all__ = [
 ]
 
 
-from pyClarion.base import (
+from ..base import (
     ConstructType, Symbol,  MatchSet, Propagator, chunk, feature,
 )
-from pyClarion.utils.funcs import (
+from ..utils.funcs import (
     max_strength, invert_strengths, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths, linear_rule_strength
 )
@@ -52,6 +52,8 @@ class PropagatorT(Propagator):
     Maps activations to decisions.
     """
 
+    _serves = ConstructType.terminus
+
     @staticmethod
     def emit(data: Set[Symbol] = None) -> FrozenSet[Symbol]:
         
@@ -65,6 +67,8 @@ class PropagatorB(Propagator):
 
     Maps subsystem outputs to activations.
     """
+
+    _serves = ConstructType.buffer
     
     @staticmethod
     def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
@@ -80,21 +84,27 @@ class PropagatorB(Propagator):
 
 class MaxNodes(PropagatorA):
 
-    def __init__(self, sources: Container[Symbol], ctype = None):
+    _serves = ConstructType.nodes
+    _ctype_map = {
+        ConstructType.features: ConstructType.feature, 
+        ConstructType.chunks: ConstructType.chunk
+    }
+
+    def __init__(self, sources: Container[Symbol]):
 
         self.sources = sources
-        self.ctype = ctype
 
     def expects(self, construct):
 
         return construct in self.sources
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         d = {}
+        expected_ctype = self._ctype_map[self.client.ctype]
         for strengths in inputs.values():
             for node, s in strengths.items():
-                if self.ctype is None or node.ctype in self.ctype:
+                if node.ctype in expected_ctype:
                     d[node] = max(d.get(node, 0.0), s)
 
         return d
@@ -108,6 +118,8 @@ class MaxNodes(PropagatorA):
 class Repeater(PropagatorA):
     """Copies the output of a single source construct."""
 
+    _serves = ConstructType.flow_in
+
     def __init__(self, source: Symbol) -> None:
 
         self.source = source
@@ -116,13 +128,15 @@ class Repeater(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         return dict(inputs[self.source])
 
 
 class Lag(PropagatorA):
     """Lags strengths for given set of features."""
+
+    _serves = ConstructType.flow_in | ConstructType.flow_bb
 
     def __init__(self, source: Symbol, max_lag=1):
         """
@@ -142,7 +156,7 @@ class Lag(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         strengths = inputs[self.source]
         d = {
@@ -174,7 +188,7 @@ class ThresholdSelector(PropagatorT):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         strengths = inputs[self.source]
         eligible = (f for f, s in strengths.items() if s > self.threshold)
@@ -199,7 +213,7 @@ class BoltzmannSelector(PropagatorT):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with chunk strengths according to a 
@@ -240,7 +254,7 @@ class ActionSelector(PropagatorT):
         
         return construct == self.source 
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """Select actionable chunks for execution. 
         
         Selection probabilities vary with feature strengths according to a 
@@ -277,7 +291,7 @@ class ConstantBuffer(PropagatorB):
 
         return False
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """Return stored strengths."""
 
         return self.strengths
@@ -316,7 +330,7 @@ class Stimulus(PropagatorB):
 
         self.stimulus.update(data)
 
-    def call(self, construct, inputs, stimulus=None):
+    def call(self, inputs, stimulus=None):
 
 
         d = stimulus if stimulus is not None else self.stimulus

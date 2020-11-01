@@ -63,8 +63,10 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus"), buffer("defaults")},
-                ctype=ConstructType.feature
+                sources={
+                    buffer("stimulus"), 
+                    buffer("defaults")
+                }
             )
         )
 
@@ -92,8 +94,9 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus")},
-                ctype=ConstructType.feature
+                sources={
+                    buffer("stimulus")
+                }
             )
         )
 

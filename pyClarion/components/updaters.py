@@ -7,9 +7,9 @@ __all__ = [
 ]
 
 
-from pyClarion.base import (
-    Symbol, MatchSet, Structure, Propagator, Updater, UpdaterC, UpdaterS, 
-    FeatureInterface, feature, subsystem, terminus
+from ..base.symbols import Symbol, MatchSet, feature, subsystem, terminus
+from ..base.components import (
+    Propagator, Updater, UpdaterC, UpdaterS, FeatureInterface
 )
 from typing import Container, Tuple, TypeVar, cast, Generic, Iterable, Union
 from dataclasses import dataclass
@@ -29,6 +29,12 @@ class UpdaterChain(Updater, Generic[Ut]):
     def __init__(self, *updaters: Ut):
 
         self.updaters = updaters
+
+    def entrust(self, construct):
+
+        for updater in self.updaters:
+            updater.entrust(construct)
+        self._client = construct
 
     def expects(self, construct):
 
@@ -51,7 +57,7 @@ class UpdaterChainC(UpdaterChain[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]):
     sequence. 
     """
 
-    def __call__(self, construct, emitter, inputs, output, update_data) -> None:
+    def __call__(self, emitter, inputs, output, update_data) -> None:
         """
         Update persistent information in realizer.
         
@@ -61,7 +67,7 @@ class UpdaterChainC(UpdaterChain[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]):
 
         for updater in self.updaters:
             update_data_proxy = self._extract_update_data(updater, update_data)
-            updater(construct, emitter, inputs, output, update_data_proxy)
+            updater(emitter, inputs, output, update_data_proxy)
 
 
 class UpdaterChainS(UpdaterChain[Us_t], UpdaterS, Generic[Us_t]):
@@ -72,7 +78,7 @@ class UpdaterChainS(UpdaterChain[Us_t], UpdaterS, Generic[Us_t]):
     sequence. 
     """
 
-    def __call__(self, construct, inputs, output, update_data) -> None:
+    def __call__(self, inputs, output, update_data) -> None:
         """
         Update persistent information in realizer.
         
@@ -82,11 +88,13 @@ class UpdaterChainS(UpdaterChain[Us_t], UpdaterS, Generic[Us_t]):
 
         for updater in self.updaters:
             update_data_proxy = self._extract_update_data(updater, update_data)
-            updater(construct, inputs, output, update_data_proxy)
+            updater(inputs, output, update_data_proxy)
 
 
 class ConditionalUpdater(Updater, Generic[Ut]):
     """Conditionally issues calls to base updater based on action commands."""
+
+    interface: "Interface"
 
     @dataclass
     class Interface(FeatureInterface):
@@ -117,6 +125,12 @@ class ConditionalUpdater(Updater, Generic[Ut]):
         self.interface = interface
         self.base = base
 
+    def entrust(self, construct):
+
+        for updater in self.updaters:
+            updater.entrust(construct)
+        self._client = construct
+
     def expects(self, construct):
 
         val = self.base.expects(construct)
@@ -141,19 +155,19 @@ class ConditionalUpdaterC(
     ConditionalUpdater[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]
 ):
 
-    def __call__(self, construct, emitter, inputs, output, update_data) -> None:
+    def __call__(self, emitter, inputs, output, update_data) -> None:
 
         cmds = self._extract_cmds(output)
         if any(cmd in self.interface.features for cmd in cmds):
-            self.base(construct, emitter, inputs, output, update_data)
+            self.base(emitter, inputs, output, update_data)
 
 
 class ConditionalUpdaterS(
     ConditionalUpdater[Us_t], UpdaterS, Generic[Pt, Us_t]
 ):
 
-    def __call__(self, construct, inputs, output, update_data) -> None:
+    def __call__(self, inputs, output, update_data) -> None:
 
         cmds = self._extract_cmds(output)
         if any(cmd in self.interface.features for cmd in cmds):
-            self.base(construct, inputs, output, update_data)
+            self.base(inputs, output, update_data)

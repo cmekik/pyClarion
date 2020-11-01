@@ -7,8 +7,8 @@ __all__ = [
 ]
 
 
-from pyClarion.base.symbols import ConstructType, Symbol, feature
-from pyClarion.utils.funcs import group_by_dims
+from .symbols import ConstructType, Symbol, feature
+from ..utils.funcs import group_by_dims
 from abc import abstractmethod
 from types import SimpleNamespace
 from typing import (
@@ -24,6 +24,25 @@ Pt = TypeVar("Pt", bound="Propagator")
 
 
 class Component(object):
+
+    _serves: ClassVar[ConstructType]
+    _client: Symbol
+
+    @property
+    def client(self) -> Symbol:
+        """Client construct entrusted to self."""
+
+        return self._client
+
+    def entrust(self, construct: Symbol):
+        """Entrust handling of construct to self."""
+
+        if construct.ctype in type(self)._serves:
+            self._client = construct
+        else:
+            msg = "{} cannot serve constructs of type {}."
+            name, ctype = type(self).__name__, repr(construct.ctype) 
+            raise ValueError(msg.format(name, ctype))
 
     @abstractmethod
     def expects(self, construct: Symbol):
@@ -56,9 +75,9 @@ class Emitter(Component):
 class Propagator(Emitter, Generic[Ft]):
     """Emitter for basic constructs."""
 
-    interface: Optional[Ft] = None
+    interface: Ft
 
-    def __call__(self, construct: Symbol, inputs: Inputs) -> Any:
+    def __call__(self, inputs: Inputs) -> Any:
         """
         Execute construct's forward propagation cycle.
 
@@ -66,10 +85,10 @@ class Propagator(Emitter, Generic[Ft]):
         self.call(), and passes result to self.emit().
         """
 
-        return self.emit(self.call(construct, inputs))
+        return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, construct: Symbol, inputs: Inputs) -> Any:
+    def call(self, inputs: Inputs) -> Any:
         """
         Compute construct's output.
 
@@ -81,7 +100,7 @@ class Propagator(Emitter, Generic[Ft]):
 
         raise NotImplementedError()
 
-    def update(self, construct: Symbol, inputs: Inputs, output: Any) -> None:
+    def update(self, inputs: Inputs, output: Any) -> None:
         """
         Apply essential updates to self.
         
@@ -103,7 +122,7 @@ class Cycle(Emitter):
 
 class Updater(Component, Generic[Ft]):
 
-    interface: Optional[Ft] = None
+    interface: Ft
 
 
 class UpdaterC(Updater, Generic[Pt]):
@@ -111,7 +130,6 @@ class UpdaterC(Updater, Generic[Pt]):
     @abstractmethod
     def __call__(
         self, 
-        construct: Symbol, 
         propagator: Pt, 
         inputs: Inputs, 
         output: Any, 
@@ -128,7 +146,6 @@ class UpdaterS(Updater):
     @abstractmethod
     def __call__(
         self, 
-        construct: Symbol, 
         inputs: Inputs, 
         output: Any, 
         update_data: Inputs

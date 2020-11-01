@@ -14,76 +14,203 @@ from pyClarion import (
     # constructs.
     Structure, Construct,
     # Construct types are used in controlling construct behavior.
-    ConstructType, MatchSet, Assets,
+    ConstructType,
     # Below are functions for constructing construct symbols, which are used to 
     # name, index and reference simulated constructs
     agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 
     flow_bt, chunks, features,
     # The objects below house datastructures handling various important 
-    # concerns.
+    # concerns such as chunk and rule definitions.
     Chunks, Rules,
+    # Below is a simple container for shared datastructures like chunk and 
+    # rule containers.
+    Assets, 
     # The objects below define how realizers process activations in the forward 
-    # direction.
+    # and backward directions.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNodes, 
     FilteredT, NACSCycle, AgentCycle
 )
 import pprint
 import logging
 
+# Debug level logging reports details of the agent construction process.
 logging.basicConfig(level=logging.DEBUG)
 
 #############
 ### Setup ###
 #############
 
-### Agent Setup ###
+# Let's simulate a subject named 'Alice' with some knowledge about fruits 
+# performing a free association task.
 
-# Let's simulate a subject named 'Alice' with some knowledge about fruits.
+### Agent Setup ###
 
 # PyClarion agents are created by assembling construct realizers, which are 
 # objects instantiating theoretical constructs. Much of the assembly process is 
 # automated, so agent construction amounts to declaratively specifying the 
 # necessary constructs. There are broadly two main types of construct: 
 # structures, which may contain other constructs, and basic constructs (or 
-# 'constructs' for short), which may not contain other constructs.
+# 'constructs' for short), which may not contain other constructs. Structures 
+# and constructs may be viewed as nodes in a hyper-graphical structure 
+# describing the input/output relations among architectural modules.
+
+# Defining Initial Features and Chunks
+
+# An initial step in constructing a pyClarion simulation is to define the 
+# primitive representations that will appear in the simulation, as well as any 
+# initial knowledge available to agent(s). 
+
+# The primitive representational constructs of Clarion are chunk and feature 
+# nodes. At this stage, we must minimally specify what features will appear in 
+# the simulation, as features define the representational domain over which 
+# chunks and any other knowledge may be constructed.
+
+# Feature nodes represent implicit knowledge about the world. In Clarion theory, 
+# each feature node is associated with a unique dimension-value pair (dv pair) 
+# indicating its dimension (e.g., color) and value (e.g., red). In pyClarion, we 
+# further analyze feature dimensions as consisting of a (tag, lag) pair. The 
+# tag simply represents the name of the dimension. The lag value is handy for 
+# tracking the activation of a particular feature over small time windows, as 
+# may be required in, e.g., temporal difference learning.
+
+# In pyClarion, constructs are named using 'construct symbols'. As the name 
+# suggests, construct symbols are intended to behave like formal tokens, and 
+# their primary function is to help associate data with the constructs they 
+# name. As a result, they are required to be immutable and hashable (so that 
+# they may be used with dict-like structures). It may be helpful to think of 
+# construct symbols as python tuples.
+
+# We can invoke the construct symbol for a particular feature node by calling 
+# the `feature()` constructor as shown below. 
+
+f = feature(tag="my-tag", val="val-1", lag=0)
+
+# The lag value is optional and defaults to 0.
+
+assert f == feature(tag="my-tag", val="val-1")
+
+# For this simulation, we include (somewhat arbitrarily) feature nodes for the 
+# colors red and green and a feature for each of tastiness, sweetness and the 
+# liquid state. These dv pairs are specified below. We omit lag values from the 
+# specification. (We will not make use of lagged features in this simulation, 
+# and lagged features may be constructed dynamically as needed.)
+
+feature_spec = [
+    ("color", "#ff0000"), # red
+    ("color", "#008000"), # green
+    ("tasty", True),
+    ("state", "liquid"),
+    ("sweet", True)
+]
+
+# Feature values for red and green are given in hex code to emphasize the idea 
+# that features in Clarion theory represent implicit knowledge. (Of course, it 
+# is better, in practice, to label features in a way that is intelligible to 
+# readers.)
+
+# Moving on, let us consider chunk nodes. Chunk nodes correspond roughly to 
+# concepts known to Alice. Chunk nodes are simpler to identify than feature 
+# nodes in that they are differentiated only by their names, which are taken to 
+# be purely formal labels. 
+
+# We can invoke chunk symbols using the `chunk()` constructor as follows.
+
+chunk("Chunk-1")
+
+# We will represent chunk nodes for the concepts FRUIT, APPLE, and JUICE.
+
+chunk_names = ["FRUIT", "APPLE", "JUICE"]
+
+# In this simulation, we specify the initial chunks and features explicitly 
+# only for the sake of clarity. But, in more complex simulations, where 
+# constructs can pass around commands, for example, explicit specification of 
+# at least parts of the feature domain becomes a necessity.
+
+# Now that we've defined the symbols we will be working with, we populate Alice 
+# with some knowledge.
+
+# Setting up initial knowledge
+
+# For Alice to produce associations between concepts, we must establish some 
+# direct and indirect links among the concepts within her mind. We do this by 
+# providing some initial knowledge in the form of some associative rules and 
+# some links between top-level chunk nodes and bottom-level feature nodes.
+
+# To house chunk and rule definitions, we initialize a chunk database and a 
+# rule database.
+
+chunk_db = Chunks()
+rule_db = Rules()
+
+# We can add rules to the rule database using the `link()` method of the rule 
+# database. The argument signature for `link()` is the conclusion chunk 
+# followed by one or more condition chunks. Thus, below, `chunk("FRUIT")` is 
+# the conclusion and `chunk("APPLE")` is the only condition. In other words, 
+# this rule establishes an association from the concept APPLE to the concept 
+# FRUIT. This association is meant to capture the fact that apples are fruits. 
+
+rule_db.link(chunk("FRUIT"), chunk("APPLE"))
+
+# We proceed in much the same way to link chunk and feature nodes in order to 
+# define chunks. 
+
+# The chunk databasehas a `link()` method, which can be used to link a chunk 
+# node to feature nodes, creating a chunk. The call signature expects the 
+# chunk node first, followed by the feature nodes. By default, feature notes 
+# have a dimensional weight of 1, dimensional weights may be set explicitly 
+# through a keyword argument to `links()`.
+
+# The first call to `link()` connects the 'APPLE' chunk node to the red and 
+# green color feature nodes and the tasty feature node. 
+
+chunk_db.link( 
+    chunk("APPLE"), 
+    feature("color", "#ff0000"), 
+    feature("color", "#008000"),
+    feature("tasty", True)
+)
+
+# The second call to `link()` connects the 'JUICE' chunk node to the tasty 
+# feature node and the liquid state feature node.
+
+chunk_db.link(
+    chunk("JUICE"),
+    feature("tasty", True),
+    feature("state", "liquid")
+)
+
+# The third and last call to `link()` connects the 'FRUIT' chunk node to the 
+# sweet and tasty feature nodes.
+
+chunk_db.link(
+    chunk("FRUIT"),
+    feature("tasty", True),
+    feature("sweet", True)
+)
+
+
+# Agent assembly
 
 # We begin by creating the top-level construct: a Structure object representing 
 # the agent Alice.
 
 alice = Structure(
     name=agent("alice"),
-    emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks())
+    emitter=AgentCycle()
 )
 
-# The `name` argument to the Structure constructor serves to label the 
-# construct. It is mandatory to provide a name argument to construct realizers, 
-# as names enable automation of important behavior, such as linking/unlinking 
-# constructs. 
+# The `name` argument to the Structure constructor is a construct symbol that 
+# serves to label the construct. It is mandatory to provide a name argument to 
+# construct realizers, as names enable automation of important behavior, such 
+# as linking/unlinking constructs. 
 
-# Constructs are named using 'construct symbols'. Here, we see a construct 
-# symbol explicitly invoked for the first time through the convenience function 
-# `agent()`, which takes a hashable object and returns a construct symbol for 
-# an agent construct. Typically, construct symbols are created through 
-# convenience functions, as manually specifying them is rather tedious. For 
-# instance, the result of `agent("alice")` can be directly created with the 
-# longer expression `Symbol("agent", "alice")`.
-
-# To keep track of the concepts that Alice knows about, we equip Alice with a 
-# chunk database (more on chunks below). This is done by passing an `Assets` 
-# object, which is given a chunk database to be stored in its `chunks` 
-# attribute, as the agent's 'assets' attribute. The `assets` attribute provides 
-# a namespace for convenient storage of resources shared by construct realizers 
-# subordinate to Alice. All Structure objects have the `assets` attribute. The 
-# `Assets` object is uncomplicated. It simply records all arguments passed to 
-# it as attributes. 
-
-# A good rule of thumb is to place shared resources in the structure directly 
-# in or above the highest-level construct using the resource.
+# The `emitter` argument defines how the structure computes its outputs. In 
+# Structure objects, this involves specifying directives for controlling 
+# the firing of subordinate constructs. The `AgentCycle()` objects defines such 
+# directives for agents.
 
 # The next step in agent construction is to populate `alice` with components 
 # representing various cognitive structures postulated by the Clarion theory.
-# This amounts to constructing a network of networks.
 
 # Constructs may be added to `Structure` objects using the `add()` method, like 
 # `alice.add()`. A call to alice.add() on some construct, places that construct 
@@ -113,11 +240,22 @@ with alice:
 
     # We begin by adding the stimulus component to the model. 
 
-    stimulus = Construct(name=buffer("stimulus"), emitter=Stimulus())
-
     # We represent the stimulus with a buffer construct, which is a top-level 
     # construct within an agent that stores and relays activations to various 
-    # subsystems. As before, we first create a construct realizer. 
+    # subsystems. Buffers count as constructs, so we invoke the `Construct` 
+    # class (as opposed to the `Structure` class as above). Aside from that, 
+    # the initialization is essentially identical to the way we created the 
+    # `alice` object.
+
+    stimulus = Construct(
+        name=buffer("stimulus"), 
+        emitter=Stimulus()
+    )
+
+    # We pass a `buffer()` symbol as name, to indicate that we are defining a 
+    # buffer, and we pass a `Stimulus` object as emitter to provide the 
+    # necessary input/output methods. That completes initialization of the 
+    # stimulus construct.
 
     # Non-Action-Centered Subsystem
 
@@ -131,22 +269,37 @@ with alice:
         emitter=NACSCycle(
             sources={buffer("stimulus")}
         ),
-        assets=Assets(rules=Rules())
+        assets=Assets(
+            chunk_db=chunk_db,
+            rule_db=rule_db
+        )
     )
 
-    # The 'sources' argument lets the subsystem know that it should receive 
-    # input from the stimulus (more specifically, from the buffer construct 
-    # representing the stimulus).
+    # The 'sources' argument to the emitter lets the subsystem know that it 
+    # should receive input from the stimulus (more specifically, from the 
+    # buffer construct representing the stimulus).
 
-    # As before, we add assets. In this case, we are interested in equipping 
-    # the NACS with a rule database, to be used in reasoning. In reality, this 
-    # database is only used by a single construct realizer. However, it helps 
-    # to keep a reference to it at the level of NACS as other objects or 
-    # processes, such as learning rules, base-level activation trackers, 
-    # loggers etc., may need access to the rule database.
+    # To keep track of the chunks and rules that Alice knows about, we equip 
+    # the NACS with the chunk and rule databases we defined earlier. This is 
+    # done by passing an `Assets` object containing the two databases as the 
+    # structure's `assets` attribute. The `assets` attribute provides a 
+    # namespace for convenient storage of resources shared by construct 
+    # realizers subordinate to a `Structure`. The `Assets` object is 
+    # uncomplicated: It simply records all arguments passed to it as attributes.
+
+    # In reality, the rule database will only be used by a single construct 
+    # realizer. However, it helps to keep a reference to it at the level of 
+    # NACS as other objects or processes in more advanced models, such as 
+    # learning rules, base-level activation trackers, loggers etc., may need 
+    # access to the rule database.
+
+    # There is no hard and fast rule about where in the `Structure` hierarchy 
+    # a shared resource should be placed. A good rule of thumb is to place 
+    # shared resources in the structure directly in or above the highest-level 
+    # construct using the resource. However, different placements may be 
+    # warranted in some cases.
 
     # Now, it is time to populate the NACS. 
-
 
     with nacs:
 
@@ -164,21 +317,21 @@ with alice:
         # intelligible (nodes do not cause clutter in large models). 
 
         # One downside to this approach is that we have to be careful about 
-        # tracking the feature domain, which is defined in a piecemeal fashion 
-        # by individual modules. Each module defines the features that it works 
-        # with, and we must make sure that modules that collaborate agree about 
-        # the feature and chunk symbols they use.
+        # tracking the feature domain. This is why it is good to define the 
+        # (initial) feature domain explicitly prior to agent assembly. 
 
         # Below, two constructs are initialized, one for the feature pool 
         # dubbed 'features("main")' and one for the chunk pool dubbed 
-        # 'chunks("main")'. We will see symbols for individual chunk and 
-        # feature nodes later on.
+        # 'chunks("main")'. Both of these constructs make use of the `MaxNodes` 
+        # emitter, which outputs, for each node, the maximum strength 
+        # associated with the respective feature.
 
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={flow_tb("main")},
-                ctype=ConstructType.feature
+                sources={
+                    flow_tb("main")
+                }
             )
         )
 
@@ -189,8 +342,7 @@ with alice:
                     buffer("stimulus"), 
                     flow_bt("main"), 
                     flow_tt("associations")
-                },
-                ctype=ConstructType.chunk
+                }
             )
         )
 
@@ -213,7 +365,7 @@ with alice:
             name=flow_tt("associations"),
             emitter=AssociativeRules(
                 source=chunks("main"),
-                rules=nacs.assets.rules
+                rules=nacs.assets.rule_db
             ) 
         )
 
@@ -221,7 +373,7 @@ with alice:
             name=flow_bt("main"), 
             emitter=BottomUp(
                 source=features("main"),
-                chunks=alice.assets.chunks
+                chunks=nacs.assets.chunk_db
             ) 
         )
 
@@ -229,7 +381,7 @@ with alice:
             name=flow_tb("main"), 
             emitter=TopDown(
                 source=chunks("main"),
-                chunks=alice.assets.chunks
+                chunks=nacs.assets.chunk_db
             ) 
         )
 
@@ -277,100 +429,6 @@ with alice:
 
 # We are now done populating Alice with constructs, but we still need to give 
 # her some knowledge. 
-
-
-# Defining Chunk and Feature Nodes
-
-# We must first define the feature and chunk nodes we will use in the 
-# simulation. These definitions are for ease of use. In practice, many nodes 
-# are defined by the constructs that use them. 
-
-# Feature nodes represent Alice's implicit knowledge about the world. Each 
-# feature node is associated with a unique dimension-value pair (dv pair) 
-# indicating its dimension (e.g., color) and value (e.g., red). For this 
-# simulation, we include (somewhat arbitrarily) feature nodes for the colors 
-# red and green and a feature for each of tastiness, sweetness and the liquid 
-# state. These dv pairs are listed below.
-
-dim_val_pairs = [
-    ("color", "#ff0000"), # red
-    ("color", "#008000"), # green
-    ("tasty", True),
-    ("state", "liquid"),
-    ("sweet", True)
-]
-
-# Feature values for red and green are given in hex code to emphasize 
-# the idea that features in Clarion theory represent implicit knowledge 
-# (since most people don't know the meaning of hex color codes off the 
-# top of their head). In practice, it is better to label features in a 
-# way that is intelligible to readers.
-
-# Chunk nodes correspond roughly to concepts known to Alice. Chunk nodes are 
-# simpler to identify than feature nodes in that they are differentiated only 
-# by their names, which are taken to be purely formal labels. We will represent 
-# chunk nodes for the concepts FRUIT, APPLE, and JUICE.
-
-chunk_names = ["FRUIT", "APPLE", "JUICE"]
-
-# Now that we've defined the symbols we will be working with, we populate Alice 
-# with some knowledge.
-
-
-# Linking Up Nodes within NACS
-
-# For Alice to produce associations between concepts, we must establish some 
-# direct and indirect links among the concepts within her mind. We do this by 
-# providing some initial knowledge to NACS flows in the form of some associative 
-# rules and some links between top-level chunk nodes and bottom-level feature 
-# nodes.
-
-# We can add rules to the `link()` method of the rule database (i.e., the 
-# `Rules()` object stored in NACS). 
-
-# The argument signature for `link()` is the conclusion chunk followed by one 
-# or more condition chunks. Thus, below, `chunk("FRUIT")` is the conclusion and 
-# `chunk("APPLE")` is the only condition. In other words, this rule establishes 
-# an association from the concept APPLE to the concept FRUIT. This association 
-# is meant to capture the fact that apples are fruits. 
-
-nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
-
-# We proceed in much the same way to link chunk and feature nodes. 
-
-# The chunk database also has a `link()` method, which can be used to link a 
-# chunk node to its microfeature nodes. The call signature expects the chunk 
-# node first, followed by the feature nodes. By default, feature notes have a 
-# dimensional weight of 1, dimensional weights may be set explicitly through a 
-# keyword argument to `links()`.
-
-# The first call to `link()` connects the 'APPLE' chunk node to the red and 
-# green color feature nodes and the tasty feature node.
-
-alice.assets.chunks.link( # type: ignore
-    chunk("APPLE"), 
-    feature("color", "#ff0000"), 
-    feature("color", "#008000"),
-    feature("tasty", True)
-)
-
-# The second call to `link()` connects the 'JUICE' chunk node to the tasty 
-# feature node and the liquid state feature node.
-
-alice.assets.chunks.link( # type: ignore
-    chunk("JUICE"),
-    feature("tasty", True),
-    feature("state", "liquid")
-)
-
-# The third and last call to `link()` connects the 'FRUIT' chunk node to the 
-# sweet and tasty feature nodes.
-
-alice.assets.chunks.link( # type: ignore
-    chunk("FRUIT"),
-    feature("tasty", True),
-    feature("sweet", True)
-)
 
 # Agent setup is now complete!
 

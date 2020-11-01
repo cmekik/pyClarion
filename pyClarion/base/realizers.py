@@ -4,8 +4,8 @@
 __all__ = ["Realizer", "Construct", "Structure", "Updater"]
 
 
-from pyClarion.base.symbols import ConstructType, Symbol, ConstructRef, feature
-from pyClarion.base.components import (
+from .symbols import ConstructType, Symbol, ConstructRef, feature
+from .components import (
     Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
 )
 from itertools import combinations, chain
@@ -19,12 +19,11 @@ import logging
 from contextvars import ContextVar
 
 
-Dt = TypeVar('Dt') # type variable for inputs to emitters
-PullFunc = Callable[[], Dt]
-PullFuncs = Mapping[Symbol, Callable[[], Dt]]
+Et = TypeVar("Et", bound="Emitter")
+Ut = TypeVar("Ut", bound="Updater")
 Inputs = Mapping[Symbol, Any]
-
-Rt = TypeVar('Rt', bound="Realizer") 
+PullFunc = Callable[[], Any]
+PullFuncs = Mapping[Symbol, Callable[[], Any]]
 StructureItem = Tuple[Symbol, "Realizer"]
 
 # Context variables for automating/simplifying agent construction. Helps track
@@ -32,12 +31,8 @@ StructureItem = Tuple[Symbol, "Realizer"]
 build_ctx: ContextVar[ConstructRef] = ContextVar("build_ctx")
 build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
 
-# Autocomplete only works properly when bound is str. Why? - Can
-# Et = TypeVar("Et", bound="Emitter[It, Ot]") is more desirable and similar 
-# for Pt & Ct below; but, this is not supported as of 2020-07-20. - Can
-Et = TypeVar("Et", bound="Emitter")
-Ut = TypeVar("Ut", bound="Updater")
-class Realizer(Generic[Et]):
+
+class Realizer(Generic[Et, Ut]):
     """
     Base class for construct realizers.
 
@@ -50,6 +45,8 @@ class Realizer(Generic[Et]):
 
     _inputs: Dict[Symbol, Callable[[], Any]]
     _output: Optional[Any]
+    _emitter: Et
+    _updater: Optional[Ut]
     _input_cache: Inputs
     _update_cache: Inputs
 
@@ -87,8 +84,33 @@ class Realizer(Generic[Et]):
 
         return self._construct
 
+    @property
+    def emitter(self) -> Et:
+        """Emitter for client construct."""
+
+        return self._emitter
+
+    @emitter.setter
+    def emitter(self, emitter: Et) -> None:
+
+        emitter.entrust(self.construct)
+        self._emitter = emitter
+
+    @property
+    def updater(self) -> Optional[Ut]:
+        """Updater for client construct."""
+
+        return self._updater
+
+    @updater.setter
+    def updater(self, updater: Optional[Ut]) -> None:
+
+        if updater is not None:
+            updater.entrust(self.construct)
+        self._updater = updater
+
     @property 
-    def inputs(self) -> Mapping[Symbol, PullFunc[Any]]:
+    def inputs(self) -> Mapping[Symbol, PullFunc]:
         """Mapping from input constructs to pull funcs."""
 
         return MappingProxyType(self._inputs)
@@ -129,7 +151,7 @@ class Realizer(Generic[Et]):
 
         return val
 
-    def offer(self, construct: Symbol, callback: PullFunc[Any]) -> None:
+    def offer(self, construct: Symbol, callback: PullFunc) -> None:
         """
         Add link from construct to self if self accepts construct.
         
@@ -245,7 +267,7 @@ class Realizer(Generic[Et]):
 
 
 Pt = TypeVar("Pt", bound="Propagator")
-class Construct(Realizer[Pt]):
+class Construct(Realizer[Pt, UpdaterC[Pt]]):
     """
     A basic construct.
     
@@ -274,16 +296,15 @@ class Construct(Realizer[Pt]):
     def _propagate(self) -> None:
 
         self._pull_input_data()
-        self.output = self.emitter(self.construct, self._input_cache)
+        self.output = self.emitter(self._input_cache)
 
     def _update(self) -> None:
 
-        self.emitter.update(self.construct, self._input_cache, self.output)
+        self.emitter.update(self._input_cache, self.output)
         self._pull_update_data()
         if self.updater is not None:
             updater = cast(UpdaterC[Pt], self.updater)
-            updater(
-                construct=self.construct, 
+            updater( 
                 propagator=self.emitter, 
                 inputs=self._input_cache, 
                 output=self.output, 
@@ -296,7 +317,7 @@ class Construct(Realizer[Pt]):
 
 Ct = TypeVar("Ct", bound="Cycle")
 S = TypeVar("S", bound="Structure")
-class Structure(Realizer[Ct]):
+class Structure(Realizer[Ct, UpdaterS]):
     """
     A composite construct.
     
@@ -576,7 +597,6 @@ class Structure(Realizer[Ct]):
         if self.updater is not None:
             updater = cast(UpdaterS, self.updater)
             updater(
-                construct=self.construct,
                 inputs=self._input_cache,
                 output=self.output,
                 update_data=self._update_cache

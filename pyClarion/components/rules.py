@@ -4,10 +4,10 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from pyClarion.base import ConstructType, MatchSet, Symbol
-from pyClarion.components.propagators import PropagatorA
-from pyClarion.utils.funcs import linear_rule_strength
-from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
+from ..base import ConstructType, MatchSet, Symbol
+from .propagators import PropagatorA
+from ..utils.funcs import linear_rule_strength
+from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
 
 
@@ -273,6 +273,8 @@ class AssociativeRules(PropagatorA):
     Implementation based on p. 73-74 of Anatomy of the Mind.
     """
 
+    _serves = ConstructType.flow_tt
+
     def __init__(self, source: Symbol, rules: Rules, op=None, default=0.0):
 
         self.source = source
@@ -284,7 +286,7 @@ class AssociativeRules(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         d = {}
         strengths = inputs[self.source]

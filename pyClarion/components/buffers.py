@@ -4,13 +4,13 @@
 __all__ = ["Bus", "Register", "WorkingMemory"]
 
 
-from pyClarion.base.symbols import (
+from ..base.symbols import (
     Symbol, MatchSet, ConstructType, feature, subsystem, terminus
 )
-from pyClarion.base.components import FeatureInterface
-from pyClarion.components.propagators import PropagatorB
-from pyClarion.components.chunks_ import Chunks, ChunkAdder, ChunkConstructor
-from pyClarion.utils import simple_junction, group_by_dims, collect_cmd_data
+from ..base.components import FeatureInterface
+from .propagators import PropagatorB
+from .chunks_ import Chunks, ChunkAdder, ChunkConstructor
+from ..utils import simple_junction, group_by_dims, collect_cmd_data
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby
@@ -42,7 +42,7 @@ class Bus(PropagatorB):
 
         return construct == self.source[0]
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         subsystem, terminus = self.source
         data = inputs[subsystem][terminus]
@@ -58,6 +58,8 @@ class Register(PropagatorB):
     Consists of a node store plus a flag buffer. Stored nodes are persistent, 
     flags are cleared at update time.
     """
+
+    interface: "Interface"
 
     @dataclass
     class Interface(FeatureInterface):
@@ -131,14 +133,14 @@ class Register(PropagatorB):
 
         return construct == ctl_subsystem or construct == src_subsystem
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """Activate stored nodes."""
 
         return {node: self.level for node in chain(self.store, self.flags)}
 
-    def update(self, construct, inputs, output):
+    def update(self, inputs, output):
 
-        data = collect_cmd_data(construct, inputs, self.controller)
+        data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
         # Flags get cleared on each update. New flags may then be added for the 
@@ -196,6 +198,8 @@ class WorkingMemory(PropagatorB):
     # TODO: In the future, WorkingMemory should return a special flag feature 
     # if an empty slot is opened to signify retrieval failure from that slot. 
     # This requires extensions to the interface. - Can
+
+    interface: "Interface"
 
     @dataclass
     class Interface(FeatureInterface):
@@ -361,20 +365,26 @@ class WorkingMemory(PropagatorB):
             for tag in interface.write_tags
         )
 
+    def entrust(self, construct):
+
+        for cell in self.cells:
+            cell.entrust(construct)
+        super().entrust(construct)
+
     def expects(self, construct):
         
         ctl_subsystem, src_subsystem = self.controller[0], self.source
 
         return construct == ctl_subsystem or construct == src_subsystem
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """
         Activate stored nodes.
 
         Only activates stored nodes in opened slots.
         """
 
-        data = collect_cmd_data(construct, inputs, self.controller)
+        data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
         # toggle switches
@@ -388,12 +398,12 @@ class WorkingMemory(PropagatorB):
         d = {f: self.level for f in self.flags}
         for switch, cell in zip(switches, self.cells):
             if switch is True:
-                d_cell = cell.call(construct, inputs.copy())
+                d_cell = cell.call(inputs)
                 d.update(d_cell)
         
         return d
 
-    def update(self, construct, inputs, output):
+    def update(self, inputs, output):
         """
         Update the memory state.
 
@@ -408,7 +418,7 @@ class WorkingMemory(PropagatorB):
         goal) in one single update. 
         """
 
-        data = collect_cmd_data(construct, inputs, self.controller)
+        data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
         # Flags get cleared on each update. New flags may then be added for the 
@@ -425,7 +435,7 @@ class WorkingMemory(PropagatorB):
         for slot, cell in enumerate(self.cells):
             # The copy here is for safety... better option may be to make 
             # inputs immutable. - Can
-            cell.update(construct, inputs, output)
+            cell.update(inputs, output)
             # Clearing a slot automatically sets corresponding switch to False.
 
     def reset(self):

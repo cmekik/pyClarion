@@ -1,12 +1,12 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-from pyClarion.base import (
+from ..base import (
     MatchSet, Construct, ConstructType, Symbol, chunk, UpdaterS, terminus, 
     subsystem
 )
-from pyClarion.components.propagators import PropagatorA
-from pyClarion.utils.str_funcs import pstr_iterable, pstr_iterable_cb
+from .propagators import PropagatorA
+from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from typing import Mapping, Iterable, Union, Tuple, Set
 from collections import namedtuple
 from statistics import mean
@@ -243,6 +243,8 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
+    _serves = ConstructType.flow_tb
+
     def __init__(self, source: Symbol, chunks=None, op=None, default=0.0):
 
         self.source = source
@@ -254,7 +256,7 @@ class TopDown(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
         """
         Execute a top-down activation cycle.
 
@@ -287,6 +289,7 @@ class BottomUp(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
+    _serves = ConstructType.flow_bt
     default_ops = {"max": max, "min": min, "mean": mean}
 
     def __init__(self, source: Symbol, chunks=None, ops=None, default=0.0):
@@ -300,7 +303,7 @@ class BottomUp(PropagatorA):
 
         return construct == self.source
 
-    def call(self, construct, inputs): 
+    def call(self, inputs): 
         """
         Execute a bottom-up activation cycle.
 
@@ -361,6 +364,10 @@ class ChunkAdder(UpdaterS):
     limitations may be lifted in a future iteration.
     """
 
+    # TODO: Override entrust() so that configuration matches served construct. 
+    # - Can
+    _serves = ConstructType.container_construct
+
     def __init__(
         self, 
         chunks: Chunks,
@@ -393,7 +400,7 @@ class ChunkAdder(UpdaterS):
         self.subsystem = subsystem
         self.count = count(start=1, step=1)
 
-    def __call__(self, construct, inputs, output, update_data):
+    def __call__(self, inputs, output, update_data):
 
         if self.subsystem is None:
             feature_set = output[self.terminus]

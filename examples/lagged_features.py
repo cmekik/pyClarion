@@ -10,6 +10,15 @@ logging.basicConfig(level=logging.DEBUG)
 
 ### Agent Setup ###
 
+dv_pairs = [
+    ("dim", "val-1"),
+    ("dim", "val-2"),
+    ("dim", "val-3"),
+    ("dim", "val-4"),
+    ("dim", "val-5"),
+    ("dim", "val-6"),
+]
+
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle()
@@ -24,7 +33,9 @@ with alice:
     nacs = Structure(
         name=subsystem("nacs"),
         emitter=NACSCycle(
-            sources={buffer("stimulus")}
+            sources={
+                buffer("stimulus")
+            }
         )
     )
 
@@ -36,49 +47,43 @@ with alice:
         Construct(
             name=features("main"),
             emitter= MaxNodes(
-                sources={buffer("stimulus"), flow_in("lag")}
+                sources={
+                    buffer("stimulus"), 
+                    flow_in("lag")
+                }
             )
         )
 
         Construct(
             name=flow_in("lag"), 
-            emitter=Lag(source=features("main"), max_lag=1) 
+            emitter=Lag(
+                source=features("main"), 
+                max_lag=1
+            ) 
         )
 
 # Agent setup is now complete!
-
-base_dv_pairs = [
-    ("dim", "val-1", 0),
-    ("dim", "val-2", 0),
-    ("dim", "val-3", 0),
-    ("dim", "val-4", 0),
-    ("dim", "val-5", 0),
-    ("dim", "val-6", 0),
-]
 
 
 ##################
 ### Simulation ###
 ##################
 
-stimulus_states = [
-    {feature("dim", "val-1", 0): 1.0},
-    {feature("dim", "val-2", 0): 1.0},
-    {feature("dim", "val-4", 0): 1.0},
-    {feature("dim", "val-3", 0): 1.0}
+stimuli = [
+    {feature("dim", "val-1"): 1.0},
+    {feature("dim", "val-2"): 1.0},
+    {feature("dim", "val-4"): 1.0},
+    {feature("dim", "val-3"): 1.0}
 ]
 
 alice.start()
 
-for i, stimulus_state in enumerate(stimulus_states):
+for i, stim in enumerate(stimuli):
     print("Presentation {}".format(i + 1))
-    stimulus.emitter.input(stimulus_state)
+    stimulus.emitter.input(stim)
     alice.step()
     pprint.pprint(alice.output)
 
-# Clearing outputs during the presentation sequence will interrupt lagged 
-# feature computation.    
-alice.clear_outputs()
 
 ##################
 ### CONCLUSION ###

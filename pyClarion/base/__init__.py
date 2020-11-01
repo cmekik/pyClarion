@@ -11,6 +11,6 @@ updates to persistent data (i.e., knowledge) follow a blackboard pattern.
 """
 
 
-from pyClarion.base.symbols import *
-from pyClarion.base.components import *
-from pyClarion.base.realizers import *
+from .symbols import *
+from .components import *
+from .realizers import *

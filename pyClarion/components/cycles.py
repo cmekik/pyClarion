@@ -4,7 +4,7 @@
 __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
-from pyClarion.base import ConstructType, Symbol, MatchSet, Cycle
+from ..base import ConstructType, Symbol, MatchSet, Cycle
 from types import MappingProxyType
 from typing import Dict, Mapping, Tuple, Container
 
@@ -12,6 +12,7 @@ from typing import Dict, Mapping, Tuple, Container
 class AgentCycle(Cycle):
     """Represents an agent activation cycle."""
 
+    _serves = ConstructType.agent
     output = ConstructType.buffer | ConstructType.subsystem
     sequence = [
         ConstructType.buffer,
@@ -36,6 +37,8 @@ class AgentCycle(Cycle):
 class CycleS(Cycle):
     """Represents a subsystem activation cycle."""
 
+    _serves = ConstructType.subsystem
+    # NOTE: Should flows be added to output? - Can
     output = ConstructType.nodes | ConstructType.terminus
 
     def __init__(self, sources: Container[Symbol] = None):

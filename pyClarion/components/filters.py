@@ -4,14 +4,14 @@
 __all__ = ["GatedA", "FilteredT", "FilteringRelay"]
 
 
-from pyClarion.base.symbols import (
+from ..base.symbols import (
     Symbol, ConstructType, feature, subsystem, terminus
 )
-from pyClarion.base.components import FeatureInterface
-from pyClarion.components.propagators import (
+from ..base.components import FeatureInterface
+from .propagators import (
     PropagatorA, PropagatorB, PropagatorT
 )
-from pyClarion.utils.funcs import (
+from ..utils.funcs import (
     scale_strengths, multiplicative_filter, group_by_dims, invert_strengths, 
     eye, inv, collect_cmd_data
 )
@@ -39,16 +39,25 @@ class GatedA(PropagatorA):
         self.gate = gate
         self.tfm = self.tfms[tfm]
 
+    @property
+    def client(self):
+
+        return self.base.client
+
+    def entrust(self, construct):
+
+        self.base.entrust(construct)
+
     def expects(self, construct):
 
         return construct == self.gate or self.base.expects(construct)
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
-        weight = inputs[self.gate][construct]
+        weight = inputs[self.gate][self.client]
         items = inputs.items()
         _inputs = {src: data for src, data in items if self.base.expects(src)}
-        base_strengths = self.base.call(construct, MappingProxyType(_inputs))
+        base_strengths = self.base.call(MappingProxyType(_inputs))
         output = scale_strengths(
             weight=self.tfm(weight), 
             strengths=base_strengths
@@ -71,11 +80,20 @@ class FilteredT(PropagatorT):
         self.filter = filter
         self.invert_weights = invert_weights
 
+    @property
+    def client(self):
+
+        return self.base.client
+
+    def entrust(self, construct):
+
+        self.base.entrust(construct)
+
     def expects(self, construct):
 
         return construct == self.filter or self.base.expects(construct)
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
         weights = inputs[self.filter]
         
@@ -89,7 +107,7 @@ class FilteredT(PropagatorT):
             src: multiplicative_filter(weights, strengths, fdefault)
             for src, strengths in inputs.items() if self.base.expects(src)
         }
-        output = self.base.call(construct, MappingProxyType(filtered_inputs))
+        output = self.base.call(MappingProxyType(filtered_inputs))
 
         return output
 
@@ -97,6 +115,8 @@ class FilteredT(PropagatorT):
 class FilteringRelay(PropagatorB):
     """Computes gate and filter settings as directed by a controller."""
     
+    interface: "Interface"
+
     @dataclass
     class Interface(FeatureInterface):
         """
@@ -150,9 +170,9 @@ class FilteringRelay(PropagatorB):
 
         return construct == self.controller[0]
 
-    def call(self, construct, inputs):
+    def call(self, inputs):
 
-        data = collect_cmd_data(construct, inputs, self.controller)
+        data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
         d = {}

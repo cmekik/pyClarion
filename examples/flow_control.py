@@ -14,10 +14,34 @@ gate_interface = FilteringRelay.Interface(
     vals=(0, 1)
 )
 
+chunk_db = Chunks()
+rule_db = Rules()
+
+rule_db.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
+
+chunk_db.link( # type: ignore
+    chunk("APPLE"), 
+    feature("color", "#ff0000"), 
+    feature("color", "#008000"),
+    feature("tasty", True)
+)
+
+chunk_db.link( # type: ignore
+    chunk("JUICE"),
+    feature("tasty", True),
+    feature("state", "liquid")
+)
+
+chunk_db.link( # type: ignore
+    chunk("FRUIT"),
+    feature("tasty", True),
+    feature("sweet", True)
+)
+
+
 alice = Structure(
     name=agent("Alice"),
-    emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks())
+    emitter=AgentCycle()
 )
 
 with alice:
@@ -45,7 +69,10 @@ with alice:
     acs = Structure(
         name=subsystem("acs"),
         emitter=ACSCycle(
-            sources={buffer("stimulus"), buffer("defaults")}
+            sources={
+                buffer("stimulus"), 
+                buffer("defaults")
+            }
         )
     )
 
@@ -54,8 +81,10 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus"), buffer("defaults")},
-                ctype=ConstructType.feature
+                sources={
+                    buffer("stimulus"), 
+                    buffer("defaults")
+                }
             )
         )
 
@@ -76,7 +105,10 @@ with alice:
                 buffer("gate")
             }
         ),
-        assets=Assets(rules=Rules())
+        assets=Assets(
+            chunk_db=chunk_db, 
+            rule_db=rule_db
+        )
     )
 
     with nacs:
@@ -84,8 +116,9 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={flow_tb("main")},
-                ctype=ConstructType.feature
+                sources={
+                    flow_tb("main")
+                }
             )
         )
 
@@ -96,8 +129,7 @@ with alice:
                     buffer("stimulus"), 
                     flow_bt("main"), 
                     flow_tt("associations")
-                },
-                ctype=ConstructType.chunk
+                }
             )
         )
 
@@ -114,7 +146,7 @@ with alice:
             emitter=GatedA(
                 base=AssociativeRules(
                     source=chunks("main"),
-                    rules=nacs.assets.rules
+                    rules=nacs.assets.rule_db
                 ),
                 gate=buffer("gate")
             ) 
@@ -125,7 +157,7 @@ with alice:
             emitter=GatedA(
                 base=BottomUp(
                     source=features("main"),
-                    chunks=alice.assets.chunks
+                    chunks=nacs.assets.chunk_db
                 ),
                 gate=buffer("gate") 
             )
@@ -135,7 +167,7 @@ with alice:
             name=flow_tb("main"), 
             emitter=TopDown(
                 source=chunks("main"),
-                chunks=alice.assets.chunks
+                chunks=nacs.assets.chunk_db
             ) 
         )
 
@@ -149,28 +181,6 @@ with alice:
                 filter=flow_in("stimulus")
             )
         )
-
-
-nacs.assets.rules.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
-
-alice.assets.chunks.link( # type: ignore
-    chunk("APPLE"), 
-    feature("color", "#ff0000"), 
-    feature("color", "#008000"),
-    feature("tasty", True)
-)
-
-alice.assets.chunks.link( # type: ignore
-    chunk("JUICE"),
-    feature("tasty", True),
-    feature("state", "liquid")
-)
-
-alice.assets.chunks.link( # type: ignore
-    chunk("FRUIT"),
-    feature("tasty", True),
-    feature("sweet", True)
-)
 
 
 ##################

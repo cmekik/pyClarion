@@ -68,8 +68,10 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus"), buffer("wm-defaults")},
-                ctype=ConstructType.feature
+                sources={
+                    buffer("stimulus"), 
+                    buffer("wm-defaults")
+                }
             )
         )
 
@@ -99,16 +101,20 @@ with alice:
         Construct(
             name=features("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus"), flow_tb("main")},
-                ctype=ConstructType.feature
+                sources={
+                    buffer("stimulus"), 
+                    flow_tb("main")
+                }
             )
         )
 
         Construct(
             name=chunks("main"),
             emitter=MaxNodes(
-                sources={buffer("stimulus"), flow_bt("main")},
-                ctype=ConstructType.chunk
+                sources={
+                    buffer("stimulus"), 
+                    flow_bt("main")
+                }
             )
         )
 
