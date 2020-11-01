@@ -24,7 +24,10 @@ wm_interface = WorkingMemory.Interface(
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks())
+    assets=Assets(
+        chunks=Chunks(),
+        wm_interface=wm_interface
+    )
 )
 
 with alice:
@@ -40,7 +43,7 @@ with alice:
         emitter=WorkingMemory(
             controller=(subsystem("acs"), terminus("wm")),
             source=subsystem("nacs"),
-            interface=wm_interface
+            interface=alice.assets.wm_interface
         )
     )
 
@@ -80,14 +83,16 @@ with alice:
             emitter=ActionSelector(
                 source=features("main"),
                 temperature=.01,
-                dims=list(wm.emitter.interface.dims)
+                client_interface=alice.assets.wm_interface
             )
         )
 
     nacs = Structure(
         name=subsystem("nacs"),
         emitter=NACSCycle(
-            sources={buffer("stimulus"), buffer("wm"), buffer("wm-defaults")}
+            sources={
+                buffer("stimulus")
+            }
         ),
         updater=ChunkAdder(
             chunks=alice.assets.chunks,

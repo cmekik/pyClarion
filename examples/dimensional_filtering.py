@@ -15,6 +15,8 @@ fdomain = [
     ("shape", "circle")
 ]
 
+chunk_db = Chunks()
+
 grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
 mapping = {("dof", "nacs", dim): set(entry) for dim, entry in grouped.items()}
 
@@ -26,7 +28,10 @@ filter_interface = FilteringRelay.Interface(
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
-    assets=Assets(chunks=Chunks())
+    assets=Assets(
+        chunk_db=chunk_db,
+        filter_interface=filter_interface
+    )
 )
 
 with alice:
@@ -36,25 +41,33 @@ with alice:
         emitter=Stimulus()
     )
 
+    controller = Construct(
+        name=buffer("controller"), 
+        emitter=Stimulus()
+    )
+
     relay = Construct(
         name=buffer("dimensional-filter"),
         emitter=FilteringRelay(
             controller=(subsystem("acs"), terminus("nacs")),
-            interface=filter_interface
+            interface=alice.assets.filter_interface
         )
     )
 
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in filter_interface.defaults}
+            strengths={f: 0.5 for f in alice.assets.filter_interface.defaults}
         )
     )
 
     acs = Structure(
         name=subsystem("acs"),
         emitter=ACSCycle(
-            sources={buffer("stimulus"), buffer("defaults")}
+            sources={
+                buffer("controller"), 
+                buffer("defaults")
+            }
         )
     )
 
@@ -64,7 +77,7 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus"), 
+                    buffer("controller"), 
                     buffer("defaults")
                 }
             )
@@ -74,7 +87,7 @@ with alice:
             name=terminus("nacs"),
             emitter=ActionSelector(
                 source=features("main"),
-                dims=relay.emitter.interface.dims,
+                client_interface=alice.assets.filter_interface,
                 temperature=0.01
             )
         )
@@ -124,6 +137,7 @@ alice.start()
 print("CYCLE 1: All open.") 
 
 print("Step 1: Set filter values.")
+controller.emitter.input({})
 alice.step()
 pprint.pprint(alice.output)
 print() # Empty line
@@ -138,7 +152,7 @@ print() # Empty line
 print("CYCLE 2: Block shape only.")
 
 print("Step 1: Set filter values.")
-stimulus.emitter.input({feature(("dof", "nacs", ("shape", 0)), 1): 1.})
+controller.emitter.input({feature(("dof", "nacs", ("shape", 0)), 1): 1.})
 alice.step()
 pprint.pprint(alice.output)
 print() # Empty line

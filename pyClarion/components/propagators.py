@@ -231,7 +231,7 @@ class BoltzmannSelector(PropagatorT):
 class ActionSelector(PropagatorT):
     """Selects action paramaters according to Boltzmann distributions."""
 
-    def __init__(self, source, dims, temperature):
+    def __init__(self, source, client_interface, temperature, default=0.0):
         """
         Initialize a ``ActionSelector`` instance.
 
@@ -247,8 +247,9 @@ class ActionSelector(PropagatorT):
         # consistently? - CSM
 
         self.source = source
-        self.dims = dims
+        self.client_interface = client_interface
         self.temperature = temperature
+        self.default = default
 
     def expects(self, construct):
         
@@ -264,9 +265,8 @@ class ActionSelector(PropagatorT):
 
         strengths = inputs[self.source]
         probabilities, selection = dict(), set()
-        for dim in self.dims:
-            # Should there be thresholding here? - CSM
-            ipt = {f: s for f, s in strengths.items() if f.dim == dim}
+        for dim, fs in self.client_interface.features_by_dims.items():
+            ipt = {f: strengths.get(f, self.default) for f in fs}
             prs = boltzmann_distribution(ipt, self.temperature)
             sel = select(prs, 1)
             probabilities.update(prs)

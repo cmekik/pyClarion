@@ -10,7 +10,7 @@ __all__ = [
 from .symbols import ConstructType, Symbol, feature
 from ..utils.funcs import group_by_dims
 from abc import abstractmethod
-from types import SimpleNamespace
+from types import SimpleNamespace, MappingProxyType
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
     Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, cast, 
@@ -191,9 +191,7 @@ class FeatureInterface(object):
 
     def __post_init__(self):
 
-        self._validate_data()
-        self._set_interface_properties()
-        self._validate_interface_properties()
+        self.compute_properties()
 
     @property
     def features(self):
@@ -219,6 +217,12 @@ class FeatureInterface(object):
         
         return self._dims
 
+    @property
+    def features_by_dims(self):
+        """Features grouped by dims."""
+
+        return self._features_by_dims
+
     def parse_commands(self, data):
         """
         Determine the value associated with each control dimension.
@@ -241,6 +245,22 @@ class FeatureInterface(object):
 
         return cmds
 
+    def compute_properties(self):
+        """
+        Compute interface properties.
+        
+        When interfaces are deployed as dataclasses, this method is called 
+        after initialization to populate interface properties. 
+        
+        Must be called again after modifications to interface configuration to 
+        ensure that interface properties reflect desired changes..
+        """
+
+        self._validate_data()
+        self._set_interface_properties()
+        self._set_derivative_properties()
+        self._validate_interface_properties()
+
     def _validate_data(self):
 
         raise NotImplementedError()
@@ -248,6 +268,12 @@ class FeatureInterface(object):
     def _set_interface_properties(self):
 
         raise NotImplementedError()
+
+    def _set_derivative_properties(self):
+
+        self._tags = frozenset(f.tag for f in self.features)
+        self._dims = frozenset(f.dim for f in self.features)
+        self._features_by_dims = MappingProxyType(group_by_dims(self.features))
 
     def _validate_interface_properties(self):
 

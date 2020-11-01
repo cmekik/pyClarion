@@ -41,7 +41,10 @@ chunk_db.link( # type: ignore
 
 alice = Structure(
     name=agent("Alice"),
-    emitter=AgentCycle()
+    emitter=AgentCycle(),
+    assets=Assets(
+        gate_interface=gate_interface
+    )
 )
 
 with alice:
@@ -55,14 +58,14 @@ with alice:
         name=buffer("gate"),
         emitter=FilteringRelay(
             controller=(subsystem("acs"), terminus("nacs")),
-            interface=gate_interface
+            interface=alice.assets.gate_interface
         )
     )
 
     defaults = Construct(
         name=buffer("defaults"),
         emitter=ConstantBuffer(
-            strengths={f: 0.5 for f in gate_interface.defaults}
+            strengths={f: 0.5 for f in alice.assets.gate_interface.defaults}
         )
     )
 
@@ -92,7 +95,7 @@ with alice:
             name=terminus("nacs"),
             emitter=ActionSelector(
                 source=features("main"),
-                dims=gate_interface.dims,
+                client_interface=alice.assets.gate_interface,
                 temperature=0.01
             )
         )

@@ -148,8 +148,6 @@ class FilteringRelay(PropagatorB):
 
             self._features = frozenset(feature_list)
             self._defaults = frozenset(default_set)
-            self._tags = frozenset(f.tag for f in self._features)
-            self._dims = frozenset(f.dim for f in self._features)
 
         def _validate_data(self):
 

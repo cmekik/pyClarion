@@ -85,8 +85,6 @@ class Register(PropagatorB):
             
             self._features = frozenset(feature(self.tag, val) for val in vals)
             self._defaults = frozenset({default})
-            self._tags = frozenset(f.tag for f in self._features)
-            self._dims = frozenset(f.dim for f in self._features)
 
         def _validate_data(self):
             
@@ -308,8 +306,6 @@ class WorkingMemory(PropagatorB):
 
             self._features = _w_features | _r_features | _re_features
             self._defaults = _defaults
-            self._tags = frozenset(f.tag for f in self._features)
-            self._dims = frozenset(f.dim for f in self._features)
 
         def _validate_data(self):
             
