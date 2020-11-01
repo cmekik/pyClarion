@@ -24,6 +24,13 @@ Pt = TypeVar("Pt", bound="Propagator")
 
 
 class Component(object):
+    """
+    Defines how constructs connect, compute outputs, perform updates etc.
+    
+    Each construct pyClarion construct is entrusted to one or more components, 
+    each of which is responsible for implementing some function or process 
+    associated with the client construct.
+    """
 
     _serves: ClassVar[ConstructType]
     _client: Symbol
@@ -34,7 +41,7 @@ class Component(object):
 
         return self._client
 
-    def entrust(self, construct: Symbol):
+    def entrust(self, construct: Symbol) -> None:
         """Entrust handling of construct to self."""
 
         if construct.ctype in type(self)._serves:
@@ -45,7 +52,7 @@ class Component(object):
             raise ValueError(msg.format(name, ctype))
 
     @abstractmethod
-    def expects(self, construct: Symbol):
+    def expects(self, construct: Symbol) -> bool:
         """Return True iff self expects input from construct."""
 
         raise NotImplementedError()
@@ -54,8 +61,9 @@ class Component(object):
 class Emitter(Component):
     """
     Base class for propagating strengths, decisions, etc.
-
-    Emitters define how constructs connect, process inputs, and set outputs.
+    
+    Emitters are responsible primarily for defining the process(es) by which an 
+    entrusted construct computes its output. 
     """
 
     @staticmethod
@@ -73,7 +81,11 @@ class Emitter(Component):
 
 
 class Propagator(Emitter, Generic[Ft]):
-    """Emitter for basic constructs."""
+    """
+    Emitter for basic constructs.
+    
+    Propagates outputs and performs basic (i.e., essential) updates.
+    """
 
     interface: Ft
 
@@ -113,7 +125,11 @@ class Propagator(Emitter, Generic[Ft]):
 
 
 class Cycle(Emitter):
-    """Emitter for composite constructs."""
+    """
+    Emitter for composite constructs (i.e., structures).
+    
+    Defines activation cycles.
+    """
 
     # Specifies data required to construct the output packet
     output: ClassVar[ConstructType] = ConstructType.null_construct
@@ -121,11 +137,22 @@ class Cycle(Emitter):
 
 
 class Updater(Component, Generic[Ft]):
+    """
+    Defines update processes associated with an entrusted construct.
+
+    Updaters implement learning algorithms (e.g., rule extraction) or maintain 
+    parameters (e.g., BLA updates) associated with a client construct.
+    """
 
     interface: Ft
 
 
 class UpdaterC(Updater, Generic[Pt]):
+    """
+    Updater for basic constructs.
+
+    Performs updates on the propagator associated with the client construct.
+    """
 
     @abstractmethod
     def __call__(
@@ -135,11 +162,29 @@ class UpdaterC(Updater, Generic[Pt]):
         output: Any, 
         update_data: Inputs
     ) -> None:
+        """
+        Apply updates to propagator. 
+        
+        Assumes that propagator is associated with client construct.
+
+        :param propagator: The client construct's propagator.
+        :param inputs: Inputs seen by client construct on current activation 
+            cycle.
+        :param output: The current output of the client construct as computed 
+            by the client's propagator.
+        :param update_data: Current outputs of relevant constructs (as defined 
+            by self.expects()). 
+        """
                 
         raise NotImplementedError()
 
 
 class UpdaterS(Updater):
+    """
+    Updater for composite constructs (i.e., structures).
+
+    Performs updates on shared assets associated with the client construct.
+    """
 
     # TODO: Improve type annotations. - Can
 
@@ -150,7 +195,20 @@ class UpdaterS(Updater):
         output: Any, 
         update_data: Inputs
     ) -> None:
+        """
+        Apply updates to relevant asset(s) of client construct. 
         
+        Assumes that self is initialized with references to the relevant 
+        assets.
+
+        :param inputs: Inputs seen by client construct on current activation 
+            cycle.
+        :param output: The current output of the client construct as computed 
+            by the client's propagator.
+        :param update_data: Current outputs of relevant constructs (as defined 
+            by self.expects()). 
+        """
+
         raise NotImplementedError()
 
 
@@ -253,7 +311,7 @@ class FeatureInterface(object):
         after initialization to populate interface properties. 
         
         Must be called again after modifications to interface configuration to 
-        ensure that interface properties reflect desired changes..
+        ensure that interface properties reflect desired changes.
         """
 
         self._validate_data()
@@ -263,9 +321,15 @@ class FeatureInterface(object):
 
     def _validate_data(self):
 
+        # Should throw errors if dataclass members violate assumptions or 
+        # requirements
+
         raise NotImplementedError()
 
     def _set_interface_properties(self):
+
+        # Should minimally set self._features and (if required) self._defaults.
+        # Other properties may be set as necessary.
 
         raise NotImplementedError()
 

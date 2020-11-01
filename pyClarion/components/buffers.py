@@ -69,7 +69,7 @@ class Register(PropagatorB):
         :param tag: Dimension label for controlling write ops to register.
         :param standby: Value corresponding to standby operation.
         :param clear: Value corresponding to clear operation.
-        :param channel_map: Tuple pairing values to terminuses for write 
+        :param channel_map: Tuple pairing values to termini for write 
             operation.
         """
 
@@ -121,7 +121,7 @@ class Register(PropagatorB):
 
     @property
     def is_empty(self):
-        """True if no nodes are stored in self."""
+        """True iff no nodes are stored in self."""
 
         return len(self.store) == 0
 
@@ -137,6 +137,14 @@ class Register(PropagatorB):
         return {node: self.level for node in chain(self.store, self.flags)}
 
     def update(self, inputs, output):
+        """
+        Update the register state.
+
+        Updates are controlled by matching features emitted in the output of 
+        self.controller to those defined in self.interface. If no commands are 
+        encountered, default/standby behavior will be executed. The default 
+        behavior is to maintain the current memory state.
+        """
 
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)

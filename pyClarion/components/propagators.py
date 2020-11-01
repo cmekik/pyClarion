@@ -32,7 +32,7 @@ from copy import copy
 
 class PropagatorA(Propagator):
     """
-    Propagator for flows and other activation propagators.
+    Propagator for node pools and flows.
 
     Maps activations to activations.
     """
@@ -83,6 +83,7 @@ class PropagatorB(Propagator):
 
 
 class MaxNodes(PropagatorA):
+    """Computes the maximum recommended activation for each node in a pool."""
 
     _serves = ConstructType.nodes
     _ctype_map = {
@@ -161,7 +162,8 @@ class Lag(PropagatorA):
         strengths = inputs[self.source]
         d = {
             feature(f.tag, f.val, f.lag + 1): s 
-            for f, s in strengths.items() if f.lag < self.max_lag
+            for f, s in strengths.items() 
+            if f.ctype in ConstructType.feature and f.lag < self.max_lag
         }
 
         return d
@@ -309,14 +311,7 @@ class ConstantBuffer(PropagatorB):
 
 
 class Stimulus(PropagatorB):
-    """
-    Propagates externally provided stimulus.
-    
-    Offers two possible ways to input stimulus. One possibility is to pass in 
-    the 'stimulus' keyword to the client construct at propagation time. The 
-    other possibility is to pass the in put in a call to `self.input()`. If 
-    both are done the keyword arg dominates.
-    """
+    """Propagates externally provided stimulus."""
 
     def __init__(self):
 
@@ -331,7 +326,6 @@ class Stimulus(PropagatorB):
         self.stimulus.update(data)
 
     def call(self, inputs, stimulus=None):
-
 
         d = stimulus if stimulus is not None else self.stimulus
         self.stimulus = {}

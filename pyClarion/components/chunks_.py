@@ -24,16 +24,16 @@ class Chunks(object):
     A simple chunk database.
 
     This object provides methods for constructing, maintaining, and inspecting a 
-    database of links between chunk nodes and corresponding features.
+    database of links between chunk nodes and corresponding feature nodes.
 
-    It is important to distinguish chunks from chunk nodes. Put simply, the 
+    It is important to distinguish chunks from chunk forms. Put simply, the 
     difference is that 'chunk' refers to a labeled chunk node along with its 
     links to feature nodes (these links may be empty). A chunk form, on the 
     other hand, refers to the pattern of connections between a labeled chunk 
     node and some feature nodes that define a chunk (excluding the labeled chunk 
     node itself).
 
-    Chunks forms are stored in a dict of the form:
+    Chunks are stored in a dict of the form:
     _data = {
         chunk(1): {
             "dim1": {
@@ -82,6 +82,7 @@ class Chunks(object):
         return self._data.get(ch, default)
 
     def find_form(self, form):
+        """Return the set of chunks matching the given form."""
 
         # This may need a faster implementation in the future. - Can
         chunks = set()
@@ -190,6 +191,7 @@ class Chunks(object):
 
         :param form: A chunk form (i.e., an unlabeled chunk).
         :param features: A sequence of feature construct symbols.
+        :param op: Operation to compute dimensional activations.
         :param weights: A mapping from dimensions to corresponding weights.
         """
         
@@ -224,9 +226,11 @@ class Chunks(object):
                     if "op" not in dim_form:
                         raise ValueError("Dimension data must specify op.")
                     if "weight" not in dim_form:
-                        raise ValueError("Dimension data must contain weight info.")
+                        msg = "Dimension data must contain weight info."
+                        raise ValueError(msg)
                     if "values" not in dim_form:
-                        raise ValueError("Dimension data must contain value info.")
+                        msg = "Dimension data must contain value info."
+                        raise ValueError(msg)
                     if not isinstance(dim_form["values"], set):
                         raise TypeError("Value info must be of type set.")
 
@@ -307,7 +311,6 @@ class BottomUp(PropagatorA):
         """
         Execute a bottom-up activation cycle.
 
-        :param construct: Construct symbol for client construct.
         :param inputs: Dictionary mapping input constructs to their pull 
             methods.
         """
@@ -356,11 +359,9 @@ class ChunkAdder(UpdaterS):
     """
     Adds new chunk nodes to client subsystem.
     
-    Constructs and adds a new entry in the reference chunk database and a 
-    corresponding Construct object to the client subsystem. 
+    Constructs and adds a new entry in the reference chunk database. 
 
-    In the current implementation, new Construct instances may not have 
-    updaters (only emitters), and dimensional weights are set to 1. These 
+    In the current implementation, dimensional weights are set to 1. This 
     limitations may be lifted in a future iteration.
     """
 
@@ -382,12 +383,8 @@ class ChunkAdder(UpdaterS):
         :param chunks: Client chunk database.
         :param terminus: Symbol for a terminus construct in client emmitting 
             new chunk recommendations. 
-        :param emitter: An emitter instance serving as a template for new 
-            Construct instances. Implementation relies on (shallow) copying 
-            through emitter.__copy__(), which must handle mutable attributes 
-            appropriately.
         :param prefix: Prefix added to created chunk names.
-        :param client: The client subsystem. If None, the parent realizer is 
+        :param subsystem: The client subsystem. If None, the parent realizer is 
             considered to be the client.
         :param constructor: A chunk constructor. If 'None', defaults to 
             ChunkConstructor(op="max").

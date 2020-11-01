@@ -13,8 +13,6 @@ from pyClarion import (
     # Below are realizer objects, implementing the behavior of simulated 
     # constructs.
     Structure, Construct,
-    # Construct types are used in controlling construct behavior.
-    ConstructType,
     # Below are functions for constructing construct symbols, which are used to 
     # name, index and reference simulated constructs
     agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 

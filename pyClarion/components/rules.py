@@ -153,7 +153,7 @@ class Rules(object):
         return output
 
     def pstr(self):
-        """Return a pretty string a representation of self."""
+        """Return a pretty string representation of self."""
 
         body = pstr_iterable(
             iterable=self._data, 

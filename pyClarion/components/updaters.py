@@ -23,6 +23,12 @@ Us_t = TypeVar("Us_t", bound="UpdaterS")
 
 
 class UpdaterChain(Updater, Generic[Ut]):
+    """
+    Wrapper for multiple updaters.
+
+    Allows realizers to have multiple updaters which fire in a pre-defined 
+    sequence. 
+    """
 
     updaters: Tuple[Ut, ...]
 
@@ -50,12 +56,7 @@ class UpdaterChain(Updater, Generic[Ut]):
 
 
 class UpdaterChainC(UpdaterChain[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]):
-    """
-    Wrapper for multiple updaters.
-
-    Allows realizers to have multiple updaters which fire in a pre-defined 
-    sequence. 
-    """
+    """Updater chain for basic constructs."""
 
     def __call__(self, emitter, inputs, output, update_data) -> None:
         """
@@ -71,12 +72,7 @@ class UpdaterChainC(UpdaterChain[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]):
 
 
 class UpdaterChainS(UpdaterChain[Us_t], UpdaterS, Generic[Us_t]):
-    """
-    Wrapper for multiple updaters.
-
-    Allows realizers to have multiple updaters which fire in a pre-defined 
-    sequence. 
-    """
+    """Updater chain for composite constructs (i.e. structures)."""
 
     def __call__(self, inputs, output, update_data) -> None:
         """
@@ -154,6 +150,7 @@ class ConditionalUpdater(Updater, Generic[Ut]):
 class ConditionalUpdaterC(
     ConditionalUpdater[Uc_t], UpdaterC[Pt], Generic[Pt, Uc_t]
 ):
+    """Conditional updater for basic constructs."""
 
     def __call__(self, emitter, inputs, output, update_data) -> None:
 
@@ -165,6 +162,7 @@ class ConditionalUpdaterC(
 class ConditionalUpdaterS(
     ConditionalUpdater[Us_t], UpdaterS, Generic[Pt, Us_t]
 ):
+    """Conditional updater for composite constructs (i.e., structures)."""
 
     def __call__(self, inputs, output, update_data) -> None:
 

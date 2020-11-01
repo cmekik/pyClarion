@@ -57,7 +57,8 @@ class Realizer(Generic[Et, Ut]):
         :param name: Identifier for client construct.  
         :param emitter: Procedure for activation propagation. Expected to be of 
             type Emitter.
-        :param updater: Procedure for updating persistent construct data.
+        :param updater: Procedure for updating persistent construct data. 
+            Expected to be of type Updater.
         """
 
         self._validate_name(name)
@@ -432,9 +433,10 @@ class Structure(Realizer[Ct, UpdaterS]):
 
     def step(self) -> None:
 
-        if not self._started:
+        if self._started:
+            super().step()
+        else:
             raise ValueError("Must call Structure.start() prior to stepping.")
-        super().step()
 
     def add(self, *realizers: Realizer) -> None:
         """
