@@ -1,28 +1,61 @@
-from pyClarion import *
+"""
+A demo for working with lagged features.
+
+Prerequisite: Understanding of the basics of pyClarion as discussed in the demo
+`free_association.py`.
+"""
+
+from pyClarion import (
+    Structure, Construct,
+    agent, buffer, subsystem, feature, features, flow_in, terminus,
+    AgentCycle, NACSCycle, Lag, Stimulus, MaxNodes
+)
 import pprint
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
+
 #############
 ### Setup ###
 #############
 
+# This demo shows how lagged features can be created on the fly within a 
+# simulation using the Lag component and flow_in constructs. 
+
 ### Agent Setup ###
 
-dv_pairs = [
-    ("dim", "val-1"),
-    ("dim", "val-2"),
-    ("dim", "val-3"),
-    ("dim", "val-4"),
-    ("dim", "val-5"),
-    ("dim", "val-6"),
+# The feature domain for this simple demo is the same as for 
+# `free_association.py`.
+
+feature_spec = [
+    ("color", "#ff0000"), # red
+    ("color", "#008000"), # green
+    ("tasty", True),
+    ("state", "liquid"),
+    ("sweet", True)
 ]
+
+# For this example, the agent architecture is minimal. We instantiate a 
+# stimulus buffer and an NACS containing only a feature pool and the Lag 
+# component.
+
+# The lag component serves the construct `flow_in("lag")` which maps, at 
+# the start of the NACS cycle, activations in the feature pool held over from 
+# the previous cycle to activations of corresponding lagged features up to a 
+# set maximum lag value.
+
+# In general, `flow_in()` constructs take care of any necessary activation 
+# processing within a subsystem at the start of an activation cycle. Besides 
+# helping compute lagged strengths, these constructs are useful for a variety 
+# of purposes that involve gating or transforming inputs to the subsystem.
+
 
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle()
 )
+
 with alice:
 
     stimulus = Construct(
@@ -38,9 +71,6 @@ with alice:
             }
         )
     )
-
-    # For this example, we create a simple NACS w/ only an input flow (no 
-    # rules, no associative memory networks, no top-down or bottom-up flows).
 
     with nacs:
 
@@ -62,25 +92,28 @@ with alice:
             ) 
         )
 
-# Agent setup is now complete!
-
 
 ##################
 ### Simulation ###
 ##################
 
+# For this simulation, we present a stream of four distinct stimuli and 
+# output the state of the agent after each presentation. 
+
+# In the output, it can be seen that the activation of a lag-0 feature 
+# activated at time t is copied over, at time t+1, to its lag-1 counterpart.
+
 stimuli = [
-    {feature("dim", "val-1"): 1.0},
-    {feature("dim", "val-2"): 1.0},
-    {feature("dim", "val-4"): 1.0},
-    {feature("dim", "val-3"): 1.0}
+    {feature("color", "#008000"): 1.0},
+    {feature("sweet", True): 1.0},
+    {feature("tasty", True): 1.0},
+    {feature("state", "liquid"): 1.0}
 ]
 
 alice.start()
-
-for i, stim in enumerate(stimuli):
+for i, s in enumerate(stimuli):
     print("Presentation {}".format(i + 1))
-    stimulus.emitter.input(stim)
+    stimulus.emitter.input(s)
     alice.step()
     pprint.pprint(alice.output)
 

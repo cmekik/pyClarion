@@ -1,4 +1,4 @@
-"""Demonstrates setting up a dimensional feature filter."""
+"""A demo for setting up a controlled dimensional feature filter."""
 
 
 from pyClarion import *
