@@ -64,7 +64,7 @@ with alice:
 
     defaults = Construct(
         name=buffer("defaults"),
-        emitter=ConstantBuffer(
+        emitter=Constants(
             strengths={f: 0.5 for f in alice.assets.gate_interface.defaults}
         )
     )
@@ -138,7 +138,7 @@ with alice:
 
         Construct(
             name=flow_in("stimulus"),
-            emitter=GatedA(
+            emitter=Gated(
                 base=Repeater(source=buffer("stimulus")),
                 gate=buffer("gate")
             )
@@ -146,7 +146,7 @@ with alice:
 
         Construct(
             name=flow_tt("associations"),
-            emitter=GatedA(
+            emitter=Gated(
                 base=AssociativeRules(
                     source=chunks("main"),
                     rules=nacs.assets.rule_db
@@ -157,7 +157,7 @@ with alice:
 
         Construct(
             name=flow_bt("main"), 
-            emitter=GatedA(
+            emitter=Gated(
                 base=BottomUp(
                     source=features("main"),
                     chunks=nacs.assets.chunk_db
@@ -176,7 +176,7 @@ with alice:
 
         Construct(
             name=terminus("retrieval"),
-            emitter=FilteredT(
+            emitter=Filtered(
                 base=BoltzmannSelector(
                     source=chunks("main"),
                     temperature=.1

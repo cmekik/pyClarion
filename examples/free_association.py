@@ -26,7 +26,7 @@ from pyClarion import (
     # The objects below define how realizers process activations in the forward 
     # and backward directions.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNodes, 
-    FilteredT, NACSCycle, AgentCycle
+    Filtered, NACSCycle, AgentCycle
 )
 import pprint
 import logging
@@ -410,7 +410,7 @@ with alice:
         
         Construct(
             name=terminus("main"),
-            emitter=FilteredT(
+            emitter=Filtered(
                 base=BoltzmannSelector(
                     source=chunks("main"),
                     temperature=.1

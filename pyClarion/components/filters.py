@@ -1,16 +1,13 @@
 """Tools for filtering inputs and outputs of propagators."""
 
 
-__all__ = ["GatedA", "FilteredT", "FilteringRelay"]
+__all__ = ["Gated", "Filtered", "FilteringRelay"]
 
 
 from ..base.symbols import (
     Symbol, ConstructType, feature, subsystem, terminus
 )
-from ..base.components import FeatureInterface
-from .propagators import (
-    PropagatorA, PropagatorB, PropagatorT
-)
+from ..base.components import FeatureInterface, Propagator
 from ..utils.funcs import (
     scale_strengths, multiplicative_filter, group_by_dims, invert_strengths, 
     eye, inv, collect_cmd_data
@@ -23,14 +20,14 @@ from types import MappingProxyType
 import pprint
 
 
-class GatedA(PropagatorA):
+class Gated(Propagator):
     """Gates output of an activation propagator."""
     
     tfms = {"eye": eye, "inv": inv}
 
     def __init__(
         self, 
-        base: PropagatorA, 
+        base: Propagator, 
         gate: Symbol,
         tfm: str = "eye"
     ) -> None:
@@ -66,12 +63,12 @@ class GatedA(PropagatorA):
         return {n: s for n, s in output.items() if s > 0.0}
 
 
-class FilteredT(PropagatorT):
+class Filtered(Propagator):
     """Filters input to a terminus."""
     
     def __init__(
         self, 
-        base: PropagatorT, 
+        base: Propagator, 
         filter: Symbol, 
         invert_weights: bool = True
     ) -> None:
@@ -123,10 +120,10 @@ class FilteredT(PropagatorT):
         return preprocessed
 
 
-class FilteringRelay(PropagatorB):
+class FilteringRelay(Propagator):
     """Computes gate and filter settings as directed by a controller."""
     
-    interface: "Interface"
+    _serves = ConstructType.buffer
 
     @dataclass
     class Interface(FeatureInterface):

@@ -2,9 +2,8 @@
 
 
 __all__ = [
-    "PropagatorA", "PropagatorT", "PropagatorB",
     "MaxNodes", "Repeater", "Lag", "ThresholdSelector", "ActionSelector", 
-    "BoltzmannSelector", "ConstantBuffer", "Stimulus"
+    "BoltzmannSelector", "Constants", "Stimulus"
 ]
 
 
@@ -25,64 +24,12 @@ from typing import Iterable, Any
 from copy import copy
 
 
-####################
-### Abstractions ###
-####################
-
-
-class PropagatorA(Propagator):
-    """
-    Propagator for node pools and flows.
-
-    Maps activations to activations.
-    """
-
-    @staticmethod
-    def emit(data: Dict[Symbol, float] = None
-    ) -> Mapping[Symbol, float]:
-
-        data = data if data is not None else dict()
-        return MappingProxyType(mapping=data)
-
-
-class PropagatorT(Propagator):
-    """
-    Propagator for subsystem termini.
-
-    Maps activations to decisions.
-    """
-
-    _serves = ConstructType.terminus
-
-    @staticmethod
-    def emit(data: Set[Symbol] = None) -> FrozenSet[Symbol]:
-        
-        selection = data or set()
-        return frozenset(selection)
-
-
-class PropagatorB(Propagator):
-    """
-    Propagator for buffers.
-
-    Maps subsystem outputs to activations.
-    """
-
-    _serves = ConstructType.buffer
-    
-    @staticmethod
-    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
-
-        data = data if data is not None else dict()
-        return MappingProxyType(mapping=data)
-
-
 ########################
 ### Node Propagators ###
 ########################
 
 
-class MaxNodes(PropagatorA):
+class MaxNodes(Propagator):
     """Computes the maximum recommended activation for each node in a pool."""
 
     _serves = ConstructType.nodes
@@ -118,10 +65,12 @@ class MaxNodes(PropagatorA):
 ########################
 
 
-class Repeater(PropagatorA):
+class Repeater(Propagator):
     """Copies the output of a single source construct."""
 
-    _serves = ConstructType.flow_in
+    _serves = (
+        ConstructType.flow_in | ConstructType.flow_h | ConstructType.buffer
+    )
 
     def __init__(self, source: Symbol) -> None:
 
@@ -136,7 +85,7 @@ class Repeater(PropagatorA):
         return {n: s for n, s in inputs[self.source].items() if s > 0.0}
 
 
-class Lag(PropagatorA):
+class Lag(Propagator):
     """Lags strengths for given set of features."""
 
     _serves = ConstructType.flow_in | ConstructType.flow_bb
@@ -176,12 +125,14 @@ class Lag(PropagatorA):
 ############################
 
 
-class ThresholdSelector(PropagatorT):
+class ThresholdSelector(Propagator):
     """
     Propagator for extracting nodes above a thershold.
     
     Targets feature nodes by default.
     """
+
+    _serves = ConstructType.terminus
 
     def __init__(self, source: Symbol, threshold: float = 0.85):
 
@@ -196,11 +147,13 @@ class ThresholdSelector(PropagatorT):
 
         strengths = inputs[self.source]
         eligible = (f for f, s in strengths.items() if s > self.threshold)
-        return set(eligible)  
+        return {n: 1.0 for n in eligible}  
 
 
-class BoltzmannSelector(PropagatorT):
+class BoltzmannSelector(Propagator):
     """Selects a chunk according to a Boltzmann distribution."""
+
+    _serves = ConstructType.terminus
 
     def __init__(self, source, temperature=0.01, threshold=0.25):
         """
@@ -229,11 +182,13 @@ class BoltzmannSelector(PropagatorT):
         probabilities = boltzmann_distribution(strengths, self.temperature)
         selection = select(probabilities, 1)
 
-        return selection
+        return {n: 1.0 for n in selection}
 
 
-class ActionSelector(PropagatorT):
+class ActionSelector(Propagator):
     """Selects action paramaters according to Boltzmann distributions."""
+
+    _serves = ConstructType.terminus
 
     def __init__(self, source, client_interface, temperature, default=0.0):
         """
@@ -276,7 +231,7 @@ class ActionSelector(PropagatorT):
             probabilities.update(prs)
             selection.update(sel)
 
-        return selection
+        return {n: 1.0 for n in selection}
 
 
 ##########################
@@ -284,8 +239,15 @@ class ActionSelector(PropagatorT):
 ##########################
 
 
-class ConstantBuffer(PropagatorB):
-    """Outputs a stored activation packet."""
+class Constants(Propagator):
+    """
+    Outputs a constant activation pattern.
+    
+    Useful for setting defaults and testing. Provides methods for updating 
+    constants through external intervention.
+    """
+
+    _serves = ConstructType.basic_construct
 
     def __init__(self, strengths = None) -> None:
 
@@ -312,8 +274,10 @@ class ConstantBuffer(PropagatorB):
         self.strengths = {}
 
 
-class Stimulus(PropagatorB):
+class Stimulus(Propagator):
     """Propagates externally provided stimulus."""
+
+    _serves = ConstructType.buffer
 
     def __init__(self):
 

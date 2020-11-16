@@ -4,8 +4,7 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from ..base import ConstructType, MatchSet, Symbol
-from .propagators import PropagatorA
+from ..base import ConstructType, MatchSet, Symbol, Propagator
 from ..utils.funcs import linear_rule_strength
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
@@ -262,7 +261,7 @@ class Rules(object):
                 ) 
 
 
-class AssociativeRules(PropagatorA):
+class AssociativeRules(Propagator):
     """
     Propagates activations among chunks through associative rules.
     

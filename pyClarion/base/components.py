@@ -89,7 +89,7 @@ class Propagator(Emitter, Generic[Ft]):
 
     interface: Ft
 
-    def __call__(self, inputs: Inputs) -> Any:
+    def __call__(self, inputs: Inputs) -> Mapping[Symbol, float]:
         """
         Execute construct's forward propagation cycle.
 
@@ -100,7 +100,7 @@ class Propagator(Emitter, Generic[Ft]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: Inputs) -> Any:
+    def call(self, inputs: Inputs) -> Dict[Symbol, float]:
         """
         Compute construct's output.
 
@@ -122,6 +122,19 @@ class Propagator(Emitter, Generic[Ft]):
         """
 
         pass
+
+    @staticmethod
+    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
+        """
+        Emit output.
+
+        By default emits a mapping proxy pointing to an empty dictionary, 
+        otherwise emits a mappingproxy wrapping data.
+        """
+
+        data = data if data is not None else dict()
+
+        return MappingProxyType(mapping=data)
 
 
 class Cycle(Emitter):

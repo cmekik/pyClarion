@@ -52,7 +52,7 @@ with alice:
 
     wm_defaults = Construct(
         name=buffer("wm-defaults"),
-        emitter=ConstantBuffer(
+        emitter=Constants(
             strengths={f: 0.5 for f in wm_interface.defaults}
         )
     )
@@ -155,7 +155,7 @@ with alice:
 
         Construct(
             name=terminus("retrieval"),
-            emitter=FilteredT(
+            emitter=Filtered(
                 base=BoltzmannSelector(
                     source=chunks("main"),
                     temperature=.1

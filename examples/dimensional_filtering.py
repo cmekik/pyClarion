@@ -56,7 +56,7 @@ with alice:
 
     defaults = Construct(
         name=buffer("defaults"),
-        emitter=ConstantBuffer(
+        emitter=Constants(
             strengths={f: 0.5 for f in alice.assets.filter_interface.defaults}
         )
     )
@@ -115,7 +115,7 @@ with alice:
 
         Construct(
             name=terminus("bl-retrieval"),
-            emitter=FilteredT(
+            emitter=Filtered(
                 base=ThresholdSelector(
                     source=features("main"),
                     threshold=.85

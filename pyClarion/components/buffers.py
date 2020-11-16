@@ -1,14 +1,13 @@
 """Definitions for memory constructs, most notably working memory."""
 
 
-__all__ = ["Bus", "Register", "WorkingMemory"]
+__all__ = ["Register", "WorkingMemory"]
 
 
 from ..base.symbols import (
     Symbol, MatchSet, ConstructType, feature, subsystem, terminus
 )
-from ..base.components import FeatureInterface
-from .propagators import PropagatorB
+from ..base.components import FeatureInterface, Propagator
 from .chunks_ import Chunks, ChunkAdder, ChunkConstructor
 from ..utils import simple_junction, group_by_dims, collect_cmd_data
 
@@ -19,39 +18,7 @@ from types import MappingProxyType
 import logging
 
 
-class Bus(PropagatorB):
-    """
-    Bus for commands & parameters.
-    
-    Relays commands issued at some terminus of a controller subsystem to any 
-    listeners.
-    """
-
-    def __init__(
-        self,
-        source: Tuple[Symbol, Symbol],
-        filter: MatchSet = None,
-        level: float = 1.0
-    ) -> None:
-        
-        self.source = source
-        self.filter = filter
-        self.level = level
-
-    def expects(self, construct):
-
-        return construct == self.source[0]
-
-    def call(self, inputs):
-
-        subsystem, terminus = self.source
-        data = inputs[subsystem][terminus]
-        d = {node: self.level for node in data if node in self.filter}
-
-        return d
-
-
-class Register(PropagatorB):
+class Register(Propagator):
     """
     Dynamically stores and activates nodes.
     
@@ -59,7 +26,7 @@ class Register(PropagatorB):
     flags are cleared at update time.
     """
 
-    interface: "Interface"
+    _serves = ConstructType.buffer
 
     @dataclass
     class Interface(FeatureInterface):
@@ -188,7 +155,7 @@ class Register(PropagatorB):
         self.flags.clear()
 
 
-class WorkingMemory(PropagatorB):
+class WorkingMemory(Propagator):
     """
     A simple working memory mechanism.
 
@@ -205,7 +172,7 @@ class WorkingMemory(PropagatorB):
     # if an empty slot is opened to signify retrieval failure from that slot. 
     # This requires extensions to the interface. - Can
 
-    interface: "Interface"
+    _serves = ConstructType.buffer
 
     @dataclass
     class Interface(FeatureInterface):

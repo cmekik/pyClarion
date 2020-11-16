@@ -3,9 +3,8 @@
 
 from ..base import (
     MatchSet, Construct, ConstructType, Symbol, chunk, UpdaterS, terminus, 
-    subsystem
+    subsystem, Propagator
 )
-from .propagators import PropagatorA
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from typing import Mapping, Iterable, Union, Tuple, Set
 from collections import namedtuple
@@ -235,7 +234,7 @@ class Chunks(object):
                         raise TypeError("Value info must be of type set.")
 
 
-class TopDown(PropagatorA):
+class TopDown(Propagator):
     """
     Computes a top-down activations in NACS.
 
@@ -282,7 +281,7 @@ class TopDown(PropagatorA):
         return d
 
 
-class BottomUp(PropagatorA):
+class BottomUp(Propagator):
     """
     Computes a bottom-up activations in NACS.
 
