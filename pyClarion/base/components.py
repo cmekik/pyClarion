@@ -344,7 +344,15 @@ class FeatureInterface(FeatureDomain):
     Intended to be used as a dataclass.
     """
 
+    _cmds: FrozenSet[feature]
     _defaults: FrozenSet[feature]
+    _params: FrozenSet[feature]
+
+    @property
+    def cmds(self):
+        """Features, defined by self, indicating actions."""
+
+        return self._cmds
 
     @property
     def defaults(self):
@@ -353,10 +361,39 @@ class FeatureInterface(FeatureDomain):
         return self._defaults
 
     @property
-    def parameters(self):
+    def params(self):
         """Features, defined by self, indicating action parameters."""
 
-        return self._parameters
+        return self._params
+
+    @property
+    def cmd_tags(self):
+        """The set of command dimensional labels defined by self."""
+        
+        return self._cmd_tags
+
+    @property
+    def cmd_dims(self):
+        """The set of command feature dimensions (w/ lags) defined by self."""
+        
+        return self._cmd_dims
+
+    @property
+    def param_tags(self):
+        """The set of param dimensional labels defined by self."""
+        
+        return self._param_tags
+
+    @property
+    def param_dims(self):
+        """The set of param feature dimensions (w/ lags) defined by self."""
+        
+        return self._param_dims
+
+    @property
+    def cmds_by_dims(self):
+
+        return self._cmds_by_dims
 
     @property
     def params_by_dims(self):
@@ -370,7 +407,7 @@ class FeatureInterface(FeatureDomain):
         :param data: A set of features.
         """
 
-        _cmds = set(f for f in data if f in self.features)
+        _cmds = set(f for f in data if f in self.cmds)
 
         cmds, groups = {}, group_by_dims(features=_cmds)
         for k, g in groups.items():
@@ -387,22 +424,38 @@ class FeatureInterface(FeatureDomain):
 
     def _set_interface_properties(self):
 
-        # Should minimally set self._features and (if required) self._defaults.
+        # Should minimally set self._cmds, self._defaults, and self._params.
         # Other properties may be set as necessary.
 
         raise NotImplementedError()
+
+    def _set_derivative_properties(self):
+
+        self._cmd_tags = frozenset(f.tag for f in self.cmds)
+        self._cmd_dims = frozenset(f.dim for f in self.cmds)
+
+        self._param_tags = frozenset(f.tag for f in self.params)
+        self._param_dims = frozenset(f.dim for f in self.params)
+       
+        self._features = self.cmds | self.params
+
+        self._cmds_by_dims = MappingProxyType(group_by_dims(self.cmds))
+        self._params_by_dims = MappingProxyType(group_by_dims(self.params))
+
+        super()._set_derivative_properties()
 
     def _validate_interface_properties(self):
 
         super()._validate_interface_properties()
 
-        _defaults_dims = set(f.dim for f in self.defaults)
-
         # TODO: Use a more suitable exception class. - Can
 
-        if not self.defaults.issubset(self.features):
+        if not self.defaults.issubset(self.cmds):
             raise ValueError("self.defaults not a subset of self.features.")
-        if not self.dims.issubset(_defaults_dims):
+        
+        _defaults_dims = set(f.dim for f in self.defaults)
+        
+        if not self.cmd_dims.issubset(_defaults_dims):
             raise ValueError("self.defaults conflicts with self.dims.")
-        if len(self.dims) != len(_defaults_dims):
+        if len(self.cmd_dims) != len(_defaults_dims):
             raise ValueError("multiple defaults assigned to a single dim.")

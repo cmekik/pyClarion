@@ -50,8 +50,9 @@ class Register(Propagator):
             vals = chain((self.standby, self.clear), self.mapping)
             default = feature(self.tag, self.standby)
             
-            self._features = frozenset(feature(self.tag, val) for val in vals)
+            self._cmds = frozenset(feature(self.tag, val) for val in vals)
             self._defaults = frozenset({default})
+            self._params = frozenset()
 
         def _validate_data(self):
             
@@ -262,9 +263,9 @@ class WorkingMemory(Propagator):
             _r_dgen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
             _re_dgen = ((_re_tag, val) for val in _re_vals)
 
-            _w_features = frozenset(feature(tag, val) for tag, val in _w_gen)
-            _r_features = frozenset(feature(tag, val) for tag, val in _r_gen)
-            _re_features = frozenset(feature(tag, val) for tag, val in _re_gen)
+            _w_cmds = frozenset(feature(tag, val) for tag, val in _w_gen)
+            _r_cmds = frozenset(feature(tag, val) for tag, val in _r_gen)
+            _re_cmds = frozenset(feature(tag, val) for tag, val in _re_gen)
 
             _w_defaults = frozenset(feature(tag, _w_d_val) for tag in _w_tags)
             _r_defaults = frozenset(feature(tag, _r_d_val) for tag in _r_tags)
@@ -275,12 +276,13 @@ class WorkingMemory(Propagator):
             self._read_tags = _r_tags
             self._reset_tag = _re_tag
 
-            self._write_dims = tuple(sorted(set(f.dim for f in _w_features)))
-            self._read_dims = tuple(sorted(set(f.dim for f in _r_features)))
+            self._write_dims = tuple(sorted(set(f.dim for f in _w_cmds)))
+            self._read_dims = tuple(sorted(set(f.dim for f in _r_cmds)))
             self._reset_dim = (_re_tag, 0)
 
-            self._features = _w_features | _r_features | _re_features
+            self._cmds = _w_cmds | _r_cmds | _re_cmds
             self._defaults = _defaults
+            self._params = frozenset()
 
         def _validate_data(self):
             

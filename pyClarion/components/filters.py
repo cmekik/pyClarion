@@ -150,12 +150,13 @@ class FilteringRelay(Propagator):
         def _set_interface_properties(self) -> None:
 
             tv_pairs = product(self.mapping, self.vals)
-            feature_list = list(feature(tag, val) for tag, val in tv_pairs)
+            cmd_list = list(feature(tag, val) for tag, val in tv_pairs)
             default = self.vals[0]
             default_set = set(feature(tag, default) for tag in self.mapping)
 
-            self._features = frozenset(feature_list)
+            self._cmds = frozenset(cmd_list)
             self._defaults = frozenset(default_set)
+            self._params = frozenset()
 
         def _validate_data(self):
 
@@ -182,7 +183,7 @@ class FilteringRelay(Propagator):
         cmds = self.interface.parse_commands(data)
 
         d = {}
-        for dim in self.interface.dims:
+        for dim in self.interface.cmd_dims:
 
             cmd = cmds[dim]
             tag, _ = dim  
