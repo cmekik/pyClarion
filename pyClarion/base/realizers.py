@@ -20,11 +20,15 @@ from contextvars import ContextVar
 
 
 Et = TypeVar("Et", bound="Emitter")
+Pt = TypeVar("Pt", bound="Propagator")
 Ut = TypeVar("Ut", bound="Updater")
+Ct = TypeVar("Ct", bound="Cycle")
+
 Inputs = Mapping[Symbol, Any]
 PullFunc = Callable[[], Any]
 PullFuncs = Mapping[Symbol, Callable[[], Any]]
 StructureItem = Tuple[Symbol, "Realizer"]
+
 
 # Context variables for automating/simplifying agent construction. Helps track
 # items to be added to structures. 
@@ -267,7 +271,6 @@ class Realizer(Generic[Et, Ut]):
             raise TypeError(msg.format(type(name).__name__))
 
 
-Pt = TypeVar("Pt", bound="Propagator")
 class Construct(Realizer[Pt, UpdaterC[Pt]]):
     """
     A basic construct.
@@ -313,11 +316,6 @@ class Construct(Realizer[Pt, UpdaterC[Pt]]):
             )
 
         
-# TODO: Make sure that structure outputs reflect their contents accurately even 
-# on the first cycle.
-
-Ct = TypeVar("Ct", bound="Cycle")
-S = TypeVar("S", bound="Structure")
 class Structure(Realizer[Ct, UpdaterS]):
     """
     A composite construct.

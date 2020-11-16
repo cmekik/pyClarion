@@ -3,7 +3,7 @@
 
 __all__ = [
     "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
-    "Assets", "FeatureInterface"
+    "Assets", "FeatureDomain", "FeatureInterface"
 ]
 
 
@@ -228,22 +228,17 @@ class Assets(SimpleNamespace): # type: ignore
     pass
 
 
-class FeatureInterface(object):
+class FeatureDomain(object):
     """
-    Control interface for a component.
-    
-    Defines control features and default values. Provides parsing utilities.
-    Each defined feature dimension is interpreted as defining a specific set of 
-    alternate actions. A default value must be defined for each dimension, 
-    representing the 'do nothing' action.
+    Formally defines a feature domain.
 
+    Represents a collection of features defined for the purposes of a 
+    simulation with hooks for parsing out dimensions, tags, etc.
+    
     Intended to be used as a dataclass.
     """
 
-    has_defaults: ClassVar[bool] = True
-
     _features: FrozenSet[feature]
-    _defaults: FrozenSet[feature]
     _tags: FrozenSet[Hashable]
     _dims: FrozenSet[Tuple[Hashable, int]]
 
@@ -256,12 +251,6 @@ class FeatureInterface(object):
         """The set of features defined by self."""
         
         return self._features
-
-    @property
-    def defaults(self):
-        """Feature, defined by self, indicating default values, if any."""
-        
-        return self._defaults
 
     @property
     def tags(self):
@@ -280,6 +269,86 @@ class FeatureInterface(object):
         """Features grouped by dims."""
 
         return self._features_by_dims
+
+    def compute_properties(self):
+        """
+        Compute domain properties.
+        
+        When domains are deployed as dataclasses, this method is called 
+        after initialization to populate domain properties. 
+        
+        Must be called again after modifications to domain configuration to 
+        ensure that domain properties reflect desired changes.
+        """
+
+        self._validate_data()
+        self._set_interface_properties()
+        self._set_derivative_properties()
+        self._validate_interface_properties()
+
+    def _validate_data(self):
+
+        # Should throw errors if dataclass members violate assumptions or 
+        # requirements
+
+        raise NotImplementedError()
+
+    def _set_interface_properties(self):
+
+        # Should minimally set self._features. Other properties may be set as 
+        # necessary.
+
+        raise NotImplementedError()
+
+    def _set_derivative_properties(self):
+
+        self._tags = frozenset(f.tag for f in self.features)
+        self._dims = frozenset(f.dim for f in self.features)
+        self._features_by_dims = MappingProxyType(group_by_dims(self.features))
+
+    def _validate_interface_properties(self):
+
+        _features_dims = set(f.dim for f in self.features)
+        _features_tags = set(f.tag for f in self.features)
+
+        # TODO: Use a more suitable exception class. - Can
+
+        if self.tags != _features_tags:
+            raise ValueError("self.tag conflicts with self.features.")
+        if self.dims != _features_dims:
+            raise ValueError("self.dims conflicts with self.features.")
+
+
+class FeatureInterface(FeatureDomain):
+    """
+    Control interface for a component.
+    
+    Defines control features and default values. Provides parsing utilities.
+    Each defined feature dimension is interpreted as defining a specific set of 
+    alternate actions. A default value must be defined for each dimension, 
+    representing the 'do nothing' action.
+
+    Intended to be used as a dataclass.
+    """
+
+    _defaults: FrozenSet[feature]
+
+    @property
+    def defaults(self):
+        """Features, defined by self, indicating default action values."""
+        
+        return self._defaults
+
+    @property
+    def parameters(self):
+        """Features, defined by self, indicating action parameters."""
+
+        return self._parameters
+
+    @property
+    def params_by_dims(self):
+
+        return self._params_by_dims
 
     def parse_commands(self, data):
         """
@@ -303,29 +372,6 @@ class FeatureInterface(object):
 
         return cmds
 
-    def compute_properties(self):
-        """
-        Compute interface properties.
-        
-        When interfaces are deployed as dataclasses, this method is called 
-        after initialization to populate interface properties. 
-        
-        Must be called again after modifications to interface configuration to 
-        ensure that interface properties reflect desired changes.
-        """
-
-        self._validate_data()
-        self._set_interface_properties()
-        self._set_derivative_properties()
-        self._validate_interface_properties()
-
-    def _validate_data(self):
-
-        # Should throw errors if dataclass members violate assumptions or 
-        # requirements
-
-        raise NotImplementedError()
-
     def _set_interface_properties(self):
 
         # Should minimally set self._features and (if required) self._defaults.
@@ -333,29 +379,17 @@ class FeatureInterface(object):
 
         raise NotImplementedError()
 
-    def _set_derivative_properties(self):
-
-        self._tags = frozenset(f.tag for f in self.features)
-        self._dims = frozenset(f.dim for f in self.features)
-        self._features_by_dims = MappingProxyType(group_by_dims(self.features))
-
     def _validate_interface_properties(self):
 
-        _features_dims = set(f.dim for f in self.features)
-        _features_tags = set(f.tag for f in self.features)
+        super()._validate_interface_properties()
+
         _defaults_dims = set(f.dim for f in self.defaults)
 
         # TODO: Use a more suitable exception class. - Can
 
-        if self.tags != _features_tags:
-            raise ValueError("self.tag conflicts with self.features.")
-        if self.dims != _features_dims:
-            raise ValueError("self.dims conflicts with self.features.")
         if not self.defaults.issubset(self.features):
             raise ValueError("self.defaults not a subset of self.features.")
-        if self.has_defaults and not self.dims.issubset(_defaults_dims):
+        if not self.dims.issubset(_defaults_dims):
             raise ValueError("self.defaults conflicts with self.dims.")
-        if self.has_defaults and len(self.dims) != len(_defaults_dims):
+        if len(self.dims) != len(_defaults_dims):
             raise ValueError("multiple defaults assigned to a single dim.")
-        if not self.has_defaults and len(self.defaults) != 0:
-            raise ValueError("interface should not expose any defaults.")

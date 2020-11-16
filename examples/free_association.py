@@ -303,10 +303,10 @@ with alice:
 
         # Chunk and Feature Pools
 
-        # In the standard implementation of pyClarion, chunk and feature nodes 
-        # are not explicitly represented in the system (older versions did take 
-        # this approach). Instead, chunk and feature pools are used. These 
-        # handle computing the strengths of chunk and feature nodes in bulk.
+        # In the standard implementation of pyClarion, individual chunk and 
+        # feature nodes are not explicitly represented in the system. Instead, 
+        # chunk and feature pools are used. These pools handle computing the 
+        # strengths of chunk and feature nodes in bulk.
          
         # This design is flexible (we do not need to register new chunk or 
         # feature nodes), efficient (all chunk and feature node activations 
@@ -322,7 +322,12 @@ with alice:
         # dubbed 'features("main")' and one for the chunk pool dubbed 
         # 'chunks("main")'. Both of these constructs make use of the `MaxNodes` 
         # emitter, which outputs, for each node, the maximum strength 
-        # associated with the respective feature.
+        # associated with the respective feature or chunk.
+
+        # In general, emitters are aware of the constructs they serve. Thus, 
+        # the MaxNodes emitter will only output activations for chunk nodes 
+        # when paired with a `chunks()` construct, and it will likewise only 
+        # output activations for feature nodes for a `features()` construct.
 
         Construct(
             name=features("main"),
@@ -346,13 +351,13 @@ with alice:
 
         # Flows
 
-        # Flows are an abstraction native representing processes within 
-        # subsystems that map node activations to node activations. In other 
-        # words, 'flow' is pyClarion's umbrella term for the various neural 
-        # networks and rule systems that may live within a Clarion subsystem. 
-        # For example, a collection of associative rules in the top level of 
-        # the NACS or some neural network module in the bottom level would each 
-        # be represented by a corresponding flow construct.
+        # Flows are an abstraction representing processes within subsystems 
+        # that map node activations to node activations. In other words, 'flow' 
+        # is pyClarion's umbrella term for the various neural networks and rule 
+        # systems that may live within a Clarion subsystem. For example, a 
+        # collection of associative rules in the top level of the NACS or some 
+        # neural network module in the bottom level would each be represented 
+        # by a corresponding flow construct.
 
         # For this simulation, we will create three flows. The first processes 
         # (in the top level) associative rules known to Alice, the other two 

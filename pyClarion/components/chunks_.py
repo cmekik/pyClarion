@@ -247,7 +247,7 @@ class TopDown(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    _serves = ConstructType.flow_tb
+    _serves = ConstructType.flow_tb | ConstructType.flow_in
 
     def __init__(self, source: Symbol, chunks=None, op=None, default=0.0):
 
@@ -293,7 +293,7 @@ class BottomUp(PropagatorA):
     Implementation is based on p. 77-78 of Anatomy of the Mind.
     """
 
-    _serves = ConstructType.flow_bt
+    _serves = ConstructType.flow_bt | ConstructType.flow_in
     default_ops = {"max": max, "min": min, "mean": mean}
 
     def __init__(self, source: Symbol, chunks=None, ops=None, default=0.0):

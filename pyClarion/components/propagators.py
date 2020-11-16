@@ -106,7 +106,9 @@ class MaxNodes(PropagatorA):
         for strengths in inputs.values():
             for node, s in strengths.items():
                 if node.ctype in expected_ctype:
-                    d[node] = max(d.get(node, 0.0), s)
+                    strength = max(d.get(node, 0.0), s)
+                    if strength > 0.0: 
+                        d[node] = strength
 
         return d
 
@@ -131,7 +133,7 @@ class Repeater(PropagatorA):
 
     def call(self, inputs):
 
-        return dict(inputs[self.source])
+        return {n: s for n, s in inputs[self.source].items() if s > 0.0}
 
 
 class Lag(PropagatorA):

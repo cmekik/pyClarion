@@ -63,7 +63,7 @@ class GatedA(PropagatorA):
             strengths=base_strengths
         )
 
-        return output
+        return {n: s for n, s in output.items() if s > 0.0}
 
 
 class FilteredT(PropagatorT):
@@ -95,6 +95,18 @@ class FilteredT(PropagatorT):
 
     def call(self, inputs):
 
+        preprocessed = MappingProxyType(self.preprocess(inputs))
+        output = self.base.call(preprocessed)
+
+        return output
+
+    def update(self, inputs, output):
+
+        preprocessed = MappingProxyType(self.preprocess(inputs))
+        self.base.update(preprocessed, output)
+
+    def preprocess(self, inputs):
+
         weights = inputs[self.filter]
         
         if self.invert_weights:
@@ -103,13 +115,12 @@ class FilteredT(PropagatorT):
         else:
             fdefault=0.0
 
-        filtered_inputs = {
+        preprocessed = {
             src: multiplicative_filter(weights, strengths, fdefault)
             for src, strengths in inputs.items() if self.base.expects(src)
         }
-        output = self.base.call(MappingProxyType(filtered_inputs))
 
-        return output
+        return preprocessed
 
 
 class FilteringRelay(PropagatorB):

@@ -308,8 +308,8 @@ class WorkingMemory(PropagatorB):
             self._read_tags = _r_tags
             self._reset_tag = _re_tag
 
-            self._write_dims = tuple(sorted(f.dim for f in _w_features))
-            self._read_dims = tuple(sorted(f.dim for f in _r_features))
+            self._write_dims = tuple(sorted(set(f.dim for f in _w_features)))
+            self._read_dims = tuple(sorted(set(f.dim for f in _r_features)))
             self._reset_dim = (_re_tag, 0)
 
             self._features = _w_features | _r_features | _re_features
