@@ -9,7 +9,7 @@ from ..base.symbols import (
 )
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
-from .chunks_ import Chunks, ChunkAdder, ChunkConstructor
+from .chunks_ import Chunks, ChunkAdder
 from ..utils import simple_junction, group_by_dims, collect_cmd_data
 
 from dataclasses import dataclass

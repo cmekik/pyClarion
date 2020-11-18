@@ -198,7 +198,7 @@ class BaseNumDict(object):
 
         return self.apply_binary_op(other, max)
 
-    def apply_by(self, op, keyfunc):
+    def by(self, keyfunc, op):
         """
         Compute op over elements grouped by keyfunc.
         
@@ -428,6 +428,12 @@ class NumDict(BaseNumDict, MutableMapping):
         for key in keys:
             if not func(key):
                 del self[key]
+
+    def set_by(self, other, keyfunc):
+        """Set self[k] = other[keyfunc(k)]"""
+
+        for k in self:
+            self[k] = other[keyfunc(k)]
 
     def apply_iop(self, other, op):
         """
