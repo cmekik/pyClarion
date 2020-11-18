@@ -10,7 +10,7 @@ from ..base.symbols import (
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
 from .chunks_ import Chunks, ChunkAdder
-from ..utils import simple_junction, group_by_dims, collect_cmd_data
+from ..utils import group_by_dims, collect_cmd_data
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby

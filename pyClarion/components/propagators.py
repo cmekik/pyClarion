@@ -7,16 +7,13 @@ __all__ = [
 ]
 
 
-from ..base import (
-    ConstructType, Symbol,  MatchSet, Propagator, chunk, feature
-)
+from ..base import ConstructType, Symbol, Propagator, chunk, feature
 from ..base import numdicts as nd
+
 from typing import (
     Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, 
     Sequence, Container
 )
-from types import MappingProxyType
-from collections import namedtuple
 from typing import Iterable, Any
 from copy import copy
 

@@ -5,6 +5,7 @@ __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
 from ..base import ConstructType, Symbol, MatchSet, Cycle
+
 from types import MappingProxyType
 from typing import Dict, Mapping, Tuple, Container
 

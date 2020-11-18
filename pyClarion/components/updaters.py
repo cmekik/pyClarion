@@ -11,6 +11,7 @@ from ..base.symbols import Symbol, MatchSet, feature, subsystem, terminus
 from ..base.components import (
     Propagator, Updater, UpdaterC, UpdaterS, FeatureInterface
 )
+
 from typing import Container, Tuple, TypeVar, cast, Generic, Iterable, Union
 from dataclasses import dataclass
 from types import MappingProxyType

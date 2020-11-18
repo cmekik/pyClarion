@@ -7,6 +7,7 @@ __all__ = ["Rules", "AssociativeRules"]
 from ..base import ConstructType, Symbol, Propagator
 from ..base import numdicts as nd
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
+
 from types import MappingProxyType
 from collections.abc import MutableMapping
 
