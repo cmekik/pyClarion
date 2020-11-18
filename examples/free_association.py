@@ -15,7 +15,7 @@ from pyClarion import (
     Structure, Construct,
     # Below are functions for constructing construct symbols, which are used to 
     # name, index and reference simulated constructs
-    agent, subsystem, buffer, feature, chunk, terminus, flow_tt, flow_tb, 
+    agent, subsystem, buffer, feature, chunk, rule, terminus, flow_tt, flow_tb, 
     flow_bt, chunks, features,
     # The objects below house datastructures handling various important 
     # concerns such as chunk and rule definitions.
@@ -141,13 +141,15 @@ chunk_db = Chunks()
 rule_db = Rules()
 
 # We can add rules to the rule database using the `link()` method of the rule 
-# database. The argument signature for `link()` is the conclusion chunk 
-# followed by one or more condition chunks. Thus, below, `chunk("FRUIT")` is 
-# the conclusion and `chunk("APPLE")` is the only condition. In other words, 
-# this rule establishes an association from the concept APPLE to the concept 
-# FRUIT. This association is meant to capture the fact that apples are fruits. 
+# database. The argument signature for `link()` is a rule symbol, followed by 
+# its conclusion chunk and then by one or more condition chunks. Thus, below, 
+# `chunk("FRUIT")` is the conclusion and `chunk("APPLE")` is the only condition. 
+# In other words, this rule establishes an association from the concept APPLE 
+# to the concept FRUIT. This association is meant to capture the fact that 
+# apples are fruits. In truth, we may also designate condition weights, but 
+# this feature is not explored here.
 
-rule_db.link(chunk("FRUIT"), chunk("APPLE"))
+rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE"))
 
 # We proceed in much the same way to link chunk and feature nodes in order to 
 # define chunks. 

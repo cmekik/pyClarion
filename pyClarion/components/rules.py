@@ -4,46 +4,26 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from ..base import ConstructType, MatchSet, Symbol, Propagator
+from ..base import ConstructType, Symbol, Propagator
 from ..base import numdicts as nd
-from ..utils.funcs import linear_rule_strength
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
+from collections.abc import MutableMapping
 
 
-class Rules(object):
+class Rules(MutableMapping):
     """
     A simple rule database.
 
-    This object provides methods for constructing, maintaining, and inspecting a 
-    database of associative links from condition chunk nodes to conclusion chunk 
-    nodes.
+    Rules are stored in a dict of the form:
 
-    Each rule has the form 
-        conclusion <- condition_1, condition_2, ..., condition_n
-    Each condition may be associated with a weight.
-
-    Rules are stored in a dict of the form
-    _data = {
-        chunk("conclusion-1"): [
-            {chunk("condition-1"): w1, ...}, # a first set of conditions
-            ... # other condition sets for conclusion 1
-        ],
-        ...
-    }
-    
-    Under normal cricumstances, this dict should not be directly accessed and/or 
-    modified. However, a dict of this form may be passed at initialization time 
-    to set initial rules.
-
-    The key `chunk("conclusion-1")` represents a conclusion chunk, the value 
-    associated with this key is a list of dicts. Each dict in this list 
-    represents the condition chunks and weights for a different rule whose 
-    conclusion is the chunk represented in the top-level key.
-
-    The conclusion and condition chunk symbols together are called the rule 
-    form. Rules methods enforce the uniqueness of rule forms within the 
-    database.  
+    {
+        rule(1): Rule(
+            conc=chunk("conc1"),
+            weights={cond1: w1, ..., condn: wn}
+        ),
+        ... # other rules
+    }            
     """
 
     # Dev Note:
@@ -54,103 +34,109 @@ class Rules(object):
 
     _format = {"indent": 4, "digits": 3}
 
-    def __init__(self, data=None):
+    class Rule(object):
+        """Represents a rule form."""
 
-        self.validate_init_data(data)
-        self._data = data if data is not None else dict()
+        __slots__ = ("_conc", "_weights")
+
+        def __init__(self, conc, *conds, weights=None):
+            """
+            Initialize a new rule.
+
+            If conditions contains items that do not appear in weights, these 
+            weights is extend to map each of these items to a weight of 1. If 
+            weights is None, it is assumed to be an empty weight dict. 
+
+            At the end of initialization, weights is renormalized such that 
+            each weight w is mapped to w / sum(weights.values())
+
+            :param conclusion: A chunk symbol for the rule conclusion.
+            :param conditions: A sequence of chunk symbols representing rule 
+                conditions.
+            :param weights: An optional mapping from condition chunk symbols 
+                to condition weights.
+            """
+            
+            ws = nd.NumDict()
+            if weights is not None:
+                ws.update(weights)
+            ws.extend(conds, value=1.0)
+
+            ws /= sum(ws.values())
+
+            self._conc = conc
+            self._weights = nd.FrozenNumDict(ws)
+
+        def __repr__(self):
+
+            return "Rule(weights={})".format(self.weights)
+
+        def __eq__(self, other):
+
+            if isinstance(other, Rules.Rule):
+                b = (
+                    self.conc == other.conc and 
+                    nd.isclose(self.weights, other.weights)
+                )
+                return b
+            else:
+                return NotImplemented
+
+        @property
+        def conc(self):
+            """Conclusion of rule."""
+
+            return self._conc
+
+        @property
+        def weights(self):
+            """Conditions and condition weights of rule."""
+
+            return self._weights
+
+    def __init__(self):
+
+        self._data = {} 
 
     def __repr__(self):
 
-        repr_ = "{}(data={})".format(type(self).__name__, repr(self._data))
+        repr_ = "{}({})".format(type(self).__name__, repr(self._data))
         return repr_
 
-    def __iter__(self):
-        """
-        Iterate over each conclusion, condition_dict pair. 
-        """
-
-        for conclusion, condition_dicts in self._data.items():
-            for condition_dict in condition_dicts:
-                # Dev note:
-                # Yield mapping proxy type to prevent database corruption 
-                # through in-place modification. A more efficient way to do 
-                # this, if necessary, would be to have persistent proxies. -CSM
-                yield conclusion, MappingProxyType(condition_dict)
-
     def __len__(self):
-        """Return the number of rules in self."""
 
-        # To compute the size of the rule set, we compute the sum of the number 
-        # of rules associated with each condition. This corresponds to the 
-        # length of the list of condition dicts associated with each conclusion 
-        # chunk.
-        return sum(map(len, self._data.values()))
+        return len(self._data)
 
-    def link(self, conclusion, *conditions, weights=None):
-        """
-        Add a rule linking the condition chunk to the conclusion chunk.
+    def __iter__(self):
 
-        If conclusion, *conditions specify a preexisting rule-form, throw an 
-        error.
+        yield from iter(self._data)
 
-        :conditions: Symbols representing condition chunks (duplicates will be 
-            ignored).
-        :param weight_map: A dict mapping conditions to their weights.
-        """
+    def __getitem__(self, key):
 
-        # Check if condition and weight specifications are valid.
-        self.validate_condition_data(*conditions, weights=weights)
+        return self._data[key]
 
-        # Check if this rule-form already exists
-        exists = self.contains_form(conclusion, *conditions)
-        if exists:
-            raise ValueError("A rule of this form already exists.")
+    def __setitem__(self, key, val):
 
-        # by default, weights are set to 1/n where n is num conditions
-        # Dev note:
-        # In the future we may provide hooks for customizing this behavior. -CSM
-        n = len(conditions)
-        weights = weights if weights is not None else [1 / n] * n 
+        self._data[key] = val
 
-        new_condition_dict = dict(zip(conditions, weights))
-        condition_dicts = self._data.setdefault(conclusion, list())
-        condition_dicts.append(new_condition_dict)
+    def __delitem__(self, key):
 
-    def contains_form(self, conclusion, *conditions):
+        del self._data[key]
+
+    def link(self, r, conc, *conds, weights=None):
+        """Add a new rule."""
+
+        form = self.Rule(conc, *conds, weights=weights)
+        self[r] = form
+
+    def contains_form(self, form):
         """
         Check if the rule set contains a given rule form.
         
-        A rule form is simply the conclusion chunk together with a specific set 
-        of condition chunks. 
+        See Rules.Rule for details on rule forms.
         """
 
-        # Check that conditions do not contain duplicates.
-        self.validate_condition_data(*conditions)
-        
-        condition_set = set(conditions)
-        try:
-            self._get_index(conclusion, condition_set)
-        except ValueError:
-            return False
-        else:
-            return True
-
-    def pop_form(self, conclusion, *conditions):
-        """
-        Remove given form from self and return associated data.
-        
-        If conclusion or the form is not found in self, throws.
-        """
-
-        # Check that conditions do not contain duplicates.
-        self.validate_condition_data(*conditions)
-
-        condition_set = set(conditions)
-        form_index = self._get_index(conclusion, condition_set)
-        output = (
-            conclusion, conditions, self._data[conclusion].pop(index=form_index)
-        )
-        return output
+        return any(form == entry for entry in self.values())
 
     def pstr(self):
         """Return a pretty string representation of self."""
@@ -174,92 +160,6 @@ class Rules(object):
         """Pretty print self."""
 
         print(self.pstr())
-
-    def _get_index(self, conclusion, condition_set):
-        """
-        Return the list index pointing to a given chunk form.
-
-        Returns index i, s.t. self._data[conclusion][i] is the condition dict 
-        for the rule-form specified by conlusion and conditions. If no such 
-        condition dict is found, throws an error.
-        """
-
-        try:
-            rule_bodies = self._data[conclusion]
-        except KeyError:
-            raise ValueError("No rule exists with given conclusion.")
-        for i, body in enumerate(rule_bodies):
-            if condition_set == set(body.keys()):
-                index = i
-        try:
-            return index
-        except NameError:
-            raise ValueError("No rule exists with given conditions.") 
-
-    @staticmethod
-    def validate_condition_data(*conditions, weights=None):
-        """
-        Check if conditions and weights form a valid condition dict.
-
-        Enforces
-            - uniqueness of conditions
-            - equality of number of conditions and weights, if weights are given
-
-        Does not check and/or enforce data types, though conditions are expected 
-        to be construct symbols naming chunks and weights are expected to be 
-        numeric values.
-
-        See class header for more information on expected data structure.
-        """
-
-        if len(conditions) > len(set(conditions)):
-            # Conditions contain duplicates. This is not allowed because, 
-            # conceptually, rule conditions form a set. 
-            raise ValueError("Rule conditions may not contain duplicates.")
-        if weights is not None and len(conditions) != len(weights):
-            raise ValueError(
-                "Condition and weight sequences are of different lengths."
-            )
-
-    @staticmethod
-    def validate_init_data(data=None):
-        """
-        Check if initial data dict has valid form.
-
-        Enforces
-            - dict values must be lists of condition dicts
-            - condition sets must be unique within each list
-
-        Does not check and/or enforce data types, though conclusions and 
-        conditions are expected to be construct symbols naming chunks and 
-        weights are expected to be numeric values.
-
-        See class header for more information on expected data structure.
-        """
-
-        if data is not None:
-            for condition_dicts in data.values():
-                # Enforce that dict values are of type list
-                if not isinstance(condition_dicts, list):
-                    raise TypeError(
-                    "Values of initial data dict must be of type list."
-                )
-                # Enforce that condition_dicts contains only dicts
-                for item in condition_dicts:
-                    if not isinstance(item, dict):
-                        raise TypeError(
-                        "Value lists must only contain dicts."
-                    )
-                # Enforce uniqueness of condition sets for current conclusion
-                condition_sets = set()
-                for condition_dict in condition_dicts:
-                    conditions, _ = zip(*condition_dict.items())
-                    condition_sets.add(frozenset(conditions))
-                if len(condition_dicts) > len(condition_sets):
-                    raise ValueError(
-                    "Rule database may not contain multiple rules with "
-                    "identical rule-forms." 
-                ) 
 
 
 class AssociativeRules(Propagator):
@@ -286,12 +186,13 @@ class AssociativeRules(Propagator):
 
     def call(self, inputs):
 
-        d = {}
+        d = nd.NumDict()
         strengths = inputs[self.source]
-        for conc, cond_dict in self.rules:
-            s = linear_rule_strength(cond_dict, strengths, 0.0)
-            l = d.setdefault(conc, [])
-            l.append(s) 
-        d = {c: max(l) for c, l in d.items()}
+        for r, form in self.rules.items():
+            cd = nd.restrict(strengths, form.weights)
+            cd *= form.weights 
+            s_r = sum(cd.values())
+            d[form.conc] = max(d[form.conc], s_r)
+            d[r] = s_r
         
-        return nd.NumDict(d)
+        return d

@@ -114,11 +114,13 @@ def select(probabilities, k=1):
     If probabilities is empty returns empty set.
     """
 
-    selection = set()
-    if len(probabilities) > 0:
+    if len(probabilities) > k:
+        selection = set()
         cs, ws = tuple(zip(*probabilities.items()))
         while len(selection) < k:
             selection.update(random.choices(cs, weights=ws))
+    else:
+        selection = set(probabilities)
     return selection
 
 

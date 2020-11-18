@@ -3,8 +3,8 @@
 
 __all__ = [
     "ConstructType", "Token", "Symbol", "ConstructRef", "MatchSet", "feature", 
-    "chunk", "chunks", "features", "flow_in", "flow_bt", "flow_tb", "flow_tt", 
-    "flow_bb", "terminus", "buffer", "subsystem", "agent"
+    "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", "flow_tb", 
+    "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent"
 ]
 
 
@@ -52,6 +52,7 @@ class ConstructType(Flag):
     null_construct = 0
     feature = auto()
     chunk = auto()
+    rule = auto()
     features = auto()
     chunks = auto()
     flow_in = auto()
@@ -262,6 +263,21 @@ class chunk(Symbol):
         """
 
         super().__init__("chunk", cid)
+
+
+class rule(Symbol):
+    """A rule symbol."""
+
+    __slots__ = ()
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new chunk symbol.
+
+        :param cid: Chunk identifier.
+        """
+
+        super().__init__("rule", cid)
 
 
 class features(Symbol):
