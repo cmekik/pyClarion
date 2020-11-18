@@ -3,14 +3,17 @@
 
 from ..base import (
     MatchSet, Construct, ConstructType, Symbol, chunk, UpdaterS, terminus, 
-    subsystem, Propagator
+    subsystem, Propagator, feature
 )
+from ..base import numdicts as nd
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
-from typing import Mapping, Iterable, Union, Tuple, Set
+from typing import Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet
 from collections import namedtuple
 from statistics import mean
 from itertools import count
 from copy import copy
+from dataclasses import dataclass
+from types import MappingProxyType
 
 
 __all__ = [
@@ -55,6 +58,56 @@ class Chunks(object):
     """
 
     _format = {"indent": 4, "digits": 3}
+
+    # class Entry:
+    #     """
+    #     A chunk database entry.
+        
+    #     Specifies features and weights associated with a single chunk.
+    #     """
+
+    #     __slots__ = ("_features", "_weights", "_weights_proxy")
+
+    #     def __init__(
+    #         self, 
+    #         features: Iterable[feature], 
+    #         weights: Mapping[Tuple[Hashable, int], float] = None
+    #     ):
+
+    #         _weights = numdict(weights) if weights is not None else numdict()
+    #         _weights.extend(features, value=1.0)
+
+    #         self._features = set(features)
+    #         self._weights = _weights
+
+    #     def __repr__(self):
+
+    #         template = "{}(features={}, weights={})"
+    #         name = type(self).__name__
+    #         frepr, wrepr = repr(self.features), repr(self.weights)
+
+    #         return template.format(name, frepr, wrepr)
+
+    #     def __eq__(self, other):
+
+    #         if isinstance(other, Entry):
+    #             fb = self.features == other.features
+    #             wb = self.weights.isclose(other.weights)
+    #             return fb and wb
+    #         else:
+    #             return NotImplemented
+
+    #     @property
+    #     def features(self):
+    #         """Features associated with chunk defined by self."""
+            
+    #         return self._features
+        
+    #     @property
+    #     def weights(self):
+    #         """Dimensional weights for chunk defined by self."""
+
+    #         return self._weights
 
     def __init__(self, data=None):
 
@@ -248,12 +301,10 @@ class TopDown(Propagator):
 
     _serves = ConstructType.flow_tb | ConstructType.flow_in
 
-    def __init__(self, source: Symbol, chunks=None, op=None, default=0.0):
+    def __init__(self, source: Symbol, chunks=None):
 
         self.source = source
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
-        self.op = op if op is not None else max
-        self.default = default
 
     def expects(self, construct: Symbol):
 
@@ -268,15 +319,14 @@ class TopDown(Propagator):
             methods.
         """
 
-        d = {}
+        d = nd.NumDict()
         strengths = inputs[self.source]
         for ch, dim_dict in self.chunks.items():
             for _, data in dim_dict.items():
-                s = data["weight"] * strengths.get(ch, self.default)
-                for feat in data["values"]:
-                    l = d.setdefault(feat, [])
-                    l.append(s)
-        d = {f: self.op(l) for f, l in d.items()}
+                s = data["weight"] * strengths[ch]
+                fd = nd.NumDict()
+                fd.extend(data["values"], value=s)
+                d |= fd
 
         return d
 
@@ -293,14 +343,11 @@ class BottomUp(Propagator):
     """
 
     _serves = ConstructType.flow_bt | ConstructType.flow_in
-    default_ops = {"max": max, "min": min, "mean": mean}
 
-    def __init__(self, source: Symbol, chunks=None, ops=None, default=0.0):
+    def __init__(self, source: Symbol, chunks=None):
 
         self.source = source
         self.chunks: Chunks = chunks if chunks is not None else Chunks()
-        self.default = default
-        self.ops = ops if ops is not None else self.default_ops.copy()
 
     def expects(self, construct: Symbol):
 
@@ -314,14 +361,13 @@ class BottomUp(Propagator):
             methods.
         """
 
-        d = {}
+        d = nd.NumDict()
         strengths = inputs[self.source]
         for ch, ch_data in self.chunks.items():
             divisor = sum(data["weight"] for data in ch_data.values())
             for dim, data in ch_data.items():
-                op = self.ops[data["op"]]
-                s = op(strengths.get(f, self.default) for f in data["values"])
-                d[ch] = d.get(ch, self.default) + data["weight"] * s / divisor
+                s = max(strengths[f] for f in data["values"])
+                d[ch] += data["weight"] * s / divisor
         
         return d
 

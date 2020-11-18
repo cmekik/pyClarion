@@ -120,7 +120,7 @@ with alice:
                     source=features("main"),
                     threshold=.85
                 ),
-                filter=buffer("dimensional-filter")
+                sieve=buffer("dimensional-filter")
             )
         )
 

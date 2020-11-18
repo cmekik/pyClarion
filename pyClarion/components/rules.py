@@ -5,6 +5,7 @@ __all__ = ["Rules", "AssociativeRules"]
 
 
 from ..base import ConstructType, MatchSet, Symbol, Propagator
+from ..base import numdicts as nd
 from ..utils.funcs import linear_rule_strength
 from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 from types import MappingProxyType
@@ -274,12 +275,10 @@ class AssociativeRules(Propagator):
 
     _serves = ConstructType.flow_tt
 
-    def __init__(self, source: Symbol, rules: Rules, op=None, default=0.0):
+    def __init__(self, source: Symbol, rules: Rules):
 
         self.source = source
         self.rules = rules
-        self.op = op if op is not None else max
-        self.default = default
 
     def expects(self, construct):
 
@@ -290,9 +289,9 @@ class AssociativeRules(Propagator):
         d = {}
         strengths = inputs[self.source]
         for conc, cond_dict in self.rules:
-            s = linear_rule_strength(cond_dict, strengths, self.default)
+            s = linear_rule_strength(cond_dict, strengths, 0.0)
             l = d.setdefault(conc, [])
             l.append(s) 
-        d = {c: self.op(l) for c, l in d.items()}
+        d = {c: max(l) for c, l in d.items()}
         
-        return d
+        return nd.NumDict(d)

@@ -181,7 +181,7 @@ with alice:
                     source=chunks("main"),
                     temperature=.1
                 ),
-                filter=flow_in("stimulus")
+                sieve=flow_in("stimulus")
             )
         )
 

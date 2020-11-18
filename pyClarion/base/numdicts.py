@@ -1,0 +1,524 @@
+"""
+Class and function definitions for numerical dictionaries.
+
+Numerical dictionaries (numdicts, for short) are simply dictionaries whose keys 
+are mapped to numerical values. They may be viewed as a generalization of the 
+dictionary-of-keys representation for sparse matirces in that no underlying 
+array structure is asssumed.
+
+This module exports the NumDict and FrozenNumDict classes, both of which are 
+derived from the helper class BaseNumDict, and various functions operating over 
+these classes. NumDict and FrozenNumDict differ in that instances of the former 
+are mutable while the latter are not.
+
+All numdicts support several basic numerical operations like +, -, *, /, etc. 
+Some boolean operations are also supported. These are modeled after fuzzy set 
+theory: 
+    - ~ computes 1 - d[k] for each k in d, 
+    - & is min(d1[k], d2[k]) for each k in d1 or d2, 
+    - | is max(d1[k], d2[k]) for each k in d1 or d2 
+
+For binary ops applied to two numdicts, the resulting numdict inherits the type 
+of the left operand (similar to set/frozenset). If an operand in a binary op 
+is a constant numerical value, then that value is broadcast to all keys.
+
+Numdicts may have default values (and they do by default). Defaults are updated 
+appropriately when mathematical ops are applied. Querying a missing key simply 
+returns the default value (if it is defined), the missing key is not added. If 
+a numdict is mutable and missing keys should be added when queried, the 
+setdefault() method may be used.
+"""
+
+
+__all__ = [
+    "NumDict", "FrozenNumDict",
+    "restrict", "transform_keys", "threshold", "clip", "isclose"
+]
+
+
+from collections.abc import MutableMapping, Mapping
+from typing import TypeVar, Container, Callable, Hashable
+from itertools import chain
+import operator
+import numbers
+import math
+
+
+class BaseNumDict(object):
+    """
+    Base class for numerical dictionaries.
+
+    Supports various mathematical ops. For details, see numdicts module 
+    description.
+    """
+
+    __slots__ = ("_dtype", "_dict", "_default")
+
+    def __init__(self, data=None, dtype=float, default=0.0):
+
+        if data is None:
+            data = {}
+        elif isinstance(data, BaseNumDict):
+            dtype = data.dtype
+            default = data.default
+
+        self._dtype = dtype
+        self._dict = {k: dtype(data[k]) for k in data}
+        self._default = dtype(default) if default is not None else None
+
+    @property
+    def dtype(self):
+
+        return self._dtype
+
+    @property
+    def default(self):
+
+        return self._default
+
+    def __str__(self):
+
+        fmtargs = type(self).__name__, str(self._dict), self._default
+
+        return "{}({}, default={})".format(*fmtargs)
+
+    def __repr__(self):
+
+        fmtargs = type(self).__name__, repr(self._dict), self._default
+
+        return "{}({}, default={})".format(*fmtargs)
+
+    def __len__(self):
+
+        return len(self._dict)
+
+    def __iter__(self):
+
+        yield from iter(self._dict)
+
+    def __contains__(self, key):
+
+        return key in self._dict
+
+    def __getitem__(self, key):
+
+        try:
+            return self._dict[key]
+        except KeyError:
+            if self._default is not None:
+                return self._default
+            else:
+                raise
+
+    def __neg__(self):
+
+        return self.apply_unary_op(operator.neg)
+
+    def __abs__(self):
+
+        return self.apply_unary_op(operator.abs)
+
+    def __invert__(self):
+
+        return self.apply_unary_op(self._inv)
+
+    def __floor__(self):
+
+        return self.apply_unary_op(self._floor)
+
+    def __ceil__(self):
+
+        return self.apply_unary_op(self._ceil)
+
+    def __lt__(self, other):
+
+        return self.apply_binary_op(operator.lt)
+
+    def __le__(self, other):
+
+        return self.apply_binary_op(operator.le)
+   
+    def __add__(self, other):
+
+        return self.apply_binary_op(other, operator.add)
+
+    def __sub__(self, other):
+
+        return self.apply_binary_op(other, operator.sub)
+
+    def __mul__(self, other):
+
+        return self.apply_binary_op(other, operator.mul)
+
+    def __truediv__(self, other):
+
+        return self.apply_binary_op(other, operator.truediv)
+
+    def __pow__(self, other):
+
+        return self.apply_binary_op(other, operator.pow)
+
+    def __and__(self, other):
+
+        return self.apply_binary_op(other, min)
+
+    def __or__(self, other):
+
+        return self.apply_binary_op(other, max)
+
+    def __round__(self, ndigits):
+
+        return self.apply_binary_op(ndigits, self._round)
+
+    def __radd__(self, other):
+
+        return self + other
+
+    def __rsub__(self, other):
+
+        return other + operator.neg(self)
+
+    def __rmul__(self, other):
+
+        return self * other
+
+    def __rtruediv__(self, other):
+
+        return self.apply_binary_op(other, self._rtruediv)
+
+    def __rpow__(self, other):
+
+        return self.apply_binary_op(other, self._rpow)
+
+    def __rand__(self, other):
+
+        return self.apply_binary_op(other, min)
+
+    def __ror__(self, other):
+
+        return self.apply_binary_op(other, max)
+
+    def apply_by(self, op, keyfunc):
+        """
+        Compute op over elements grouped by keyfunc.
+        
+        Key should be a function mapping each key in self to a grouping key.
+        """
+
+        d = {}
+        for k, v in self.items():
+            d.setdefault(keyfunc(k), []).append(v)
+        mapping = {k: op(v) for k, v in d.items()}
+
+        return type(self)(mapping, self.dtype, self.default)
+
+    def apply_unary_op(self, op):
+        """
+        Apply op to each element of self.
+
+        Returns a new numdict.        
+        """
+
+        mapping = {k: op(self[k]) for k in self}
+
+        return type(self)(mapping, self.dtype, op(self.default))
+
+    def apply_binary_op(self, other, op):
+        """
+        Apply binary op to each element of self and other.
+
+        Returns a new numdict.
+        
+        If other is a constant c, acts as if other[key] = c.
+
+        If both self and other define defaults, the new default is equal to
+        op(self_default, other_default). Otherwise no default is defined.
+        """
+
+        if isinstance(other, BaseNumDict): 
+            keys = set(self.keys()) | set(other.keys())
+            dtype = self._find_common_dtype(self.dtype, other.dtype)
+            mapping = {k: op(self[k], other[k]) for k in keys}
+            hasdefault = self.default is not None and other.default is not None
+            default = op(self.default, other.default) if hasdefault else None
+            return type(self)(mapping, dtype, default)
+        elif isinstance(other, numbers.Real):
+            keys = self.keys()
+            dtype = self._find_common_dtype(self.dtype, type(other))
+            mapping = {k: op(self[k], other) for k in keys}
+            hasdefault = self.default is not None 
+            default = op(self.default, other) if hasdefault else None
+            return type(self)(mapping, dtype, default)
+        else:
+            return NotImplemented
+
+    @staticmethod
+    def _find_common_dtype(dtype1, dtype2):
+
+        if issubclass(dtype1, dtype2):
+            return dtype2
+        elif issubclass(dtype2, dtype1):
+            return dtype1
+        else:
+            msg = "Could not find common dtype for types {}, {}."
+            raise TypeError(msg.format(dtype1, dtype2))
+
+    @staticmethod
+    def _inv(x):
+
+        return 1.0 - x
+
+    @staticmethod
+    def _floor(x):
+
+        return x.__floor__()
+
+    @staticmethod
+    def _ceil(x):
+
+        return x.__ceil__()
+
+    @staticmethod
+    def _rtruediv(a, b):
+
+        return b / a
+
+    @staticmethod
+    def _rpow(a, b):
+
+        return b ** a
+
+    @staticmethod
+    def _round(x, ndigits):
+
+        return x.__round__(ndigits)
+
+
+class FrozenNumDict(BaseNumDict, Mapping):
+    """
+    A frozen numerical dictionary.
+
+    Supports various mathematical ops, but not in-place opreations. For 
+    details, see numdicts module description.
+    """
+
+    __slots__ = ("_dtype", "_dict", "_default")
+
+
+class NumDict(BaseNumDict, MutableMapping):
+    """
+    A mutable numerical dictionary.
+
+    Supports various mathematical ops, including in-place operations. For 
+    details, see numdicts module description.
+    """
+
+    __slots__ = ("_dtype", "_dict", "_default")
+
+    @property
+    def dtype(self):
+
+        return self._dtype
+
+    @dtype.setter
+    def dtype(self, dtype):
+
+        self._dtype = dtype
+        for k, v in self._dict.items():
+            self._dict[k] = dtype(v)
+        self._default = dtype(self._default)
+
+    @property
+    def default(self):
+
+        return self._default
+
+    @default.setter
+    def default(self, val):
+
+        try: 
+            self._default = self.dtype(val) 
+        except TypeError:
+            self._default = None
+
+    def __setitem__(self, key, val):
+
+        self._dict[key] = self.dtype(val)
+
+    def __delitem__(self, key):
+
+        del self._dict[key]
+
+    def __iadd__(self, other):
+
+        return self.apply_iop(other, operator.add)
+
+    def __isub__(self, other):
+
+        return self.apply_iop(other, operator.sub)
+
+    def __imul__(self, other):
+
+        return self.apply_iop(other, operator.mul)
+
+    def __itruediv__(self, other):
+
+        return self.apply_iop(other, operator.truediv)
+
+    def __ipow__(self, other):
+
+        return self.apply_iop(other, operator.pow)
+
+    def __iand__(self, other):
+
+        return self.apply_iop(other, min)
+
+    def __ior__(self, other):
+
+        return self.apply_iop(other, max)
+
+    def squeeze(self):
+        """
+        Drop values that are close to self.default.
+        
+        Inplace operation.
+        """
+
+        if self.default is None:
+            raise ValueError("Cannot squeeze numdict with no default.")
+
+        keys = list(self.keys())
+        for k in keys:
+            if math.isclose(self[k], self.default):
+                del self[k]
+
+    def extend(self, *iterables, value=None):
+        """
+        Add each new item found in the union of iterables as a key to self.
+        
+        Inplace operation.
+
+        For each item in the union of iterables, if the item does not already 
+        have a set value in self, sets the item to have value `value`, which, 
+        if None is passed, defaults to self.default, if defined, and 
+        self.dtype() otherwise.
+        """
+
+        if value is not None:
+            v = self.dtype(value)
+        elif self.default is not None:
+            v = self.default
+        else:
+            v = self.dtype()
+
+        for k in chain(*iterables):
+            if k not in self:
+                self[k] = v
+
+    def filter(self, func):
+        """
+        Drop keys in self according to func.
+        
+        Inplace operation.
+
+        Keys are kept iff func(key) is True.
+        """
+
+        keys = list(self.keys())
+        for key in keys:
+            if not func(key):
+                del self[key]
+
+    def apply_iop(self, other, op):
+        """
+        Apply binary op in place.
+        
+        Will attempt to coerce values of other to self.dtype. Defaults will be 
+        updated as appropriate. In particular, if either self or other has no 
+        default, self will have no default. Otherwise, the new default is 
+        op(self.default, other.default).
+        """
+
+        if isinstance(other, BaseNumDict):
+            keys = set(self.keys()) | set(other.keys())
+            hasdefault = self.default is not None and other.default is not None
+            default = op(self.default, other.default) if hasdefault else None
+            for k in keys:
+                self[k] = op(self[k], other[k])
+            self.default = default
+            return self
+        elif isinstance(other, numbers.Real):
+            hasdefault = self.default is not None
+            for k, v in self.items():
+                self[k] = op(v, other)
+            self.default = op(self.default, other) if hasdefault else None
+            return self
+        else:
+            return NotImplemented
+
+
+#################
+### Functions ###
+#################
+
+
+D = TypeVar("D", bound=BaseNumDict)
+
+
+def restrict(d: D, container: Container) -> D:
+    """Return a numdict whose keys are restricted by container."""
+
+    mapping = {k: d[k] for k in d if k in container}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+def transform_keys(d: D, func: Callable[[Hashable], Hashable]) -> D:
+    """
+    Return a copy of d where each key is mapped to function(key).
+
+    Warning: If function is not one-to-one wrt keys, output will be 
+    corrupted. This is not checked.
+    """
+
+    mapping = {func(k): d[k] for k in d}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+def threshold(d: D, th: numbers.Number) -> D:
+    """
+    Return a copy of d containing only values above theshold.
+    
+    Values below threshold are effectively sent to the default, if this is 
+    defined.
+    """
+
+    mapping = {k: d[k] for k in d if th < d[k]}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+def clip(d: D, low: numbers.Number = None, high: numbers.Number = None) -> D:
+    """
+    Return a copy of d with values clipped.
+    
+    dtype must define +/- inf values.
+    """
+
+    low = low or d.dtype("-inf")
+    high = high or d.dtype("inf")
+
+    mapping = {k: max(low, min(high, d[k])) for k in d}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+D1 = TypeVar("D1", bound=BaseNumDict)
+D2 = TypeVar("D2", bound=BaseNumDict)
+def isclose(d1: D1, d2: D2) -> bool:
+    """Return True if self is close to other in values."""
+    
+    _d = d1.apply_binary_op(d2, math.isclose)
+
+    return all(_d.values())

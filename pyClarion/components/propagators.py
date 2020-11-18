@@ -8,8 +8,9 @@ __all__ = [
 
 
 from ..base import (
-    ConstructType, Symbol,  MatchSet, Propagator, chunk, feature,
+    ConstructType, Symbol,  MatchSet, Propagator, chunk, feature
 )
+from ..base import numdicts as nd
 from ..utils.funcs import (
     max_strength, invert_strengths, boltzmann_distribution, select, 
     multiplicative_filter, scale_strengths, linear_rule_strength
@@ -48,16 +49,16 @@ class MaxNodes(Propagator):
 
     def call(self, inputs):
 
-        d = {}
-        expected_ctype = self._ctype_map[self.client.ctype]
+        d = nd.NumDict()
         for strengths in inputs.values():
-            for node, s in strengths.items():
-                if node.ctype in expected_ctype:
-                    strength = max(d.get(node, 0.0), s)
-                    if strength > 0.0: 
-                        d[node] = strength
+            d |= strengths
+        d.filter(self._filter)
 
         return d
+
+    def _filter(self, f):
+
+        return f.ctype in self._ctype_map[self.client.ctype]
 
 
 ########################
@@ -82,7 +83,7 @@ class Repeater(Propagator):
 
     def call(self, inputs):
 
-        return {n: s for n, s in inputs[self.source].items() if s > 0.0}
+        return nd.NumDict(inputs[self.source])
 
 
 class Lag(Propagator):
@@ -110,15 +111,20 @@ class Lag(Propagator):
 
     def call(self, inputs):
 
-        strengths = inputs[self.source]
-        d = {
-            feature(f.tag, f.val, f.lag + 1): s 
-            for f, s in strengths.items() 
-            if f.ctype in ConstructType.feature and f.lag < self.max_lag
-        }
+        d = nd.NumDict(inputs[self.source])
+        d = nd.transform_keys(d, self._lag)
+        d.filter(self._filter)
 
         return d
 
+    def _filter(self, f):
+
+        return f.ctype in ConstructType.feature and f.lag <= self.max_lag
+
+    @staticmethod
+    def _lag(f):
+        
+        return feature(f.tag, f.val, f.lag + 1)
 
 ############################
 ### Terminus Propagators ###
@@ -145,9 +151,9 @@ class ThresholdSelector(Propagator):
 
     def call(self, inputs):
 
-        strengths = inputs[self.source]
-        eligible = (f for f, s in strengths.items() if s > self.threshold)
-        return {n: 1.0 for n in eligible}  
+        d = nd.NumDict(inputs[self.source])
+
+        return nd.threshold(d, self.threshold) 
 
 
 class BoltzmannSelector(Propagator):
@@ -177,12 +183,11 @@ class BoltzmannSelector(Propagator):
         Boltzmann distribution.
         """
 
-        raw_strengths = inputs[self.source].items()
-        strengths = {n: s for n, s in raw_strengths if self.threshold < s}
+        strengths = nd.threshold(inputs[self.source], self.threshold) 
         probabilities = boltzmann_distribution(strengths, self.temperature)
         selection = select(probabilities, 1)
 
-        return {n: 1.0 for n in selection}
+        return nd.NumDict({n: 1.0 for n in selection})
 
 
 class ActionSelector(Propagator):
@@ -190,7 +195,7 @@ class ActionSelector(Propagator):
 
     _serves = ConstructType.terminus
 
-    def __init__(self, source, client_interface, temperature, default=0.0):
+    def __init__(self, source, client_interface, temperature):
         """
         Initialize a ``ActionSelector`` instance.
 
@@ -208,7 +213,6 @@ class ActionSelector(Propagator):
         self.source = source
         self.client_interface = client_interface
         self.temperature = temperature
-        self.default = default
 
     def expects(self, construct):
         
@@ -223,15 +227,18 @@ class ActionSelector(Propagator):
         """
 
         strengths = inputs[self.source]
-        probabilities, selection = dict(), set()
-        for dim, fs in self.client_interface.features_by_dims.items():
-            ipt = {f: strengths.get(f, self.default) for f in fs}
+        selection = set()
+        for dim, fs in self.client_interface.cmds_by_dims.items():
+            ipt = nd.NumDict({f: strengths[f] for f in fs})
             prs = boltzmann_distribution(ipt, self.temperature)
             sel = select(prs, 1)
-            probabilities.update(prs)
             selection.update(sel)
 
-        return {n: 1.0 for n in selection}
+        d = nd.NumDict()
+        d.extend(selection, value=1.0)
+        d.update({f: strengths[f] for f in self.client_interface.params})
+
+        return d
 
 
 ##########################
@@ -251,7 +258,7 @@ class Constants(Propagator):
 
     def __init__(self, strengths = None) -> None:
 
-        self.strengths = strengths or dict()
+        self.strengths = nd.NumDict(strengths) or nd.NumDict()
 
     def expects(self, construct: Symbol):
 
@@ -265,13 +272,12 @@ class Constants(Propagator):
     def update_strengths(self, strengths):
         """Update self with contents of dict-like strengths."""
 
-        self.strengths = self.strengths.copy()
         self.strengths.update(strengths)
 
     def clear(self) -> None:
         """Clear stored node strengths."""
 
-        self.strengths = {}
+        self.strengths.clear()
 
 
 class Stimulus(Propagator):
@@ -281,7 +287,7 @@ class Stimulus(Propagator):
 
     def __init__(self):
 
-        self.stimulus = {}
+        self.stimulus = nd.NumDict()
 
     def expects(self, construct: Symbol):
 
@@ -291,9 +297,9 @@ class Stimulus(Propagator):
 
         self.stimulus.update(data)
 
-    def call(self, inputs, stimulus=None):
+    def call(self, inputs):
 
-        d = stimulus if stimulus is not None else self.stimulus
-        self.stimulus = {}
+        d = self.stimulus
+        self.stimulus = nd.NumDict()
 
         return d

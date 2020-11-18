@@ -8,6 +8,7 @@ __all__ = [
 
 
 from .symbols import ConstructType, Symbol, feature
+from .numdicts import NumDict, FrozenNumDict
 from ..utils.funcs import group_by_dims
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
@@ -89,7 +90,7 @@ class Propagator(Emitter, Generic[Ft]):
 
     interface: Ft
 
-    def __call__(self, inputs: Inputs) -> Mapping[Symbol, float]:
+    def __call__(self, inputs: Inputs) -> Mapping:
         """
         Execute construct's forward propagation cycle.
 
@@ -100,7 +101,7 @@ class Propagator(Emitter, Generic[Ft]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: Inputs) -> Dict[Symbol, float]:
+    def call(self, inputs: Inputs) -> NumDict:
         """
         Compute construct's output.
 
@@ -124,17 +125,18 @@ class Propagator(Emitter, Generic[Ft]):
         pass
 
     @staticmethod
-    def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
+    def emit(data: NumDict = None) -> FrozenNumDict:
         """
         Emit output.
 
-        By default emits a mapping proxy pointing to an empty dictionary, 
-        otherwise emits a mappingproxy wrapping data.
+        If data is None, emits an empty frozen numdict. Otherwise, emits a 
+        frozen version of data.
         """
 
-        data = data if data is not None else dict()
+        d = data if data is not None else NumDict()
+        d.squeeze()
 
-        return MappingProxyType(mapping=data)
+        return FrozenNumDict(d)
 
 
 class Cycle(Emitter):

@@ -7,6 +7,7 @@ __all__ = ["Gated", "Filtered", "FilteringRelay"]
 from ..base.symbols import (
     Symbol, ConstructType, feature, subsystem, terminus
 )
+from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
 from ..utils.funcs import (
     scale_strengths, multiplicative_filter, group_by_dims, invert_strengths, 
@@ -23,18 +24,16 @@ import pprint
 class Gated(Propagator):
     """Gates output of an activation propagator."""
     
-    tfms = {"eye": eye, "inv": inv}
-
     def __init__(
         self, 
         base: Propagator, 
         gate: Symbol,
-        tfm: str = "eye"
+        invert: bool = False
     ) -> None:
 
         self.base = base
         self.gate = gate
-        self.tfm = self.tfms[tfm]
+        self.invert = invert
 
     @property
     def client(self):
@@ -51,16 +50,15 @@ class Gated(Propagator):
 
     def call(self, inputs):
 
-        weight = inputs[self.gate][self.client]
-        items = inputs.items()
-        _inputs = {src: data for src, data in items if self.base.expects(src)}
-        base_strengths = self.base.call(MappingProxyType(_inputs))
-        output = scale_strengths(
-            weight=self.tfm(weight), 
-            strengths=base_strengths
-        )
+        w = inputs[self.gate][self.client]
+        if self.invert:
+            w = 1.0 - w
 
-        return {n: s for n, s in output.items() if s > 0.0}
+        func = self.base.expects
+        expected = {src: inputs[src] for src in filter(func, inputs)}
+        strengths = self.base.call(MappingProxyType(expected))
+
+        return w * strengths
 
 
 class Filtered(Propagator):
@@ -69,13 +67,13 @@ class Filtered(Propagator):
     def __init__(
         self, 
         base: Propagator, 
-        filter: Symbol, 
-        invert_weights: bool = True
+        sieve: Symbol, 
+        invert: bool = True
     ) -> None:
 
         self.base = base
-        self.filter = filter
-        self.invert_weights = invert_weights
+        self.sieve = sieve
+        self.invert = invert
 
     @property
     def client(self):
@@ -88,36 +86,32 @@ class Filtered(Propagator):
 
     def expects(self, construct):
 
-        return construct == self.filter or self.base.expects(construct)
+        return construct == self.sieve or self.base.expects(construct)
 
     def call(self, inputs):
 
-        preprocessed = MappingProxyType(self.preprocess(inputs))
+        preprocessed = self.preprocess(inputs)
         output = self.base.call(preprocessed)
 
         return output
 
     def update(self, inputs, output):
 
-        preprocessed = MappingProxyType(self.preprocess(inputs))
+        preprocessed = self.preprocess(inputs)
         self.base.update(preprocessed, output)
 
     def preprocess(self, inputs):
 
-        weights = inputs[self.filter]
-        
-        if self.invert_weights:
-            weights = invert_strengths(weights)
-            fdefault=1.0
-        else:
-            fdefault=0.0
+        ws = inputs[self.sieve]
+        if self.invert:
+            ws = ~ ws
 
-        preprocessed = {
-            src: multiplicative_filter(weights, strengths, fdefault)
-            for src, strengths in inputs.items() if self.base.expects(src)
-        }
+        func = self.base.expects
+        expected = {src: inputs[src] for src in filter(func, inputs)}
+        items = expected.items()
+        preprocessed = {src: ws * d for src, d in items} 
 
-        return preprocessed
+        return MappingProxyType(preprocessed)
 
 
 class FilteringRelay(Propagator):
@@ -179,6 +173,9 @@ class FilteringRelay(Propagator):
 
     def call(self, inputs):
 
+        # This needs badly to be updated to support parameters and take full 
+        # advantage of numdicts. - Can
+
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
@@ -198,4 +195,4 @@ class FilteringRelay(Propagator):
             else: # entry of type Symbol
                 d[entry] = strength
 
-        return d
+        return nd.NumDict(d)

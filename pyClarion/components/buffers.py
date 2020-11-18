@@ -7,6 +7,7 @@ __all__ = ["Register", "WorkingMemory"]
 from ..base.symbols import (
     Symbol, MatchSet, ConstructType, feature, subsystem, terminus
 )
+from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
 from .chunks_ import Chunks, ChunkAdder, ChunkConstructor
 from ..utils import simple_junction, group_by_dims, collect_cmd_data
@@ -102,7 +103,9 @@ class Register(Propagator):
     def call(self, inputs):
         """Activate stored nodes."""
 
-        return {node: self.level for node in chain(self.store, self.flags)}
+        d = {node: self.level for node in chain(self.store, self.flags)}
+
+        return nd.NumDict(d)
 
     def update(self, inputs, output):
         """
@@ -374,7 +377,7 @@ class WorkingMemory(Propagator):
                 d_cell = cell.call(inputs)
                 d.update(d_cell)
         
-        return d
+        return nd.NumDict(d)
 
     def update(self, inputs, output):
         """
