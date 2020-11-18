@@ -11,10 +11,6 @@ from ..base import (
     ConstructType, Symbol,  MatchSet, Propagator, chunk, feature
 )
 from ..base import numdicts as nd
-from ..utils.funcs import (
-    max_strength, invert_strengths, boltzmann_distribution, select, 
-    multiplicative_filter, scale_strengths, linear_rule_strength
-)
 from typing import (
     Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, 
     Sequence, Container
@@ -183,11 +179,12 @@ class BoltzmannSelector(Propagator):
         Boltzmann distribution.
         """
 
-        strengths = nd.threshold(inputs[self.source], self.threshold) 
-        probabilities = boltzmann_distribution(strengths, self.temperature)
-        selection = select(probabilities, 1)
+        strengths = nd.NumDict(inputs[self.source])
+        thresholded = nd.threshold(strengths, self.threshold) 
+        probabilities = nd.boltzmann(thresholded, self.temperature)
+        d = nd.draw(probabilities, 1)
 
-        return nd.NumDict({n: 1.0 for n in selection})
+        return d
 
 
 class ActionSelector(Propagator):
@@ -197,7 +194,7 @@ class ActionSelector(Propagator):
 
     def __init__(self, source, client_interface, temperature):
         """
-        Initialize a ``ActionSelector`` instance.
+        Initialize an ``ActionSelector`` instance.
 
         :param dims: Registered action dimensions.
         :param temperature: Temperature of the Boltzmann distribution.
@@ -227,16 +224,14 @@ class ActionSelector(Propagator):
         """
 
         strengths = inputs[self.source]
-        selection = set()
+
+        d = nd.NumDict({f: strengths[f] for f in self.client_interface.params})
+
         for dim, fs in self.client_interface.cmds_by_dims.items():
             ipt = nd.NumDict({f: strengths[f] for f in fs})
-            prs = boltzmann_distribution(ipt, self.temperature)
-            sel = select(prs, 1)
-            selection.update(sel)
-
-        d = nd.NumDict()
-        d.extend(selection, value=1.0)
-        d.update({f: strengths[f] for f in self.client_interface.params})
+            prs = nd.boltzmann(ipt, self.temperature)
+            selection = nd.draw(prs, 1)
+            d.update(selection)
 
         return d
 

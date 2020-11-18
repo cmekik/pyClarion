@@ -42,6 +42,7 @@ from itertools import chain
 import operator
 import numbers
 import math
+import random
 
 
 class BaseNumDict(object):
@@ -469,6 +470,8 @@ class NumDict(BaseNumDict, MutableMapping):
 
 
 D = TypeVar("D", bound=BaseNumDict)
+D1 = TypeVar("D1", bound=BaseNumDict)
+D2 = TypeVar("D2", bound=BaseNumDict)
 
 
 def restrict(d: D, container: Container) -> D:
@@ -520,11 +523,44 @@ def clip(d: D, low: numbers.Number = None, high: numbers.Number = None) -> D:
     return type(d)(mapping, d.dtype, d.default)
 
 
-D1 = TypeVar("D1", bound=BaseNumDict)
-D2 = TypeVar("D2", bound=BaseNumDict)
 def isclose(d1: D1, d2: D2) -> bool:
     """Return True if self is close to other in values."""
     
     _d = d1.apply_binary_op(d2, math.isclose)
 
     return all(_d.values())
+
+
+def boltzmann(d: D, t: float)  -> D:
+    """Construct a boltzmann distribution from d with temperature t."""
+
+    output = NumDict()
+    if len(d) > 0:
+        numerators = math.e ** (d / t)
+        denominator = sum(numerators.values())
+        output |= numerators / denominator
+
+    return type(d)(output, d.dtype, d.default)
+
+
+def draw(d: D, k: int=1, val=1.0) -> D:
+    """
+    Draw k keys from numdict without replacement.
+    
+    If k >= len(d), returns a selection of all elements in d. Sampled elements 
+    are given a value of 1.0 by default. Output inherits type, dtype and 
+    default values from d.
+    """
+
+    pr = NumDict(d)
+    output = NumDict()
+    if len(d) > k:
+        while len(output) < k:
+            cs, ws = tuple(zip(*pr.items()))
+            choices = random.choices(cs, weights=ws)
+            output.extend(choices, value=val)
+            pr.filter(output.__contains__)
+    else:
+        output.extend(d, value=val)
+    
+    return type(d)(output, d.dtype, d.default)
