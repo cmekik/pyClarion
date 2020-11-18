@@ -5,12 +5,13 @@ __all__ = ["Register", "WorkingMemory"]
 
 
 from ..base.symbols import (
-    Symbol, MatchSet, ConstructType, feature, subsystem, terminus
+    Symbol, MatchSet, ConstructType, feature, subsystem, terminus,
+    group_by_dims
 )
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
 from .chunks_ import Chunks, ChunkAdder
-from ..utils import group_by_dims, collect_cmd_data
+from ..utils import collect_cmd_data
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby

@@ -12,5 +12,6 @@ updates to persistent data (i.e., knowledge) follow a blackboard pattern.
 
 
 from .symbols import *
+from . import numdicts as nd
 from .components import *
 from .realizers import *

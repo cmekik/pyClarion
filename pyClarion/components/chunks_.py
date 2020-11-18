@@ -6,7 +6,7 @@ from ..base import (
     subsystem, Propagator, feature
 )
 from ..base import numdicts as nd
-from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
+
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection
 )
@@ -40,8 +40,6 @@ class Chunks(MutableMapping):
     Provides mapping methods to access and manipulate this dict and defines the 
     entry type Chunk. 
     """
-
-    _format = {"indent": 4, "digits": 3}
 
     class Chunk(object):
         """
@@ -104,9 +102,14 @@ class Chunks(MutableMapping):
 
             return self._weights
 
-    def __init__(self):
+    def __init__(self, data: Mapping[chunk, "Chunks.Chunk"] = None) -> None:
 
-        self._data = {}
+        if data is None:
+            data = dict()
+        else:
+            data = dict(data)
+
+        self._data: MutableMapping[chunk, Chunks.Chunk] = data
 
     def __repr__(self):
 
@@ -155,29 +158,6 @@ class Chunks(MutableMapping):
         found = self.find_form(form)
 
         return 0 < len(found) 
-
-    def pstr(self):
-        """Return a pretty string a representation of self."""
-
-        body = pstr_iterable(
-            iterable=self._data, 
-            cb=pstr_iterable_cb, 
-            cbargs={"digits": self._format["digits"]}, 
-            indent=self._format["indent"], 
-            level=1
-        )
-        size = len(self._data)
-        head = " " * (size > 0) * self._format["indent"] + "data = "      
-        content = head + body
-        s = "{cls}({nl}{content}{nl})".format(
-            cls=type(self).__name__, content=content, nl="\n" * bool(size)
-        )
-        return s
-
-    def pprint(self):
-        """Pretty print self."""
-
-        print(self.pstr())
 
 
 class TopDown(Propagator):

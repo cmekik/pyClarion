@@ -2,7 +2,6 @@
 
 
 from pyClarion import *
-import pprint
 from itertools import groupby
 
 
@@ -139,13 +138,13 @@ print("CYCLE 1: All open.")
 print("Step 1: Set filter values.")
 controller.emitter.input({})
 alice.step()
-pprint.pprint(alice.output)
+pprint(alice.output)
 print() # Empty line
 
 print("Step 2: Propagate stimulus.")
 stimulus.emitter.input(stimulus_1)
 alice.step()
-pprint.pprint(alice.output)
+pprint(alice.output)
 print() # Empty line
 
 
@@ -154,11 +153,11 @@ print("CYCLE 2: Block shape only.")
 print("Step 1: Set filter values.")
 controller.emitter.input({feature(("dof", "nacs", ("shape", 0)), 1): 1.})
 alice.step()
-pprint.pprint(alice.output)
+pprint(alice.output)
 print() # Empty line
 
 print("Step 2: Propagate stimulus.")
 stimulus.emitter.input(stimulus_1)
 alice.step()
-pprint.pprint(alice.output)
+pprint(alice.output)
 print() # Empty line

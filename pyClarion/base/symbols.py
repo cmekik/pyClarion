@@ -9,7 +9,8 @@ __all__ = [
 
 
 from enum import Flag, auto
-from typing import Hashable, Tuple, Union, Iterable, Callable, MutableSet
+from typing import Hashable, Tuple, Union, Iterable, Callable, MutableSet, Dict
+from itertools import groupby
 
 
 class ConstructType(Flag):
@@ -562,3 +563,30 @@ class MatchSet(object):
             self.constructs -= set(constructs)
         if predicates is not None:
             self.predicates -= set(predicates)
+
+
+################
+### FUNCTIONS ##
+################
+
+
+def group_by_dims(
+    features: Iterable[feature]
+) -> Dict[Hashable, Tuple[feature, ...]]:
+    """
+    Construct a dict grouping features by their dimensions.
+    
+    Returns a dict where each dim is mapped to a tuple of features of that dim.
+    Does not check for duplicate features.
+
+    :param features: An iterable of features to be grouped by dimension.
+    """
+
+    groups = {}
+    # Ignore type of key due to mypy false alarm. - Can
+    key = feature.dim.fget # type: ignore 
+    s = sorted(features, key=key)
+    for k, g in groupby(s, key):
+        groups[k] = tuple(g)
+    
+    return groups

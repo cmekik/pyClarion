@@ -2,7 +2,6 @@
 
 
 from pyClarion import *
-import pprint
 
 
 gate_interface = FilteringRelay.Interface(
@@ -206,7 +205,7 @@ print(
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
-pprint.pprint(alice[subsystem("nacs")].output)
+pprint(alice[subsystem("nacs")].output)
 print()
 
 
@@ -227,7 +226,7 @@ print(
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
-pprint.pprint(alice[subsystem("nacs")].output)
+pprint(alice[subsystem("nacs")].output)
 print()
 
 print("CYCLE 3: Open stimulus & bottom-up only.")
@@ -247,5 +246,5 @@ print(
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
-pprint.pprint(alice[subsystem("nacs")].output)
+pprint(alice[subsystem("nacs")].output)
 print()

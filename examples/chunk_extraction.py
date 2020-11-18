@@ -11,9 +11,9 @@ from pyClarion import (
     feature,
     Chunks, Assets, ChunkAdder,
     AgentCycle, NACSCycle, Stimulus, MaxNodes, TopDown, BottomUp, 
-    BoltzmannSelector, ThresholdSelector
+    BoltzmannSelector, ThresholdSelector,
+    pprint
 )
-import pprint
 
 
 # This simulation demonstrates a basic recipe for chunk extraction in 
@@ -271,12 +271,12 @@ for i, s in enumerate(stimuli):
     stimulus.emitter.input(s)
     alice.step()
 
-    pprint.pprint(alice.output)
+    pprint(alice.output)
 
     alice.clear_outputs()
 
 print("Learned Chunks:")
-nacs.assets.chunk_db.pprint()
+pprint(nacs.assets.chunk_db)
 
 # Visual and Auditory Queries
 
@@ -312,7 +312,7 @@ for i, s in enumerate(queries):
     stimulus.emitter.input(s)
     alice.step()
 
-    pprint.pprint(alice.output)
+    pprint(alice.output)
     
     alice.clear_outputs()
 

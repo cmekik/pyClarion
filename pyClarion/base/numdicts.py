@@ -32,8 +32,8 @@ setdefault() method may be used.
 
 __all__ = [
     "NumDict", "FrozenNumDict",
-    "restrict", "transform_keys", "threshold", "clip", "isclose", "elementwise",
-    "ew_sum", "ew_max", "boltzmann", "draw"
+    "restrict", "transform_keys", "threshold", "clip", "isclose", "valuewise", 
+    "val_sum", "elementwise", "ew_sum", "ew_max", "boltzmann", "draw"
 ]
 
 
@@ -304,7 +304,7 @@ class FrozenNumDict(BaseNumDict, Mapping):
     details, see numdicts module description.
     """
 
-    __slots__ = ("_dtype", "_dict", "_default")
+    __slots__ = ()
 
 
 class NumDict(BaseNumDict, MutableMapping):
@@ -315,7 +315,7 @@ class NumDict(BaseNumDict, MutableMapping):
     details, see numdicts module description.
     """
 
-    __slots__ = ("_dtype", "_dict", "_default")
+    __slots__ = ()
 
     @property
     def dtype(self):

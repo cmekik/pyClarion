@@ -4,11 +4,11 @@
 __all__ = ["Rules", "AssociativeRules"]
 
 
-from ..base import ConstructType, Symbol, Propagator
+from ..base import ConstructType, Symbol, Propagator, rule
 from ..base import numdicts as nd
-from ..utils.str_funcs import pstr_iterable, pstr_iterable_cb
 
 from types import MappingProxyType
+from typing import Mapping
 from collections.abc import MutableMapping
 
 
@@ -26,14 +26,6 @@ class Rules(MutableMapping):
         ... # other rules
     }            
     """
-
-    # Dev Note:
-    # This is a fairly naive datastructure with naive methods. Consequently, 
-    # finding a rule form has complexity O(N) where N is the number of rules 
-    # with a given conclusion. Hopefully the naive implementation makes the 
-    # whole thing easily intelligible. -CSM       
-
-    _format = {"indent": 4, "digits": 3}
 
     class Rule(object):
         """Represents a rule form."""
@@ -95,9 +87,14 @@ class Rules(MutableMapping):
 
             return self._weights
 
-    def __init__(self):
+    def __init__(self, data: Mapping[rule, "Rules.Rule"] = None) -> None:
 
-        self._data = {} 
+        if data is None:
+            data = dict()
+        else:
+            data = dict(data)
+
+        self._data = data
 
     def __repr__(self):
 
@@ -138,29 +135,6 @@ class Rules(MutableMapping):
         """
 
         return any(form == entry for entry in self.values())
-
-    def pstr(self):
-        """Return a pretty string representation of self."""
-
-        body = pstr_iterable(
-            iterable=self._data, 
-            cb=pstr_iterable_cb, 
-            cbargs={"digits": self._format["digits"]}, 
-            indent=self._format["indent"], 
-            level=1
-        )
-        size = len(self._data)
-        head = " " * (size > 0) * self._format["indent"] + "data = "      
-        content = head + body
-        s = "{cls}({nl}{content}{nl})".format(
-            cls=type(self).__name__, content=content, nl="\n" * bool(size)
-        )
-        return s
-
-    def pprint(self):
-        """Pretty print self."""
-
-        print(self.pstr())
 
 
 class AssociativeRules(Propagator):

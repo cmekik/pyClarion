@@ -26,9 +26,11 @@ from pyClarion import (
     # The objects below define how realizers process activations in the forward 
     # and backward directions.
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNodes, 
-    Filtered, NACSCycle, AgentCycle
+    Filtered, NACSCycle, AgentCycle,
+    # Finally, pyClarion augments the stdlib pprint functionality to support 
+    # its own datatypes.
+    pprint
 )
-import pprint
 import logging
 
 # Debug level logging reports details of the agent construction process.
@@ -468,7 +470,7 @@ alice.step()
 # using the subsystem_packet.pstr() method.
  
 print("Alice's cognitive state upon presentation of 'APPLE':") 
-pprint.pprint(alice.output)
+pprint(alice.output)
 
 # Finally, we clear the output so as not to contaminate any subsequent trials 
 # with persistent activations. This is an optional step, taken here for 

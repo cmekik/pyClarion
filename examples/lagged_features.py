@@ -8,9 +8,9 @@ Prerequisite: Understanding of the basics of pyClarion as discussed in the demo
 from pyClarion import (
     Structure, Construct,
     agent, buffer, subsystem, feature, features, flow_in, terminus,
-    AgentCycle, NACSCycle, Lag, Stimulus, MaxNodes
+    AgentCycle, NACSCycle, Lag, Stimulus, MaxNodes,
+    pprint
 )
-import pprint
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -115,7 +115,7 @@ for i, s in enumerate(stimuli):
     print("Presentation {}".format(i + 1))
     stimulus.emitter.input(s)
     alice.step()
-    pprint.pprint(alice.output)
+    pprint(alice.output)
 
 
 ##################

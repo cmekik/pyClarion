@@ -7,9 +7,9 @@ __all__ = [
 ]
 
 
-from .symbols import ConstructType, Symbol, feature
+from .symbols import ConstructType, Symbol, feature, group_by_dims
 from .numdicts import NumDict, FrozenNumDict
-from ..utils.funcs import group_by_dims
+
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
 from typing import (

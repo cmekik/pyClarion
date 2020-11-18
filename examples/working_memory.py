@@ -1,6 +1,5 @@
 from pyClarion import *
 from typing import cast
-import pprint
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -199,17 +198,17 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 # open empty (should do nothing)
@@ -222,17 +221,17 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 
@@ -251,17 +250,17 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 
@@ -279,17 +278,17 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 
@@ -310,19 +309,19 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 
@@ -336,17 +335,17 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])
 print()
 
 
@@ -363,14 +362,14 @@ stimulus.emitter.input(d)
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
-pprint.pprint(alice[wm.emitter.controller].output)
+pprint(alice[wm.emitter.controller].output)
 print()
 
 alice.step()
 
 print("Step 2: {} ->".format(buffer("wm")))
-pprint.pprint(alice.output[buffer("wm")])
+pprint(alice.output[buffer("wm")])
 print()
 
 print("Current WM state.")
-pprint.pprint([cell.store for cell in wm.emitter.cells])
+pprint([cell.store for cell in wm.emitter.cells])

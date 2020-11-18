@@ -1,5 +1,5 @@
 
-from pyClarion.base.symbols import feature
+from ..base.symbols import feature
 import random
 import math
 
@@ -8,7 +8,7 @@ from itertools import groupby
 import logging
 
 
-__all__ = ["group_by_dims", "collect_cmd_data"]
+__all__ = ["collect_cmd_data"]
 
 
 def group_by_dims(
