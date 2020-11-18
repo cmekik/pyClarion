@@ -260,8 +260,8 @@ class BottomUp(Propagator):
         for ch, form in self.chunks.items():
             fd = nd.restrict(strengths, form.features)
             fd = fd.by(feature.dim.fget, max) # get maxima by dimensions
-            weighted = fd * form.weights / sum(form.weights.values())
-            d[ch] = sum(weighted.values())
+            weighted = fd * form.weights / nd.val_sum(form.weights)
+            d[ch] = nd.val_sum(weighted)
         
         return d
 

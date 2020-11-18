@@ -62,7 +62,7 @@ class Rules(MutableMapping):
                 ws.update(weights)
             ws.extend(conds, value=1.0)
 
-            ws /= sum(ws.values())
+            ws /= nd.val_sum(ws)
 
             self._conc = conc
             self._weights = nd.FrozenNumDict(ws)
@@ -191,7 +191,7 @@ class AssociativeRules(Propagator):
         for r, form in self.rules.items():
             cd = nd.restrict(strengths, form.weights)
             cd *= form.weights 
-            s_r = sum(cd.values())
+            s_r = nd.val_sum(cd)
             d[form.conc] = max(d[form.conc], s_r)
             d[r] = s_r
         

@@ -32,7 +32,8 @@ setdefault() method may be used.
 
 __all__ = [
     "NumDict", "FrozenNumDict",
-    "restrict", "transform_keys", "threshold", "clip", "isclose"
+    "restrict", "transform_keys", "threshold", "clip", "isclose", "elementwise",
+    "ew_sum", "ew_max", "boltzmann", "draw"
 ]
 
 
@@ -531,16 +532,74 @@ def isclose(d1: D1, d2: D2) -> bool:
     return all(_d.values())
 
 
-def boltzmann(d: D, t: float)  -> D:
+def valuewise(op, d: D) -> numbers.Number:
+    """
+    Apply op to values of d.
+    
+    Output inherits dtype of d.
+    """
+
+    return d.dtype(op((d[k] for k in d)))
+
+
+def val_sum(d: D) -> numbers.Number:
+    """Return the sum of the values of d."""
+
+    return valuewise(sum, d)
+
+
+def elementwise(op, *ds: D, dtype=None) -> D:
+    """
+    Apply op element wise to sequence of numdicts ds.
+    
+    Value of dtype is inherited from the first d if None is passed.
+    """
+
+    _dtype = dtype or ds[0].dtype
+
+    keys: set = set()
+    keys.update(*ds)
+
+    grouped: dict = {}
+    defaults: list = []
+    for d in ds:
+        defaults.append(d.default)
+        for k in keys:
+            grouped.setdefault(k, []).append(d[k])
+
+    return type(d)({k: op(grouped[k]) for k in grouped}, _dtype, op(defaults))
+
+
+def ew_sum(*ds: D, dtype=None) -> D:
+    """
+    Elementwise sum of values in ds.
+    
+    Wraps elementwise().
+    """
+
+    return elementwise(sum, *ds, dtype=None)
+
+
+def ew_max(*ds: D, dtype=None)  -> D:
+    """
+    Elementwise maximum of values in ds.
+    
+    Wraps elementwise().
+    """
+
+    return elementwise(max, *ds, dtype=None)
+
+
+def boltzmann(d: D, t: float) -> D:
     """Construct a boltzmann distribution from d with temperature t."""
 
     output = NumDict()
     if len(d) > 0:
         numerators = math.e ** (d / t)
-        denominator = sum(numerators.values())
+        denominator = val_sum(numerators)
         output |= numerators / denominator
 
-    return type(d)(output, d.dtype, d.default)
+    return type(d)(output)
 
 
 def draw(d: D, k: int=1, val=1.0) -> D:
