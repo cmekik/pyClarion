@@ -16,8 +16,8 @@ wm_interface = WorkingMemory.Interface(
         "retrieve": terminus("retrieval"),
         "extract":  terminus("bl-state")
     },
-    reset_vals=("standby", "release"),
-    read_vals=("standby", "open"),
+    reset_vals=("standby", "reset"),
+    read_vals=("standby", "read"),
 ) 
 
 alice = Structure(
@@ -36,7 +36,11 @@ with alice:
         emitter=Stimulus()
     )
 
-    WMSLOTS = 3
+    acs_ctrl = Construct(
+        name=buffer("acs_ctrl"), 
+        emitter=Stimulus()
+    )
+
     wm = Construct(
         name=buffer("wm"),
         emitter=WorkingMemory(
@@ -60,7 +64,9 @@ with alice:
         name=subsystem("acs"),
         emitter=ACSCycle(
             sources={
-                buffer("stimulus"), buffer("wm"), buffer("wm-defaults")
+                buffer("acs_ctrl"), 
+                buffer("wm"), 
+                buffer("wm-defaults")
             }
         )
     )
@@ -71,7 +77,7 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus"), 
+                    buffer("acs_ctrl"), 
                     buffer("wm-defaults")
                 }
             )
@@ -189,12 +195,11 @@ alice.start()
 print("Standby (Empty WM)")
 print()
 
-d = {
+stimulus.emitter.input({
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
-}
-
-stimulus.emitter.input(d)
+})
+acs_ctrl.emitter.input({})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -215,9 +220,10 @@ print()
 print("Open (Empty WM; does nothing)")
 print()
 
-d = {feature(("wm", "r", 1), "open"): 1.0}
-
-stimulus.emitter.input(d)
+stimulus.emitter.input({})
+acs_ctrl.emitter.input({
+    feature(("wm", "r", 1), "read"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -239,14 +245,14 @@ print()
 print("Single Write & Open Corresponding Slot")
 print()
 
-d = {
+stimulus.emitter.input({
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
+})
+acs_ctrl.emitter.input({
     feature(("wm", "w", 0), "retrieve"): 1.0,
-    feature(("wm", "r", 0), "open"): 1.0
-}
-
-stimulus.emitter.input(d)
+    feature(("wm", "r", 0), "read"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -268,13 +274,13 @@ print()
 print("Reset")
 print()
 
-d = {
+stimulus.emitter.input({
     feature("fruit", "dragon fruit"): 1.0,
     feature("price", "expensive"): 1.0,
-    feature("wm-reset", "release"): 1.0
-}
-
-stimulus.emitter.input(d)
+})
+acs_ctrl.emitter.input({
+    feature(("wm", "re"), "reset"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -296,16 +302,16 @@ print()
 print("Double Write")
 print()
 
-d = {
+stimulus.emitter.input({
     feature("fruit", "banana"): 1.0,
-    feature("price", "expensive"): 1.0,
+    feature("price", "expensive"): 1.0
+})
+acs_ctrl.emitter.input({
     feature(("wm", "w", 0), "retrieve"): 1.0,
-    feature(("wm", "r", 0), "open"): 1.0,
+    feature(("wm", "r", 0), "read"): 1.0,
     feature(("wm", "w", 1), "extract"): 1.0,
-    feature(("wm", "r", 1), "open"): 1.0
-}
-
-stimulus.emitter.input(d)
+    feature(("wm", "r", 1), "read"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -329,9 +335,10 @@ print()
 print("Open Slot 1 only, removing Slot 0 from output")
 print()
 
-d = {feature(("wm", "r", 1), "open"): 1.0}
-
-stimulus.emitter.input(d)
+stimulus.emitter.input({})
+acs_ctrl.emitter.input({
+    feature(("wm", "r", 1), "read"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))
@@ -353,12 +360,11 @@ print()
 print("Single Delete (clear & open slot 0)")
 print()
 
-d = {
+stimulus.emitter.input({})
+acs_ctrl.emitter.input({
     feature(("wm", "w", 0), "clear"): 1.0,
-    feature(("wm", "r", 0), "open"): 1.0
-}
-
-stimulus.emitter.input(d)
+    feature(("wm", "r", 0), "read"): 1.0
+})
 alice.step()
 
 print("Step 1: {} ->".format(wm.emitter.controller))

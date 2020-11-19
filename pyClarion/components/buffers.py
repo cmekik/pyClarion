@@ -15,7 +15,9 @@ from ..utils import collect_cmd_data, pprint
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby
-from typing import Callable, Hashable, Tuple, NamedTuple, List, Mapping, Collection
+from typing import (
+    Callable, Hashable, Tuple, NamedTuple, List, Mapping, Collection
+)
 from types import MappingProxyType
 import logging
 
@@ -73,7 +75,7 @@ class ParamSet(Propagator):
         Helper propagator for extracting commands & command parameters.
         
         This is useful if the agent should have cognitive access to the 
-        commands and parameters passed to the parameter set. 
+        commands and parameters passed to a ParamSet instance. 
         """
 
         _serves = ConstructType.flow_in
@@ -105,12 +107,10 @@ class ParamSet(Propagator):
         
         def _key(self, construct):
 
-            b = (
+            return (
                 isinstance(construct, feature) and
                 construct.tag in self.client_interface.tags
             )
-
-            return b
 
     def __init__(
         self, 
@@ -131,26 +131,8 @@ class ParamSet(Propagator):
         return construct == self.controller[0]
 
     def call(self, inputs):
-        """Activate client constructs."""
-
-        self.update_state(inputs)
-
-
-        d = nd.NumDict()
-
-        strengths = nd.transform_keys(self.store, feature.tag.fget)
-        for construct in self.interface.clients:
-            d[construct] = strengths[self.interface.func(construct)]
-
-        if self.forward_commands:
-            d |= self.store
-            d |= self.flags
-
-        return d
-
-    def update_state(self, inputs):
         """
-        Update the paramset state.
+        Update the paramset state and emit outputs.
 
         Updates are controlled by matching features emitted in the output of 
         self.controller to those defined in self.interface. If no commands are 
@@ -159,32 +141,43 @@ class ParamSet(Propagator):
         """
 
         data = collect_cmd_data(self.client, inputs, self.controller)
-
         cmds = self.interface.parse_commands(data)
 
-        cmd_strengths = nd.restrict(data, self.interface.cmds)
-        lagged_cmd_strengths = nd.transform_keys(cmd_strengths, lag, val=1)
-        param_strengths = nd.restrict(data, self.interface.params)
+        if 1 < len(cmds):
+            msg = "{} expected only one command, received {}"
+            raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        # Flags get cleared on each update. New flags may then be added for the 
-        # next cycle.
-        self.clear_flags()
-        self.update_flags(lagged_cmd_strengths)
-
-        # There should be exactly one command, but given the structure of the 
-        # parse dict, a for loop is used.
         for dim, val in cmds.items():
             if val == self.interface.vals[0]:
                 pass
             elif val == self.interface.vals[1]:
                 self.clear_store()
-            elif val == self.interface.vals[2]:
-                self.update_store(param_strengths)
-            elif val == self.interface.vals[3]:
-                self.clear_store()
+            elif val in self.interface.vals[2:]:
+                if val == self.interface.vals[3]:
+                    self.clear_store()
+                param_strengths = nd.restrict(data, self.interface.params)
                 self.update_store(param_strengths)
             else:
                 raise ValueError("Unexpected command value.")
+
+        d = nd.NumDict()
+        strengths = nd.transform_keys(self.store, feature.tag.fget)
+        for construct in self.interface.clients:
+            d[construct] = strengths[self.interface.func(construct)]
+        
+        if self.forward_commands:
+            cmd_strengths = nd.restrict(data, self.interface.cmds)
+            lagged_cmd_strengths = nd.transform_keys(cmd_strengths, lag, val=1)
+            d |= self.store
+            d |= lagged_cmd_strengths
+
+        return d
+
+    def update(self, inputs, output):
+
+        # Flags get cleared on each update. New flags may then be added for the 
+        # next cycle.
+        self.clear_flags()
 
     def update_store(self, strengths):
         """
@@ -256,8 +249,7 @@ class Register(Propagator):
         controller: Tuple[subsystem, terminus], 
         source: subsystem,
         interface: Interface,
-        filter: MatchSet = None,
-        level: float = 1.0
+        forward_commands: bool = False
     ) -> None:
         """
         Initialize a Register instance.
@@ -265,18 +257,18 @@ class Register(Propagator):
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
         :param interface: Defines features for controlling updates to self.
-        :param filter: Optional filter for state updates.
-        :param level: Output activation level for stored features.
+        :param forward_commands: Optional bool indicating whether or not to 
+            include received commands in emitted output. False by default. If 
+            set to true, received commands are outputted with a lag value of 1.
         """
 
-        self.store: list = list() # TODO: Improve type annotation. - Can
-        self.flags: list = list()
+        self.store = nd.NumDict() 
+        self.flags = nd.NumDict()
 
         self.controller = controller
         self.source = source
         self.interface = interface
-        self.filter = filter
-        self.level = level
+        self.forward_commands = forward_commands
 
     @property
     def is_empty(self):
@@ -291,15 +283,8 @@ class Register(Propagator):
         return construct == ctl_subsystem or construct == src_subsystem
 
     def call(self, inputs):
-        """Activate stored nodes."""
-
-        d = {node: self.level for node in chain(self.store, self.flags)}
-
-        return nd.NumDict(d)
-
-    def update(self, inputs, output):
         """
-        Update the register state.
+        Update the register state and emit the current register output.
 
         Updates are controlled by matching features emitted in the output of 
         self.controller to those defined in self.interface. If no commands are 
@@ -310,39 +295,57 @@ class Register(Propagator):
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
-        # Flags get cleared on each update. New flags may then be added for the 
-        # next cycle.
-        self.clear_flags()
+        if 1 < len(cmds):
+            msg = "{} expected only one command, received {}"
+            raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        # There should be exactly one command, but given the structure of the 
-        # parse dict, a for loop is used.
         for dim, val in cmds.items():
             if val == self.interface.standby:
                 pass
             elif val == self.interface.clear:
-                self.clear()
+                self.clear_store()
             elif val in self.interface.mapping: 
                 channel = self.interface.mapping[val]
-                nodes = (
-                    node for node in inputs[self.source][channel] if
-                    self.filter is None or node in self.filter
-                )
-                self.write(nodes)
+                self.clear_store()
+                self.update_store(inputs[self.source][channel])
 
-    def write(self, nodes):
-        """Write nodes to self.store."""
+        d = nd.NumDict(self.store)
 
-        self.store.clear()
-        self.store.extend(nodes)
+        d |= self.flags
 
-    def clear(self):
+        if self.forward_commands:
+            cmd_strengths = nd.restrict(data, self.interface.cmds)
+            lagged_cmd_strengths = nd.transform_keys(cmd_strengths, lag, val=1)
+            d |= lagged_cmd_strengths
+
+        return nd.NumDict(d)
+
+    def update(self, inputs, output):
+        """
+        Clear the register flag buffer.
+        
+        For richer update/learning behaviour, add updaters to client construct.
+        """
+
+        self.clear_flags()
+
+    def update_store(self, strengths):
+        """
+        Update strengths in self.store.
+        
+        Write op is implemented using the max operation. 
+        """
+
+        self.store |= strengths
+
+    def clear_store(self):
         """Clear any nodes stored in self."""
 
         self.store.clear()
 
-    def write_flags(self, *flags):
+    def update_flags(self, strengths):
 
-        self.flags.extend(flags)
+        self.flags |= strengths
 
     def clear_flags(self):
 
@@ -496,8 +499,7 @@ class WorkingMemory(Propagator):
         controller: Tuple[subsystem, terminus],
         source: subsystem,
         interface: Interface,
-        level: float = 1.0,
-        filter: MatchSet = None
+        forward_commands: bool = False
     ) -> None:
         """
         Initialize a new WorkingMemory instance.
@@ -505,16 +507,18 @@ class WorkingMemory(Propagator):
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
         :param interface: Defines features for controlling updates to self.
-        :param filter: Optional filter for state updates.
-        :param level: Output activation level for stored features.
+        :param forward_commands: Optional bool indicating whether or not to 
+            include received commands in emitted output. False by default. If 
+            set to true, received commands are outputted with a lag value of 1.
         """
 
         self.controller = controller
         self.source = source
         self.interface = interface
-        self.level = level
+        self.forward_commands = forward_commands
 
-        self.flags: List[Symbol] = []
+        self.flags = nd.NumDict()
+        self.gate = nd.NumDict()
         self.cells = tuple(
             Register(
                 controller=controller,
@@ -525,8 +529,7 @@ class WorkingMemory(Propagator):
                     standby=interface.standby,
                     clear=interface.clear
                 ),
-                filter=filter,
-                level=level
+            forward_commands=forward_commands
             )
             for tag in interface.write_tags
         )
@@ -541,37 +544,11 @@ class WorkingMemory(Propagator):
         
         ctl_subsystem, src_subsystem = self.controller[0], self.source
 
-        return construct == ctl_subsystem or construct == src_subsystem
+        return construct in (ctl_subsystem, src_subsystem)
 
     def call(self, inputs):
         """
-        Activate stored nodes.
-
-        Only activates stored nodes in opened slots.
-        """
-
-        data = collect_cmd_data(self.client, inputs, self.controller)
-        cmds = self.interface.parse_commands(data)
-
-        # toggle switches
-        switches = []
-        for slot, dim in enumerate(self.interface.read_dims):
-            if dim in cmds:
-                val = cmds[dim]
-                switch = (val == self.interface.read_vals[1])
-                switches.append(switch)
-                    
-        d = {f: self.level for f in self.flags}
-        for switch, cell in zip(switches, self.cells):
-            if switch is True:
-                d_cell = cell.call(inputs)
-                d.update(d_cell)
-        
-        return nd.NumDict(d)
-
-    def update(self, inputs, output):
-        """
-        Update the memory state.
+        Update the memory state and emit output activations.
 
         Updates are controlled by matching features emitted in the output of 
         self.controller to those defined in self.interface. If no commands are 
@@ -587,24 +564,35 @@ class WorkingMemory(Propagator):
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
-        # Flags get cleared on each update. New flags may then be added for the 
-        # next cycle.
+        # global wm reset
+        if cmds[self.interface.reset_dim] == self.interface.reset_vals[1]:
+            self.reset_cells()
+
+        d = nd.NumDict()
+        for cell, dim in zip(self.cells, self.interface.read_dims):
+            cell_strengths = cell.call(inputs)
+            if cmds[dim] == self.interface.read_vals[1]:
+                d |= cell_strengths
+
+        d |= self.flags
+        
+        if self.forward_commands:
+            cmd_strengths = nd.restrict(data, self.interface.cmds)
+            lagged_cmd_strengths = nd.transform_keys(cmd_strengths, lag, val=1)
+            d |= lagged_cmd_strengths
+        
+        return d
+
+    def update(self, inputs, output):
+        """
+        Clear the working memory flag buffer.
+        
+        For richer update/learning behaviour, add updaters to client construct.
+        """
+
         self.clear_flags()
 
-        # global wm reset
-        if self.interface.reset_dim in cmds:
-            val = cmds[self.interface.reset_dim]
-            if self.interface.reset_vals[1] == val:
-                self.reset()
-
-        # cell/slot updates
-        for slot, cell in enumerate(self.cells):
-            # The copy here is for safety... better option may be to make 
-            # inputs immutable. - Can
-            cell.update(inputs, output)
-            # Clearing a slot automatically sets corresponding switch to False.
-
-    def reset(self):
+    def reset_cells(self):
         """
         Reset memory state.
         
@@ -612,11 +600,11 @@ class WorkingMemory(Propagator):
         """
 
         for cell in self.cells:
-            cell.clear()
+            cell.clear_store()
 
-    def write_flags(self, *flags):
+    def update_flags(self, strengths):
 
-        self.flags.extend(flags)
+        self.flags |= strengths
 
     def clear_flags(self):
 
