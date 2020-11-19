@@ -6,18 +6,148 @@ __all__ = ["Register", "WorkingMemory"]
 
 from ..base.symbols import (
     Symbol, MatchSet, ConstructType, feature, subsystem, terminus,
-    group_by_dims
+    group_by_dims, lag
 )
 from ..base import numdicts as nd
-from ..base.components import FeatureInterface, Propagator
+from ..base.components import FeatureInterface, Propagator, FeatureDomain
 from .chunks_ import Chunks, ChunkAdder
 from ..utils import collect_cmd_data
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby
-from typing import Callable, Hashable, Tuple, NamedTuple, List, Mapping
+from typing import Callable, Hashable, Tuple, NamedTuple, List, Mapping, Collection
 from types import MappingProxyType
 import logging
+
+
+class ParamSet(Propagator):
+    """A controlled store of parameters."""
+
+    _serves = ConstructType.buffer
+
+    @dataclass
+    class Interface(FeatureInterface):
+        """
+        Control interface for ParamSet instances.
+
+        :param tag: Tag for ParamSet control dimension.
+        :param vals: Control values, a sequence of four values corresponding to 
+            the following commands in order: standby, clear, update, 
+            clear then update.
+        :param clients: Symbols to which parameters are mapped.
+        :param func: Function consuming client symbols and outputting 
+            corresponding parameter tags. It is okay to map two clients to the 
+            same tag. This will couple their values.
+        :param param_val: Singleton value to be used in parameter features.
+        """
+
+        tag: Hashable
+        vals: Tuple[Hashable, Hashable, Hashable, Hashable]
+        clients: Collection[Symbol]
+        func: Callable[[Symbol], Hashable]
+        param_val: Hashable
+
+        def _set_interface_properties(self):
+
+            _func, _pval = self.func, self.param_val
+            _cmds = (feature(self.tag, val) for val in self.vals)
+            _defaults = {feature(self.tag, self.vals[0])}
+            _params = (feature(_func(s), _pval) for s in self.clients)
+
+            self._cmds = frozenset(_cmds)
+            self._defaults = frozenset(_defaults)
+            self._params = frozenset(_params)
+
+        def _validate_data(self):
+
+            _param_tags = set(self.func(s) for s in self.clients)
+
+            if len(set(self.vals)) != len(self.vals):
+                raise ValueError("Vals must contain unique values.")
+            if self.tag in _param_tags:
+                msg = "Tag cannot be equal to an output of func over clients."
+                raise ValueError(msg)
+
+    def __init__(
+        self, 
+        controller: Tuple[subsystem, terminus], 
+        interface: Interface,
+    ) -> None:
+
+        self.store = nd.NumDict()
+        self.flags = nd.NumDict()
+
+        self.controller = controller
+        self.interface = interface
+
+    def expects(self, construct):
+        
+        return construct == self.controller[0]
+
+    def call(self, inputs):
+        """Activate stored nodes."""
+
+        return self._store
+
+    def update(self, inputs, output):
+        """
+        Update the paramset state.
+
+        Updates are controlled by matching features emitted in the output of 
+        self.controller to those defined in self.interface. If no commands are 
+        encountered, default/standby behavior will be executed. The default 
+        behavior is to maintain the current state.
+        """
+
+        data = collect_cmd_data(self.client, inputs, self.controller)
+
+        cmds = self.interface.parse_commands(data)
+
+        cmd_strengths = nd.restrict(data, self.interface.cmds)
+        lagged_cmd_strengths = nd.transform_keys(cmd_strengths, lag, val=1)
+        param_strengths = nd.restrict(data, self.interface.params)
+
+        # Flags get cleared on each update. New flags may then be added for the 
+        # next cycle.
+        self.clear_flags()
+        self.write_flags(lagged_cmd_strengths)
+
+        # There should be exactly one command, but given the structure of the 
+        # parse dict, a for loop is used.
+        for dim, val in cmds.items():
+            if val == self.interface.vals[0]:
+                pass
+            elif val == self.interface.vals[1]:
+                self.clear_store()
+            elif val == self.interface.vals[2]:
+                self.update_store(param_strengths)
+            elif val == self.interface.vals[3]:
+                self.clear_store()
+                self.update_store(param_strengths)
+            else:
+                raise ValueError("Unexpected command value.")
+
+    def update_store(self, strengths):
+        """
+        Update strengths in self.store.
+        
+        Write op is implemented using the max operation. 
+        """
+
+        self.store |= strengths
+
+    def clear_store(self):
+        """Clear any nodes stored in self."""
+
+        self.store.clear()
+
+    def update_flags(self, strengths):
+
+        self.flags |= extend(strengths)
+
+    def clear_flags(self):
+
+        self.flags.clear()
 
 
 class Register(Propagator):

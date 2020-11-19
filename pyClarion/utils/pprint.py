@@ -38,6 +38,7 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         write = stream.write
         name = type(object).__name__
         indent += len(name) + 1
+
         stream.write(name + '(')
         self._pprint_dict(object, stream, indent, allowance, context, level)
         stream.write(')')
@@ -78,6 +79,7 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         write = stream.write
         name = type(object).__name__
         indent += len(name) + 1
+        
         stream.write(name + '(')
         self._pprint_dict(object, stream, indent, allowance, context, level)
         stream.write(')')
@@ -111,13 +113,18 @@ class PrettyPrinter(_pprint.PrettyPrinter):
 def pprint(object, stream=None, indent=1, width=80, depth=None, *,
            compact=False):
     """Pretty-print a Python object to a stream [default is sys.stdout]."""
+
     printer = PrettyPrinter(
-        stream=stream, indent=indent, width=width, depth=depth,
-        compact=compact)
+        stream=stream, indent=indent, width=width, depth=depth, compact=compact
+    )
     printer.pprint(object)
 
 
 def pformat(object, indent=1, width=80, depth=None, *, compact=False):
     """Format a Python object into a pretty-printed representation."""
-    return PrettyPrinter(indent=indent, width=width, depth=depth,
-                         compact=compact).pformat(object)
+    
+    printer = PrettyPrinter(
+        indent=indent, width=width, depth=depth, compact=compact
+    )
+
+    return printer.pformat(object)
