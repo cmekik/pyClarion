@@ -4,19 +4,23 @@
 from pyClarion import *
 
 
-gate_interface = FilteringRelay.Interface(
-    mapping={
-        "nacs-stim": flow_in("stimulus"),
-        "nacs-assoc": flow_tt("associations"),
-        "nacs-bt": flow_bt("main")
+gate_interface = ParamSet.Interface(
+    tag="gate",
+    vals=("standby", "clear", "update", "clear+update"),
+    clients={
+        flow_in("stimulus"),
+        flow_tt("associations"),
+        flow_bt("main")
     },
-    vals=(0, 1)
+    func=lambda c: ("gate", c.ctype.name, c.cid[0]),
+    param_val="param"
 )
+
 
 chunk_db = Chunks()
 rule_db = Rules()
 
-rule_db.link(chunk("FRUIT"), chunk("APPLE")) # type: ignore
+rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE")) # type: ignore
 
 chunk_db.link( # type: ignore
     chunk("APPLE"), 
@@ -53,9 +57,14 @@ with alice:
         emitter=Stimulus()
     )
 
+    acs_ctrl = Construct(
+        name=buffer("acs_ctrl"), 
+        emitter=Stimulus()
+    )
+
     gate = Construct(
         name=buffer("gate"),
-        emitter=FilteringRelay(
+        emitter=ParamSet(
             controller=(subsystem("acs"), terminus("nacs")),
             interface=alice.assets.gate_interface
         )
@@ -72,7 +81,7 @@ with alice:
         name=subsystem("acs"),
         emitter=ACSCycle(
             sources={
-                buffer("stimulus"), 
+                buffer("acs_ctrl"), 
                 buffer("defaults")
             }
         )
@@ -84,7 +93,7 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus"), 
+                    buffer("acs_ctrl"), 
                     buffer("defaults")
                 }
             )
@@ -119,7 +128,8 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    flow_tb("main")
+                    flow_tb("main"),
+                    flow_in("gate_meta")
                 }
             )
         )
@@ -140,6 +150,14 @@ with alice:
             emitter=Gated(
                 base=Repeater(source=buffer("stimulus")),
                 gate=buffer("gate")
+            )
+        )
+
+        Construct(
+            name=flow_in("gate_meta"),
+            emitter=ParamSet.MetaKnowledge(
+                source=buffer("gate"),
+                client_interface=alice.assets.gate_interface
             )
         )
 
@@ -180,7 +198,7 @@ with alice:
                     source=chunks("main"),
                     temperature=.1
                 ),
-                sieve=flow_in("stimulus")
+                sieve=buffer("stimulus")
             )
         )
 
@@ -189,18 +207,19 @@ with alice:
 ### Simulation ###
 ##################
 
+
 alice.start()
+
 
 print("CYCLE 1: Open stimulus only.") 
 
-stimulus.emitter.input({feature("nacs-stim", 1.0): 1.0})
+acs_ctrl.emitter.input({
+    feature("gate", "update"): 1.0,
+    feature(("gate", "flow_in", "stimulus"), "param"): 1.0
+})
 alice.step()
-print(
-    "Step 1: {} -> {}".format(
-        gate.emitter.controller, 
-        alice[gate.emitter.controller].output
-    )
-)
+print("Step 1: {} ->".format(gate.emitter.controller))
+pprint(alice[gate.emitter.controller].output)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
@@ -211,40 +230,34 @@ print()
 
 print("CYCLE 2: Open stimulus & associations only.")
 
-stimulus.emitter.input({
-    feature("nacs-stim", 1.): 1., 
-    feature("nacs-assoc", 1.): 1.
+acs_ctrl.emitter.input({
+        feature("gate", "update"): 1.0,
+        feature(("gate", "flow_tt", "associations"), "param"): 1.0
 })
 alice.step()
-print(
-    "Step 1: {} -> {}".format(
-        gate.emitter.controller, 
-        alice[gate.emitter.controller].output
-    )
-)
+print("Step 1: {} ->".format(gate.emitter.controller))
+pprint(alice[gate.emitter.controller].output)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
-pprint(alice[subsystem("nacs")].output)
+pprint(alice.output)
 print()
+
 
 print("CYCLE 3: Open stimulus & bottom-up only.")
 
-stimulus.emitter.input({
-    feature("nacs-stim", 1.): 1.,
-    feature("nacs-bt", 1.): 1.
+acs_ctrl.emitter.input({
+    feature("gate", "clear+update"): 1.0,
+    feature(("gate", "flow_in", "stimulus"), "param"): 1.0,
+    feature(("gate", "flow_bt", "main"), "param"): 1.0
 })
 alice.step()
-print(
-    "Step 1: {} -> {}".format(
-        gate.emitter.controller, 
-        alice[gate.emitter.controller].output
-    )
-)
+print("Step 1: {} ->".format(gate.emitter.controller))
+pprint(alice[gate.emitter.controller].output)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
 alice.step()
 print("Step 2: {} ->".format(subsystem("nacs")))
-pprint(alice[subsystem("nacs")].output)
+pprint(alice.output)
 print()

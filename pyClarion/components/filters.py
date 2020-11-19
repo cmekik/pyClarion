@@ -1,7 +1,7 @@
 """Tools for filtering inputs and outputs of propagators."""
 
 
-__all__ = ["Gated", "Filtered", "FilteringRelay"]
+__all__ = ["Gated", "Filtered"]
 
 
 from ..base.symbols import (
@@ -109,87 +109,3 @@ class Filtered(Propagator):
         preprocessed = {src: ws * d for src, d in items} 
 
         return MappingProxyType(preprocessed)
-
-
-class FilteringRelay(Propagator):
-    """Computes gate and filter settings as directed by a controller."""
-    
-    _serves = ConstructType.buffer
-
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Control features for filtering relay.
-        
-        Defines mapping for assignment of filter weights to cilent constructs 
-        based on controller instructions.
-
-        Warning: Do not mutate attributes after creation. Changes will not be 
-        reflected.
-
-        :param mapping: Mapping from controller dimension tags to either 
-            symbols naming individual clients or a set of symbols for a 
-            group of clients. 
-        :param vals: A tuple defining feature values corresponding to each 
-            strength degree. The i-th value is taken to correspond to a 
-            filter weighting level of i / (len(vals) - 1).
-        """
-
-        mapping: Mapping[Hashable, Union[Symbol, Set[Symbol]]]
-        vals: Tuple[Hashable, ...]
-
-        def _set_interface_properties(self) -> None:
-
-            tv_pairs = product(self.mapping, self.vals)
-            cmd_list = list(feature(tag, val) for tag, val in tv_pairs)
-            default = self.vals[0]
-            default_set = set(feature(tag, default) for tag in self.mapping)
-
-            self._cmds = frozenset(cmd_list)
-            self._defaults = frozenset(default_set)
-            self._params = frozenset()
-
-        def _validate_data(self):
-
-            if len(set(self.vals)) < 2:
-                msg = "Arg `vals` must define at least 2 unique values."
-                raise ValueError(msg)
-
-    def __init__(
-        self,
-        controller: Tuple[subsystem, terminus],
-        interface: Interface
-    ) -> None:
-
-        self.controller = controller
-        self.interface = interface
-
-    def expects(self, construct):
-
-        return construct == self.controller[0]
-
-    def call(self, inputs):
-
-        # This needs badly to be updated to support parameters and take full 
-        # advantage of numdicts. - Can
-
-        data = collect_cmd_data(self.client, inputs, self.controller)
-        cmds = self.interface.parse_commands(data)
-
-        d = {}
-        for dim in self.interface.cmd_dims:
-
-            cmd = cmds[dim]
-            tag, _ = dim  
-
-            i, n = self.interface.vals.index(cmd), len(self.interface.vals)
-            strength = i / (n - 1)
-
-            entry = self.interface.mapping[tag]
-            if not isinstance(entry, Symbol): # entry of type Set[Symbol, ...]
-                for client in entry:
-                    d[client] = strength
-            else: # entry of type Symbol
-                d[entry] = strength
-
-        return nd.NumDict(d)

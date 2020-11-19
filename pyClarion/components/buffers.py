@@ -1,7 +1,7 @@
 """Definitions for memory constructs, most notably working memory."""
 
 
-__all__ = ["Register", "WorkingMemory"]
+__all__ = ["ParamSet", "Register", "WorkingMemory"]
 
 
 from ..base.symbols import (
@@ -11,7 +11,7 @@ from ..base.symbols import (
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator, FeatureDomain
 from .chunks_ import Chunks, ChunkAdder
-from ..utils import collect_cmd_data
+from ..utils import collect_cmd_data, pprint
 
 from dataclasses import dataclass
 from itertools import chain, product, groupby
@@ -44,7 +44,7 @@ class ParamSet(Propagator):
         tag: Hashable
         vals: Tuple[Hashable, Hashable, Hashable, Hashable]
         clients: Collection[Symbol]
-        func: Callable[[Symbol], Hashable]
+        func: Callable[..., Hashable]
         param_val: Hashable
 
         def _set_interface_properties(self):
@@ -68,10 +68,55 @@ class ParamSet(Propagator):
                 msg = "Tag cannot be equal to an output of func over clients."
                 raise ValueError(msg)
 
+    class MetaKnowledge(Propagator):
+        """
+        Helper propagator for extracting commands & command parameters.
+        
+        This is useful if the agent should have cognitive access to the 
+        commands and parameters passed to the parameter set. 
+        """
+
+        _serves = ConstructType.flow_in
+
+        def __init__(
+            self, 
+            source: Symbol, 
+            client_interface: "ParamSet.Interface"
+        ):
+            
+            self.source = source
+            self.client_interface = client_interface
+
+        def expects(self, construct):
+
+            return construct == self.source
+
+        def call(self, inputs):
+
+            # Perhaps should transform metaknowledge features to prevent 
+            # interference with legit action/param features? This would add an 
+            # extra layer of complexity, which I don't like, but it may prove 
+            # necessary... - Can
+
+            d = nd.NumDict(inputs[self.source])
+            d.filter(self._key)
+
+            return d
+        
+        def _key(self, construct):
+
+            b = (
+                isinstance(construct, feature) and
+                construct.tag in self.client_interface.tags
+            )
+
+            return b
+
     def __init__(
         self, 
         controller: Tuple[subsystem, terminus], 
         interface: Interface,
+        forward_commands: bool = True
     ) -> None:
 
         self.store = nd.NumDict()
@@ -79,17 +124,31 @@ class ParamSet(Propagator):
 
         self.controller = controller
         self.interface = interface
+        self.forward_commands = forward_commands
 
     def expects(self, construct):
         
         return construct == self.controller[0]
 
     def call(self, inputs):
-        """Activate stored nodes."""
+        """Activate client constructs."""
 
-        return self._store
+        self.update_state(inputs)
 
-    def update(self, inputs, output):
+
+        d = nd.NumDict()
+
+        strengths = nd.transform_keys(self.store, feature.tag.fget)
+        for construct in self.interface.clients:
+            d[construct] = strengths[self.interface.func(construct)]
+
+        if self.forward_commands:
+            d |= self.store
+            d |= self.flags
+
+        return d
+
+    def update_state(self, inputs):
         """
         Update the paramset state.
 
@@ -110,7 +169,7 @@ class ParamSet(Propagator):
         # Flags get cleared on each update. New flags may then be added for the 
         # next cycle.
         self.clear_flags()
-        self.write_flags(lagged_cmd_strengths)
+        self.update_flags(lagged_cmd_strengths)
 
         # There should be exactly one command, but given the structure of the 
         # parse dict, a for loop is used.
@@ -143,7 +202,7 @@ class ParamSet(Propagator):
 
     def update_flags(self, strengths):
 
-        self.flags |= extend(strengths)
+        self.flags |= strengths
 
     def clear_flags(self):
 

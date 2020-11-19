@@ -8,21 +8,22 @@ from itertools import groupby
 # Need dv-pairs to be predefined.
 
 fdomain = [
-    ("color", "red"),
-    ("color", "green"),
-    ("shape", "square"),
-    ("shape", "circle")
+    feature("color", "red"),
+    feature("color", "green"),
+    feature("shape", "square"),
+    feature("shape", "circle")
 ]
+
+filter_interface = ParamSet.Interface(
+    tag="filter",
+    vals=("standby", "clear", "update", "clear+update"),
+    clients=fdomain,
+    func=lambda c: ("filter", "feature", c.dim),
+    param_val="param"
+)
 
 chunk_db = Chunks()
 
-grouped = group_by_dims(feature(dim, val) for dim, val in fdomain)
-mapping = {("dof", "nacs", dim): set(entry) for dim, entry in grouped.items()}
-
-filter_interface = FilteringRelay.Interface(
-    mapping=mapping, # type: ignore
-    vals=(0, 1)
-)
 
 alice = Structure(
     name=agent("alice"),
@@ -46,8 +47,8 @@ with alice:
     )
 
     relay = Construct(
-        name=buffer("dimensional-filter"),
-        emitter=FilteringRelay(
+        name=buffer("filter"),
+        emitter=ParamSet(
             controller=(subsystem("acs"), terminus("nacs")),
             interface=alice.assets.filter_interface
         )
@@ -96,7 +97,7 @@ with alice:
         emitter=NACSCycle(
             sources={
                 buffer("stimulus"), 
-                buffer("dimensional-filter")
+                buffer("filter")
             }
         )
     )
@@ -107,8 +108,17 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus")
+                    buffer("stimulus"),
+                    flow_in("filter_meta")
                 }
+            )
+        )
+
+        Construct(
+            name=flow_in("filter_meta"),
+            emitter=ParamSet.MetaKnowledge(
+                source=buffer("filter"),
+                client_interface=alice.assets.filter_interface
             )
         )
 
@@ -119,7 +129,7 @@ with alice:
                     source=features("main"),
                     threshold=.85
                 ),
-                sieve=buffer("dimensional-filter")
+                sieve=buffer("filter")
             )
         )
 
@@ -151,7 +161,10 @@ print() # Empty line
 print("CYCLE 2: Block shape only.")
 
 print("Step 1: Set filter values.")
-controller.emitter.input({feature(("dof", "nacs", ("shape", 0)), 1): 1.})
+controller.emitter.input({
+    feature("filter", "update"): 1.0,
+    feature(("filter", "feature", ("shape", 0)), "param"): 1.0
+})
 alice.step()
 pprint(alice.output)
 print() # Empty line

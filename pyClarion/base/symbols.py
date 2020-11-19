@@ -14,7 +14,6 @@ from enum import Flag, auto
 from typing import (
     Hashable, Tuple, Union, Iterable, Callable, MutableSet, Dict, TypeVar
 )
-from itertools import groupby
 
 
 class ConstructType(Flag):
@@ -581,12 +580,12 @@ def group_by(
 ) -> Dict[K, Tuple[T, ...]]:
     """Return a dict grouping items in iterable by values of the key func."""
 
-    groups = {}
-    s = sorted(iterable, key=key)
-    for k, g in groupby(s, key):
-        groups[k] = tuple(g)
+    groups: dict = {}
+    for item in iterable:
+        k = key(item)
+        groups.setdefault(k, []).append(item)
     
-    return groups
+    return {k: tuple(v) for k, v in groups.items()}
 
 
 def group_by_ctype(
