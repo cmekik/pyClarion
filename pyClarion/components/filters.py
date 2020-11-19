@@ -9,7 +9,7 @@ from ..base.symbols import (
 )
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
-from ..utils.funcs import group_by_dims, collect_cmd_data
+from ..utils.funcs import collect_cmd_data
 
 from itertools import product
 from dataclasses import dataclass

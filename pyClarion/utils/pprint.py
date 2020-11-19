@@ -22,10 +22,12 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         write = stream.write
         name = type(object).__name__
         indent += len(name) + 1
+        end = [" " * indent, 'default=', _pprint.saferepr(object.default),')']
+        
         stream.write(name + '(')
         self._pprint_dict(object, stream, indent, allowance, context, level)
         stream.write(',\n')
-        stream.write(" " * indent + 'default=' + _pprint.saferepr(object.default) + ')')
+        stream.write("".join(end))
 
     _dispatch[BaseNumDict.__repr__] = _pprint_numdict
 

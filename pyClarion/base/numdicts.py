@@ -483,15 +483,17 @@ def restrict(d: D, container: Container) -> D:
     return type(d)(mapping, d.dtype, d.default)
 
 
-def transform_keys(d: D, func: Callable[[Hashable], Hashable]) -> D:
+def transform_keys(
+    d: D, func: Callable[..., Hashable], *args, **kwds
+) -> D:
     """
-    Return a copy of d where each key is mapped to function(key).
+    Return a copy of d where each key is mapped to func(key, *args, **kwds).
 
     Warning: If function is not one-to-one wrt keys, output will be 
     corrupted. This is not checked.
     """
 
-    mapping = {func(k): d[k] for k in d}
+    mapping = {func(k, *args, **kwds): d[k] for k in d}
 
     return type(d)(mapping, d.dtype, d.default)
 

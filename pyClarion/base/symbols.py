@@ -4,12 +4,16 @@
 __all__ = [
     "ConstructType", "Token", "Symbol", "ConstructRef", "MatchSet", "feature", 
     "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", "flow_tb", 
-    "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent"
+    "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
+    "group_by", "group_by_ctype", "group_by_dims", "group_by_tags", 
+    "group_by_lags", "lag"
 ]
 
 
 from enum import Flag, auto
-from typing import Hashable, Tuple, Union, Iterable, Callable, MutableSet, Dict
+from typing import (
+    Hashable, Tuple, Union, Iterable, Callable, MutableSet, Dict, TypeVar
+)
 from itertools import groupby
 
 
@@ -570,6 +574,37 @@ class MatchSet(object):
 ################
 
 
+T = TypeVar("T")
+K = TypeVar("K")
+def group_by(
+    iterable: Iterable[T], key: Callable[[T], K]
+) -> Dict[K, Tuple[T, ...]]:
+    """Return a dict grouping items in iterable by values of the key func."""
+
+    groups = {}
+    s = sorted(iterable, key=key)
+    for k, g in groupby(s, key):
+        groups[k] = tuple(g)
+    
+    return groups
+
+
+def group_by_ctype(
+    symbols: Iterable[Symbol]
+) -> Dict[ConstructType, Tuple[Symbol, ...]]:
+    """
+    Construct a dict grouping symbols by their construct types.
+    
+    Returns a dict where each construct type is mapped to a tuple of symbols of 
+    that type. Does not check for duplicates.
+    """
+
+    # Ignore type of key due to mypy false alarm. - Can
+    key = Symbol.ctype.fget # type: ignore 
+    
+    return group_by(iterable=symbols, key=key)
+
+
 def group_by_dims(
     features: Iterable[feature]
 ) -> Dict[Hashable, Tuple[feature, ...]]:
@@ -582,11 +617,49 @@ def group_by_dims(
     :param features: An iterable of features to be grouped by dimension.
     """
 
-    groups = {}
     # Ignore type of key due to mypy false alarm. - Can
     key = feature.dim.fget # type: ignore 
-    s = sorted(features, key=key)
-    for k, g in groupby(s, key):
-        groups[k] = tuple(g)
     
-    return groups
+    return group_by(iterable=features, key=key)
+
+
+def group_by_tags(
+    features: Iterable[feature]
+) -> Dict[Hashable, Tuple[feature, ...]]:
+    """
+    Construct a dict grouping features by their dimensions.
+    
+    Returns a dict where each dim is mapped to a tuple of features of that dim.
+    Does not check for duplicate features.
+
+    :param features: An iterable of features to be grouped by dimension.
+    """
+
+    # Ignore type of key due to mypy false alarm. - Can
+    key = feature.tag.fget # type: ignore 
+    
+    return group_by(iterable=features, key=key)
+
+
+def group_by_lags(
+    features: Iterable[feature]
+) -> Dict[Hashable, Tuple[feature, ...]]:
+    """
+    Construct a dict grouping features by their dimensions.
+    
+    Returns a dict where each dim is mapped to a tuple of features of that dim.
+    Does not check for duplicate features.
+
+    :param features: An iterable of features to be grouped by dimension.
+    """
+
+    # Ignore type of key due to mypy false alarm. - Can
+    key = feature.lag.fget # type: ignore 
+    
+    return group_by(iterable=features, key=key)
+
+
+def lag(f: feature, val: int = 1) -> feature:
+    """Return a copy of feature with lag incremented by val."""
+    
+    return feature(f.tag, f.val, f.lag + val)

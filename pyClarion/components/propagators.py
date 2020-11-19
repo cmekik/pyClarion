@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-from ..base import ConstructType, Symbol, Propagator, chunk, feature
+from ..base import ConstructType, Symbol, Propagator, chunk, feature, lag
 from ..base import numdicts as nd
 
 from typing import (
@@ -105,7 +105,7 @@ class Lag(Propagator):
     def call(self, inputs):
 
         d = nd.NumDict(inputs[self.source])
-        d = nd.transform_keys(d, self._lag)
+        d = nd.transform_keys(d, lag, val=1)
         d.filter(self._filter)
 
         return d
@@ -114,10 +114,6 @@ class Lag(Propagator):
 
         return f.ctype in ConstructType.feature and f.lag <= self.max_lag
 
-    @staticmethod
-    def _lag(f):
-        
-        return feature(f.tag, f.val, f.lag + 1)
 
 ############################
 ### Terminus Propagators ###
