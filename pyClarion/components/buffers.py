@@ -13,11 +13,11 @@ from ..base.components import FeatureInterface, Propagator, FeatureDomain
 from .chunks_ import Chunks, ChunkAdder
 from ..utils import collect_cmd_data, pprint
 
-from dataclasses import dataclass
-from itertools import chain, product, groupby
 from typing import (
     Callable, Hashable, Tuple, NamedTuple, List, Mapping, Collection
 )
+from dataclasses import dataclass
+from itertools import chain, product
 from types import MappingProxyType
 import logging
 

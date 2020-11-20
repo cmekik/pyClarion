@@ -1,8 +1,38 @@
-from pyClarion import *
-from typing import cast
+from pyClarion import (
+    feature, chunk, terminus, features, chunks, buffer, subsystem, agent, 
+    flow_tb, flow_bt,
+    Construct, Structure,
+    AgentCycle, ACSCycle, NACSCycle,
+    WorkingMemory, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
+    Filtered, ActionSelector, BoltzmannSelector, ThresholdSelector,
+    Assets, Chunks, ChunkAdder,
+    pprint
+)
+
 import logging
 
+
 logging.basicConfig(level=logging.INFO)
+
+
+fspecs = [
+    feature("word", "/banana/"),
+    feature("word", "/apple/"),
+    feature("word", "/orange/"),
+    feature("word", "/plum/"),
+    feature("color", "red"),
+    feature("color", "green"),
+    feature("color", "yellow"),
+    feature("color", "orange"),
+    feature("color", "purple"),
+    feature("shape", "round"),
+    feature("shape", "oblong"),
+    feature("size", "small"),
+    feature("size", "medium"),
+    feature("texture", "smooth"),
+    feature("texture", "grainy"),
+    feature("texture", "spotty")
+]
 
 wm_interface = WorkingMemory.Interface(
     slots=7,
@@ -18,13 +48,53 @@ wm_interface = WorkingMemory.Interface(
     },
     reset_vals=("standby", "reset"),
     read_vals=("standby", "read"),
+)
+
+
+nacs_cdb = Chunks()
+
+nacs_cdb.link(
+    chunk("APPLE"),
+    feature("lexeme", "/apple/"),
+    feature("color", "red"),
+    feature("shape", "round"),
+    feature("size", "medium"),
+    feature("texture", "smooth")
+)
+
+nacs_cdb.link(
+    chunk("ORANGE"),
+    feature("lexeme", "/orange/"),
+    feature("color", "orange"),
+    feature("shape", "round"),
+    feature("size", "medium"),
+    feature("texture", "grainy")
+)
+
+nacs_cdb.link(
+    chunk("BANANA"),
+    feature("lexeme", "/banana/"),
+    feature("color", "yellow"),
+    feature("shape", "oblong"),
+    feature("size", "medium"),
+    feature("texture", "spotty")
+)
+
+nacs_cdb.link(
+    chunk("PLUM"),
+    feature("lexeme", "/plum/"),
+    feature("color", "purple"),
+    feature("shape", "round"),
+    feature("size", "small"),
+    feature("texture", "smooth")
 ) 
+
 
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
     assets=Assets(
-        chunks=Chunks(),
+        chunks=nacs_cdb,
         wm_interface=wm_interface
     )
 )
@@ -96,13 +166,9 @@ with alice:
         name=subsystem("nacs"),
         emitter=NACSCycle(
             sources={
+                buffer("wm"),
                 buffer("stimulus")
             }
-        ),
-        updater=ChunkAdder(
-            chunks=alice.assets.chunks,
-            terminus=terminus("bl-state"),
-            prefix="bl-state"
         )
     )
 
@@ -113,16 +179,27 @@ with alice:
             emitter=MaxNodes(
                 sources={
                     buffer("stimulus"), 
+                    buffer("wm"),
                     flow_tb("main")
                 }
             )
         )
 
         Construct(
-            name=chunks("main"),
+            name=chunks("in"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus"), 
+                    buffer("stimulus"),
+                    buffer("wm")
+                }
+            )
+        )
+
+        Construct(
+            name=chunks("out"),
+            emitter=MaxNodes(
+                sources={
+                    chunks("in"), 
                     flow_bt("main")
                 }
             )
@@ -139,33 +216,19 @@ with alice:
         Construct(
             name=flow_tb("main"), 
             emitter=TopDown(
-                source=chunks("main"),
+                source=chunks("in"),
                 chunks=alice.assets.chunks
             )
         )
-
-        fspecs = [
-            ("fruit", "banana"),
-            ("fruit", "kiwi"),
-            ("fruit", "blueberry"),
-            ("fruit", "dragon fruit"),
-            ("fruit", "orange"),
-            ("fruit", "strawberry"),
-            ("price", "very cheap"),
-            ("price", "cheap"),
-            ("price", "fair"),
-            ("price", "expensive"),
-            ("price", "very expensive"),
-        ]
 
         Construct(
             name=terminus("retrieval"),
             emitter=Filtered(
                 base=BoltzmannSelector(
-                    source=chunks("main"),
+                    source=chunks("out"),
                     temperature=.1
                 ),
-                sieve=buffer("stimulus")
+                sieve=buffer("wm")
             )
         )
 
@@ -179,9 +242,11 @@ with alice:
 
 # Agent setup is now complete!
 
+
 ##################
 ### Simulation ###
 ##################
+
 
 print(
     "Each simulation example consists of two propagation cycles.\n"
@@ -189,32 +254,43 @@ print(
     "In the second, we probe the WM output & state to demonstrate the effect.\n"
 )
 
+
 alice.start()
+
 
 # standby (empty wm)
 print("Standby (Empty WM)")
 print()
 
 stimulus.emitter.input({
-    feature("fruit", "dragon fruit"): 1.0,
-    feature("price", "expensive"): 1.0,
+    feature("color", "green"): 1.0,
+    feature("shape", "round"): 1.0,
+    feature("size", "medium"): 1.0,
+    feature("texture", "smooth"): 1.0
 })
 acs_ctrl.emitter.input({})
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
 pprint([cell.store for cell in wm.emitter.cells])
 print()
+
 
 # open empty (should do nothing)
 print("Open (Empty WM; does nothing)")
@@ -226,14 +302,20 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
@@ -246,8 +328,10 @@ print("Single Write & Open Corresponding Slot")
 print()
 
 stimulus.emitter.input({
-    feature("fruit", "dragon fruit"): 1.0,
-    feature("price", "expensive"): 1.0,
+    feature("color", "green"): 1.0,
+    feature("shape", "round"): 1.0,
+    feature("size", "medium"): 1.0,
+    feature("texture", "smooth"): 1.0
 })
 acs_ctrl.emitter.input({
     feature(("wm", "w", 0), "retrieve"): 1.0,
@@ -255,14 +339,20 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
@@ -275,22 +365,30 @@ print("Reset")
 print()
 
 stimulus.emitter.input({
-    feature("fruit", "dragon fruit"): 1.0,
-    feature("price", "expensive"): 1.0,
+    feature("color", "green"): 1.0,
+    feature("shape", "round"): 1.0,
+    feature("size", "medium"): 1.0,
+    feature("texture", "smooth"): 1.0
 })
 acs_ctrl.emitter.input({
     feature(("wm", "re"), "reset"): 1.0
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
@@ -303,8 +401,10 @@ print("Double Write")
 print()
 
 stimulus.emitter.input({
-    feature("fruit", "banana"): 1.0,
-    feature("price", "expensive"): 1.0
+    feature("color", "green"): 1.0,
+    feature("shape", "oblong"): 1.0,
+    feature("size", "medium"): 1.0,
+    feature("texture", "smooth"): 1.0
 })
 acs_ctrl.emitter.input({
     feature(("wm", "w", 0), "retrieve"): 1.0,
@@ -314,16 +414,20 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-pprint([cell.store for cell in wm.emitter.cells])
-
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
@@ -341,14 +445,20 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
@@ -367,14 +477,20 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 
-print("Step 1: {} ->".format(wm.emitter.controller))
+print("Step 1:") 
+print("{}:".format(wm.emitter.controller))
 pprint(alice[wm.emitter.controller].output)
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 alice.step()
 
-print("Step 2: {} ->".format(buffer("wm")))
+print("Step 2:")
+print("{}:".format(buffer("wm")))
 pprint(alice.output[buffer("wm")])
+print("{}:".format(subsystem("nacs")))
+pprint(alice.output[subsystem("nacs")])
 print()
 
 print("Current WM state.")
