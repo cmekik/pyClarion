@@ -87,7 +87,11 @@ class Rules(MutableMapping):
 
             return self._weights
 
-    def __init__(self, data: Mapping[rule, "Rules.Rule"] = None) -> None:
+    def __init__(
+        self, 
+        data: Mapping[rule, "Rules.Rule"] = None,
+        max_conds: int = None
+    ) -> None:
 
         if data is None:
             data = dict()
@@ -95,6 +99,7 @@ class Rules(MutableMapping):
             data = dict(data)
 
         self._data = data
+        self.max_conds = max_conds
 
     def __repr__(self):
 
@@ -115,6 +120,7 @@ class Rules(MutableMapping):
 
     def __setitem__(self, key, val):
 
+        self._validate_rule_form(val)
         self._data[key] = val
 
     def __delitem__(self, key):
@@ -125,6 +131,7 @@ class Rules(MutableMapping):
         """Add a new rule."""
 
         form = self.Rule(conc, *conds, weights=weights)
+        self._validate_rule_form(form)
         self[r] = form
 
     def contains_form(self, form):
@@ -135,6 +142,12 @@ class Rules(MutableMapping):
         """
 
         return any(form == entry for entry in self.values())
+
+    def _validate_rule_form(self, form):
+
+        if self.max_conds is not None and len(val.weights) > self.max_conds:
+            msg = "Received rule with {} conditions; maximum allowed is {}."
+            raise ValueError(msg.format(len(val.weights), self.max_conds))
 
 
 class AssociativeRules(Propagator):
@@ -170,4 +183,51 @@ class AssociativeRules(Propagator):
             d[form.conc] = max(d[form.conc], s_r)
             d[r] = s_r
         
+        return d
+
+
+class ActionRules(Propagator):
+    """
+    Propagates activations among chunks through action rules.
+    
+    Action rules compete to be selected based on their rule strengths, which is 
+    equal to the product of an action rule's weight and the strength of its 
+    condition chunk. The rule strength of the selected action is then 
+    propagated to its conclusion. 
+    """
+
+    _serves = ConstructType.flow_tt
+
+    def __init__(
+        self, source: Symbol, rules: Rules, temperature: float = .01
+    ) -> None:
+
+        if rules.max_conds is None or rules.max_conds > 1:
+            msg = "Rule database must not accept multiple condition rules."
+            raise ValueError(msg)
+
+        self.source = source
+        self.rules = rules
+        self.temperature = temperature
+
+    def expects(self, construct):
+
+        return construct == self.source
+
+    def call(self, inputs):
+
+        strengths = inputs[self.source]
+
+        s_r = nd.NumDict()
+        for r, form in rules.items():
+            s_r[r] = nd.restrict(strengths, form.weights) * form.weights
+        prs = nd.boltzmann(s_r, self.temperature)
+        selection = nd.draw(prs, 1)
+        s_a = s_r * selection
+
+        d = nd.NumDict()
+        for r in s_a:
+            d[self.rules[r].conc] = max(d[self.rules[r].conc], s_a[r])
+        d |= selection
+
         return d
