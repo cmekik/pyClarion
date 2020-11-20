@@ -1,25 +1,46 @@
 """Definitions for memory constructs, most notably working memory."""
 
 
-__all__ = ["ParamSet", "Register", "WorkingMemory"]
+__all__ = ["ParamSet", "Register", "WorkingMemory", "collect_cmd_data"]
 
 
 from ..base.symbols import (
-    Symbol, MatchSet, ConstructType, feature, subsystem, terminus,
+    ConstructType, Symbol, 
+    feature, subsystem, terminus,
     group_by_dims, lag
 )
 from ..base import numdicts as nd
-from ..base.components import FeatureInterface, Propagator, FeatureDomain
-from .chunks_ import Chunks, ChunkAdder
-from ..utils import collect_cmd_data, pprint
-
-from typing import (
-    Callable, Hashable, Tuple, NamedTuple, List, Mapping, Collection
+from ..base.components import (
+    Inputs, Propagator, FeatureInterface, FeatureDomain
 )
+
+from typing import Callable, Hashable, Tuple, List, Mapping, Collection
 from dataclasses import dataclass
 from itertools import chain, product
 from types import MappingProxyType
 import logging
+
+
+def collect_cmd_data(
+    construct: Symbol, 
+    inputs: Inputs, 
+    controller: Tuple[subsystem, terminus]
+) -> nd.FrozenNumDict:
+    """
+    Extract command data from inputs. 
+    
+    Logs failure, but does not throw error.
+    """
+
+    subsystem, terminus = controller
+    try:
+        data = inputs[subsystem][terminus]
+    except KeyError:
+        data = frozenset()
+        msg = "Failed data pull from %s in %s."
+        logging.warning(msg, controller, construct)
+    
+    return data
 
 
 class ParamSet(Propagator):

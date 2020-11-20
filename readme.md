@@ -1,85 +1,63 @@
-# pyClarion Readme
+`pyClarion` is a python package for implementing agents according to the Clarion cognitive architecture.
 
-This is a python implementation of the Clarion cognitive architecture. 
+It is highly experimental, and aims to be easy to learn, read, extend, and experiment with.
 
-The package is highly experimental. Implementation is based on Ron Sun's 
-*Anatomy of the Mind* (2016; OUP).
+The primary resource for the implementation is Ron Sun's *Anatomy of the Mind* (2016; OUP).
 
-## Implementation Goals
+# Key Features
 
-This package aims to satisfy the following goals:
+- Pure `Python` (`>=3.7`)
+- Highly modular & compositional
+- Easily customizable
 
-1. Be True to the Source Material: The code should reflect the source text(s) 
-as closely as possible. However, superficial deviations from original 
-descriptions are acceptable if strict adherence would lead to unnecessary 
-complexity or inefficiency.
-2. Have One Class For Each Construct: Every major construct should be 
-represented by one class that encapsulates its core functions. This does not 
-mean every class should correspond to a construct, there may be interfaces, 
-abstractions, and utility classes that do not directly correspond to existing 
-constructs.
-3. Have a Simple Interface with the Simulation Environment: It should be easy 
-to transfer data between Clarion constructs and the wild.
-4. Prioritize Clarity Over Optimization: The code should be easily 
-interpretable whenever possible. Code should not be optimized at the expense of 
-clarity.
-5. Have Minimal Dependencies: The code should rely on standard or major 
-libraries whenever possible.
-6. Be Compositional: The code architecture should allow for components to be 
-swapped in and out easily. So, if only a subset of functionality is desired 
-(e.g., for prototyping/experimentation), it should be possible to implement 
-that subset with minimal effort.
-7. Be Extensible: It should be easy to experiment with new constructs or 
-alternative implementations.
-8. Be Maintainable: Every object should have a singular, well-defined, 
-documented role. Type hints should be included. Assumptions, exceptions, 
-failure cases should be documented whenever possible. There should be thorough 
-unit tests for all methods and functions. Python properties should be used 
-whenever possible as they abstract property implementation from the return data 
-type.
+# Installation
 
-These goals are roughly in order from most to least specific. 
-
-## Software Architecture Overview
-
-In `pyClarion`, simulated constructs are named and represented with symbolic 
-tokens called construct symbols. Each construct symbol may be associated with 
-one or more construct realizers, which define and implement the behavior of the 
-named constructs in a specific context.
-
-The symbol-realizer distinction was developed as a solution to the following 
-issues:
-
-1. Information about constructs frequently needs to be communicated 
-among various components. 
-2. Constructs often exhibit complex behavior driven by intricate datastructures 
-(e.g., artificial neural networks).
-3. The same constructs may exhibit different behaviors within different 
-subsystems of a given agent (e.g., the behavior of a same chunk may differ 
-between the action-centered subsystem and the non-action-centered subsystem).
-4. Construct behavior is not exactly prescribed by source material; several 
-implementational possibilities are available for each class of constructs.
-
-Construct symbols allow consistent and efficient communication of construct 
-information using basic datastructures such as dicts, lists and sets of 
-construct symbols. Construct realizers encapsulate complex behaviors associated 
-with client constructs and provide a clean interface for multiple distinct 
-realizations of the same construct.
-
-## Installation
-
-After downloading the repo, use `pip` with `setup.py`. In a command line, 
-navigate to the pyClarion folder, then:
+After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate to the pyClarion folder, then:
 
 - To install in developer mode (recommended), run
 ```pip install -e .```
 - To install as a regular library, run
 ```pip install .```
 
-WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your 
-installation may fail.
+WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your installation may fail.
 
-Developer mode is recommended due to the experimental status of the library. 
-Installing in this mode means that changes made to the pyClarion folder will be 
-reflected in the pyClarion package, enabling fast prototyping and 
-experimentation.
+Developer mode is recommended due to the experimental status of the library. Installing in this mode means that changes made to the pyClarion folder will be reflected in the pyClarion package, enabling fast prototyping and experimentation.
+
+# Examples
+
+The `examples/` folder provides some simple examples demonstrating various aspects of using the pyClarion library to assemble and simulate Clarion agents.
+
+The recommended reading order is as follows:
+
+- `free_association.py` - Introduces the basic concepts of the pyClarion library using the example of a very simple free association task.
+- `lagged_features.py` - Demonstrates how to set up lagged features, which may be useful in various contexts such as recurrent processing and temporal difference learning.
+- `flow_control.py` - An introduction to how pyClarion handles control through the example of using gates to select the mode of reasoning.
+- `chunk_extraction.py` - An introduction to how pyClarion supports learning processes. Demonstrates a simple case of learning through chunk extraction.  
+- `working_memory.py` - An introduction to more complex modeling using pyClarion. Demonstrates a simple case of question answering, where the non-action-centered subsystem drives action selection in the action-centered subsystem through working memory.
+
+# Implementation Overview
+
+`pyClarion` views Clarion agents as a hierarchical networks of neural networks. Thus, constructing a `pyClarion` agent amounts to declaring what components exist, what they do, where they are placed in the hierarchy, and how they network with other components.
+
+Simulated constructs are named and represented with symbolic tokens called construct symbols. Each construct symbol may be associated with one or more construct realizers, which define and implement the behavior of the named constructs in a specific context. Construct symbols allow consistent and efficient communication of construct information using basic datastructures such as dicts, lists and sets of construct symbols. Construct realizers encapsulate complex behaviors associated with client constructs and provide a clean interface for multiple distinct realizations of the same construct.
+
+Minimally, a construct realizer pairs a construct symbol, which names the construct represented by the realizer, with an `Emitter` object. The emitter is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other `pyClarion` components. Realizers may additionally be given `Updater` objects to handle more complex or customized learning behavior, and, in some cases, they may house resources shared by subordinate constructs (e.g., chunk and rule databases). To implement customized behaviors, it is sufficient to write suitable `Emitter` or `Updater` classes and pass them to a construct realizer.
+
+# Reading Guide
+
+The `pyClarion` library source code is organized as follows:
+
+- `pyClarion/base/` contains definitions for the basic abstractions used by the library.
+
+    This folder contains the following files:
+
+    - `symbols.py` - Defines construct symbols.
+    - `numdicts.py` - Defines numerical dictionaries, which are essentially dicts that support mathematical operations.
+    - `components.py` - Defines basic abstractions for defining emitters and updaters.
+    - `realizers.py` - Defines realizer objects.
+
+    The recommended reading order for `base/` is to start with `symbols.py` or `numdicts.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. Reading `components.py` on its own may be confusing.
+
+- `pyClarion/components/` contains definitions for concrete component implementations. Assuming familiarity with `base/`, the files in this folder may be read in any order after an initial reading of `propagators.py` and `cycles.py`. The former defines some basic emitters for basic constructs, while the latter defines activations sequences at the agent and subsystem levels. 
+
+- `pyClarion/utils/` contains definitions for various utilities. For now, it only contains `pprint.py`, which extends python's built-in pretty-printing tools to support various `pyClarion` objects.

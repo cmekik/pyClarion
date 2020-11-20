@@ -12,7 +12,7 @@ gate_interface = ParamSet.Interface(
         flow_tt("associations"),
         flow_bt("main")
     },
-    func=lambda c: ("gate", c.ctype.name, c.cid[0]),
+    func=lambda c: ("gate", c.ctype.name, c.cid),
     param_val="param"
 )
 

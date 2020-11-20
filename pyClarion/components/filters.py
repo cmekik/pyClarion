@@ -5,11 +5,10 @@ __all__ = ["Gated", "Filtered"]
 
 
 from ..base.symbols import (
-    Symbol, ConstructType, feature, subsystem, terminus
+    ConstructType, Symbol, feature, subsystem, terminus
 )
 from ..base import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
-from ..utils.funcs import collect_cmd_data
 
 from itertools import product
 from dataclasses import dataclass

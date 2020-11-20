@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 
-from ..base.symbols import Symbol, MatchSet, feature, subsystem, terminus
+from ..base.symbols import Symbol, feature, subsystem, terminus
 from ..base.components import (
     Propagator, Updater, UpdaterC, UpdaterS, FeatureInterface
 )

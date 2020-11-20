@@ -2,7 +2,7 @@
 
 
 __all__ = [
-    "ConstructType", "Token", "Symbol", "ConstructRef", "MatchSet", "feature", 
+    "ConstructType", "Token", "Symbol", "ConstructRef", "feature", 
     "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", "flow_tb", 
     "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
     "group_by", "group_by_ctype", "group_by_dims", "group_by_tags", 
@@ -11,9 +11,7 @@ __all__ = [
 
 
 from enum import Flag, auto
-from typing import (
-    Hashable, Tuple, Union, Iterable, Callable, MutableSet, Dict, TypeVar
-)
+from typing import Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar
 
 
 class ConstructType(Flag):
@@ -26,7 +24,7 @@ class ConstructType(Flag):
         null_construct: Empty construct type (corresponds to flag null).
         feature: Feature node.
         chunk: Chunk node.
-        rule: Rule node.
+        rule: A rule.
         features: A pool of feature nodes.
         chunks: A pool of chunk nodes.
         flow_in: Activation input to a subsystem.
@@ -142,7 +140,7 @@ class Symbol(Token):
     __slots__ = ()
 
     def __init__(
-        self, ctype: Union[ConstructType, str, int], *cid: Hashable
+        self, ctype: Union[ConstructType, str, int], cid: Hashable
     ) -> None:
         """
         Initialize a new Symbol.
@@ -150,9 +148,6 @@ class Symbol(Token):
         :param ctype: Construct type.
         :param cid: Hashable sequence serving as identifier.
         """
-
-        if len(cid) == 0:
-            raise ValueError("Must pass at least one identifier.")
 
         if isinstance(ctype, str):
             ctype = ConstructType[ctype]
@@ -173,9 +168,8 @@ class Symbol(Token):
     def __repr__(self):
 
         cls_name = type(self).__name__
-        args = ", ".join(repr(item) for item in self.cid)
         
-        return "{}({})".format(cls_name, args)
+        return "{}({})".format(cls_name, repr(self.cid))
 
     @property
     def ctype(self) -> ConstructType:
@@ -220,7 +214,7 @@ class feature(Symbol):
         :param lag: Lag indicator.
         """
 
-        super().__init__("feature", (tag, lag), val)
+        super().__init__("feature", ((tag, lag), val))
 
     def __repr__(self):
 
@@ -447,125 +441,6 @@ class agent(Symbol):
         """
 
         super().__init__("agent", cid)
-
-
-class MatchSet(object):
-    """
-    Matches construct symbols.
-
-    Checks if construct symbols satisfy complex conditions. Supports checks 
-    against construct types, reference symbol sets, or arbitrary predicates. 
-    
-    Supports usage with 'in' and addition/removal of criteria. Does NOT support 
-    algebraic operators such as union, intersection, difference etc.
-    """
-
-    def __init__(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[Symbol] = None,
-        predicates: Iterable[Callable[[Symbol], bool]] = None
-    ) -> None:
-        """
-        Initialize a new Matcher instance.
-
-        :param ctype: Acceptable construct type(s).
-        :param constructs: Acceptable construct symbols.
-        :param predicates: Custom custom predicates indicating acceptable 
-            constructs. 
-        """
-
-        self.ctype = ConstructType.null_construct
-        self.constructs: MutableSet[Symbol] = set()
-        self.predicates: MutableSet[Callable[[Symbol], bool]] = set()
-        self.add(ctype, constructs, predicates)
-
-    def __repr__(self):
-
-        ctr = "ConstructType({})".format(self.ctype.value)
-        if self.ctype.name is not None:
-            ctr = repr(self.ctype.name)
-        r = "MatchSet(ctype={}, constructs={}, predicates={})".format(
-            ctr, repr(self.constructs), repr(self.predicates)
-        )
-
-        return r
-
-
-    def __contains__(self, key: Symbol) -> bool:
-        """
-        Return true iff construct is in the match set.
-        
-        A construct is considered to be in the match set iff:
-            - Its construct type is in self.ctype OR
-            - It is equal to a member of self.constructs OR
-            - A predicate in self.predicates returns true when called on its 
-              construct symbol.
-        """
-
-        val = False
-        val |= key.ctype in self.ctype
-        val |= key in self.constructs
-        for predicate in self.predicates:
-                val |= predicate(key)
-        return val
-
-    def __copy__(self):
-        """Make a shallow copy of self."""
-
-        return type(self)(
-            ctype=self.ctype,
-            constructs=self.constructs.copy(),
-            predicates=self.predicates.copy()
-        )
-
-    def __ior__(self, other):
-
-        # TODO: Type check? - Can
-        self.add(other.ctype, other.constructs, other.predicates)
-    
-    def __isub__(self, other):
-
-        # TODO: Type check? - Can
-        self.remove(other.ctype, other.constructs, other.predicates)
-
-    def add(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[Symbol] = None,
-        predicates: Iterable[Callable[[Symbol], bool]] = None
-    ) -> None:
-        """
-        Extend the set of accepted constructs.
-        
-        See Predicate.__init__() for argument descriptions.
-        """
-
-        if ctype is not None:
-            self.ctype |= ctype
-        if constructs is not None:
-            self.constructs |= set(constructs)
-        if predicates is not None:
-            self.predicates |= set(predicates)
-
-    def remove(
-        self, 
-        ctype: ConstructType = None, 
-        constructs: Iterable[Symbol] = None,
-        predicates: Iterable[Callable[[Symbol], bool]] = None
-    ) -> None:
-        """
-        Contract the set of accepted constructs.
-        
-        See Predicate.__init__() for argument descriptions.
-        """
-
-        if ctype is not None:
-            self.ctype &= ~ctype
-        if constructs is not None:
-            self.constructs -= set(constructs)
-        if predicates is not None:
-            self.predicates -= set(predicates)
 
 
 ################

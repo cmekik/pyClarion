@@ -1,15 +1,15 @@
 """
 Class and function definitions for numerical dictionaries.
 
-Numerical dictionaries (numdicts, for short) are simply dictionaries whose keys 
-are mapped to numerical values. They may be viewed as a generalization of the 
+Numerical dictionaries (numdicts, for short) are, simply, dictionaries that map 
+keys to numerical values. They may be viewed as a generalization of the 
 dictionary-of-keys representation for sparse matirces in that no underlying 
 array structure is asssumed.
 
-This module exports the NumDict and FrozenNumDict classes, both of which are 
-derived from the helper class BaseNumDict, and various functions operating over 
-these classes. NumDict and FrozenNumDict differ in that instances of the former 
-are mutable while the latter are not.
+This module exports the NumDict and FrozenNumDict classes and various functions 
+operating over these classes. NumDict and FrozenNumDict are both derived from 
+the helper class BaseNumDict and differ in that NumDict instances are mutable 
+while FrozenNumDict instances are not.
 
 All numdicts support several basic numerical operations like +, -, *, /, etc. 
 Some boolean operations are also supported. These are modeled after fuzzy set 
@@ -20,13 +20,14 @@ theory:
 
 For binary ops applied to two numdicts, the resulting numdict inherits the type 
 of the left operand (similar to set/frozenset). If an operand in a binary op 
-is a constant numerical value, then that value is broadcast to all keys.
+is a constant numerical value, then that value is broadcast to all keys in the 
+other operand.
 
 Numdicts may have default values (and they do by default). Defaults are updated 
 appropriately when mathematical ops are applied. Querying a missing key simply 
-returns the default value (if it is defined), the missing key is not added. If 
-a numdict is mutable and missing keys should be added when queried, the 
-setdefault() method may be used.
+returns the default value (if it is defined), but the missing key is not added 
+to the queried numdict. If a numdict is mutable and missing keys should be 
+added when queried, the setdefault() method may be used.
 """
 
 

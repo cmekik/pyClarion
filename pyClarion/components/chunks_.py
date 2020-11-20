@@ -1,11 +1,13 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-from ..base import (
-    MatchSet, Construct, ConstructType, Symbol, chunk, UpdaterS, terminus, 
-    subsystem, Propagator, feature
+from ..base.symbols import (
+    ConstructType, Symbol, 
+    feature, chunk, terminus, subsystem
 )
 from ..base import numdicts as nd
+from ..base.components import Propagator, UpdaterS 
+from ..base.realizers import Construct
 
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection
@@ -193,14 +195,20 @@ class TopDown(Propagator):
         """
 
         d = nd.NumDict()
-        fd = nd.NumDict()
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
-            weighted = strengths[ch] * form.weights
-            fd.clear()
-            fd.extend(form.features)
-            fd.set_by(weighted, feature.dim.fget)
-            d |= fd
+            d |= self.top_down(ch, form, strengths)
+
+        return d
+
+    @staticmethod
+    def top_down(ch, form, strengths):
+        """Compute top-down activations for an individual chunk."""
+
+        d = nd.NumDict()
+        weighted = strengths[ch] * form.weights
+        d.extend(form.features)
+        d.set_by(weighted, feature.dim.fget)
 
         return d
 
@@ -238,12 +246,20 @@ class BottomUp(Propagator):
         d = nd.NumDict()
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
-            fd = nd.restrict(strengths, form.features)
-            fd = fd.by(feature.dim.fget, max) # get maxima by dimensions
-            weighted = fd * form.weights / nd.val_sum(form.weights)
-            d[ch] = nd.val_sum(weighted)
-        
+            d[ch] = self.bottom_up(ch, form, strengths)
+
         return d
+
+    @staticmethod
+    def bottom_up(ch, form, strengths):
+        """Compute bottom up strength for an individual chunk."""
+
+        d = nd.restrict(strengths, form.features)
+        d = d.by(feature.dim.fget, max) # get maxima by dimensions
+        weighted = d * form.weights / nd.val_sum(form.weights)
+        strength = nd.val_sum(weighted)
+
+        return strength
 
 
 class ChunkAdder(UpdaterS):

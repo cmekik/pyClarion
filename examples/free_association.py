@@ -31,10 +31,7 @@ from pyClarion import (
     # its own datatypes.
     pprint
 )
-import logging
 
-# Debug level logging reports details of the agent construction process.
-logging.basicConfig(level=logging.DEBUG)
 
 #############
 ### Setup ###
