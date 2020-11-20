@@ -44,22 +44,22 @@ from pyClarion import (
 # texture. The only auditory dimension is that of words. 
 
 fspecs = [
-    ("word", "/banana/"),
-    ("word", "/apple/"),
-    ("word", "/orange/"),
-    ("word", "/plum/"),
-    ("color", "red"),
-    ("color", "green"),
-    ("color", "yellow"),
-    ("color", "orange"),
-    ("color", "purple"),
-    ("shape", "round"),
-    ("shape", "oblong"),
-    ("size", "small"),
-    ("size", "medium"),
-    ("texture", "smooth"),
-    ("texture", "grainy"),
-    ("texture", "spotty")
+    feature("word", "/banana/"),
+    feature("word", "/apple/"),
+    feature("word", "/orange/"),
+    feature("word", "/plum/"),
+    feature("color", "red"),
+    feature("color", "green"),
+    feature("color", "yellow"),
+    feature("color", "orange"),
+    feature("color", "purple"),
+    feature("shape", "round"),
+    feature("shape", "oblong"),
+    feature("size", "small"),
+    feature("size", "medium"),
+    feature("texture", "smooth"),
+    feature("texture", "grainy"),
+    feature("texture", "spotty")
 ]
 
 # As in `free_association.py`, we construct a chunk database to store chunks. 

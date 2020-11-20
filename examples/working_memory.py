@@ -1,38 +1,78 @@
 from pyClarion import (
     feature, chunk, terminus, features, chunks, buffer, subsystem, agent, 
-    flow_tb, flow_bt,
+    flow_in, flow_tb, flow_bt,
+    SimpleDomain, SimpleInterface,
     Construct, Structure,
     AgentCycle, ACSCycle, NACSCycle,
     WorkingMemory, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
     Filtered, ActionSelector, BoltzmannSelector, ThresholdSelector,
     Assets, Chunks, ChunkAdder,
-    pprint
+    nd, pprint
 )
 
 import logging
+from itertools import count
 
 
 logging.basicConfig(level=logging.INFO)
 
 
-fspecs = [
-    feature("word", "/banana/"),
-    feature("word", "/apple/"),
-    feature("word", "/orange/"),
-    feature("word", "/plum/"),
-    feature("color", "red"),
-    feature("color", "green"),
-    feature("color", "yellow"),
-    feature("color", "orange"),
-    feature("color", "purple"),
-    feature("shape", "round"),
-    feature("shape", "oblong"),
-    feature("size", "small"),
-    feature("size", "medium"),
-    feature("texture", "smooth"),
-    feature("texture", "grainy"),
-    feature("texture", "spotty")
-]
+# This simulation demonstrates a basic recipe for creating and working with 
+# working memory structures in pyClarion. 
+
+# Here is the scenario:
+# Alice has learned about fruits, as demonstrated in the chunk extraction 
+# example. She is now presented some strange new fruits and attempts to 
+# identify them.
+ 
+
+#############
+### Setup ###
+#############
+
+### Agent Setup ###
+
+# For this simulation, we continue using the fruit-related visual feature 
+# domain from `chunk_extraction.py`. 
+
+visual_domain = SimpleDomain(
+    features=[
+        feature("color", "red"),
+        feature("color", "green"),
+        feature("color", "yellow"),
+        feature("color", "orange"),
+        feature("color", "purple"),
+        feature("shape", "round"),
+        feature("shape", "oblong"),
+        feature("size", "small"),
+        feature("size", "medium"),
+        feature("texture", "smooth"),
+        feature("texture", "grainy"),
+        feature("texture", "spotty")
+    ]
+)
+
+# We will have word features do double duty as perceptual representations and 
+# action features. The idea here is that when a word feature is selected as an 
+# action, the agent is assumed to have uttered that word (e.g., in response to 
+# the question "What is the fruit that you see?").
+
+speech_interface = SimpleInterface(
+    cmds=[
+        feature("word", ""), # Silence
+        feature("word", "/banana/"),
+        feature("word", "/apple/"),
+        feature("word", "/orange/"),
+        feature("word", "/plum/"),
+    ],
+    defaults=[feature("word", "")],
+    params=[]
+)
+
+# The working memory interface serves several purposes. It sets the number of 
+# available memory slots, defines commands for writing to and reading from each 
+# individual slot, and defines commands for globally resetting the working 
+# memory state.
 
 wm_interface = WorkingMemory.Interface(
     slots=7,
@@ -50,12 +90,25 @@ wm_interface = WorkingMemory.Interface(
     read_vals=("standby", "read"),
 )
 
+# We set up default action activations using numdicts.
+
+default_strengths = nd.NumDict()
+default_strengths.extend(
+    wm_interface.defaults,
+    speech_interface.defaults,
+    value=0.5
+)
+
+# As in `chunk_extraction.py`, we construct a chunk database to store chunks. 
 
 nacs_cdb = Chunks()
 
+# We then manually populate the database with chunk representing the fruits 
+# that alice discovered in `chunk_extraction.py`.
+
 nacs_cdb.link(
     chunk("APPLE"),
-    feature("lexeme", "/apple/"),
+    feature("word", "/apple/"),
     feature("color", "red"),
     feature("shape", "round"),
     feature("size", "medium"),
@@ -64,7 +117,7 @@ nacs_cdb.link(
 
 nacs_cdb.link(
     chunk("ORANGE"),
-    feature("lexeme", "/orange/"),
+    feature("word", "/orange/"),
     feature("color", "orange"),
     feature("shape", "round"),
     feature("size", "medium"),
@@ -73,7 +126,7 @@ nacs_cdb.link(
 
 nacs_cdb.link(
     chunk("BANANA"),
-    feature("lexeme", "/banana/"),
+    feature("word", "/banana/"),
     feature("color", "yellow"),
     feature("shape", "oblong"),
     feature("size", "medium"),
@@ -82,7 +135,7 @@ nacs_cdb.link(
 
 nacs_cdb.link(
     chunk("PLUM"),
-    feature("lexeme", "/plum/"),
+    feature("word", "/plum/"),
     feature("color", "purple"),
     feature("shape", "round"),
     feature("size", "small"),
@@ -90,12 +143,17 @@ nacs_cdb.link(
 ) 
 
 
+# Agent assembly
+
+
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
     assets=Assets(
         chunks=nacs_cdb,
-        wm_interface=wm_interface
+        visual_domain=visual_domain,
+        wm_interface=wm_interface,
+        speech_interface=speech_interface
     )
 )
 
@@ -120,13 +178,10 @@ with alice:
         )
     )
 
-    # This default activation can be worked into the WM object, simplifying 
-    # agent construction...
-
-    wm_defaults = Construct(
-        name=buffer("wm-defaults"),
+    defaults = Construct(
+        name=buffer("defaults"),
         emitter=Constants(
-            strengths={f: 0.5 for f in wm_interface.defaults}
+            strengths=default_strengths
         )
     )
 
@@ -136,7 +191,7 @@ with alice:
             sources={
                 buffer("acs_ctrl"), 
                 buffer("wm"), 
-                buffer("wm-defaults")
+                buffer("defaults")
             }
         )
     )
@@ -148,10 +203,24 @@ with alice:
             emitter=MaxNodes(
                 sources={
                     buffer("acs_ctrl"), 
-                    buffer("wm-defaults")
+                    flow_in("wm"),
+                    buffer("defaults")
                 }
             )
         )
+
+        # We include a flow_in construct to handle converting chunk activations 
+        # from working memory into features that the ACS can understand.
+
+        Construct(
+            name=flow_in("wm"), 
+            emitter=TopDown(
+                source=buffer("wm"),
+                chunks=alice.assets.chunks
+            ) 
+        )
+
+        # This terminus controls the working memory.
 
         Construct(
             name=terminus("wm"),
@@ -159,6 +228,17 @@ with alice:
                 source=features("main"),
                 temperature=.01,
                 client_interface=alice.assets.wm_interface
+            )
+        )
+
+        # This terminus controls the agent's speech actions.
+
+        Construct(
+            name=terminus("speech"),
+            emitter=ActionSelector(
+                source=features("main"),
+                temperature=.01,
+                client_interface=alice.assets.speech_interface
             )
         )
 
@@ -232,14 +312,6 @@ with alice:
             )
         )
 
-        Construct(
-            name=terminus("bl-state"),
-            emitter=ThresholdSelector(
-                source=features("main"),
-                threshold=0.9
-            )
-        )
-
 # Agent setup is now complete!
 
 
@@ -247,20 +319,63 @@ with alice:
 ### Simulation ###
 ##################
 
+# We write a convenience function to record simulation data. 
 
-print(
-    "Each simulation example consists of two propagation cycles.\n"
-    "In the first, the WM is updated through the ACS; the commands are shown.\n"
-    "In the second, we probe the WM output & state to demonstrate the effect.\n"
-)
+def record_step(agent, step):
 
+    print("Step {}:".format(step))
+    print()
+    print("Activations")
+    output = dict(agent.output)
+    del output[buffer("defaults")]
+    pprint(output)
+    print()
+    print("WM Contents")
+    pprint([cell.store for cell in agent[buffer("wm")].emitter.cells])
+    print()
+
+
+step = count(1)
 
 alice.start()
 
+# We simulate one proper trial. In this trial, alice is shown what should be an 
+# ambiguous object for her, not quite fitting any fruit category she already 
+# has. We want to know what alice thinks this object is. Because the stimulus 
+# is purely visual, what alice has to do is effectively to retrieve an 
+# association between what she sees and a word. This is achieved through the 
+# fruit chunks that we have defined. Once a fruit chunk is forwarded to the 
+# ACS, it can drive the utterance of a word corresponding to that chunk.
 
-# standby (empty wm)
-print("Standby (Empty WM)")
-print()
+# This simulation mocks alice performing such a response process by controlling 
+# the ACS. The whole response procedure takes two steps.
+
+print("Prompt: \"What do you see?\"\n")
+print(
+    "The stimulus is quite ambiguous, not fitting any fruit category that "
+    "alice has seen before...\n"
+)
+print(
+    "In response to the stimulus, alice retrieves a chunk from NACS based on "
+    "the stimulus and forwards it to ACS.\nThis is achieved by simultaneously "
+    "issuing read and write commands to WM slot 0 is Step 1.\nIn the next "
+    "step, a non-default speech action is chosen thanks to the way alice's "
+    "knowledge is structured.\n"
+)
+
+
+stimulus.emitter.input({
+    feature("color", "green"): 1.0,
+    feature("shape", "round"): 1.0,
+    feature("size", "medium"): 1.0,
+    feature("texture", "smooth"): 1.0
+})
+acs_ctrl.emitter.input({
+    feature(("wm", "w", 0), "retrieve"): 1.0,
+    feature(("wm", "r", 0), "read"): 1.0
+})
+alice.step()
+record_step(alice, next(step))
 
 stimulus.emitter.input({
     feature("color", "green"): 1.0,
@@ -270,228 +385,6 @@ stimulus.emitter.input({
 })
 acs_ctrl.emitter.input({})
 alice.step()
+record_step(alice, next(step))
 
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# open empty (should do nothing)
-print("Open (Empty WM; does nothing)")
-print()
-
-stimulus.emitter.input({})
-acs_ctrl.emitter.input({
-    feature(("wm", "r", 1), "read"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# single write
-print("Single Write & Open Corresponding Slot")
-print()
-
-stimulus.emitter.input({
-    feature("color", "green"): 1.0,
-    feature("shape", "round"): 1.0,
-    feature("size", "medium"): 1.0,
-    feature("texture", "smooth"): 1.0
-})
-acs_ctrl.emitter.input({
-    feature(("wm", "w", 0), "retrieve"): 1.0,
-    feature(("wm", "r", 0), "read"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# reset
-print("Reset")
-print()
-
-stimulus.emitter.input({
-    feature("color", "green"): 1.0,
-    feature("shape", "round"): 1.0,
-    feature("size", "medium"): 1.0,
-    feature("texture", "smooth"): 1.0
-})
-acs_ctrl.emitter.input({
-    feature(("wm", "re"), "reset"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# double write
-print("Double Write")
-print()
-
-stimulus.emitter.input({
-    feature("color", "green"): 1.0,
-    feature("shape", "oblong"): 1.0,
-    feature("size", "medium"): 1.0,
-    feature("texture", "smooth"): 1.0
-})
-acs_ctrl.emitter.input({
-    feature(("wm", "w", 0), "retrieve"): 1.0,
-    feature(("wm", "r", 0), "read"): 1.0,
-    feature(("wm", "w", 1), "extract"): 1.0,
-    feature(("wm", "r", 1), "read"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# Open Slot 1, removing it
-print("Open Slot 1 only, removing Slot 0 from output")
-print()
-
-stimulus.emitter.input({})
-acs_ctrl.emitter.input({
-    feature(("wm", "r", 1), "read"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
-print()
-
-
-# single delete
-print("Single Delete (clear & open slot 0)")
-print()
-
-stimulus.emitter.input({})
-acs_ctrl.emitter.input({
-    feature(("wm", "w", 0), "clear"): 1.0,
-    feature(("wm", "r", 0), "read"): 1.0
-})
-alice.step()
-
-print("Step 1:") 
-print("{}:".format(wm.emitter.controller))
-pprint(alice[wm.emitter.controller].output)
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-alice.step()
-
-print("Step 2:")
-print("{}:".format(buffer("wm")))
-pprint(alice.output[buffer("wm")])
-print("{}:".format(subsystem("nacs")))
-pprint(alice.output[subsystem("nacs")])
-print()
-
-print("Current WM state.")
-pprint([cell.store for cell in wm.emitter.cells])
+print("Response: {}".format(alice[subsystem("acs")][terminus("speech")].output))

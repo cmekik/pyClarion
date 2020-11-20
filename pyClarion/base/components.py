@@ -3,20 +3,22 @@
 
 __all__ = [
     "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
-    "Assets", "FeatureDomain", "FeatureInterface"
+    "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
+    "SimpleInterface"
 ]
 
 
 from .symbols import ConstructType, Symbol, feature, group_by_dims
 from .numdicts import NumDict, FrozenNumDict
 
-from abc import abstractmethod
-from types import SimpleNamespace, MappingProxyType
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, cast, 
-    no_type_check
+    Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Collection, 
+    cast, no_type_check
 )
+from abc import abstractmethod
+from types import SimpleNamespace, MappingProxyType
+from dataclasses import dataclass
 
 
 Inputs = Mapping[Symbol, Any]
@@ -461,3 +463,43 @@ class FeatureInterface(FeatureDomain):
             raise ValueError("self.defaults conflicts with self.dims.")
         if len(self.cmd_dims) != len(_defaults_dims):
             raise ValueError("multiple defaults assigned to a single dim.")
+
+
+@dataclass(init=False)
+class SimpleDomain(FeatureDomain):
+    """A simple feature domain, specified through enumeration."""
+
+    def __init__(self, features):
+
+        self._features = frozenset(features)
+
+        self.__post_init__()
+
+    def _validate_data(self):
+
+        pass
+
+    def _set_interface_properties(self):
+
+        pass
+
+
+@dataclass(init=False)
+class SimpleInterface(FeatureInterface):
+    """A simple feature interface, specified through enumeration."""
+
+    def __init__(self, cmds, defaults, params):
+
+        self._cmds = frozenset(cmds)
+        self._defaults = frozenset(defaults)
+        self._params = frozenset(params)
+
+        self.__post_init__()
+
+    def _validate_data(self):
+
+        pass
+
+    def _set_interface_properties(self):
+
+        pass
