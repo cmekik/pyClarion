@@ -390,8 +390,12 @@ class NumDict(BaseNumDict, MutableMapping):
 
         if default is None:
             default = self.default
-
-        return super().setdefault(key, default)
+        
+        if key in self:
+            return self[key]
+        else:
+            self[key] = default
+            return default
 
     def squeeze(self):
         """
