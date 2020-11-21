@@ -1,5 +1,6 @@
 """Demonstrates a more complex simulation, where NACS guides ACS."""
 
+
 from pyClarion import (
     feature, chunk, terminus, features, chunks, buffer, subsystem, agent, 
     flow_in, flow_tb, flow_bt,
@@ -7,7 +8,7 @@ from pyClarion import (
     Construct, Structure,
     AgentCycle, ACSCycle, NACSCycle,
     WorkingMemory, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
-    Filtered, ActionSelector, BoltzmannSelector, ThresholdSelector,
+    Filtered, ActionSelector, BoltzmannSelector,
     Assets, Chunks,
     nd, pprint
 )
@@ -142,6 +143,8 @@ nacs_cdb.link(
 
 ### Agent Assembly ###
 
+# Agent assembly follows a pattern similar to that shown in `flow_control.py`.
+
 alice = Structure(
     name=agent("alice"),
     emitter=AgentCycle(),
@@ -164,6 +167,9 @@ with alice:
         name=buffer("acs_ctrl"), 
         emitter=Stimulus()
     )
+
+    # We define the working memory, by entrusting the working memory buffer 
+    # construct to the WorkingMemory emitter. 
 
     wm = Construct(
         name=buffer("wm"),
@@ -308,7 +314,7 @@ with alice:
             )
         )
 
-# We start the agent to finalize initialization.
+# We start the agent to finalize assembly.
 
 alice.start()
 
@@ -388,3 +394,13 @@ alice.step()
 record_step(alice, next(step))
 
 print("Response: {}".format(alice[subsystem("acs")][terminus("speech")].output))
+
+
+##################
+### CONCLUSION ###
+##################
+
+# This simple simulation sought to demonstrate the following:
+#   - A more complex simulation, where NACS drives action selection in ACS 
+#     through working memory, and
+#   - A recipe for setting up and using a working memory buffer.

@@ -5,6 +5,7 @@ Prerequisite: Understanding of the basics of pyClarion as discussed in the demo
 `free_association.py`.
 """
 
+
 from pyClarion import (
     Structure, Construct,
     agent, buffer, subsystem, feature, features, flow_in, terminus,
@@ -29,11 +30,11 @@ logging.basicConfig(level=logging.DEBUG)
 # `free_association.py`.
 
 feature_spec = [
-    ("color", "#ff0000"), # red
-    ("color", "#008000"), # green
-    ("tasty", True),
-    ("state", "liquid"),
-    ("sweet", True)
+    feature("color", "#ff0000"), # red
+    feature("color", "#008000"), # green
+    feature("tasty", True),
+    feature("state", "liquid"),
+    feature("sweet", True)
 ]
 
 # For this example, the agent architecture is minimal. We instantiate a 

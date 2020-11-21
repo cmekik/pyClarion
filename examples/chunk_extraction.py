@@ -5,6 +5,7 @@ Prerequisite: Understanding of the basics of pyClarion as discussed in the demo
 `free_association.py`.
 """
 
+
 from pyClarion import (
     Structure, Construct,
     agent, subsystem, buffer, flow_bt, flow_tb, features, chunks, terminus, 
@@ -15,6 +16,10 @@ from pyClarion import (
     pprint
 )
 
+
+#############
+### Setup ###
+#############
 
 # This simulation demonstrates a basic recipe for chunk extraction in 
 # pyClarion. If you have not worked through the free association example, 
@@ -33,11 +38,6 @@ from pyClarion import (
 # We are teaching Alice about fruits by showing her pictures of fruits and 
 # simultaneously speaking out their names. Afterwards, we quiz alice by either 
 # showing her more pictures or naming fruits.
-
-
-#############
-### Setup ###
-#############
 
 ### Knowledge Setup ###
 
