@@ -28,6 +28,13 @@ appropriately when mathematical ops are applied. Querying a missing key simply
 returns the default value (if it is defined), but the missing key is not added 
 to the queried numdict. If a numdict is mutable and missing keys should be 
 added when queried, the setdefault() method may be used.
+
+From an implementation point of view, numdicts are MutableMappings wrapping 
+plain dicts. When a key occurs in the wrapped dict, it is considered an 
+explicit member of the numdict. Containment checks against numdicts will only 
+succeed for explicit members. Note that d[key] may succeed for non-explicit 
+members if a default value is defined, in this case it is dangerous to use 
+d[key] to check for (explicit) membership.
 """
 
 
@@ -100,6 +107,13 @@ class BaseNumDict(object):
         yield from iter(self._dict)
 
     def __contains__(self, key):
+        """
+        Return True iff key is explicitly set in self.
+
+        Warning, if a self.default is not None, self[key] may return a value 
+        when `key in self` returns False. Do not use self[key] to check for 
+        containment.
+        """
 
         return key in self._dict
 
@@ -385,16 +399,20 @@ class NumDict(BaseNumDict, MutableMapping):
         Return self[key]; on failure, return default and set it as value of key. 
         
         If default is None, but self.default is defined, will return 
-        self.default and set self[key] = self.default.
+        self.default and set self[key] = self.default. If no default is 
+        available, will throw a value error.
         """
 
-        if default is None:
-            default = self.default
-        
         if key in self:
             return self[key]
         else:
-            self[key] = default
+            if default is not None:
+                self[key] = default
+            elif default is None and self.default is not None:
+                default = self.default
+                self[key] = default
+            else: 
+                raise ValueError("No default value specified.")
             return default
 
     def squeeze(self):
