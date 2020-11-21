@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 
 
 # This simulation demonstrates a basic recipe for creating and working with 
-# working memory structures in pyClarion. 
+# working memory structures in pyClarion to guide action selection. 
 
 # Here is the scenario:
 # Alice has learned about fruits, as demonstrated in the chunk extraction 

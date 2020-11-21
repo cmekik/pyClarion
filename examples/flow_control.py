@@ -1,7 +1,18 @@
 """Demonstrates selection & control of reasoning methods."""
 
 
-from pyClarion import *
+from pyClarion import (
+    feature, chunk, rule, features, chunks, flow_in, flow_tt, flow_bt, flow_tb, 
+    terminus, buffer, subsystem, agent,
+    Structure, Construct,
+    AgentCycle, NACSCycle, ACSCycle,
+    Stimulus, Constants, ParamSet, MaxNodes, Repeater, TopDown, BottomUp, 
+    AssociativeRules, ActionSelector, BoltzmannSelector, Gated, Filtered,
+    Chunks, Rules, Assets,
+    pprint
+)
+
+from itertools import count
 
 
 gate_interface = ParamSet.Interface(
@@ -20,22 +31,22 @@ gate_interface = ParamSet.Interface(
 chunk_db = Chunks()
 rule_db = Rules()
 
-rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE")) # type: ignore
+rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE")) 
 
-chunk_db.link( # type: ignore
+chunk_db.link( 
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
     feature("tasty", True)
 )
 
-chunk_db.link( # type: ignore
+chunk_db.link( 
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
 )
 
-chunk_db.link( # type: ignore
+chunk_db.link( 
     chunk("FRUIT"),
     feature("tasty", True),
     feature("sweet", True)
@@ -208,56 +219,85 @@ with alice:
 ##################
 
 
+def record_step(agent, step):
+
+    print("Step {}:".format(step))
+    print()
+    print("Activations")
+    output = dict(agent.output)
+    del output[buffer("defaults")]
+    pprint(output)
+    print()
+
+counter = count(1)
 alice.start()
 
+step = next(counter)
 
-print("CYCLE 1: Open stimulus only.") 
+print("CYCLE 1: Open stimulus only.\n") 
 
+msg = "NACS should output nothing on step {} b/c flows not enabled...\n"
+print(msg.format(step + 1))
+
+stimulus.emitter.input({chunk("APPLE"): 1.})
 acs_ctrl.emitter.input({
     feature("gate", "update"): 1.0,
     feature(("gate", "flow_in", "stimulus"), "param"): 1.0
 })
 alice.step()
-print("Step 1: {} ->".format(gate.emitter.controller))
-pprint(alice[gate.emitter.controller].output)
+record_step(alice, step)
+
+step = next(counter)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
+acs_ctrl.emitter.input({})
 alice.step()
-print("Step 2: {} ->".format(subsystem("nacs")))
-pprint(alice[subsystem("nacs")].output)
-print()
+record_step(alice, step)
 
+step = next(counter)
 
-print("CYCLE 2: Open stimulus & associations only.")
+print("CYCLE 2: Open stimulus & associations only.\n")
 
+msg = "NACS should output 'FRUIT' on step {} due to associative rules...\n"
+print(msg.format(step + 1))
+
+stimulus.emitter.input({chunk("APPLE"): 1.})
 acs_ctrl.emitter.input({
         feature("gate", "update"): 1.0,
         feature(("gate", "flow_tt", "associations"), "param"): 1.0
 })
 alice.step()
-print("Step 1: {} ->".format(gate.emitter.controller))
-pprint(alice[gate.emitter.controller].output)
+record_step(alice, step)
+
+step = next(counter)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
+acs_ctrl.emitter.input({})
 alice.step()
-print("Step 2: {} ->".format(subsystem("nacs")))
-pprint(alice.output)
-print()
+record_step(alice, step)
 
+step = next(counter)
 
-print("CYCLE 3: Open stimulus & bottom-up only.")
+print("CYCLE 3: Open stimulus & bottom-up only.\n")
 
+msg = (
+    "NACS should output 'FRUIT' or 'JUICE' with equal probability on step {} " 
+    "due to bottom-up activations...\n"
+)
+print(msg.format(step + 1))
+
+stimulus.emitter.input({chunk("APPLE"): 1.})
 acs_ctrl.emitter.input({
     feature("gate", "clear+update"): 1.0,
     feature(("gate", "flow_in", "stimulus"), "param"): 1.0,
     feature(("gate", "flow_bt", "main"), "param"): 1.0
 })
 alice.step()
-print("Step 1: {} ->".format(gate.emitter.controller))
-pprint(alice[gate.emitter.controller].output)
+record_step(alice, step)
+
+step = next(counter)
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
+acs_ctrl.emitter.input({})
 alice.step()
-print("Step 2: {} ->".format(subsystem("nacs")))
-pprint(alice.output)
-print()
+record_step(alice, step)
