@@ -1,7 +1,7 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-__all__ = ["Chunks", "TopDown", "BottomUp", "ChunkAdder", "ChunkExtractor"]
+__all__ = ["Chunks", "TopDown", "BottomUp", "ChunkExtractor"]
 
 
 from ..base.symbols import (

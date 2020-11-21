@@ -9,9 +9,9 @@ from pyClarion import (
     Structure, Construct,
     agent, subsystem, buffer, flow_bt, flow_tb, features, chunks, terminus, 
     feature,
-    Chunks, Assets, ChunkAdder, ChunkExtractor,
+    Chunks, Assets,
     AgentCycle, NACSCycle, Stimulus, MaxNodes, TopDown, BottomUp, 
-    BoltzmannSelector, ThresholdSelector,
+    BoltzmannSelector, ChunkExtractor,
     pprint
 )
 
@@ -21,11 +21,13 @@ from pyClarion import (
 # please do so first, as you will be missing some of the prerequisite ideas.
 
 # The basic premise of the recipe is to create a special terminus construct 
-# for chunk extraction. On each cycle, this construct recommends new chunks 
-# based on the state of the bottom level. These recommendations are then picked 
-# up by an updater object, which adds any new chunks to its client chunk 
-# database and to affected subsystem(s). At this time the recipe and associated 
-# objects are highly experimental.
+# for chunk extraction. It should be noted that a step in pyClarion consists of 
+# a propagation stage, called 'propagation time', and an updating/learning 
+# stage, called 'update time'. On each cycle, the chunk extractor recommends 
+# chunks based on the state of the bottom level at propagation time. If the 
+# bottom level state matches an existing chunk, that chunk is recommended. 
+# Otherwise a new chunk is recommended. These recommendations are then placed 
+# in the corresponding chunk database at update time.
 
 # Here is the scenario:
 # We are teaching Alice about fruits by showing her pictures of fruits and 
@@ -37,7 +39,7 @@ from pyClarion import (
 ### Setup ###
 #############
 
-### Agent Setup ###
+### Knowledge Setup ###
 
 # For this simulation, we develop a simple feature domain containing visual and 
 # auditory features. The visual features include color, shape, size, and 
@@ -68,7 +70,8 @@ fspecs = [
 
 chunk_db = Chunks()
 
-# Agent Assembly
+
+### Agent Assembly ###
 
 # The assembly process should be familiar from the free association example, 
 # with only a couple of mild novelties.
@@ -84,12 +87,6 @@ with alice:
         name=buffer("stimulus"), 
         emitter=Stimulus()
     )
-
-    # Note that we add the chunk database and the chunk adder are placed at the 
-    # level of the NACS. The two constructs need not be placed in the same 
-    # construct. Notably, in more complex models, it may be necessary to place 
-    # the chunk adder higher up in the hierarchy depending on the desired order 
-    # of update applications.
 
     nacs = Structure(
         name=subsystem("nacs"),
@@ -128,22 +125,13 @@ with alice:
 
         # Flows
 
-        # For this example, we create a simple NACS without horizontal flows 
-        # (i.e., no rules and no associative memory networks). So, we only 
-        # include top-down and bottom-up flows.
+        # To keep the model as simple as possible, we only include a bottom-up 
+        # flow in the NACS.
 
         Construct(
             name=flow_bt("main"), 
             emitter=BottomUp( 
                 source=features("main"),
-                chunks=nacs.assets.chunk_db
-            ) 
-        )
-
-        Construct(
-            name=flow_tb("main"), 
-            emitter=TopDown( 
-                source=chunks("main"),
                 chunks=nacs.assets.chunk_db
             ) 
         )
@@ -171,12 +159,15 @@ with alice:
             )
         )
 
-        # The bottom level terminus introduces a new emitter, the 
-        # `ThresholdSelector`. As suggested by the name, this emitter selects 
-        # features based on a threshold applied to feature strengths in the 
-        # bottom level. Features that are above threshold according to the 
-        # selector will be picked up by the chunk adder and included in any 
-        # newly constructed chunks.
+        # The bottom level ('bl') terminus introduces a new emitter, the 
+        # `ChunkExtractor`. As suggested by the name, this emitter extracts 
+        # chunks capturing the state of the bottom level. More precisely, it 
+        # first applies a thresholding function to feature activations in the 
+        # bottom level. Then, it looks for a chunk whose form matches exactly 
+        # the features above threshold. If a match is found, the corresponding 
+        # chunk is emitted as output (fully activated). If no match is found, 
+        # a new chunk is named and emitted. At output time, the new chunk is 
+        # added to the chunk database.
 
         Construct(
             name=terminus("bl"),
@@ -239,13 +230,8 @@ stimuli = [
 ]
 
 # In the loop below, we present each stimulus in turn and print the state of 
-# the agent at each step. The agent will automatically extract chunks as 
-# necessary. The final chunk database is printed on loop termination.
-
-# To prevent interference between presentations, we clear the output at the 
-# end of each presentation. Admittedly, this is somewhat arbitrary, but helps 
-# keep the demo simple. (A better way of doing this would be to block top-down 
-# flows through flow control mechanisms as demonstrated in `flow_control.py`.)
+# the agent at each step. The agent will automatically extract chunks. The 
+# final chunk database is printed on loop termination.
 
 for i, s in enumerate(stimuli):
     print("Presentation {}".format(i + 1))
@@ -254,8 +240,6 @@ for i, s in enumerate(stimuli):
     alice.step()
 
     pprint(alice.output)
-
-    alice.clear_outputs()
 
 print("Learned Chunks:")
 pprint(nacs.assets.chunk_db)
@@ -282,8 +266,9 @@ queries = [
 ]
 
 # To prevent formation of new chunks, we set the query strengths to be below 
-# the chunk inclusion threshold. This is a simple, but hacky, solution. For a 
-# more elegant approach, once again refer to `flow_control.py`.
+# the chunk inclusion threshold. This is a simple, but hacky, solution. A more 
+# elegant approach would be to use some kind of control mechanism (e.g. a 
+# `ControlledExtractor`).
 
 # Once again we run a loop, presenting the stimuli and printing the agent 
 # state at each step.
@@ -295,8 +280,6 @@ for i, s in enumerate(queries):
     alice.step()
 
     pprint(alice.output)
-    
-    alice.clear_outputs()
 
 
 ##################
@@ -304,5 +287,5 @@ for i, s in enumerate(queries):
 ##################
 
 # This simple simulation sought to demonstrate the following:
-#   - The basics of using updaters for learning, and
+#   - The basics of learning, and
 #   - A recipe for chunk extraction from the state of the bottom level. 

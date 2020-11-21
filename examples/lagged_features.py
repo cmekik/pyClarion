@@ -92,6 +92,10 @@ with alice:
             ) 
         )
 
+# We start the agent in preparation for simulation.
+
+alice.start()
+
 
 ##################
 ### Simulation ###
@@ -110,7 +114,6 @@ stimuli = [
     {feature("state", "liquid"): 1.0}
 ]
 
-alice.start()
 for i, s in enumerate(stimuli):
     print("Presentation {}".format(i + 1))
     stimulus.emitter.input(s)

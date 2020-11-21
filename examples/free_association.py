@@ -68,14 +68,14 @@ from pyClarion import (
 # further analyze feature dimensions as consisting of a (tag, lag) pair. The 
 # tag simply represents the name of the dimension. The lag value is handy for 
 # tracking the activation of a particular feature over small time windows, as 
-# may be required in, e.g., temporal difference learning.
+# may be required in, e.g., temporal difference learning. 
 
 # In pyClarion, constructs are named using 'construct symbols'. As the name 
 # suggests, construct symbols are intended to behave like formal tokens, and 
 # their primary function is to help associate data with the constructs they 
 # name. As a result, they are required to be immutable and hashable (so that 
 # they may be used with dict-like structures). It may be helpful to think of 
-# construct symbols as python tuples.
+# construct symbols as fancy python tuples.
 
 # We can invoke the construct symbol for a particular feature node by calling 
 # the `feature()` constructor as shown below. 
@@ -84,7 +84,7 @@ f = feature(tag="my-tag", val="val-1", lag=0)
 
 # The lag value is optional and defaults to 0.
 
-assert f == feature(tag="my-tag", val="val-1")
+assert f == feature(tag="my-tag", val="val-1") # does not fail
 
 # For this simulation, we include (somewhat arbitrarily) feature nodes for the 
 # colors red and green and a feature for each of tastiness, sweetness and the 
@@ -93,11 +93,11 @@ assert f == feature(tag="my-tag", val="val-1")
 # and lagged features may be constructed dynamically as needed.)
 
 feature_spec = [
-    ("color", "#ff0000"), # red
-    ("color", "#008000"), # green
-    ("tasty", True),
-    ("state", "liquid"),
-    ("sweet", True)
+    feature("color", "#ff0000"), # red
+    feature("color", "#008000"), # green
+    feature("tasty", True),
+    feature("state", "liquid"),
+    feature("sweet", True)
 ]
 
 # Feature values for red and green are given in hex code to emphasize the idea 
@@ -106,7 +106,7 @@ feature_spec = [
 # readers.)
 
 # Moving on, let us consider chunk nodes. Chunk nodes correspond roughly to 
-# concepts known to Alice. Chunk nodes are simpler to identify than feature 
+# the concepts known to Alice. Chunk nodes are simpler to identify than feature 
 # nodes in that they are differentiated only by their names, which are taken to 
 # be purely formal labels. 
 
@@ -116,11 +116,12 @@ chunk("Chunk-1")
 
 # We will represent chunk nodes for the concepts FRUIT, APPLE, and JUICE.
 
-chunk_names = ["FRUIT", "APPLE", "JUICE"]
+chunk_names = ["FRUIT", "APPLE", "JUICE"] 
 
 # In this simulation, we specify the initial chunks and features explicitly 
-# only for the sake of clarity. But, in more complex simulations, where 
-# constructs can pass around commands, for example, explicit specification of 
+# only for the sake of clarity. Strictly speaking, these specificaions are not 
+# required in this particular case. But, in more complex simulations, where 
+# constructs can pass around commands for example, explicit specification of 
 # at least parts of the feature domain becomes a necessity.
 
 # Now that we've defined the symbols we will be working with, we populate Alice 
@@ -153,11 +154,11 @@ rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE"))
 # We proceed in much the same way to link chunk and feature nodes in order to 
 # define chunks. 
 
-# The chunk databasehas a `link()` method, which can be used to link a chunk 
-# node to feature nodes, creating a chunk. The call signature expects the 
-# chunk node first, followed by the feature nodes. By default, feature notes 
-# have a dimensional weight of 1, dimensional weights may be set explicitly 
-# through a keyword argument to `links()`.
+# The chunk database has a `link()` method, which can be used to link a chunk 
+# node to feature nodes, creating a fully-formed chunk. The call signature 
+# expects the chunk node first, followed by the feature nodes. By default, 
+# feature notes have a dimensional weight of 1, dimensional weights may be set 
+# explicitly through a keyword argument to `links()`.
 
 # The first call to `link()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node. 
@@ -205,8 +206,8 @@ alice = Structure(
 
 # The `emitter` argument defines how the structure computes its outputs. In 
 # Structure objects, this involves specifying directives for controlling 
-# the firing of subordinate constructs. The `AgentCycle()` objects defines such 
-# directives for agents.
+# the firing of subordinate constructs. The `AgentCycle()` object defines such 
+# directives for agents. 
 
 # The next step in agent construction is to populate `alice` with components 
 # representing various cognitive structures postulated by the Clarion theory.
@@ -219,7 +220,7 @@ alice = Structure(
 # and links up those that match.
 
 # To facilitate the construction process, pyClarion borrows a pattern from 
-# the nengo library. When a pyClarion construct is initialized in a with 
+# the nengo library. When a pyClarion construct is initialized in a `with` 
 # statement where the context manager is a pyClarion `Structure`, the construct 
 # is automatically added to the structure serving as the context manager. 
 # Nested use of the with statement is supported.
@@ -293,10 +294,7 @@ with alice:
     # access to the rule database.
 
     # There is no hard and fast rule about where in the `Structure` hierarchy 
-    # a shared resource should be placed. A good rule of thumb is to place 
-    # shared resources in the structure directly in or above the highest-level 
-    # construct using the resource. However, different placements may be 
-    # warranted in some cases.
+    # a shared resource should be placed.
 
     # Now, it is time to populate the NACS. 
 
@@ -309,11 +307,12 @@ with alice:
         # chunk and feature pools are used. These pools handle computing the 
         # strengths of chunk and feature nodes in bulk.
          
-        # This design is flexible (we do not need to register new chunk or 
-        # feature nodes), efficient (all chunk and feature node activations 
-        # are computed by one single object in one pass), simple (it reduces 
-        # bookeeping requirements when adding and removing nodes) and more 
-        # intelligible (nodes do not cause clutter in large models). 
+        # This design offers a number of advantages: it is flexible (we do not 
+        # need to register new chunk or feature nodes), efficient (all chunk 
+        # and feature node activations are computed by one single object in one 
+        # pass), simple (it reduces bookeeping requirements when adding and 
+        # removing nodes) and more intelligible (nodes do not cause clutter in 
+        # large models). 
 
         # One downside to this approach is that we have to be careful about 
         # tracking the feature domain. This is why it is good to define the 
@@ -390,7 +389,8 @@ with alice:
         )
 
         # Note that the syntax for initializing flows is essentially the same 
-        # as before, only requiring appropriate argument choices.
+        # as for any other Construct, only requiring appropriate argument 
+        # choices.
 
         # There are different kinds of flows, as indicated by the different 
         # constructors `flow_tt`, `flow_tb`, and `flow_bt`. The subdivisions 
@@ -423,7 +423,7 @@ with alice:
         # The output selection process in this example involves the 
         # construction of a Boltzmann distribution from chunk node activations. 
         # On each activation cycle, a chunk is sampled from this distribution 
-        # and passed on as the selected output.
+        # and emitted as the selected output.
 
         # To prevent information in the stimulus from interfering with output 
         # selection, the `BoltzmanSelector` is wrapped in a `FilteredT` object. 
@@ -431,8 +431,11 @@ with alice:
         # proportionally to their strengths in the stimulus buffer. This is one 
         # way to achieve cue-suppression.
 
-# We are now done populating Alice with constructs, but we still need to give 
-# her some knowledge. 
+# We are now done populating Alice with constructs, but we need to perform some 
+# final pre-simulation initialization to ensure that realizer outputs are 
+# consistent. To do this we call alice.start().
+
+alice.start()
 
 # Agent setup is now complete!
 
@@ -440,11 +443,6 @@ with alice:
 #########################
 ### Simulation Basics ###
 #########################
-
-# We need to perform some final pre-simulation initialization to ensure that 
-# realizer outputs are consistent. To do this we call alice.start().
-
-alice.start()
 
 # To start off the simulation, the stimulus buffer is set to activate the APPLE 
 # chunk. This represents presentation of the concept APPLE. Remember that we 
@@ -468,13 +466,6 @@ alice.step()
  
 print("Alice's cognitive state upon presentation of 'APPLE':") 
 pprint(alice.output)
-
-# Finally, we clear the output so as not to contaminate any subsequent trials 
-# with persistent activations. This is an optional step, taken here for 
-# demonstration purposes. Its use in practice will depend on the simulation 
-# requirements.
-
-alice.clear_outputs()
 
 
 ##################

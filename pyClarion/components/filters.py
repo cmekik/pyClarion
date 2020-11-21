@@ -46,29 +46,56 @@ class Gated(Propagator):
 
     def call(self, inputs):
 
+        preprocessed = self.preprocess(inputs)
+        strengths = self.base.call(preprocessed)
+        d = self.postprocess(inputs, strengths)
+
+        return d
+
+    def update(self, inputs, output):
+        """
+        Call update routine for base.
+
+        Updates to base may behave strangely due to unexpected output values 
+        (base will not know that gating has occurred).
+        """
+
+        # May need to add an optional `mask` arg to propagator.update() to 
+        # ensure updates are computed correctly under output gating. - Can
+
+        preprocessed = self.preprocess(inputs)
+        self.base.update(preprocessed, output)
+
+    def preprocess(self, inputs):
+
+        func = self.base.expects
+        expected = {src: inputs[src] for src in filter(func, inputs)}
+    
+        return MappingProxyType(expected)
+
+    def postprocess(self, inputs, output):
+
         w = inputs[self.gate][self.client]
         if self.invert:
             w = 1.0 - w
 
-        func = self.base.expects
-        expected = {src: inputs[src] for src in filter(func, inputs)}
-        strengths = self.base.call(MappingProxyType(expected))
-
-        return w * strengths
+        return w * output
 
 
 class Filtered(Propagator):
-    """Filters input to a terminus."""
+    """Filters input to a propagator."""
     
     def __init__(
         self, 
         base: Propagator, 
-        sieve: Symbol, 
+        sieve: Symbol,
+        exempt: Set[Symbol] = None, 
         invert: bool = True
     ) -> None:
 
         self.base = base
         self.sieve = sieve
+        self.exempt = exempt or set() 
         self.invert = invert
 
     @property
@@ -102,9 +129,13 @@ class Filtered(Propagator):
         if self.invert:
             ws = ~ ws
 
+        preprocessed = {}
         func = self.base.expects
         expected = {src: inputs[src] for src in filter(func, inputs)}
-        items = expected.items()
-        preprocessed = {src: ws * d for src, d in items} 
+        for src, d in expected.items():
+            if src in self.exempt:
+                preprocessed[src] = d
+            else:
+                preprocessed[src] = ws * d
 
         return MappingProxyType(preprocessed)

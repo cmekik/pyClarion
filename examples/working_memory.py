@@ -1,3 +1,5 @@
+"""Demonstrates a more complex simulation, where NACS guides ACS."""
+
 from pyClarion import (
     feature, chunk, terminus, features, chunks, buffer, subsystem, agent, 
     flow_in, flow_tb, flow_bt,
@@ -6,16 +8,16 @@ from pyClarion import (
     AgentCycle, ACSCycle, NACSCycle,
     WorkingMemory, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
     Filtered, ActionSelector, BoltzmannSelector, ThresholdSelector,
-    Assets, Chunks, ChunkAdder,
+    Assets, Chunks,
     nd, pprint
 )
 
-import logging
 from itertools import count
 
-
-logging.basicConfig(level=logging.INFO)
-
+ 
+#############
+### Setup ###
+#############
 
 # This simulation demonstrates a basic recipe for creating and working with 
 # working memory structures in pyClarion to guide action selection. 
@@ -24,13 +26,8 @@ logging.basicConfig(level=logging.INFO)
 # Alice has learned about fruits, as demonstrated in the chunk extraction 
 # example. She is now presented some strange new fruits and attempts to 
 # identify them.
- 
 
-#############
-### Setup ###
-#############
-
-### Agent Setup ###
+### Knowledge Setup ###
 
 # For this simulation, we continue using the fruit-related visual feature 
 # domain from `chunk_extraction.py`. 
@@ -90,7 +87,7 @@ wm_interface = WorkingMemory.Interface(
     read_vals=("standby", "read"),
 )
 
-# We set up default action activations using numdicts.
+# We set up default action activations, as in `flow_control.py`.
 
 default_strengths = nd.NumDict()
 default_strengths.extend(
@@ -143,8 +140,7 @@ nacs_cdb.link(
 ) 
 
 
-# Agent assembly
-
+### Agent Assembly ###
 
 alice = Structure(
     name=agent("alice"),
@@ -312,6 +308,10 @@ with alice:
             )
         )
 
+# We start the agent to finalize initialization.
+
+alice.start()
+
 # Agent setup is now complete!
 
 
@@ -333,11 +333,6 @@ def record_step(agent, step):
     print("WM Contents")
     pprint([cell.store for cell in agent[buffer("wm")].emitter.cells])
     print()
-
-
-step = count(1)
-
-alice.start()
 
 # We simulate one proper trial. In this trial, alice is shown what should be an 
 # ambiguous object for her, not quite fitting any fruit category she already 
@@ -363,6 +358,9 @@ print(
     "knowledge is structured.\n"
 )
 
+step = count(1)
+
+# Step 1
 
 stimulus.emitter.input({
     feature("color", "green"): 1.0,
@@ -376,6 +374,8 @@ acs_ctrl.emitter.input({
 })
 alice.step()
 record_step(alice, next(step))
+
+# Step 2
 
 stimulus.emitter.input({
     feature("color", "green"): 1.0,
