@@ -9,7 +9,6 @@ __all__ = [
 
 from ..base import ConstructType, Symbol, Propagator, chunk, feature, lag
 from ..base import numdicts as nd
-from ..utils import pprint
 
 from typing import (
     Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, 

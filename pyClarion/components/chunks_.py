@@ -1,6 +1,9 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
+__all__ = ["Chunks", "TopDown", "BottomUp", "ChunkAdder", "ChunkExtractor"]
+
+
 from ..base.symbols import (
     ConstructType, Symbol, 
     feature, chunk, terminus, subsystem
@@ -9,8 +12,10 @@ from ..base import numdicts as nd
 from ..base.components import Propagator, UpdaterS 
 from ..base.realizers import Construct
 
+from .propagators import ThresholdSelector
+
 from typing import (
-    Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection
+    Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, List
 )
 from collections.abc import MutableMapping
 from collections import namedtuple
@@ -20,9 +25,6 @@ from copy import copy
 from dataclasses import dataclass
 from types import MappingProxyType
 import operator
-
-
-__all__ = ["Chunks", "TopDown", "BottomUp", "ChunkAdder"]
 
 
 class Chunks(MutableMapping):
@@ -104,6 +106,42 @@ class Chunks(MutableMapping):
 
             return self._weights
 
+        def top_down(self, strength):
+            """
+            Compute top-down strengths for features of self.
+            
+            Multiplies strength by dimensional weights to get dimensional 
+            strengths. Features are then activated to the level of the 
+            corresponding dimensional strength. 
+
+            Implementation is based on p. 77-78 of Anatomy of the Mind.
+            """
+
+            d = nd.NumDict()
+            weighted = strength * self.weights
+            d.extend(self.features)
+            d.set_by(weighted, feature.dim.fget)
+
+            return d
+
+        def bottom_up(self, strengths):
+            """
+            Compute bottom up strength for chunk associated with self.
+
+            The bottom-up strength is computed as the weighted average of 
+            dimensional strengths. Dimensional strengths are given by the 
+            strength of the maximally activated feature in each dimension. 
+
+            Implementation is based on p. 77-78 of Anatomy of the Mind.
+            """
+
+            d = nd.restrict(strengths, self.features)
+            d = d.by(feature.dim.fget, max) # get maxima by dimensions
+            weighted = d * self.weights / nd.val_sum(self.weights)
+            strength = nd.val_sum(weighted)
+
+            return strength
+
     def __init__(self, data: Mapping[chunk, "Chunks.Chunk"] = None) -> None:
 
         if data is None:
@@ -163,73 +201,39 @@ class Chunks(MutableMapping):
 
 
 class TopDown(Propagator):
-    """
-    Computes a top-down activations in NACS.
-
-    During a top-down cycle, chunk strengths are multiplied by dimensional 
-    weights to get dimensional strengths. Dimensional strengths are then 
-    distributed evenly among features of the corresponding dimension that 
-    are linked to the source chunk.
-
-    Implementation is based on p. 77-78 of Anatomy of the Mind.
-    """
+    """Computes top-down activations."""
 
     _serves = ConstructType.flow_tb | ConstructType.flow_in
 
-    def __init__(self, source: Symbol, chunks=None):
+    def __init__(self, source: Symbol, chunks: Chunks):
 
         self.source = source
-        self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.chunks = chunks 
 
     def expects(self, construct: Symbol):
 
         return construct == self.source
 
     def call(self, inputs):
-        """
-        Execute a top-down activation cycle.
-
-        :param construct: Construct symbol for client construct.
-        :param inputs: Dictionary mapping input constructs to their pull 
-            methods.
-        """
+        """Execute a top-down activation cycle."""
 
         d = nd.NumDict()
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
-            d |= self.top_down(ch, form, strengths)
-
-        return d
-
-    @staticmethod
-    def top_down(ch, form, strengths):
-        """Compute top-down activations for an individual chunk."""
-
-        d = nd.NumDict()
-        weighted = strengths[ch] * form.weights
-        d.extend(form.features)
-        d.set_by(weighted, feature.dim.fget)
+            d |= form.top_down(strengths[ch])
 
         return d
 
 
 class BottomUp(Propagator):
-    """
-    Computes a bottom-up activations in NACS.
-
-    During a bottom-up cycle, chunk strengths are computed as a weighted sum 
-    of the maximum activation of linked features within each dimension. The 
-    weights are simply top-down weights normalized over dimensions. 
-
-    Implementation is based on p. 77-78 of Anatomy of the Mind.
-    """
+    """Computes bottom-up activations."""
 
     _serves = ConstructType.flow_bt | ConstructType.flow_in
 
-    def __init__(self, source: Symbol, chunks=None):
+    def __init__(self, source: Symbol, chunks: Chunks):
 
         self.source = source
-        self.chunks: Chunks = chunks if chunks is not None else Chunks()
+        self.chunks = chunks 
 
     def expects(self, construct: Symbol):
 
@@ -246,79 +250,75 @@ class BottomUp(Propagator):
         d = nd.NumDict()
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
-            d[ch] = self.bottom_up(ch, form, strengths)
+            d[ch] = form.bottom_up(strengths)
 
         return d
 
-    @staticmethod
-    def bottom_up(ch, form, strengths):
-        """Compute bottom up strength for an individual chunk."""
 
-        d = nd.restrict(strengths, form.features)
-        d = d.by(feature.dim.fget, max) # get maxima by dimensions
-        weighted = d * form.weights / nd.val_sum(form.weights)
-        strength = nd.val_sum(weighted)
-
-        return strength
-
-
-class ChunkAdder(UpdaterS):
+class ChunkExtractor(ThresholdSelector):
     """
-    Adds new chunk nodes to client subsystem.
+    Extracts chunks from the bottom level.
     
-    Constructs and adds a new entry in the reference chunk database. 
-
-    In the current implementation, dimensional weights are set to 1. This 
-    limitations may be lifted in a future iteration.
+    Extracted chunks contain all features in the bottom level above a set 
+    threshold. If the corresponding chunk form does not exist in client chunk 
+    database, a new chunk is added to the database at call time. The strength 
+    of the extracted chunk is written to the output.
     """
-
-    # TODO: Override entrust() so that configuration matches served construct. 
-    # - Can
-    _serves = ConstructType.container_construct
 
     def __init__(
         self, 
-        chunks: Chunks,
-        terminus: terminus, 
+        source: Symbol, 
+        chunks: Chunks, 
         prefix: str,
-        subsystem: subsystem = None
-    ):
-        """
-        Initialize a new `ChunkAdder` instance.
-        
-        :param chunks: Client chunk database.
-        :param terminus: Symbol for a terminus construct in client emmitting 
-            new chunk recommendations. 
-        :param prefix: Prefix added to created chunk names.
-        :param subsystem: The client subsystem. If None, the parent realizer is 
-            considered to be the client.
-        :param constructor: A chunk constructor. If 'None', defaults to 
-            ChunkConstructor(op="max").
-        """
+        threshold: float = 0.85
+    ) -> None:
 
+        super().__init__(source, threshold)
+        
         self.chunks = chunks
-        self.terminus = terminus
         self.prefix = prefix
-        self.subsystem = subsystem
-        self.count = count(start=1, step=1)
+        self.counter = count(start=1, step=1)
 
-    def __call__(self, inputs, output, update_data):
+        self._to_add: List[Tuple[chunk, Chunks.Chunk]] = []
 
-        if self.subsystem is None:
-            features = output[self.terminus]
+    def call(self, inputs):
+        """Extract a chunk from bottom-level activations."""
+
+        fs = super().call(inputs)
+        fs.squeeze()
+
+        d = nd.NumDict()
+        s_fs = nd.restrict(inputs[self.source], fs)
+
+        if len(s_fs) > 0:
+
+            form = self.chunks.Chunk(fs)
+            found = self.chunks.find_form(form)
+            
+            if len(found) == 0:
+                name = "{}_{}".format(self.prefix, next(self.counter))
+                ch = chunk(name)
+                d[ch] = 1.0
+                # The new chunk is not added on the spot to prevent potential 
+                # inconsistencies in construct behavior arising from call-time 
+                # modifications to shared chunk data. Instead, it is kept in 
+                # storage until update time.
+                self._to_add.append((ch, form))
+            elif len(found) == 1:
+                d.extend(found, value=1.0)
+            else:
+                raise ValueError("Chunk database contains duplicate forms.")
+
+        return d
+
+    def update(self, inputs, output):
+        """If a new chunk was extracted, add it to the database."""
+
+        if len(self._to_add) == 0:
+            pass
+        elif len(self._to_add) == 1:
+            ch, form = self._to_add.pop()
+            self.chunks[ch] = form
         else:
-            features = output[self.subsystem][self.terminus]
-        
-        if len(features) > 0:
-            form = Chunks.Chunk(features=features)
-            chunks = self.chunks.find_form(form)
-            if len(chunks) == 0:
-                ch = chunk("{}-{}".format(self.prefix, next(self.count)))
-                self.chunks[ch] = form
-
-    def expects(self, construct):
-
-        if self.subsystem is not None:
-            return construct == self.subsystem 
-        else:
-            return False
+            msg = "Too many chunks to add: got {}, limit is 1."
+            raise ValueError(msg.format(len(self._to_add)))

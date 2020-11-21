@@ -589,12 +589,22 @@ class Structure(Realizer[Ct, UpdaterS]):
         """
         Update persistent data in self and all members.
         
-        First calls `self.updater`, then calls `realizer.update()` on members. 
-        In otherwords, updates are applied in a top-down manner relative to
-        construct containment.
+        Subordinate constructs are prioritized in the update order. Further, 
+        Structures are prioritized over Constructs in the ordering. In other 
+        words, updates are applied in a bottom-up manner relative to the 
+        construct hierarchy. There are otherwise no guarantees as to the 
+        ordering of updates.
         """
 
         self._pull_update_data()
+
+        for realizer in self.values():
+            if isinstance(realizer, Structure):
+                realizer._update()
+        for realizer in self.values():
+            if isinstance(realizer, Construct):
+                realizer._update()
+
         if self.updater is not None:
             updater = cast(UpdaterS, self.updater)
             updater(
@@ -602,8 +612,6 @@ class Structure(Realizer[Ct, UpdaterS]):
                 output=self.output,
                 update_data=self._update_cache
             )
-        for realizer in self.values():
-            realizer._update()
 
     def _update_output(self) -> None:
 

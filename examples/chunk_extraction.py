@@ -9,7 +9,7 @@ from pyClarion import (
     Structure, Construct,
     agent, subsystem, buffer, flow_bt, flow_tb, features, chunks, terminus, 
     feature,
-    Chunks, Assets, ChunkAdder,
+    Chunks, Assets, ChunkAdder, ChunkExtractor,
     AgentCycle, NACSCycle, Stimulus, MaxNodes, TopDown, BottomUp, 
     BoltzmannSelector, ThresholdSelector,
     pprint
@@ -68,25 +68,6 @@ fspecs = [
 
 chunk_db = Chunks()
 
-# Agent setup proceeds more or less as with the free association example. 
-# Except that we include a `ChunkAdder` object as an updater.
-
-chunk_adder = ChunkAdder(
-    chunks=chunk_db,
-    terminus=terminus("bl"),
-    prefix="bl"
-)
-
-# Needless to say, the ChunkAdder is the star of this particular demo. Its job 
-# is to add chunks to the chunk database with which it is entrusted. To do 
-# this, the chunk adder monitors a terminus that selects active features, and, 
-# at update time on each step, it creates and adds a new chunk to the database 
-# containing the selected features if no such chunk exists.
-
-# The `ChunkAdder` minimally needs to be given a terminus construct to monitor 
-# and a prefix to use in constructing chunk names (the names are formatted as 
-# "prefix-number") in addition to a reference to the client chunk database.
-
 # Agent Assembly
 
 # The assembly process should be familiar from the free association example, 
@@ -117,7 +98,6 @@ with alice:
                 buffer("stimulus")
             }
         ),
-        updater=chunk_adder,
         assets=Assets(
             chunk_db=chunk_db
         )
@@ -200,9 +180,11 @@ with alice:
 
         Construct(
             name=terminus("bl"),
-            emitter=ThresholdSelector(
+            emitter=ChunkExtractor(
                 source=features("main"),
-                threshold=0.9
+                threshold=0.9,
+                chunks=nacs.assets.chunk_db,
+                prefix="bl"
             )
         )
 
@@ -227,28 +209,28 @@ alice.start()
 
 stimuli = [
     {
-        feature("lexeme", "/apple/"): 1.0,
+        feature("word", "/apple/"): 1.0,
         feature("color", "red"): 1.0,
         feature("shape", "round"): 1.0,
         feature("size", "medium"): 1.0,
         feature("texture", "smooth"): 1.0
     },
     {
-        feature("lexeme", "/orange/"): 1.0,
+        feature("word", "/orange/"): 1.0,
         feature("color", "orange"): 1.0,
         feature("shape", "round"): 1.0,
         feature("size", "medium"): 1.0,
         feature("texture", "grainy"): 1.0
     },
     {
-        feature("lexeme", "/banana/"): 1.0,
+        feature("word", "/banana/"): 1.0,
         feature("color", "yellow"): 1.0,
         feature("shape", "oblong"): 1.0,
         feature("size", "medium"): 1.0,
         feature("texture", "spotty"): 1.0
     },
     {
-        feature("lexeme", "/plum/"): 1.0,
+        feature("word", "/plum/"): 1.0,
         feature("color", "purple"): 1.0,
         feature("shape", "round"): 1.0,
         feature("size", "small"): 1.0,
@@ -295,7 +277,7 @@ queries = [
         feature("texture", "smooth"): .85
     },
     {
-        feature("lexeme", "/orange/"): .85,
+        feature("word", "/orange/"): .85,
     }
 ]
 
