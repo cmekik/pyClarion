@@ -380,6 +380,19 @@ class NumDict(BaseNumDict, MutableMapping):
 
         return self.apply_iop(other, max)
 
+    def setdefault(self, key, default=None):
+        """
+        Return self[key]; on failure, return default and set it as value of key. 
+        
+        If default is None, but self.default is defined, will return 
+        self.default and set self[key] = self.default.
+        """
+
+        if default is None:
+            default = self.default
+
+        return super().setdefault(key, default)
+
     def squeeze(self):
         """
         Drop values that are close to self.default.
