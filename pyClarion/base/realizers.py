@@ -14,10 +14,11 @@ from abc import abstractmethod
 from types import MappingProxyType
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Iterable, Mapping, ClassVar, List, cast, no_type_check
+    Text, Iterator, Iterable, Mapping, ClassVar, List, ContextManager, cast
 )
-import logging
+from contextlib import nullcontext
 from contextvars import ContextVar
+import logging
 
 
 Et = TypeVar("Et", bound="Emitter")
@@ -33,7 +34,7 @@ StructureItem = Tuple[Symbol, "Realizer"]
 
 # Context variables for automating/simplifying agent construction. Helps track
 # items to be added to structures. 
-build_ctx: ContextVar[ConstructRef] = ContextVar("build_ctx")
+build_ctx: ContextVar[Tuple[Symbol, ...]] = ContextVar("build_ctx")
 build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
 
 
@@ -125,8 +126,7 @@ class Realizer(Generic[Et, Ut]):
         """
         Current output of self.
         
-        Deleteing this attribute will simply revert it to the default value set 
-        by self.emitter.
+        Deleteing this attribute will simply revert it to the default value.
         """
 
         return self._output
@@ -445,14 +445,27 @@ class Structure(Realizer[Ct, UpdaterS]):
 
     def finalize_assembly(self) -> None:
 
-        for realizer in self.values():
-            if isinstance(realizer, Structure):
-                with realizer:
+        ctxmgr: Union[Structure, ContextManager[Structure]]
+        
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            ctxmgr = self
+        else:
+            if context[-1] == self.construct:
+                ctxmgr = nullcontext(self)
+            else:
+                ctxmgr = self
+
+        with ctxmgr:
+            for realizer in self.values():
+                if isinstance(realizer, Structure):
                     realizer.finalize_assembly()
-        for realizer in self.values():
-            if isinstance(realizer, Construct):
-                realizer.finalize_assembly()
-        self._update_output()
+            for realizer in self.values():
+                if isinstance(realizer, Construct):
+                    realizer.finalize_assembly()
+        
+        self.reset_output()
         super().finalize_assembly()
 
     def add(self, *realizers: Realizer) -> None:
@@ -589,6 +602,13 @@ class Structure(Realizer[Ct, UpdaterS]):
                 realizer.reweave()
             self.update_links(construct)
 
+    def reset_output(self):
+        """Set output of self to reflect member outputs."""
+
+        ctype = self.emitter.output
+        data = {sym: c.output for sym, c in self.items(ctype=ctype)}
+        self.output = self.emitter.emit(data)
+
     def clear_outputs(self) -> None:
         """Clear output of self and all members."""
 
@@ -598,14 +618,14 @@ class Structure(Realizer[Ct, UpdaterS]):
             else:
                 del realizer.output
 
-        self._update_output()
+        self.reset_output()
 
     def _propagate(self) -> None:
 
         for ctype in self.emitter.sequence:
             for c in self.values(ctype=ctype):
                 c._propagate()
-        self._update_output()
+        self.reset_output()
 
     def _update(self) -> None:
         """
@@ -634,12 +654,6 @@ class Structure(Realizer[Ct, UpdaterS]):
                 output=self.output,
                 update_data=self._update_cache
             )
-
-    def _update_output(self) -> None:
-
-        ctype = self.emitter.output
-        data = {sym: c.output for sym, c in self.items(ctype=ctype)}
-        self.output = self.emitter.emit(data)
 
     def _log_del(self, construct):
 
