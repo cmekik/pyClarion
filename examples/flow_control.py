@@ -182,12 +182,7 @@ with alice:
 
     acs = Structure(
         name=subsystem("acs"),
-        emitter=ACSCycle(
-            sources={
-                buffer("acs_ctrl"), 
-                buffer("defaults")
-            }
-        )
+        emitter=ACSCycle()
     )
 
     with acs:
@@ -226,12 +221,7 @@ with alice:
 
     nacs = Structure(
         name=subsystem("nacs"),
-        emitter=NACSCycle(       
-            sources={
-                buffer("stimulus"), 
-                buffer("gate")
-            }
-        ),
+        emitter=NACSCycle(),
         assets=Assets(
             chunk_db=chunk_db, 
             rule_db=rule_db

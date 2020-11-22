@@ -101,11 +101,7 @@ with alice:
 
     nacs = Structure(
         name=subsystem("nacs"),
-        emitter=NACSCycle(
-            sources={
-                buffer("stimulus")
-            }
-        ),
+        emitter=NACSCycle(),
         assets=Assets(chunk_db=chunk_db),
         updater=chunk_db.updater
     )
@@ -118,8 +114,7 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    buffer("stimulus"), 
-                    flow_tb("main")
+                    buffer("stimulus")
                 }
             )
         )

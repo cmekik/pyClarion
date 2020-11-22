@@ -110,9 +110,10 @@ class ParamSet(Propagator):
             self.source = source
             self.client_interface = client_interface
 
-        def expects(self, construct):
+        @property
+        def expected(self):
 
-            return construct == self.source
+            return frozenset((self.source,))
 
         def call(self, inputs):
 
@@ -147,9 +148,10 @@ class ParamSet(Propagator):
         self.interface = interface
         self.forward_commands = forward_commands
 
-    def expects(self, construct):
-        
-        return construct == self.controller[0]
+    @property
+    def expected(self):
+
+        return frozenset((self.controller[0],))
 
     def call(self, inputs):
         """
@@ -298,11 +300,10 @@ class Register(Propagator):
 
         return len(self.store) == 0
 
-    def expects(self, construct):
-        
-        ctl_subsystem, src_subsystem = self.controller[0], self.source
+    @property
+    def expected(self):
 
-        return construct == ctl_subsystem or construct == src_subsystem
+        return frozenset((self.source, self.controller[0]))
 
     def call(self, inputs):
         """
@@ -563,11 +564,10 @@ class WorkingMemory(Propagator):
             cell.entrust(construct)
         super().entrust(construct)
 
-    def expects(self, construct):
-        
-        ctl_subsystem, src_subsystem = self.controller[0], self.source
+    @property
+    def expected(self):
 
-        return construct in (ctl_subsystem, src_subsystem)
+        return frozenset((self.source, self.controller[0]))
 
     def call(self, inputs):
         """

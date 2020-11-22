@@ -40,9 +40,10 @@ class Gated(Propagator):
 
         self.base.entrust(construct)
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.gate or self.base.expects(construct)
+        return self.base.expected.union((self.gate,))
 
     def call(self, inputs):
 
@@ -107,9 +108,10 @@ class Filtered(Propagator):
 
         self.base.entrust(construct)
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.sieve or self.base.expects(construct)
+        return self.base.expected.union((self.sieve,))
 
     def call(self, inputs):
 

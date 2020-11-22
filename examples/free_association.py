@@ -266,9 +266,7 @@ with alice:
 
     nacs = Structure(
         name=subsystem("nacs"),
-        emitter=NACSCycle(
-            sources={buffer("stimulus")}
-        ),
+        emitter=NACSCycle(),
         assets=Assets(
             chunk_db=chunk_db,
             rule_db=rule_db
@@ -337,6 +335,12 @@ with alice:
                 }
             )
         )
+
+        # Note that buffer("stimulus") will automatically be linked with 
+        # chunks("main") even though it is on a different level of the 
+        # hierarchy. This is guaranteed when the nested `with` syntax is used, 
+        # otherwise one must take care to construct agents in a bottom-up 
+        # fashion.
 
         Construct(
             name=chunks("main"),
@@ -433,7 +437,9 @@ with alice:
 
 # We are now done populating Alice with constructs, but we need to perform some 
 # final pre-simulation initialization to ensure that realizer outputs are 
-# consistent. To do this we call alice.start().
+# consistent. To do this we call alice.start(). Conveniently, alice.start() 
+# will also check for any missing connections and raise an error if any are 
+# found.
 
 alice.start()
 

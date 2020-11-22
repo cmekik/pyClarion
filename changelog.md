@@ -8,35 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Chunk and rule databases `Chunks` and `AssociativeRules`.
-- `Map2VectorEncoder`, which encodes activation maps as vectors for processing by neural nets.
-- `FilteredA` and `FilteredD`, allowing input/output filtering and source filtering.
-- Attribute `assets` for container construct realizers. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
-- `SubsystemPacket` class for reporting subsystem states.
-- Added `output_value` attribute to node realizers for easy inspection of current activation.
-- Added `ConstructType.from_str()`.
-- Added `Packet.pstr()` returning nicely formatted string representations for reporting and inspection.
-- Added abstract `Propagator` class for specifying propagation (i.e., forward-pass) procedures to basic construct realizers.
-- Added an `options` parameter to `ConstructRealizer.propagate()` allowing calls to `propagate()` to modify construct behavior. Extended `BasicConstructRealizer.proc` callback attributes to accept `**kwargs`. 
-- `FeatureSymbol` subclass of `ConstructSymbol` allows direct access to `dim` 
-and `val` attributes.
-- `matches` attribute to `BasicConstructRealizer` and `SubsystemRealizer` for customizing how construct realizers connect to each other.
+- `numdicts` submodule, providing dictionaries that support numerical operations.
+- `utils` subpackage 
+- `pprint` submodule in `utils`, whic extends stdlib `pprint` to handle some `pyClarion` objects.
+- Attribute `assets` for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
+- New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
+- `Token` class for building structured symbolic tokens.
+- Examples `lagged_features.py`, `flow_control.py`, `chunk_extraction.py`, `working_memory.py`.
+- `components` submodule defining basic abstractions for defining components:
+    - `Component`, `Emitter`, `Updater` abstractions for specifying components and setting up links.
+    - `Propagator` and `Cycle` classes for specifying activation propagation procedures for `Construct` and `Structure` instances.
+    - `Assets`, a simple namespace object for holding structure assets.
+    - `FeatureDomain`, `FeatureInterface`, `SimpleDomain`, `SimpleInterface` for structuring specification of feature domains and feature driven control of components
+- Use of `with` statements to automate adding constructs to containers.
+- `AgentCycle`, `CycleS` abstraction and `ACSCycle` classes for controlling structure propagation.  
+- Chunk and rule databases `Chunks` and `Rules`.
+- Chunk extraction termini `ChunkExtractor` and `ControlledExtractor`.
+- `Filtered` and `Gated` propagators, allowing input filtering and output gating.
+- `ActionRules` propagator class.
+- Buffer propagators `ParamSet`, `Register`, and `WorkingMemory`.
+- `updaters.py` defining updater chains and conditional updaters.
 
 ### Changed
 
 - Reorganzied library.
+- `ConstructSymbol` replaced with new `Symbol` class.
+- Old construct realizer classes simplified and replaced: 
+    - `Structure` class for containers
+    - `Construct` class for basic constructs.
+- Realizers and propagators all modified to emit and operate on numdicts, as defined by `numdicts` submodule. 
+- Individual chunk and feature nodes no longer explicitly represented, instead use of feature pools is encouraged.
 - `nacs_proc` function converted to `NACSCycle` class.
-- `funcs.py` moved into newly minted `utils` subpackage.
-- Construct realizers may be associated with multiple updaters instead of just one. Updaters are called in order of insertion (uses ordered dicts to be safe).
-- Subsystems emit and buffers expect to (optionally) receive `SubsystemPacket` objects.
-- Renamed construct realizers to have more succinct names.
-- `ConstructSymbol` now accepts strings and ints to `ctype` argument (values 
-must represent valid ctype).
-- `ConstructSymbol` reprs now return runnable code which will reproduce the same construct symbol. 
-- Simplified construct realizer class names and initalization.
-- `ConstructSymbol` rewritten; now easily extensible.
-- `may_connect()` removed from subsystem and agent realizers, connection 
-decisions devolved to receivers through `realizer.accepts()`.
+
+### Removed
+
+- `funcs.py`
+- `packets.py`
+
+### Fixed 
+
+- Circular imports.
 
 ## 0.13.1 (2019-03-07)
 

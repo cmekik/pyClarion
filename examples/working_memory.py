@@ -189,13 +189,7 @@ with alice:
 
     acs = Structure(
         name=subsystem("acs"),
-        emitter=ACSCycle(
-            sources={
-                buffer("acs_ctrl"), 
-                buffer("wm"), 
-                buffer("defaults")
-            }
-        )
+        emitter=ACSCycle()
     )
 
     with acs:
@@ -246,12 +240,7 @@ with alice:
 
     nacs = Structure(
         name=subsystem("nacs"),
-        emitter=NACSCycle(
-            sources={
-                buffer("wm"),
-                buffer("stimulus")
-            }
-        )
+        emitter=NACSCycle()
     )
 
     with nacs:

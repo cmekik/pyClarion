@@ -36,9 +36,10 @@ class MaxNodes(Propagator):
 
         self.sources = sources
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct in self.sources
+        return frozenset(self.sources)
 
     def call(self, inputs):
 
@@ -70,9 +71,10 @@ class Repeater(Propagator):
 
         self.source = source
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
 
@@ -98,9 +100,10 @@ class Lag(Propagator):
         self.source = source
         self.max_lag = max_lag
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
 
@@ -134,9 +137,10 @@ class ThresholdSelector(Propagator):
         self.source = source
         self.threshold = threshold
         
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
 
@@ -161,9 +165,10 @@ class BoltzmannSelector(Propagator):
         self.temperature = temperature
         self.threshold = threshold
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
         """Select actionable chunks for execution. 
@@ -204,9 +209,10 @@ class ActionSelector(Propagator):
         self.client_interface = client_interface
         self.temperature = temperature
 
-    def expects(self, construct):
-        
-        return construct == self.source 
+    @property
+    def expected(self):
+
+        return frozenset((self.source,))
 
     def call(self, inputs):
         """Select actionable chunks for execution. 
@@ -248,9 +254,10 @@ class Constants(Propagator):
 
         self.strengths = nd.NumDict(strengths) or nd.NumDict()
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return False
+        return frozenset()
 
     def call(self, inputs):
         """Return stored strengths."""
@@ -277,9 +284,10 @@ class Stimulus(Propagator):
 
         self.stimulus = nd.NumDict()
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return False
+        return frozenset()
 
     def input(self, data):
 

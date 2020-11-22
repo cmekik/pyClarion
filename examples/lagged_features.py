@@ -66,11 +66,7 @@ with alice:
 
     nacs = Structure(
         name=subsystem("nacs"),
-        emitter=NACSCycle(
-            sources={
-                buffer("stimulus")
-            }
-        )
+        emitter=NACSCycle()
     )
 
     with nacs:

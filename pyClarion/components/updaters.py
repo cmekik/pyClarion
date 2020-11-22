@@ -43,9 +43,12 @@ class UpdaterChain(Updater, Generic[Ut]):
             updater.entrust(construct)
         self._client = construct
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return any([updater.expects(construct) for updater in self.updaters])
+        iterables = (updater.expected for updater in self.updaters)
+
+        return frozenset().union(*iterables)
 
     def _extract_update_data(self, updater, update_data):
         
@@ -128,14 +131,15 @@ class ConditionalUpdater(Updater, Generic[Ut]):
             updater.entrust(construct)
         self._client = construct
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        val = self.base.expects(construct)
         if not isinstance(self.controller, terminus):
             subsystem, _ = self.controller
-            val |= construct == subsystem 
+        else:
+            subsystem = self.controller
         
-        return val
+        return self.base.expected.union((subsystem,))
 
     def _extract_cmds(self, output):
 

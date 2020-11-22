@@ -14,7 +14,7 @@ from .numdicts import NumDict, FrozenNumDict
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
     Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Collection, 
-    cast, no_type_check
+    FrozenSet, cast, no_type_check
 )
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
@@ -24,6 +24,7 @@ import logging
 
 Inputs = Mapping[Symbol, Any]
 Ft = TypeVar("Ft", bound="FeatureInterface")
+Dt = TypeVar("Dt", bound="FeatureDomain")
 Pt = TypeVar("Pt", bound="Propagator")
 
 
@@ -31,9 +32,9 @@ class Component(object):
     """
     Defines how constructs connect, compute outputs, perform updates etc.
     
-    Each construct pyClarion construct is entrusted to one or more components, 
-    each of which is responsible for implementing some function or process 
-    associated with the client construct.
+    Each pyClarion construct is entrusted to one or more components, each of 
+    which is responsible for implementing some function or process associated 
+    with the client construct.
     """
 
     _serves: ClassVar[ConstructType]
@@ -45,6 +46,12 @@ class Component(object):
 
         return self._client
 
+    @property
+    def expected(self) -> FrozenSet[Symbol]:
+        """Constructs from which self expects to receive activations."""
+
+        raise NotImplementedError()
+
     def entrust(self, construct: Symbol) -> None:
         """Entrust handling of construct to self."""
 
@@ -55,11 +62,15 @@ class Component(object):
             name, ctype = type(self).__name__, repr(construct.ctype) 
             raise ValueError(msg.format(name, ctype))
 
-    @abstractmethod
     def expects(self, construct: Symbol) -> bool:
         """Return True iff self expects input from construct."""
 
-        raise NotImplementedError()
+        return construct in self.expected
+
+    def check_links(self, linked: Collection[Symbol]):
+        """Return True iff expected constructs are a subset of linked."""
+
+        return self.expected.issubset(linked)
 
 
 class Emitter(Component):
@@ -84,14 +95,17 @@ class Emitter(Component):
         raise NotImplementedError()
 
 
-class Propagator(Emitter, Generic[Ft]):
+class Propagator(Emitter, Generic[Ft, Dt]):
     """
     Emitter for basic constructs.
     
-    Propagates outputs and performs basic (i.e., essential) updates.
+    Propagates outputs and performs basic (i.e., essential) updates. The 
+    attributes `interface` and `domain` are reserved for feature interfaces and 
+    feature domains, respectively.
     """
 
     interface: Ft
+    domain: Dt
 
     def __call__(self, inputs: Inputs) -> Mapping:
         """
@@ -152,6 +166,11 @@ class Cycle(Emitter):
     # Specifies data required to construct the output packet
     output: ClassVar[ConstructType] = ConstructType.null_construct
     sequence: Iterable[ConstructType]
+
+    @property
+    def expected(self):
+
+        return frozenset()
 
 
 class Updater(Component, Generic[Ft]):

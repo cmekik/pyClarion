@@ -171,9 +171,10 @@ class AssociativeRules(Propagator):
         self.source = source
         self.rules = rules
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
 
@@ -213,9 +214,10 @@ class ActionRules(Propagator):
         self.rules = rules
         self.temperature = temperature
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
 

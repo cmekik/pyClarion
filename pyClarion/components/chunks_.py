@@ -162,9 +162,10 @@ class Chunks(MutableMapping):
 
             self.chunks = chunks
 
-        def expects(self, construct):
+        @property
+        def expected(self):
 
-            return False
+            return frozenset()
 
         def __call__(self, inputs, output, update_data):
             """Resolve all outstanding chunk database update requests."""
@@ -296,9 +297,10 @@ class TopDown(Propagator):
         self.source = source
         self.chunks = chunks 
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
         """Execute a top-down activation cycle."""
@@ -321,9 +323,10 @@ class BottomUp(Propagator):
         self.source = source
         self.chunks = chunks 
 
-    def expects(self, construct: Symbol):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs): 
         """
@@ -369,9 +372,10 @@ class ChunkExtractor(Propagator):
         self._counter = count(start=1, step=1)
         self._to_add: Optional[Tuple[chunk, Chunks.Chunk]] = None
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.source
+        return frozenset((self.source,))
 
     def call(self, inputs):
         """Extract a chunk from bottom-level activations."""
@@ -443,9 +447,10 @@ class ControlledExtractor(ChunkExtractor):
         self.controller = controller
         self.interface = interface
 
-    def expects(self, construct):
+    @property
+    def expected(self):
 
-        return construct == self.controller or super().expects(construct)
+        return super().expected.union((self.controller[0],))
 
     def call(self, inputs):
 

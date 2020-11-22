@@ -25,10 +25,6 @@ class AgentCycle(Cycle):
        
         self.sequence = type(self).sequence
 
-    def expects(self, construct: Symbol):
-
-        return False
-
     @staticmethod
     def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:
 
@@ -43,14 +39,9 @@ class CycleS(Cycle):
     # NOTE: Should flows be added to output? - Can
     output = ConstructType.nodes | ConstructType.terminus
 
-    def __init__(self, sources: Container[Symbol] = None):
+    def __init__(self):
 
-        self.sources = sources if sources is not None else set()
         self.sequence = type(self).sequence
-
-    def expects(self, construct: Symbol):
-
-        return construct in self.sources
 
     @staticmethod
     def emit(data: Dict[Symbol, float] = None) -> Mapping[Symbol, float]:

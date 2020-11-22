@@ -54,6 +54,7 @@ class Realizer(Generic[Et, Ut]):
     _updater: Optional[Ut]
     _input_cache: Inputs
     _update_cache: Inputs
+    _started: bool
 
     def __init__(self, name: Symbol, emitter: Et, updater: Ut = None) -> None:
         """
@@ -74,6 +75,7 @@ class Realizer(Generic[Et, Ut]):
         self._output = emitter.emit()
         self._input_cache = {}
         self._update_cache = {}
+        self._started = False
 
         self.emitter = emitter
         self.updater = updater
@@ -142,11 +144,30 @@ class Realizer(Generic[Et, Ut]):
         
         self._output = self.emitter.emit() # default/empty output
 
+    class StartError(Exception):
+        """Thrown when a simulation start precondition is violated."""
+        pass
+
+    def start(self):
+        """Execute final initialization and checks prior to simulation."""
+
+        b = self.emitter.check_links(self.inputs)
+        b &= self.updater is None or self.updater.check_links(self.inputs)
+        
+        if b:
+            self._started = True
+        else:
+            raise type(self).StartError(self._start_error_msg())
+
     def step(self) -> None:
         """Advance the simulation by one time step."""
 
-        self._propagate()
-        self._update()
+        if self._started:
+            self._propagate()
+            self._update()
+        else:
+            msg = "Must call {}.start() prior to stepping."
+            raise type(self).StartError(msg.format(type(self).__name__))
 
     def accepts(self, source: Symbol) -> bool:
         """Return true iff self pulls information from source."""
@@ -263,6 +284,21 @@ class Realizer(Generic[Et, Ut]):
         else:
             msg = "Disconnecting %s from %s in %s."
             logging.debug(msg, construct, self.construct, context)
+    
+    def _start_error_msg(self):
+
+        s = set(self.emitter.expected)
+        s |= self.updater.expected if self.updater is not None else set()
+        s -= set(self.inputs)
+
+        try:
+            context = build_ctx.get()
+        except LookupError:
+            msg = "Construct {} missing the following link(s): {}."
+            return msg.format(self.construct, s)
+        else:
+            msg = "Construct {} in {} missing the following link(s): {}."
+            return msg.format(self.construct, context, s)
 
     @staticmethod
     def _validate_name(name) -> None:
@@ -324,13 +360,7 @@ class Structure(Realizer[Ct, UpdaterS]):
     Defines behaviour of higher-level constructs, such as agents and 
     subsystems, which may contain other constructs. 
     """
-
-    # NOTE: It would be nice to have structures automatically connect to 
-    # elements that their members accept. My first past attempt at this failed 
-    # miserably. Does not seem doable w/o allowing realizers to have knowledge 
-    # of their parents. I don't really want to do that unless it is absolutely 
-    # necessary. - Can
-
+    
     _started: bool
     _dict: Dict[ConstructType, Dict[Symbol, Realizer]]
     _assets: Any
@@ -424,32 +454,35 @@ class Structure(Realizer[Ct, UpdaterS]):
 
     def start(self) -> None:
 
+        with self:
+            for realizer in self.values():
+                if isinstance(realizer, Structure):
+                    realizer.start()
+            for realizer in self.values():
+                if isinstance(realizer, Construct):
+                    realizer.start()
         self._update_output()
-        for realizer in self.values():
-            if isinstance(realizer, Structure):
-                realizer.start()
-        self._started = True
-
-    def step(self) -> None:
-
-        if self._started:
-            super().step()
-        else:
-            raise ValueError("Must call Structure.start() prior to stepping.")
+        super().start()
 
     def add(self, *realizers: Realizer) -> None:
         """
         Add realizers to self and any associated links.
         
         Calling add directly when building an agent may be error-prone, not to 
-        mention cumbersome. A better approach may be to try using self as a 
-        context manager. 
+        mention cumbersome. A better approach to agent assembly is to use self 
+        as a context manager. 
         
-        When self is used as a context manager, any construct initialized 
-        within the body of a with statement having self as its context manager 
-        will automatically be added to self upon exit from the context. Nested 
-        use of with statements in this way (e.g. to add objects to subsystems 
-        within an agent) is well-behaved.
+        Any construct initialized within the body of a with statement 
+        having self as its context manager will automatically be added to self 
+        upon exit from the context (by a call to self.add()). Nested use of 
+        with statements in this way (e.g. to add objects to subsystems 
+        within an agent) is well-behaved and recommended.
+
+        When calling Structure.add() directly, be sure to assemble agents in a 
+        bottom-up fashion. Otherwise, constructs may not be linked correctly. 
+        If you do not follow a bottom-up assembly pattern, call the reweave() 
+        method on the highest level construct in your model at the end of 
+        assembly.
         """
 
         for realizer in realizers:
@@ -540,15 +573,13 @@ class Structure(Realizer[Ct, UpdaterS]):
         super().clear_inputs()           
 
     def update_links(self, construct: Symbol) -> None:
-        """Add any acceptable links associated with member construct."""
+        """Add links between member construct and any other member of self."""
 
         target = self[construct]
         for realizer in self.values():
             if target.construct != realizer.construct:
                 realizer.offer(target.construct, target.view)
                 target.offer(realizer.construct, realizer.view)
-        for c, callback in self.inputs.items():
-            target.offer(c, callback)
 
     def clear_links(self) -> None:
         """Remove all links to, among, and within all members of self."""
