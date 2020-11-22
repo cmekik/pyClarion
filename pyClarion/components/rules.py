@@ -27,6 +27,9 @@ class Rules(MutableMapping):
     }            
     """
 
+    # TODO: This class should support deferred updates, just like the Chunks 
+    # database. - Can
+
     class Rule(object):
         """Represents a rule form."""
 

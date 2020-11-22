@@ -9,13 +9,14 @@ from ..base.symbols import (
     feature, chunk, terminus, subsystem
 )
 from ..base import numdicts as nd
-from ..base.components import Propagator, UpdaterS 
+from ..base.components import Propagator, FeatureInterface, UpdaterS 
 from ..base.realizers import Construct
 
 from .propagators import ThresholdSelector
 
 from typing import (
-    Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, List
+    Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
+    List, Optional
 )
 from collections.abc import MutableMapping
 from collections import namedtuple
@@ -43,6 +44,10 @@ class Chunks(MutableMapping):
 
     Provides mapping methods to access and manipulate this dict and defines the 
     entry type Chunk. 
+
+    Also, this object provides tools for requesting, applying, and examining 
+    deferred updates. These methods are useful for cases where multiple 
+    constructs may want to add chunks to the same database.
     """
 
     class Chunk(object):
@@ -142,6 +147,30 @@ class Chunks(MutableMapping):
 
             return strength
 
+    class Updater(UpdaterS):
+        """
+        Applies requested updates to a client Chunks instance.
+        
+        Assumes any updates will be issued by constructs subordinate to 
+        self.client.
+        """
+
+        _serves = ConstructType.container_construct
+
+        def __init__(self, chunks: "Chunks") -> None:
+            """Initialize a Chunks.Updater instance."""
+
+            self.chunks = chunks
+
+        def expects(self, construct):
+
+            return False
+
+        def __call__(self, inputs, output, update_data):
+            """Resolve all outstanding chunk database update requests."""
+
+            self.chunks.resolve_update_requests()
+
     def __init__(self, data: Mapping[chunk, "Chunks.Chunk"] = None) -> None:
 
         if data is None:
@@ -150,6 +179,9 @@ class Chunks(MutableMapping):
             data = dict(data)
 
         self._data: MutableMapping[chunk, Chunks.Chunk] = data
+        self._promises: MutableMapping[chunk, Chunks.Chunk] = dict()
+        self._promises_proxy = MappingProxyType(self._promises)
+        self._updater = type(self).Updater(self)
 
     def __repr__(self):
 
@@ -176,28 +208,82 @@ class Chunks(MutableMapping):
 
         self._data[key] = val
 
+    @property
+    def updater(self):
+        """Updater object for bound to self."""
+
+        return self._updater
+
+    @property
+    def promises(self):
+        """A view of promised updates."""
+
+        return self._promises_proxy
+
     def link(self, ch, *features, weights=None):
         """Link chunk to features."""
 
         self[ch] = self.Chunk(features=features, weights=weights)
 
-    def find_form(self, form):
-        """Return the set of chunks matching the given form."""
+    def find_form(self, form, check_promises=True):
+        """
+        Return the set of chunks matching the given form.
+        
+        If check_promises is True, will match form against promised chunks (see 
+        Chunks.request_update()).
+        """
 
         # This may need a faster implementation in the future. - Can
         chunks = set()
         for ch, form_ch in self.items():
             if form_ch == form:
                 chunks.add(ch)
+        for ch, form_ch in self._promises.items():
+            if form_ch == form:
+                chunks.add(ch)
 
         return chunks
 
-    def contains_form(self, form):
-        """Return true if given chunk form matches at least one chunk."""
+    def contains_form(self, form, check_promises=True):
+        """
+        Return true if given chunk form matches at least one chunk.
 
-        found = self.find_form(form)
+        If check_promises is True, will match form against promised chunks (see 
+        Chunks.request_update()).
+        """
+
+        found = self.find_form(form, check_promises)
 
         return 0 < len(found) 
+
+    def request_update(self, ch, form):
+        """
+        Inform self of a new chunk to be applied at a later time.
+        
+        Adds (ch, form) to an internal future update dict. Upon call to 
+        self.resolve_update_requests(), the update dict will be passed as an 
+        argument to self.update(). 
+        
+        Will overwrite existing chunks, if ch is already member of self. Does 
+        not check for duplicate forms. Will throw an error if an update is 
+        already registered for chunk ch.
+        """
+
+        if ch in self._promises:
+            msg = "Chunk {} already registered for a promised update."
+            raise ValueError(msg.format(ch))
+        else:
+            self._promises[ch] = form
+
+    def resolve_update_requests(self):
+        """
+        Apply any promised updates (see Chunks.request_update()).
+        
+        Clears promised update dict upon completion.
+        """
+
+        self.update(self._promises)
+        self._promises.clear()
 
 
 class TopDown(Propagator):
@@ -255,15 +341,17 @@ class BottomUp(Propagator):
         return d
 
 
-class ChunkExtractor(ThresholdSelector):
+class ChunkExtractor(Propagator):
     """
     Extracts chunks from the bottom level.
     
     Extracted chunks contain all features in the bottom level above a set 
     threshold. If the corresponding chunk form does not exist in client chunk 
-    database, a new chunk is added to the database at call time. The strength 
-    of the extracted chunk is written to the output.
+    database, a request to update the chunk database is placed at call time. 
+    Execution of the request is not enforced by the extractor.
     """
+
+    _serves = ConstructType.terminus
 
     def __init__(
         self, 
@@ -272,38 +360,39 @@ class ChunkExtractor(ThresholdSelector):
         prefix: str,
         threshold: float = 0.85
     ) -> None:
-
-        super().__init__(source, threshold)
         
+        self.source = source
         self.chunks = chunks
         self.prefix = prefix
-        self.counter = count(start=1, step=1)
+        self.threshold = threshold
 
-        self._to_add: List[Tuple[chunk, Chunks.Chunk]] = []
+        self._counter = count(start=1, step=1)
+        self._to_add: Optional[Tuple[chunk, Chunks.Chunk]] = None
+
+    def expects(self, construct):
+
+        return construct == self.source
 
     def call(self, inputs):
         """Extract a chunk from bottom-level activations."""
 
-        fs = super().call(inputs)
-        fs.squeeze()
-
         d = nd.NumDict()
-        s_fs = nd.restrict(inputs[self.source], fs)
+        fs = nd.threshold(inputs[self.source], self.threshold)
 
-        if len(s_fs) > 0:
+        if len(fs) > 0:
 
             form = self.chunks.Chunk(fs)
             found = self.chunks.find_form(form)
             
             if len(found) == 0:
-                name = "{}_{}".format(self.prefix, next(self.counter))
+                name = "{}_{}".format(self.prefix, next(self._counter))
                 ch = chunk(name)
                 d[ch] = 1.0
-                # The new chunk is not added on the spot to prevent potential 
-                # inconsistencies in construct behavior arising from call-time 
-                # modifications to shared chunk data. Instead, it is kept in 
-                # storage until update time.
-                self._to_add.append((ch, form))
+                # The chunk will be added to the database at update time, 
+                # assuming the self.chunks is updated at that time. By default, 
+                # extractors do not initiate updates for their chunk databases 
+                # that they serve.
+                self.chunks.request_update(ch, form)
             elif len(found) == 1:
                 d.extend(found, value=1.0)
             else:
@@ -311,14 +400,62 @@ class ChunkExtractor(ThresholdSelector):
 
         return d
 
-    def update(self, inputs, output):
-        """If a new chunk was extracted, add it to the database."""
 
-        if len(self._to_add) == 0:
-            pass
-        elif len(self._to_add) == 1:
-            ch, form = self._to_add.pop()
-            self.chunks[ch] = form
+class ControlledExtractor(ChunkExtractor):
+    """Extract chunks from the bottom level conditional on a command."""
+
+    @dataclass
+    class Interface(FeatureInterface):
+        """
+        Control interface for ControlledExtractor.
+
+        :param tag: Dimensional tag for control features.
+        :param vals: Values for control features. The first entry represents 
+            a standby command, the second value represents a firing command.
+        """
+
+        tag: Hashable
+        vals: Tuple[Hashable, Hashable]
+
+        def _validate_data(self):
+
+            if len(set(vals)) != len(vals):
+                raise ValueError("Values must be distinct.")
+        
+        def _set_interface_properties(self):
+
+            self._cmds = frozenset(feature(self.tag, val) for val in self.vals)
+            self._defaults = frozenset({feature(self.tag, self.vals[0])})
+            self._params = frozenset()
+
+    def __init__(
+        self, 
+        source: Symbol, 
+        controller: Symbol,
+        interface: Interface,
+        chunks: Chunks, 
+        prefix: str,
+        threshold: float = 0.85
+    ) -> None:
+
+        super().__init__(source, chunks, prefix, threshold)
+        
+        self.controller = controller
+        self.interface = interface
+
+    def expects(self, construct):
+
+        return construct == self.controller or super().expects(construct)
+
+    def call(self, inputs):
+
+        data = self.inputs[self.controller]
+        cmds = self.interface.parse_commands(data)
+
+        dim, = self.interface.cmd_dims # unpack the single control dimension
+        if cmds[dim] == self.interface.vals[1]:
+            d = super().call(inputs)
         else:
-            msg = "Too many chunks to add: got {}, limit is 1."
-            raise ValueError(msg.format(len(self._to_add)))
+            d = nd.NumDict()
+
+        return d

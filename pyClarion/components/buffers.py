@@ -164,22 +164,23 @@ class ParamSet(Propagator):
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
-        if 1 < len(cmds):
-            msg = "{} expected only one command, received {}"
+        try:
+            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
+        except ValueError:
+            msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        for dim, val in cmds.items():
-            if val == self.interface.vals[0]:
-                pass
-            elif val == self.interface.vals[1]:
+        if val == self.interface.vals[0]:
+            pass
+        elif val == self.interface.vals[1]:
+            self.clear_store()
+        elif val in self.interface.vals[2:]:
+            if val == self.interface.vals[3]:
                 self.clear_store()
-            elif val in self.interface.vals[2:]:
-                if val == self.interface.vals[3]:
-                    self.clear_store()
-                param_strengths = nd.restrict(data, self.interface.params)
-                self.update_store(param_strengths)
-            else:
-                raise ValueError("Unexpected command value.")
+            param_strengths = nd.restrict(data, self.interface.params)
+            self.update_store(param_strengths)
+        else:
+            raise ValueError("Unexpected command value.")
 
         d = nd.NumDict()
         strengths = nd.transform_keys(self.store, feature.tag.fget)
@@ -316,19 +317,20 @@ class Register(Propagator):
         data = collect_cmd_data(self.client, inputs, self.controller)
         cmds = self.interface.parse_commands(data)
 
-        if 1 < len(cmds):
-            msg = "{} expected only one command, received {}"
+        try:
+            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
+        except ValueError:
+            msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        for dim, val in cmds.items():
-            if val == self.interface.standby:
-                pass
-            elif val == self.interface.clear:
-                self.clear_store()
-            elif val in self.interface.mapping: 
-                channel = self.interface.mapping[val]
-                self.clear_store()
-                self.update_store(inputs[self.source][channel])
+        if val == self.interface.standby:
+            pass
+        elif val == self.interface.clear:
+            self.clear_store()
+        elif val in self.interface.mapping: 
+            channel = self.interface.mapping[val]
+            self.clear_store()
+            self.update_store(inputs[self.source][channel])
 
         d = nd.NumDict(self.store)
 

@@ -26,13 +26,13 @@ from pyClarion import (
 # please do so first, as you will be missing some of the prerequisite ideas.
 
 # The basic premise of the recipe is to create a special terminus construct 
-# for chunk extraction. It should be noted that a step in pyClarion consists of 
-# a propagation stage, called 'propagation time', and an updating/learning 
-# stage, called 'update time'. On each cycle, the chunk extractor recommends 
-# chunks based on the state of the bottom level at propagation time. If the 
-# bottom level state matches an existing chunk, that chunk is recommended. 
-# Otherwise a new chunk is recommended. These recommendations are then placed 
-# in the corresponding chunk database at update time.
+# for chunk extraction. In pyClarion, each simulation step consists of a 
+# propagation stage, called 'propagation time', and an updating/learning stage, 
+# called 'update time'. On each cycle, the chunk extractor recommends chunks 
+# based on the state of the bottom level at propagation time. If the bottom 
+# level state matches an existing chunk, that chunk is recommended. Otherwise, 
+# a new chunk is recommended. These recommendations are then placed in the 
+# corresponding chunk database at update time by an appropriate updater object.
 
 # Here is the scenario:
 # We are teaching Alice about fruits by showing her pictures of fruits and 
@@ -88,6 +88,17 @@ with alice:
         emitter=Stimulus()
     )
 
+    # When we create the NACS, we store the chunk database as an asset, as 
+    # before. However, we also pass the chunk database's updater object as an 
+    # updater for NACS. This is because when the extractor recommends a new 
+    # chunk, it will issue an update request to the chunk database. Upon 
+    # receipt, this update request is deferred until update time. The chunk 
+    # database updater takes responsibiity for applying any requested updates. 
+    # This pattern ensures that the chunk database remains constant during 
+    # propagation time. It also helps ensure that updates remain consistent 
+    # even if multiple constructs issue update requests to the same chunk 
+    # database. 
+
     nacs = Structure(
         name=subsystem("nacs"),
         emitter=NACSCycle(
@@ -95,9 +106,8 @@ with alice:
                 buffer("stimulus")
             }
         ),
-        assets=Assets(
-            chunk_db=chunk_db
-        )
+        assets=Assets(chunk_db=chunk_db),
+        updater=chunk_db.updater
     )
 
     with nacs:
@@ -166,8 +176,8 @@ with alice:
         # bottom level. Then, it looks for a chunk whose form matches exactly 
         # the features above threshold. If a match is found, the corresponding 
         # chunk is emitted as output (fully activated). If no match is found, 
-        # a new chunk is named and emitted. At output time, the new chunk is 
-        # added to the chunk database.
+        # a new chunk is named and emitted, and a request is sent to the chunk 
+        # database to add the new chunk.
 
         Construct(
             name=terminus("bl"),
@@ -178,7 +188,6 @@ with alice:
                 prefix="bl"
             )
         )
-
 
 # We start the agent to complete preparation for simulations.
 
@@ -287,5 +296,5 @@ for i, s in enumerate(queries):
 ##################
 
 # This simple simulation sought to demonstrate the following:
-#   - The basics of learning, and
+#   - The basics of learning and updater use, and
 #   - A recipe for chunk extraction from the state of the bottom level. 
