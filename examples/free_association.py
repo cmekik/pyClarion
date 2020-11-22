@@ -435,13 +435,11 @@ with alice:
         # proportionally to their strengths in the stimulus buffer. This is one 
         # way to achieve cue-suppression.
 
-# We are now done populating Alice with constructs, but we need to perform some 
-# final pre-simulation initialization to ensure that realizer outputs are 
-# consistent. To do this we call alice.start(). Conveniently, alice.start() 
-# will also check for any missing connections and raise an error if any are 
-# found.
-
-alice.start()
+# We are now done populating Alice with constructs. On exit from the 
+# highest-level Structure context, pyClarion will automatically finalize the 
+# agent assembly. This process involves setting structure outputs to reflect 
+# their contents and checking for any missing expected links. If missing 
+# expected links are encountered a RealizerAssemblyError will be thrown.
 
 # Agent setup is now complete!
 

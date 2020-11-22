@@ -359,10 +359,6 @@ with alice:
             )
         )
 
-# We finalize assemby by starting the agent.
-
-alice.start()
-
 # Agent setup is complete!
 
 

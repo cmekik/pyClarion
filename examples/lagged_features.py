@@ -89,10 +89,6 @@ with alice:
             ) 
         )
 
-# We start the agent in preparation for simulation.
-
-alice.start()
-
 
 ##################
 ### Simulation ###

@@ -1,7 +1,7 @@
 """Tools for defining construct behavior."""
 
 
-__all__ = ["Realizer", "Construct", "Structure", "Updater"]
+__all__ = ["Realizer", "Construct", "Structure"]
 
 
 from .symbols import ConstructType, Symbol, ConstructRef, feature
@@ -44,8 +44,7 @@ class Realizer(Generic[Et, Ut]):
     Provides a standard interface for creating, inspecting, modifying and 
     propagating information across construct networks. 
 
-    Follows a pull-based message-passing pattern for activation propagation and 
-    a blackboard pattern for updates to persistent data. 
+    Follows a pull-based message-passing pattern for activation propagation. 
     """
 
     _inputs: Dict[Symbol, Callable[[], Any]]
@@ -54,7 +53,6 @@ class Realizer(Generic[Et, Ut]):
     _updater: Optional[Ut]
     _input_cache: Inputs
     _update_cache: Inputs
-    _started: bool
 
     def __init__(self, name: Symbol, emitter: Et, updater: Ut = None) -> None:
         """
@@ -75,7 +73,6 @@ class Realizer(Generic[Et, Ut]):
         self._output = emitter.emit()
         self._input_cache = {}
         self._update_cache = {}
-        self._started = False
 
         self.emitter = emitter
         self.updater = updater
@@ -144,30 +141,24 @@ class Realizer(Generic[Et, Ut]):
         
         self._output = self.emitter.emit() # default/empty output
 
-    class StartError(Exception):
+    class RealizerAssemblyError(Exception):
         """Thrown when a simulation start precondition is violated."""
         pass
 
-    def start(self):
+    def finalize_assembly(self):
         """Execute final initialization and checks prior to simulation."""
 
         b = self.emitter.check_links(self.inputs)
         b &= self.updater is None or self.updater.check_links(self.inputs)
         
-        if b:
-            self._started = True
-        else:
-            raise type(self).StartError(self._start_error_msg())
+        if not b:
+            raise type(self).RealizerAssemblyError(self._link_error_msg())
 
     def step(self) -> None:
         """Advance the simulation by one time step."""
 
-        if self._started:
-            self._propagate()
-            self._update()
-        else:
-            msg = "Must call {}.start() prior to stepping."
-            raise type(self).StartError(msg.format(type(self).__name__))
+        self._propagate()
+        self._update()
 
     def accepts(self, source: Symbol) -> bool:
         """Return true iff self pulls information from source."""
@@ -285,7 +276,7 @@ class Realizer(Generic[Et, Ut]):
             msg = "Disconnecting %s from %s in %s."
             logging.debug(msg, construct, self.construct, context)
     
-    def _start_error_msg(self):
+    def _link_error_msg(self):
 
         s = set(self.emitter.expected)
         s |= self.updater.expected if self.updater is not None else set()
@@ -294,10 +285,10 @@ class Realizer(Generic[Et, Ut]):
         try:
             context = build_ctx.get()
         except LookupError:
-            msg = "Construct {} missing the following link(s): {}."
+            msg = "Construct {} missing expected link(s): {}."
             return msg.format(self.construct, s)
         else:
-            msg = "Construct {} in {} missing the following link(s): {}."
+            msg = "Construct {} in {} missing expected link(s): {}."
             return msg.format(self.construct, context, s)
 
     @staticmethod
@@ -360,8 +351,7 @@ class Structure(Realizer[Ct, UpdaterS]):
     Defines behaviour of higher-level constructs, such as agents and 
     subsystems, which may contain other constructs. 
     """
-    
-    _started: bool
+
     _dict: Dict[ConstructType, Dict[Symbol, Realizer]]
     _assets: Any
 
@@ -385,7 +375,6 @@ class Structure(Realizer[Ct, UpdaterS]):
 
         super().__init__(name=name, emitter=emitter, updater=updater)
         
-        self._started = False
         self._dict = {}
         self.assets = assets if assets is not None else Assets()
 
@@ -445,24 +434,26 @@ class Structure(Realizer[Ct, UpdaterS]):
     def __exit__(self, exc_type, exc_value, traceback):
 
         # Add any newly defined realizers to self and clean up the context.
-        _, add_list = build_ctx.get(), build_list.get()
+        context, add_list = build_ctx.get(), build_list.get()
         for realizer in add_list:
             self.add(realizer)
+        if len(context) <= 1:
+            self.finalize_assembly()
         build_ctx.reset(self._build_ctx_token)
         build_list.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)
 
-    def start(self) -> None:
+    def finalize_assembly(self) -> None:
 
-        with self:
-            for realizer in self.values():
-                if isinstance(realizer, Structure):
-                    realizer.start()
-            for realizer in self.values():
-                if isinstance(realizer, Construct):
-                    realizer.start()
+        for realizer in self.values():
+            if isinstance(realizer, Structure):
+                with realizer:
+                    realizer.finalize_assembly()
+        for realizer in self.values():
+            if isinstance(realizer, Construct):
+                realizer.finalize_assembly()
         self._update_output()
-        super().start()
+        super().finalize_assembly()
 
     def add(self, *realizers: Realizer) -> None:
         """

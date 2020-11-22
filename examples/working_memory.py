@@ -303,10 +303,6 @@ with alice:
             )
         )
 
-# We start the agent to finalize assembly.
-
-alice.start()
-
 # Agent setup is now complete!
 
 

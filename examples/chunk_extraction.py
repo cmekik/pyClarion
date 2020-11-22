@@ -184,10 +184,6 @@ with alice:
             )
         )
 
-# We start the agent to complete preparation for simulations.
-
-alice.start()
-
 # Agent setup is now complete!
 
 
