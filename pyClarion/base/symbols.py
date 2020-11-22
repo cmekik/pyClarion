@@ -86,8 +86,8 @@ class Token(object):
     
     Intended as a base class for constructing symbolic structures.
     
-    Constructs a hashable object from hashable args. Supports '==' and '<'. 
-    Does not support mutation.
+    Constructs a hashable object from hashable args. Supports '=='. Does not 
+    support mutation.
     """
 
     __slots__ = ("_args")
@@ -111,6 +111,7 @@ class Token(object):
 
         cls_name = type(self).__name__
         msg = "Mutation of {} instance not permitted.".format(cls_name)
+        
         raise AttributeError(msg)
 
     def __eq__(self, other):
@@ -118,16 +119,7 @@ class Token(object):
         if isinstance(other, Token):
             return self._args == other._args
         else:
-            return False
-    
-    def __lt__(self, other):
-
-        if isinstance(other, Token):
-            return self._args < other._args
-        else:
-            template = "'<' not supported between instances of '{}' and '{}'."
-            msg = template.format(type(self).__name__, type(other).__name__)
-            raise TypeError(msg)
+            return NotImplemented
 
 
 class Symbol(Token):
