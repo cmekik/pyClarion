@@ -121,6 +121,13 @@ class Token(object):
         else:
             return NotImplemented
 
+    def __lt__(self, other):
+
+        if isinstance(other, Token):
+            return self._args < other._args
+        else:
+            return NotImplemented
+
 
 class Symbol(Token):
     """
