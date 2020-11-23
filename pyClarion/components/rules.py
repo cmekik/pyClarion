@@ -1,7 +1,7 @@
 """Tools for creating, managing, and processing rules."""
 
 
-__all__ = ["Rules", "AssociativeRules"]
+__all__ = ["Rules", "AssociativeRules", "ActionRules"]
 
 
 from ..base import ConstructType, Symbol, Propagator, rule
@@ -43,8 +43,9 @@ class Rules(MutableMapping):
             weights is extend to map each of these items to a weight of 1. If 
             weights is None, it is assumed to be an empty weight dict. 
 
-            At the end of initialization, weights is renormalized such that 
-            each weight w is mapped to w / sum(weights.values())
+            At the end of initialization, if the weights sum to more than 1.0, 
+            weights is renormalized such that each weight w is mapped to 
+            w / sum(weights.values())
 
             :param conclusion: A chunk symbol for the rule conclusion.
             :param conditions: A sequence of chunk symbols representing rule 
@@ -58,7 +59,9 @@ class Rules(MutableMapping):
                 ws.update(weights)
             ws.extend(conds, value=1.0)
 
-            ws /= nd.val_sum(ws)
+            w_sum = nd.val_sum(ws)
+            if w_sum > 1.0: 
+                ws /= w_sum
 
             self._conc = conc
             self._weights = nd.FrozenNumDict(ws)
@@ -148,9 +151,9 @@ class Rules(MutableMapping):
 
     def _validate_rule_form(self, form):
 
-        if self.max_conds is not None and len(val.weights) > self.max_conds:
+        if self.max_conds is not None and len(form.weights) > self.max_conds:
             msg = "Received rule with {} conditions; maximum allowed is {}."
-            raise ValueError(msg.format(len(val.weights), self.max_conds))
+            raise ValueError(msg.format(len(form.weights), self.max_conds))
 
 
 class AssociativeRules(Propagator):
@@ -224,8 +227,9 @@ class ActionRules(Propagator):
         strengths = inputs[self.source]
 
         s_r = nd.NumDict()
-        for r, form in rules.items():
-            s_r[r] = nd.restrict(strengths, form.weights) * form.weights
+        for r, form in self.rules.items():
+            _s_r = nd.restrict(strengths, form.weights) * form.weights
+            s_r[r] = nd.val_sum(_s_r)
         prs = nd.boltzmann(s_r, self.temperature)
         selection = nd.draw(prs, 1)
         s_a = s_r * selection

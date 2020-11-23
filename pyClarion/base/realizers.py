@@ -433,12 +433,14 @@ class Structure(Realizer[Ct, UpdaterS]):
 
     def __exit__(self, exc_type, exc_value, traceback):
 
-        # Add any newly defined realizers to self and clean up the context.
-        context, add_list = build_ctx.get(), build_list.get()
-        for realizer in add_list:
-            self.add(realizer)
-        if len(context) <= 1:
-            self.finalize_assembly()
+        if exc_type is None:
+            # Add any newly defined realizers to self and clean up the context.
+            context, add_list = build_ctx.get(), build_list.get()
+            for realizer in add_list:
+                self.add(realizer)
+            if len(context) <= 1:
+                self.finalize_assembly()
+        
         build_ctx.reset(self._build_ctx_token)
         build_list.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)

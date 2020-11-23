@@ -94,9 +94,6 @@ class Lag(Propagator):
         :param max_lag: Do not compute lags beyond this value.
         """
 
-        if source.ctype not in ConstructType.features:
-            raise ValueError("Expected construct type to be 'features'.")
-
         self.source = source
         self.max_lag = max_lag
 
