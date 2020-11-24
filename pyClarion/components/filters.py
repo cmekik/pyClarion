@@ -17,8 +17,16 @@ from types import MappingProxyType
 import pprint
 
 
-class Gated(Propagator):
-    """Gates output of an activation propagator."""
+class PostGated(Propagator):
+    """
+    Gates output of an activation propagator.
+    
+    The gating function is achieved by multiplying a gating signal associated 
+    with the client construct in the output of the gate by the output of the 
+    base propagator.
+
+    The gating signal is assumed to be in the interval [0, 1],
+    """
     
     def __init__(
         self, 
@@ -83,8 +91,15 @@ class Gated(Propagator):
         return w * output
 
 
-class Filtered(Propagator):
-    """Filters input to a propagator."""
+class PreFiltered(Propagator):
+    """
+    Filters the input to a propagator.
+    
+    Filtering is achieved by elementwise multiplication of each input to the 
+    base propagator by a filtering signal from a sieve construct. 
+
+    The filtering signal is assumed to be in the interval [0, 1].
+    """
     
     def __init__(
         self, 
@@ -141,3 +156,74 @@ class Filtered(Propagator):
                 preprocessed[src] = ws * d
 
         return MappingProxyType(preprocessed)
+
+
+class PrePruned(Propagator):
+    """
+    Prunes the input to an activation propagator.
+    
+    Pruning is achieved by removing, in each input to the base propagator, 
+    constructs of a chosen construct type. 
+    """
+
+    def __init__(
+        self, 
+        base: Propagator, 
+        accept: ConstructType,
+        exempt: Set[Symbol] = None, 
+        invert: bool = True
+    ) -> None:
+
+        self.base = base
+        self.accept = accept
+        self.exempt = exempt or set() 
+        self.invert = invert
+
+    @property
+    def client(self):
+
+        return self.base.client
+
+    def entrust(self, construct):
+
+        self.base.entrust(construct)
+
+    @property
+    def expected(self):
+
+        return self.base.expected.union((self.sieve,))
+
+    def call(self, inputs):
+
+        preprocessed = self.preprocess(inputs)
+        output = self.base.call(preprocessed)
+
+        return output
+
+    def update(self, inputs, output):
+
+        preprocessed = self.preprocess(inputs)
+        self.base.update(preprocessed, output)
+
+    def preprocess(self, inputs):
+
+        raise NotImplementedError()
+
+        ws = inputs[self.sieve]
+        if self.invert:
+            ws = ~ ws
+
+        preprocessed = {}
+        func = self.base.expects
+        expected = {src: inputs[src] for src in filter(func, inputs)}
+        for src, d in expected.items():
+            if src in self.exempt:
+                preprocessed[src] = d
+            else:
+                preprocessed[src] = ws * d
+
+        return MappingProxyType(preprocessed)
+
+    def _match(self, construct):
+
+        return construct.ctype in self.sieve

@@ -46,7 +46,7 @@ class MaxNodes(Propagator):
         d = nd.NumDict()
         for strengths in inputs.values():
             d |= strengths
-        d.filter(self._filter)
+        d.keep(self._filter)
 
         return d
 
@@ -106,7 +106,7 @@ class Lag(Propagator):
 
         d = nd.NumDict(inputs[self.source])
         d = nd.transform_keys(d, lag, val=1)
-        d.filter(self._filter)
+        d.keep(self._filter)
 
         return d
 

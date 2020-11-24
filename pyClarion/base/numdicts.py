@@ -39,9 +39,9 @@ d[key] to check for (explicit) membership.
 
 
 __all__ = [
-    "NumDict", "FrozenNumDict",
-    "restrict", "transform_keys", "threshold", "clip", "isclose", "valuewise", 
-    "val_sum", "elementwise", "ew_sum", "ew_max", "boltzmann", "draw"
+    "NumDict", "FrozenNumDict", "restrict", "keep", "drop", "transform_keys", 
+    "threshold", "clip", "isclose", "valuewise", "val_sum", "elementwise", 
+    "ew_sum", "ew_max", "boltzmann", "draw"
 ]
 
 
@@ -453,9 +453,9 @@ class NumDict(BaseNumDict, MutableMapping):
             if k not in self:
                 self[k] = v
 
-    def filter(self, func):
+    def keep(self, func):
         """
-        Drop keys in self according to func.
+        Keep only the keys that are mapped to True by func.
         
         Inplace operation.
 
@@ -465,6 +465,20 @@ class NumDict(BaseNumDict, MutableMapping):
         keys = list(self.keys())
         for key in keys:
             if not func(key):
+                del self[key]
+
+    def drop(self, func):
+        """
+        Drop all keys that are mapped to True by func.
+        
+        Inplace operation.
+
+        Keys are dropped iff func(key) is True.
+        """
+
+        keys = list(self.keys())
+        for key in keys:
+            if func(key):
                 del self[key]
 
     def set_by(self, other, keyfunc):
@@ -515,6 +529,22 @@ def restrict(d: D, container: Container) -> D:
     """Return a numdict whose keys are restricted by container."""
 
     mapping = {k: d[k] for k in d if k in container}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+def keep(d: D, func: Callable[..., bool]):
+    """Return a copy of d keeping only the keys mapped to True by func."""
+
+    mapping = {k: d[k] for k in d if func(k)}
+
+    return type(d)(mapping, d.dtype, d.default)
+
+
+def drop(d: D, func: Callable[..., bool]):
+    """Return a copy of d dropping the keys mapped to True by func."""
+
+    mapping = {k: d[k] for k in d if func(k)}
 
     return type(d)(mapping, d.dtype, d.default)
 
@@ -656,7 +686,7 @@ def draw(d: D, k: int=1, val=1.0) -> D:
             cs, ws = tuple(zip(*pr.items()))
             choices = random.choices(cs, weights=ws)
             output.extend(choices, value=val)
-            pr.filter(output.__contains__)
+            pr.keep(output.__contains__)
     else:
         output.extend(d, value=val)
     
