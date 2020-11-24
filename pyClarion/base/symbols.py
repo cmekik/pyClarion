@@ -204,7 +204,9 @@ class feature(Symbol):
 
     __slots__ = ()
 
-    def __init__(self, tag: Hashable, val: Hashable, lag: int = 0) -> None:
+    def __init__(
+        self, tag: Hashable, val: Hashable = "", lag: int = 0
+    ) -> None:
         """
         Initialize a new feature symbol.
 
@@ -269,9 +271,9 @@ class rule(Symbol):
 
     def __init__(self, cid: Hashable) -> None:
         """
-        Initialize a new chunk symbol.
+        Initialize a new rule symbol.
 
-        :param cid: Chunk identifier.
+        :param cid: Rule identifier.
         """
 
         super().__init__("rule", cid)
@@ -387,7 +389,7 @@ class terminus(Symbol):
 
     __slots__ = ()
 
-    def __init__(self, cid) -> None:
+    def __init__(self, cid: Hashable) -> None:
         """
         Initialize a new terminus symbol.
 
