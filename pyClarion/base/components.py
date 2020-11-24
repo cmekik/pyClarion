@@ -331,6 +331,11 @@ class FeatureDomain(object):
         raise NotImplementedError()
 
     def _set_interface_properties(self):
+        """
+        Set basic interface properties.
+        
+        Should minimally set self._features. Other data may be set as necessary.
+        """
 
         # Should minimally set self._features. Other properties may be set as 
         # necessary.
@@ -370,23 +375,30 @@ class FeatureInterface(FeatureDomain):
 
     _cmds: FrozenSet[feature]
     _defaults: FrozenSet[feature]
+    _flags: FrozenSet[feature]
     _params: FrozenSet[feature]
 
     @property
     def cmds(self):
-        """Features, defined by self, indicating actions."""
+        """Features representing (discrete) actions."""
 
         return self._cmds
 
     @property
     def defaults(self):
-        """Features, defined by self, indicating default action values."""
+        """Features representing default actions."""
         
         return self._defaults
 
     @property
+    def flags(self):
+        """Features representing the state of the client process."""
+
+        return self._flags
+
+    @property
     def params(self):
-        """Features, defined by self, indicating action parameters."""
+        """Features representing action parameters."""
 
         return self._params
 
@@ -403,6 +415,18 @@ class FeatureInterface(FeatureDomain):
         return self._cmd_dims
 
     @property
+    def flag_tags(self):
+        """The set of flag dimensional labels defined by self."""
+        
+        return self._flag_tags
+
+    @property
+    def flag_dims(self):
+        """The set of flag feature dimensions (w/ lags) defined by self."""
+        
+        return self._flag_dims
+
+    @property
     def param_tags(self):
         """The set of param dimensional labels defined by self."""
         
@@ -416,11 +440,19 @@ class FeatureInterface(FeatureDomain):
 
     @property
     def cmds_by_dims(self):
+        """Command features grouped by dims."""
 
         return self._cmds_by_dims
 
     @property
+    def flags_by_dims(self):
+        """Flag features grouped by dims."""
+
+        return self._flags_by_dims
+
+    @property
     def params_by_dims(self):
+        """Param features grouped by dims."""
 
         return self._params_by_dims
 
@@ -447,9 +479,12 @@ class FeatureInterface(FeatureDomain):
         return cmds
 
     def _set_interface_properties(self):
-
-        # Should minimally set self._cmds, self._defaults, and self._params.
-        # Other properties may be set as necessary.
+        """
+        Set basic interface properties.
+        
+        Should minimally set self._cmds, self._defaults, self.flags, and 
+        self._params. Other data may be set as necessary.
+        """
 
         raise NotImplementedError()
 
@@ -458,13 +493,17 @@ class FeatureInterface(FeatureDomain):
         self._cmd_tags = frozenset(f.tag for f in self.cmds)
         self._cmd_dims = frozenset(f.dim for f in self.cmds)
 
+        self._flag_tags = frozenset(f.tag for f in self.flags)
+        self._flag_dims = frozenset(f.dim for f in self.flags)
+
         self._param_tags = frozenset(f.tag for f in self.params)
         self._param_dims = frozenset(f.dim for f in self.params)
        
-        self._features = self.cmds | self.params
+        self._features = self.cmds | self.params | self.flags
 
         self._cmds_by_dims = MappingProxyType(group_by_dims(self.cmds))
         self._params_by_dims = MappingProxyType(group_by_dims(self.params))
+        self._flags_by_dims = MappingProxyType(group_by_dims(self.flags))
 
         super()._set_derivative_properties()
 
@@ -508,11 +547,12 @@ class SimpleDomain(FeatureDomain):
 class SimpleInterface(FeatureInterface):
     """A simple feature interface, specified through enumeration."""
 
-    def __init__(self, cmds, defaults, params):
+    def __init__(self, cmds, defaults, flags=None, params=None):
 
         self._cmds = frozenset(cmds)
         self._defaults = frozenset(defaults)
-        self._params = frozenset(params)
+        self._flags = frozenset(flags or set())
+        self._params = frozenset(params or set())
 
         self.__post_init__()
 

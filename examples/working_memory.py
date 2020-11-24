@@ -7,7 +7,7 @@ from pyClarion import (
     SimpleDomain, SimpleInterface,
     Construct, Structure,
     AgentCycle, ACSCycle, NACSCycle,
-    WorkingMemory, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
+    RegisterArray, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
     Filtered, ActionSelector, BoltzmannSelector,
     Assets, Chunks,
     nd, pprint
@@ -72,20 +72,12 @@ speech_interface = SimpleInterface(
 # individual slot, and defines commands for globally resetting the working 
 # memory state.
 
-wm_interface = WorkingMemory.Interface(
+wm_interface = RegisterArray.Interface(
     slots=7,
-    prefix="wm",
-    write_marker="w",
-    read_marker="r",
-    reset_marker="re",
-    standby="standby",
-    clear="clear",
     mapping={
         "retrieve": terminus("retrieval"),
         "extract":  terminus("bl-state")
     },
-    reset_vals=("standby", "reset"),
-    read_vals=("standby", "read"),
 )
 
 # We set up default action activations, as in `flow_control.py`.
@@ -173,7 +165,7 @@ with alice:
 
     wm = Construct(
         name=buffer("wm"),
-        emitter=WorkingMemory(
+        emitter=RegisterArray(
             controller=(subsystem("acs"), terminus("wm")),
             source=subsystem("nacs"),
             interface=alice.assets.wm_interface

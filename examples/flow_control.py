@@ -236,8 +236,7 @@ with alice:
             name=features("main"),
             emitter=MaxNodes(
                 sources={
-                    flow_tb("main"),
-                    flow_in("gate_meta")
+                    flow_tb("main")
                 }
             )
         )
@@ -289,24 +288,6 @@ with alice:
             emitter=Gated(
                 base=Repeater(source=buffer("stimulus")),
                 gate=buffer("gate")
-            )
-        )
-
-        # ParamSet objects allow emmission of metacognitive knowledge, that is 
-        # knowledge of the state of the parameters in the set as well as any 
-        # commands issued to the ParamSet object. To include such knowledge in 
-        # NACS processing, we can add a flow_in construct entrusted to a 
-        # ParamSet.MetaKnowledge emitter. This emitter simply filters out any 
-        # activations emitted by the ParamSet that are not part of its control 
-        # interface, resulting in an output that is safe to pass on to feature 
-        # pools (assuming the control interface does not clash with other 
-        # semantically relevant features).
-
-        Construct(
-            name=flow_in("gate_meta"),
-            emitter=ParamSet.MetaKnowledge(
-                source=buffer("gate"),
-                client_interface=alice.assets.gate_interface
             )
         )
 
