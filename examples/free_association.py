@@ -90,14 +90,18 @@ assert f == feature(tag="my-tag", val="val-1") # does not fail
 # colors red and green and a feature for each of tastiness, sweetness and the 
 # liquid state. These dv pairs are specified below. We omit lag values from the 
 # specification. (We will not make use of lagged features in this simulation, 
-# and lagged features may be constructed dynamically as needed.)
+# and lagged features may be constructed dynamically as needed.) 
+
+# Note that in some cases, we do not provide feature values. This is sometimes 
+# desirable, when we have singleton dimensions. In such cases, the feature 
+# constructor automatically sets the value to the empty string.
 
 feature_spec = [
     feature("color", "#ff0000"), # red
     feature("color", "#008000"), # green
-    feature("tasty", True),
+    feature("tasty"),
     feature("state", "liquid"),
-    feature("sweet", True)
+    feature("sweet")
 ]
 
 # Feature values for red and green are given in hex code to emphasize the idea 
@@ -167,7 +171,7 @@ chunk_db.link(
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
-    feature("tasty", True)
+    feature("tasty")
 )
 
 # The second call to `link()` connects the 'JUICE' chunk node to the tasty 
@@ -175,7 +179,7 @@ chunk_db.link(
 
 chunk_db.link(
     chunk("JUICE"),
-    feature("tasty", True),
+    feature("tasty"),
     feature("state", "liquid")
 )
 
@@ -184,8 +188,8 @@ chunk_db.link(
 
 chunk_db.link(
     chunk("FRUIT"),
-    feature("tasty", True),
-    feature("sweet", True)
+    feature("tasty"),
+    feature("sweet")
 )
 
 

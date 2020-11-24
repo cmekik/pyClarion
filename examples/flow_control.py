@@ -64,14 +64,12 @@ from itertools import count
 
 gate_interface = ParamSet.Interface(
     tag="gate",
-    vals=("standby", "clear", "update", "clear+update"),
     clients={
         flow_in("stimulus"),
         flow_tt("associations"),
         flow_bt("main")
     },
     func=lambda c: ("gate", c.ctype.name, c.cid),
-    param_val="param"
 )
 
 # Feature interfaces often also define default values for commands. For this 
@@ -391,7 +389,7 @@ print("NACS should output nothing on sequence end b/c flows not enabled...\n")
 control_sequence = [
     {
         feature("gate", "update"): 1.0,
-        feature(("gate", "flow_in", "stimulus"), "param"): 1.0
+        feature(("gate", "flow_in", "stimulus")): 1.0
     },
     {}
 ]
@@ -405,7 +403,7 @@ print("NACS should output 'FRUIT' on sequence end due to assoc. rules...\n")
 control_sequence = [
     {
         feature("gate", "update"): 1.0,
-        feature(("gate", "flow_tt", "associations"), "param"): 1.0
+        feature(("gate", "flow_tt", "associations")): 1.0
     },
     {}
 ]
@@ -421,9 +419,9 @@ print(
 
 control_sequence = [
     {
-        feature("gate", "clear+update"): 1.0,
-        feature(("gate", "flow_in", "stimulus"), "param"): 1.0,
-        feature(("gate", "flow_bt", "main"), "param"): 1.0
+        feature("gate", "overwrite"): 1.0,
+        feature(("gate", "flow_in", "stimulus")): 1.0,
+        feature(("gate", "flow_bt", "main")): 1.0
     },
     {}
 ]

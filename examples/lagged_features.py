@@ -32,9 +32,9 @@ logging.basicConfig(level=logging.DEBUG)
 feature_spec = [
     feature("color", "#ff0000"), # red
     feature("color", "#008000"), # green
-    feature("tasty", True),
+    feature("tasty"),
     feature("state", "liquid"),
-    feature("sweet", True)
+    feature("sweet")
 ]
 
 # For this example, the agent architecture is minimal. We instantiate a 
@@ -102,8 +102,8 @@ with alice:
 
 stimuli = [
     {feature("color", "#008000"): 1.0},
-    {feature("sweet", True): 1.0},
-    {feature("tasty", True): 1.0},
+    {feature("sweet"): 1.0},
+    {feature("tasty"): 1.0},
     {feature("state", "liquid"): 1.0}
 ]
 

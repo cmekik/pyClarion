@@ -220,7 +220,14 @@ class feature(Symbol):
     def __repr__(self):
 
         cls_name = type(self).__name__
-        args = ", ".join(map(repr, (self.tag, self.val, self.lag)))
+
+        _args = [repr(self.tag)]
+        if self.val != "":
+            _args.append(repr(self.val))
+        if self.lag != 0:
+            _args.append("lag={}".format(repr(self.lag)))
+
+        args = ", ".join(_args)
         
         return "{}({})".format(cls_name, args)
 

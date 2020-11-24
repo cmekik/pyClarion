@@ -53,28 +53,36 @@ class ParamSet(Propagator):
         """
         Control interface for ParamSet instances.
 
-        :param tag: Tag for ParamSet control dimension.
-        :param vals: Control values, a sequence of four values corresponding to 
-            the following commands in order: standby, clear, update, 
-            clear then update.
         :param clients: Symbols to which parameters are mapped.
         :param func: Function consuming client symbols and outputting 
+        :param tag: Tag for ParamSet control dimension.
             corresponding parameter tags. It is okay to map two clients to the 
             same tag. This will couple their values.
+        :param standby: Value for standby action.
+        :param clear: Value for clear action.
+        :param update: Value for update action.
+        :param overwrite: Value for overwrite action.
         :param param_val: Singleton value to be used in parameter features.
         """
 
-        tag: Hashable
-        vals: Tuple[Hashable, Hashable, Hashable, Hashable]
         clients: Collection[Symbol]
         func: Callable[..., Hashable]
-        param_val: Hashable
+        tag: Hashable
+        standby_val: Hashable = "standby"
+        clear_val: Hashable = "clear"
+        update_val: Hashable = "update"
+        overwrite_val: Hashable = "overwrite"
+        param_val: Hashable = ""
 
         def _set_interface_properties(self):
 
             _func, _pval = self.func, self.param_val
-            _cmds = (feature(self.tag, val) for val in self.vals)
-            _defaults = {feature(self.tag, self.vals[0])}
+            _cmd_vals = (
+                self.standby_val, self.clear_val, self.update_val, 
+                self.overwrite_val
+            )
+            _cmds = (feature(self.tag, val) for val in _cmd_vals)
+            _defaults = {feature(self.tag, self.standby_val)}
             _params = (feature(_func(s), _pval) for s in self.clients)
 
             self._cmds = frozenset(_cmds)
@@ -85,8 +93,12 @@ class ParamSet(Propagator):
         def _validate_data(self):
 
             _param_tags = set(self.func(s) for s in self.clients)
+            cmd_vals = set([
+                self.standby_val, self.clear_val, self.update_val, 
+                self.overwrite_val
+            ])
 
-            if len(set(self.vals)) != len(self.vals):
+            if len(cmd_vals) < 4:
                 raise ValueError("Vals must contain unique values.")
             if self.tag in _param_tags:
                 msg = "Tag cannot be equal to an output of func over clients."
@@ -128,17 +140,19 @@ class ParamSet(Propagator):
             msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        if val == self.interface.vals[0]:
+        if val == self.interface.standby_val:
             pass
-        elif val == self.interface.vals[1]:
+        elif val == self.interface.clear_val:
             self.clear_store()
-        elif val in self.interface.vals[2:]:
-            if val == self.interface.vals[3]:
-                self.clear_store()
+        elif val == self.interface.update_val:
+            param_strengths = nd.restrict(data, self.interface.params)
+            self.update_store(param_strengths)
+        elif val == self.interface.overwrite_val:
+            self.clear_store()
             param_strengths = nd.restrict(data, self.interface.params)
             self.update_store(param_strengths)
         else:
-            raise ValueError("Unexpected command value.")
+            raise ValueError("Unexpected command value: {}.".format(repr(val)))
 
         d = nd.NumDict()
         strengths = nd.transform_keys(self.store, feature.tag.fget)
@@ -191,32 +205,44 @@ class Register(Propagator):
         """
         Control interface for Register instances.
         
-        :param tag: Dimension label for controlling write ops to register.
-        :param standby: Value corresponding to standby operation.
-        :param clear: Value corresponding to clear operation.
         :param channel_map: Tuple pairing values to termini for write 
             operation.
+        :param tag: Tag for controlling write ops to register.
+        :param flag_tag: Tag for defining null flag.
+        :param standby_val: Value for standby action.
+        :param clear_val: Value for to clear action.
+        :param flag_val: Null flag value.
         """
 
         mapping: Mapping[Hashable, Symbol]
         tag: Hashable
-        standby: Hashable
-        clear: Hashable
+        flag_tag: Hashable
+        standby_val: Hashable = "standby"
+        clear_val: Hashable = "clear"
+        flag_val: Hashable = ""
+
+        @property
+        def null_flag(self):
+
+            return self._null_flag
 
         def _set_interface_properties(self) -> None:
             
-            vals = chain((self.standby, self.clear), self.mapping)
-            default = feature(self.tag, self.standby)
-            
+            vals = chain((self.standby_val, self.clear_val), self.mapping)
+            default = feature(self.tag, self.standby_val)
+            flag = feature(self.flag_tag, self.flag_val)
+
+            self._null_flag = flag
+
             self._cmds = frozenset(feature(self.tag, val) for val in vals)
             self._defaults = frozenset({default})
-            self._flags = frozenset()
+            self._flags = frozenset({flag})
             self._params = frozenset()
 
         def _validate_data(self):
             
-            value_set = set(chain((self.standby, self.clear), self.mapping))
-            if len(value_set) < len(self.mapping) + 2:
+            values = set(chain((self.standby_val, self.clear_val), self.mapping))
+            if len(values) < len(self.mapping) + 2:
                 raise ValueError("Value set may not contain duplicates.") 
 
     def __init__(
@@ -273,14 +299,18 @@ class Register(Propagator):
             msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
 
-        if val == self.interface.standby:
+        if val == self.interface.standby_val:
             pass
-        elif val == self.interface.clear:
+        elif val == self.interface.clear_val:
             self.clear_store()
         elif val in self.interface.mapping: 
             channel = self.interface.mapping[val]
             self.clear_store()
             self.update_store(inputs[self.source][channel])
+            self.store.squeeze()
+
+        if len(self.store) == 0:
+            self.flags[self.interface.null_flag] = 1.0
 
         d = nd.NumDict(self.store)
         d |= self.flags
@@ -332,10 +362,6 @@ class RegisterArray(Propagator):
     filled).
     """
 
-    # TODO: In the future, WorkingMemory should return a special flag feature 
-    # if an empty slot is opened to signify retrieval failure from that slot. 
-    # This requires extensions to the interface. - Can
-
     _serves = ConstructType.buffer
 
     @dataclass
@@ -344,20 +370,19 @@ class RegisterArray(Propagator):
         Control interface for WorkingMemory propagator.
 
         :param slots: Number of working memory slots.
-        :param prefix: Marker for identifying this particular set of control 
-            features.
+        :param mapping: Mapping pairing a write operation value with a 
+            terminus from the source subsystem. Signals register array to write 
+            contents of terminus to a chosen slot.
+        :param prefix: Tag prefix for identifying this particular set of 
+            control features.
         :param write_marker: Marker for controlling WM slot write operations.
         :param read_marker: Marker for controlling WM slot read operations.
         :param reset_marker: Marker for controlling global WM state resets.
-        :param standby: Value for standby action on writing operations.
-        :param clear: Value for clear action on writing operations.
-        :param mapping: Mapping pairing a write operation value with a 
-            terminus from the source subsystem. Signals WM to write contents of 
-            terminus to a slot.
-        :param reset_vals: Global reset control values. First value corresponds 
-            to standby. Second value corresponds to reset initiation.
-        :param read_vals: Read operation control values. First value 
-            corresponds to standby (i.e., no read), second value to read action. 
+        :param null_marker: Marker for null flag.
+        :param standby_val: Value for standby action (default).
+        :param clear_val: Value for clear action.
+        :param read_val: Value for read action. 
+        :param flag_val: Value for null flag. 
         """
 
         slots: int
@@ -366,10 +391,12 @@ class RegisterArray(Propagator):
         write_marker: Hashable = "w"
         read_marker: Hashable = "r"
         reset_marker: Hashable = "re"
+        null_marker: Hashable = "null"
         standby_val: Hashable = "standby"
         clear_val: Hashable = "clear"
         reset_val: Hashable = "reset"
         read_val: Hashable = "read"
+        flag_val: Hashable = ""
 
         @property
         def write_tags(self):
@@ -385,6 +412,11 @@ class RegisterArray(Propagator):
         def reset_tag(self):
 
             return self._reset_tag
+
+        @property
+        def null_tags(self):
+
+            return self._null_tags
 
         @property
         def write_dims(self):
@@ -405,15 +437,18 @@ class RegisterArray(Propagator):
             
             slots, pre = self.slots, self.prefix
             w, r, re = self.write_marker, self.read_marker, self.reset_marker
+            na = self.null_marker
 
             _w_tags = tuple((pre, w, i) for i in range(slots))
             _r_tags = tuple((pre, r, i) for i in range(slots))
             _re_tag = (pre, re)
+            _null_tags = tuple((pre, na, i) for i in range(slots))
 
             _w_chain = chain((self.standby_val, self.clear_val), self.mapping)
             _w_vals = set(_w_chain)
             _r_vals = (self.standby_val, self.read_val)
             _re_vals = (self.standby_val, self.reset_val)
+            _null_val = self.flag_val
 
             _w_d_val = self.standby_val
             _r_d_val = self.standby_val
@@ -422,6 +457,7 @@ class RegisterArray(Propagator):
             _w_gen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
             _r_gen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
             _re_gen = ((_re_tag, val) for val in _re_vals)
+            _null_gen = ((tag, _null_val) for tag in _null_tags)
 
             _w_dgen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
             _r_dgen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
@@ -430,6 +466,7 @@ class RegisterArray(Propagator):
             _w_cmds = frozenset(feature(tag, val) for tag, val in _w_gen)
             _r_cmds = frozenset(feature(tag, val) for tag, val in _r_gen)
             _re_cmds = frozenset(feature(tag, val) for tag, val in _re_gen)
+            _null_flags = frozenset(feature(tag, val) for tag, val in _null_gen)
 
             _w_defaults = frozenset(feature(tag, _w_d_val) for tag in _w_tags)
             _r_defaults = frozenset(feature(tag, _r_d_val) for tag in _r_tags)
@@ -439,6 +476,7 @@ class RegisterArray(Propagator):
             self._write_tags = _w_tags
             self._read_tags = _r_tags
             self._reset_tag = _re_tag
+            self._null_tags = _null_tags
 
             self._write_dims = tuple(sorted(set(f.dim for f in _w_cmds)))
             self._read_dims = tuple(sorted(set(f.dim for f in _r_cmds)))
@@ -446,7 +484,7 @@ class RegisterArray(Propagator):
 
             self._cmds = _w_cmds | _r_cmds | _re_cmds
             self._defaults = _defaults
-            self._flags = frozenset()
+            self._flags = frozenset(_null_flags)
             self._params = frozenset()
 
         def _validate_data(self):
@@ -494,12 +532,14 @@ class RegisterArray(Propagator):
                 source=source,
                 interface=Register.Interface(
                     mapping=interface.mapping,
-                    tag=tag,
-                    standby=interface.standby_val,
-                    clear=interface.clear_val
+                    tag=self.interface.write_tags[i],
+                    flag_tag=interface.null_tags[i],
+                    standby_val=interface.standby_val,
+                    clear_val=interface.clear_val,
+                    flag_val=interface.flag_val
                 ),
             )
-            for tag in interface.write_tags
+            for i in range(self.interface.slots)
         )
 
     def entrust(self, construct):
@@ -554,6 +594,8 @@ class RegisterArray(Propagator):
         """
 
         self.clear_flags()
+        for cell in self.cells:
+            cell.update(inputs, output)
 
     def reset_cells(self):
         """
