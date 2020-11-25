@@ -18,12 +18,12 @@ class BLAs(Mapping):
         Computes or approximates:
             bla = b + sum(ts ** -d)
         Where b is a baseline, ts are time lags since previous invocations and 
-        d is a density parameter controlling the rate of decay. Approximation 
+        d is a decay parameter controlling the rate of decay. Approximation 
         is recommended; exact computation included for completeness and 
         learning purposes.
         
-        The implementation based on approximations presented in Petrov (2006), 
-        though bear in mind that the Clarion equations are slightly different.
+        Follows equations presented in Petrov (2006), though bear in mind that 
+        the Clarion equations are slightly different.
 
         Petrov, A. A. (2006). Computationally Efficient Approximation of the 
             Base-Level Learning Equation in ACT-R. In D. Fum, F. del Missier, & 
@@ -31,24 +31,37 @@ class BLAs(Mapping):
             Cognitive Modeling (pp. 391-392).
         """
 
-        __slots__ = ("baseline", "lags", "uses", "lifetime", "density")
+        __slots__ = (
+            "density", "baseline", "amplitude", "decay", "lags", "uses", 
+            "lifetime"
+        )
 
-        def __init__(self, baseline=0.0, density=0.5, depth=1):
+        def __init__(
+            self, 
+            density: float, 
+            baseline:float = 0.0, 
+            amplitude: float = 2.0, 
+            decay: float = 0.5, 
+            depth: int = 1
+        ):
             """
             Initialize a new BLA tracker.
             
-            Implementation is based on a python deque.
-
+            :param density: The density parameter.
             :param baeline: Initial BLA.
-            :param density: Density parameter.
+            :param amplitude: Amplitude parameter.
+            :param decay: Decay parameter.
             :param depth: Depth of estimate. Setting k < 0 will result in using 
                 exact computation. This option is inefficient in practice and 
                 its use is discouraged.
             """
 
-            self.baseline = baseline
             self.density = density
+            self.baseline = baseline
+            self.amplitude = amplitude
+            self.decay = decay
 
+            maxlen = depth if 0 <= depth else None
             self.lags = deque([1], maxlen=depth)
             self.uses = 1
             self.lifetime = 1
@@ -65,21 +78,28 @@ class BLAs(Mapping):
             """The current BLA value."""
 
             b = self.baseline
+            c = self.amplitude
             lags = self.lags
             n = self.uses
             k = self.lags.maxlen
             t_n = self.lifetime
-            d = self.density
+            d = self.decay
 
-            bla = b + sum([t ** -d for t in lags])
+            bla = b + c * sum([t ** -d for t in lags])
             if not k < 0 and k < n:
                 t_k = lags[-1]
                 factor = (n - k) / (1 - d)
                 t_term = (t_n ** (1 - d) - t_k ** (1 - d)) / (t_n - t_k)
                 distant_approx = factor * t_term
-                bla += distant_approx
+                bla += c * distant_approx
 
             return bla
+
+        @property
+        def below_threshold(self):
+            """Return True iff value is below set density parameter."""
+
+            return self.value < self.density 
 
         def step(self, invoked=False):
             """
@@ -98,20 +118,30 @@ class BLAs(Mapping):
                 self.lags[i] += 1
             self.lifetime += 1
 
-    def __init__(self, baseline=0.0, density=0.5, depth=1):
+    def __init__(
+        self, 
+        density: float, 
+        baseline: float = 0.0, 
+        amplitude: float = 2.0, 
+        decay: float = 0.5, 
+        depth: int = 1
+    ):
         """
         Initialize a new BLA database.
 
-        :param baseline: Default baseline value.
-        :param density: Default density value.
-        :param depth: Default depth value.
+        :param baseline: Baseline parameter.
+        :param amplitude: Amplitude parameter.
+        :param decay: Decay parameter.
+        :param depth: Depth parameter.
         """
 
         self.baseline = baseline
-        self.density = density
+        self.decay = decay
         self.depth = depth
 
-        self._dict = {}
+        self._dict: dict = {}
+        self._invoked: set = set()
+        self._new: set = set()
 
     def __repr__(self):
 
@@ -133,20 +163,54 @@ class BLAs(Mapping):
 
         del self._dict[key]
 
-    def add(self, key, baseline=None, density=None, depth=None):
-        """
-        Add key to BLA database.
-
-        :param baseline: Baseline value, defaults to self.baseline if None.
-        :param density: Density value, defaults to self.density if None.
-        :param depth: Depth value, defaults to self.depth if None.
-        """
+    def add(self, key):
+        """Add key to BLA database."""
 
         if baseline is None:
             baseline = self.baseline
-        if density is None:
-            density = self.density
+        if decay is None:
+            decay = self.decay
         if depth is None:
             depth = self.depth
 
-        self._dict[key] = self.BLA(baseline, density, depth)
+        self._dict[key] = self.BLA(baseline, decay, depth)
+
+    def update(self):
+        """
+        Update BLA database according to promises.
+
+        Steps every existing BLA, adds invocations as promised. Also adds or 
+        removes entries according to promises made.
+        """
+
+        for key, bla in self.items():
+            if key in self._invoked:
+                bla.step(invoked=True)
+            else:
+                bla.step(invoked=False)
+        self._invoked.clear()
+
+        keys = list(self.keys())
+        for key in keys:
+            if key in self._remove:
+                del self[key]
+        self._remove.clear()
+
+        for key in self._new:
+            self.add(key)
+        self._new.clear()
+
+    def register_invocation(self, key):
+        """Promise key will be treated as invoked on next update."""
+
+        self._invoked.add(key)
+
+    def request_add(self, key):
+        """Promise key will be added to database on next update."""
+
+        self._new.add(key)
+
+    def request_removal(self, key):
+        """Promise key will be removed from database on next update."""
+
+        self._remove.add(key)
