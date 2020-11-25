@@ -20,7 +20,8 @@ class BLAs(Mapping):
         Where b is a baseline parameter, c is an amplitude parameter, ts are 
         time lags since previous invocations and d is a decay parameter 
         controlling the rate of decay. Approximation is recommended; exact 
-        computation included for completeness and learning purposes only.
+        computation option included for completeness and learning purposes 
+        only.
         
         Follows equations presented in Petrov (2006), though bear in mind that 
         the Clarion equations are slightly different (e.g. no logarithm).
@@ -118,6 +119,14 @@ class BLAs(Mapping):
             for i in range(len(self.lags)):
                 self.lags[i] += 1
             self.lifetime += 1
+
+        def reset(self):
+            """Reset BLA tracker to initial state."""
+
+            maxlen = self.lags.maxlen
+            self.lags = deque([1], maxlen=depth)
+            self.uses = 1
+            self.lifetime = 1
 
     def __init__(
         self, 
