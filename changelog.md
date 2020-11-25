@@ -22,11 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `FeatureDomain`, `FeatureInterface`, `SimpleDomain`, `SimpleInterface` for structuring specification of feature domains and feature driven control of components
 - Use of `with` statements to automate adding constructs to containers.
 - `AgentCycle`, `CycleS` abstraction and `ACSCycle` classes for controlling structure propagation.  
-- Chunk and rule databases `Chunks` and `Rules`.
+- Chunk, rule, and BLA databases `Chunks` and `Rules`, `BLAs`.
 - Chunk extraction termini `ChunkExtractor` and `ControlledExtractor`.
-- `Filtered` and `Gated` propagators, allowing input filtering and output gating.
+- `Filtered`, `Gated`, and `Pruned` propagators, allowing input filtering and output gating.
 - `ActionRules` propagator class.
-- Buffer propagators `ParamSet`, `Register`, and `WorkingMemory`.
+- Buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
+- BLA updater for `RegisterArray`: `RegisterArrayBLAUpdater`.
 - `updaters.py` defining updater chains and conditional updaters.
 
 ### Changed

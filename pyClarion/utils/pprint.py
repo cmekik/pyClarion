@@ -99,13 +99,13 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         indent += len(name) + 1
         windent = indent + len("weights=")
 
-        stream.write('<' + name + ' ')
+        stream.write(name + '(')
         stream.write("conc="+_pprint.saferepr(conc))
         stream.write(",\n" + " " * indent + "weights=")
         self._dispatch[type(weights).__repr__](
             self, weights, stream, windent, allowance, context, level
         )
-        stream.write('>')
+        stream.write(')')
 
     _dispatch[Rules.Rule.__repr__] = _pprint_Rule
 
@@ -115,11 +115,11 @@ class PrettyPrinter(_pprint.PrettyPrinter):
 
         write = stream.write
         name = type(object).__name__
-        indent += len(name) + 1
+        indent += len(name) + 2
         
-        stream.write(name + '(')
+        stream.write('<' + name + ' ')
         self._pprint_dict(object._dict, stream, indent, allowance, context, level)
-        stream.write(')')
+        stream.write('>')
 
     _dispatch[BLAs.__repr__] = _pprint_BLAs
 
