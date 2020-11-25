@@ -5,7 +5,7 @@ __all__ = ["PrettyPrinter", "pprint", "pformat"]
 
 
 from ..base.numdicts import BaseNumDict
-from ..components import Chunks, Rules
+from ..components import Chunks, Rules, BLAs
 
 from typing import ClassVar
 import pprint as _pprint
@@ -99,15 +99,29 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         indent += len(name) + 1
         windent = indent + len("weights=")
 
-        stream.write(name + '(')
+        stream.write('<' + name + ' ')
         stream.write("conc="+_pprint.saferepr(conc))
         stream.write(",\n" + " " * indent + "weights=")
         self._dispatch[type(weights).__repr__](
             self, weights, stream, windent, allowance, context, level
         )
-        stream.write(')')
+        stream.write('>')
 
     _dispatch[Rules.Rule.__repr__] = _pprint_Rule
+
+    def _pprint_BLAs(
+        self, object, stream, indent, allowance, context, level
+    ):
+
+        write = stream.write
+        name = type(object).__name__
+        indent += len(name) + 1
+        
+        stream.write(name + '(')
+        self._pprint_dict(object._dict, stream, indent, allowance, context, level)
+        stream.write(')')
+
+    _dispatch[BLAs.__repr__] = _pprint_BLAs
 
 
 def pprint(object, stream=None, indent=1, width=80, depth=None, *,
