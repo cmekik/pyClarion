@@ -6,7 +6,7 @@ __all__ = [
     "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", "flow_tb", 
     "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
     "group_by", "group_by_ctype", "group_by_dims", "group_by_tags", 
-    "group_by_lags", "lag"
+    "group_by_vals", "group_by_lags", "lag"
 ]
 
 
@@ -523,16 +523,34 @@ def group_by_tags(
     return group_by(iterable=features, key=key)
 
 
+def group_by_vals(
+    features: Iterable[feature]
+) -> Dict[Hashable, Tuple[feature, ...]]:
+    """
+    Construct a dict grouping features by their values.
+    
+    Returns a dict where each value is mapped to a tuple of features that have 
+    that value. Does not check for duplicate features.
+
+    :param features: An iterable of features to be grouped by value.
+    """
+
+    # Ignore type of key due to mypy false alarm. - Can
+    key = feature.val.fget # type: ignore 
+    
+    return group_by(iterable=features, key=key)
+
+
 def group_by_lags(
     features: Iterable[feature]
 ) -> Dict[Hashable, Tuple[feature, ...]]:
     """
-    Construct a dict grouping features by their dimensions.
+    Construct a dict grouping features by their lags.
     
-    Returns a dict where each dim is mapped to a tuple of features of that dim.
-    Does not check for duplicate features.
+    Returns a dict where each lag value is mapped to a tuple of features of 
+    that lag value. Does not check for duplicate features.
 
-    :param features: An iterable of features to be grouped by dimension.
+    :param features: An iterable of features to be grouped by lag.
     """
 
     # Ignore type of key due to mypy false alarm. - Can

@@ -1,7 +1,7 @@
 """Tools for filtering inputs and outputs of propagators."""
 
 
-__all__ = ["Gated", "Filtered"]
+__all__ = ["Gated", "Filtered", "Pruned"]
 
 
 from ..base.symbols import (
@@ -17,7 +17,7 @@ from types import MappingProxyType
 import pprint
 
 
-class PostGated(Propagator):
+class Gated(Propagator):
     """
     Gates output of an activation propagator.
     
@@ -91,7 +91,7 @@ class PostGated(Propagator):
         return w * output
 
 
-class PreFiltered(Propagator):
+class Filtered(Propagator):
     """
     Filters the input to a propagator.
     
@@ -158,7 +158,7 @@ class PreFiltered(Propagator):
         return MappingProxyType(preprocessed)
 
 
-class PrePruned(Propagator):
+class Pruned(Propagator):
     """
     Prunes the input to an activation propagator.
     
@@ -220,7 +220,7 @@ class PrePruned(Propagator):
             if src in self.exempt:
                 preprocessed[src] = d
             else:
-                preprocessed[src] = ws * d
+                preprocessed[src] = nd.FrozenNumDict(d, self._match)
 
         return MappingProxyType(preprocessed)
 
