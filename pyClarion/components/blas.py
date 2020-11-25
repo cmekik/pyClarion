@@ -9,21 +9,21 @@ from collections.abc import Mapping
 
 
 class BLAs(Mapping):
-    """A base level activation database."""
+    """A base-level activation database."""
 
     class BLA(object):
         """
         A base-level activation (BLA) tracker.
 
         Computes or approximates:
-            bla = b + sum(ts ** -d)
-        Where b is a baseline, ts are time lags since previous invocations and 
-        d is a decay parameter controlling the rate of decay. Approximation 
-        is recommended; exact computation included for completeness and 
-        learning purposes.
+            bla = b + c * sum(ts ** -d)
+        Where b is a baseline parameter, c is an amplitude parameter, ts are 
+        time lags since previous invocations and d is a decay parameter 
+        controlling the rate of decay. Approximation is recommended; exact 
+        computation included for completeness and learning purposes only.
         
         Follows equations presented in Petrov (2006), though bear in mind that 
-        the Clarion equations are slightly different.
+        the Clarion equations are slightly different (e.g. no logarithm).
 
         Petrov, A. A. (2006). Computationally Efficient Approximation of the 
             Base-Level Learning Equation in ACT-R. In D. Fum, F. del Missier, & 
@@ -48,7 +48,7 @@ class BLAs(Mapping):
             Initialize a new BLA tracker.
             
             :param density: The density parameter.
-            :param baeline: Initial BLA.
+            :param baseline: Initial BLA.
             :param amplitude: Amplitude parameter.
             :param decay: Decay parameter.
             :param depth: Depth of estimate. Setting k < 0 will result in using 
@@ -70,8 +70,9 @@ class BLAs(Mapping):
 
             tname = type(self).__name__
             value = self.value
+            density = self.density
 
-            return "<{} {}>".format(tname, value)
+            return "<{} val={} den={}>".format(tname, value, density)
 
         @property
         def value(self):
@@ -180,7 +181,7 @@ class BLAs(Mapping):
         Update BLA database according to promises.
 
         Steps every existing BLA, adds invocations as promised. Also adds or 
-        removes entries according to promises made.
+        entries according to promises made. Does NOT remove any items.
         """
 
         for key, bla in self.items():
@@ -189,12 +190,6 @@ class BLAs(Mapping):
             else:
                 bla.step(invoked=False)
         self._invoked.clear()
-
-        keys = list(self.keys())
-        for key in keys:
-            if key in self._remove:
-                del self[key]
-        self._remove.clear()
 
         for key in self._new:
             self.add(key)
@@ -209,8 +204,3 @@ class BLAs(Mapping):
         """Promise key will be added to database on next update."""
 
         self._new.add(key)
-
-    def request_removal(self, key):
-        """Promise key will be removed from database on next update."""
-
-        self._remove.add(key)
