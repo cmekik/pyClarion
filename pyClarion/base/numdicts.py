@@ -54,7 +54,7 @@ import math
 import random
 
 
-class BaseNumDict(object):
+class BaseNumDict(Mapping):
     """
     Base class for numerical dictionaries.
 
@@ -68,13 +68,10 @@ class BaseNumDict(object):
 
         if data is None:
             data = {}
-        elif isinstance(data, BaseNumDict):
-            dtype = data.dtype
-            default = data.default
 
         self._dtype = dtype
-        self._dict = {k: dtype(data[k]) for k in data}
-        self._default = dtype(default) if default is not None else None
+        self._dict = {k: self._cast(data[k]) for k in data}
+        self._default = self._cast(default) if default is not None else None
 
     @property
     def dtype(self):
@@ -122,10 +119,10 @@ class BaseNumDict(object):
         try:
             return self._dict[key]
         except KeyError:
-            if self._default is not None:
-                return self._default
-            else:
+            if self._default is None:
                 raise
+            else:
+                return self._default
 
     def __neg__(self):
 
@@ -139,14 +136,6 @@ class BaseNumDict(object):
 
         return self.apply_unary_op(self._inv)
 
-    def __floor__(self):
-
-        return self.apply_unary_op(self._floor)
-
-    def __ceil__(self):
-
-        return self.apply_unary_op(self._ceil)
-
     def __lt__(self, other):
 
         return self.apply_binary_op(operator.lt)
@@ -154,6 +143,14 @@ class BaseNumDict(object):
     def __le__(self, other):
 
         return self.apply_binary_op(operator.le)
+
+    def __gt__(self, other):
+
+        return self.apply_binary_op(operator.gt)
+
+    def __ge__(self, other):
+
+        return self.apply_binary_op(operator.ge)
    
     def __add__(self, other):
 
@@ -183,21 +180,17 @@ class BaseNumDict(object):
 
         return self.apply_binary_op(other, max)
 
-    def __round__(self, ndigits):
-
-        return self.apply_binary_op(ndigits, self._round)
-
     def __radd__(self, other):
 
-        return self + other
+        return self.apply_binary_op(other, operator.add)
 
     def __rsub__(self, other):
 
-        return other + operator.neg(self)
+        return operator.neg(self) + other
 
     def __rmul__(self, other):
 
-        return self * other
+        return self.apply_binary_op(other, operator.mul)
 
     def __rtruediv__(self, other):
 
@@ -236,9 +229,14 @@ class BaseNumDict(object):
         Returns a new numdict.        
         """
 
-        mapping = {k: op(self[k]) for k in self}
+        mapping = {k: op(self._dict[k]) for k in self}
+        
+        if self.default is not None:
+            default = op(self.default)
+        else:
+            default = None
 
-        return type(self)(mapping, self.dtype, op(self.default))
+        return type(self)(mapping, self.dtype, default)
 
     def apply_binary_op(self, other, op):
         """
@@ -252,48 +250,48 @@ class BaseNumDict(object):
         op(self_default, other_default). Otherwise no default is defined.
         """
 
-        if isinstance(other, BaseNumDict): 
-            keys = set(self.keys()) | set(other.keys())
-            dtype = self._find_common_dtype(self.dtype, other.dtype)
-            mapping = {k: op(self[k], other[k]) for k in keys}
-            hasdefault = self.default is not None and other.default is not None
-            default = op(self.default, other.default) if hasdefault else None
-            return type(self)(mapping, dtype, default)
-        elif isinstance(other, numbers.Real):
+        if isinstance(other, BaseNumDict):
+            if self._dtype_matches(other.dtype): 
+                keys = set(self.keys()) | set(other.keys())
+                mapping = {k: op(self[k], other[k]) for k in keys}
+                if self.default is None:
+                    default = None
+                elif other.default is None:
+                    default = None
+                else:
+                    default = op(self.default, other.default)
+                return type(self)(mapping, self.dtype, default)
+            else:
+                return NotImplemented
+        elif self._dtype_matches(type(other)):
             keys = self.keys()
-            dtype = self._find_common_dtype(self.dtype, type(other))
             mapping = {k: op(self[k], other) for k in keys}
-            hasdefault = self.default is not None 
-            default = op(self.default, other) if hasdefault else None
-            return type(self)(mapping, dtype, default)
+            if self.default is None:
+                default = None
+            else: 
+                default = op(self.default, other)
+            return type(self)(mapping, self.dtype, default)
         else:
             return NotImplemented
 
-    @staticmethod
-    def _find_common_dtype(dtype1, dtype2):
+    def _cast(self, val):
 
-        if issubclass(dtype1, dtype2):
-            return dtype2
-        elif issubclass(dtype2, dtype1):
-            return dtype1
+        if type(val) != self.dtype:
+            return self.dtype(val)
         else:
-            msg = "Could not find common dtype for types {}, {}."
-            raise TypeError(msg.format(dtype1, dtype2))
+            return val
 
+    def _dtype_matches(self, dtype):
+
+        if self.dtype == dtype:
+            return True
+        else:
+            return False
+        
     @staticmethod
     def _inv(x):
 
         return 1.0 - x
-
-    @staticmethod
-    def _floor(x):
-
-        return x.__floor__()
-
-    @staticmethod
-    def _ceil(x):
-
-        return x.__ceil__()
 
     @staticmethod
     def _rtruediv(a, b):
@@ -304,11 +302,6 @@ class BaseNumDict(object):
     def _rpow(a, b):
 
         return b ** a
-
-    @staticmethod
-    def _round(x, ndigits):
-
-        return x.__round__(ndigits)
 
 
 class FrozenNumDict(BaseNumDict, Mapping):
@@ -342,8 +335,9 @@ class NumDict(BaseNumDict, MutableMapping):
 
         self._dtype = dtype
         for k, v in self._dict.items():
-            self._dict[k] = dtype(v)
-        self._default = dtype(self._default)
+            self._dict[k] = self._cast(v)
+        if self._default is not None:
+            self._default = self._cast(self._default)
 
     @property
     def default(self):
@@ -353,14 +347,14 @@ class NumDict(BaseNumDict, MutableMapping):
     @default.setter
     def default(self, val):
 
-        try: 
-            self._default = self.dtype(val) 
-        except TypeError:
-            self._default = None
+        if val is None:
+            self._default = None 
+        else: 
+            self._default = self._cast(val)
 
     def __setitem__(self, key, val):
 
-        self._dict[key] = self.dtype(val)
+        self._dict[key] = self._cast(val)
 
     def __delitem__(self, key):
 
@@ -443,7 +437,7 @@ class NumDict(BaseNumDict, MutableMapping):
         """
 
         if value is not None:
-            v = self.dtype(value)
+            v = value
         elif self.default is not None:
             v = self.default
         else:
@@ -498,18 +492,25 @@ class NumDict(BaseNumDict, MutableMapping):
         """
 
         if isinstance(other, BaseNumDict):
-            keys = set(self.keys()) | set(other.keys())
-            hasdefault = self.default is not None and other.default is not None
-            default = op(self.default, other.default) if hasdefault else None
-            for k in keys:
-                self[k] = op(self[k], other[k])
-            self.default = default
-            return self
-        elif isinstance(other, numbers.Real):
-            hasdefault = self.default is not None
+            if self._dtype_matches(other.dtype):
+                keys = set(self.keys()) | set(other.keys())
+                for k in keys:
+                    self[k] = op(self[k], other[k])
+                if self.default is None:
+                    default = None
+                elif other.default is None:
+                    default = None
+                else:
+                    default = op(self.default, other.default) 
+                self.default = default
+                return self
+            else:
+                return NotImplemented
+        elif self._dtype_matches(type(other)):
             for k, v in self.items():
                 self[k] = op(v, other)
-            self.default = op(self.default, other) if hasdefault else None
+            if self.default is not None:
+                self.default = op(self.default, other)
             return self
         else:
             return NotImplemented
@@ -607,13 +608,17 @@ def valuewise(op, d: D) -> numbers.Number:
     Output inherits dtype of d.
     """
 
-    return d.dtype(op((d[k] for k in d)))
+    v = d.dtype()
+    for item in d.values():
+        v = op(v, item)
+
+    return v
 
 
 def val_sum(d: D) -> numbers.Number:
     """Return the sum of the values of d."""
 
-    return valuewise(sum, d)
+    return valuewise(operator.add, d)
 
 
 def elementwise(op, *ds: D, dtype=None) -> D:
