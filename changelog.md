@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `numdicts` submodule, providing dictionaries that support numerical operations.
-- `utils` subpackage 
+- `utils` subpackage for miscellaneous utilities.
+- `gradients` module for basic reverse-mode automatic differentiation.
 - `pprint` submodule in `utils`, whic extends stdlib `pprint` to handle some `pyClarion` objects.
 - Attribute `assets` for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
 - New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
