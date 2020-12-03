@@ -46,7 +46,7 @@ __all__ = [
 
 
 from collections.abc import MutableMapping, Mapping
-from typing import TypeVar, Container, Callable, Hashable
+from typing import TypeVar, Container, Callable, Hashable, Any, Type
 from itertools import chain
 import operator
 import numbers
@@ -326,20 +326,6 @@ class NumDict(BaseNumDict, MutableMapping):
     __slots__ = ()
 
     @property
-    def dtype(self):
-
-        return self._dtype
-
-    @dtype.setter
-    def dtype(self, dtype):
-
-        self._dtype = dtype
-        for k, v in self._dict.items():
-            self._dict[k] = self._cast(v)
-        if self._default is not None:
-            self._default = self._cast(self._default)
-
-    @property
     def default(self):
 
         return self._default
@@ -526,6 +512,12 @@ D1 = TypeVar("D1", bound=BaseNumDict)
 D2 = TypeVar("D2", bound=BaseNumDict)
 
 
+def astype(d: D, dtype: Type) -> D:
+    """Return a copy of self with contents cast to dtype."""
+
+    return type(d)(d._dict, dtype, d.default)
+
+
 def restrict(d: D, container: Container) -> D:
     """Return a numdict whose keys are restricted by container."""
 
@@ -601,10 +593,10 @@ def isclose(d1: D1, d2: D2) -> bool:
     return all(_d.values())
 
 
-def valuewise(op, d: D) -> numbers.Number:
+def valuewise(op, d: D) -> Any:
     """
     Apply op to values of d.
-    
+
     Output inherits dtype of d.
     """
 
@@ -615,7 +607,7 @@ def valuewise(op, d: D) -> numbers.Number:
     return v
 
 
-def val_sum(d: D) -> numbers.Number:
+def val_sum(d: D) -> Any:
     """Return the sum of the values of d."""
 
     return valuewise(operator.add, d)

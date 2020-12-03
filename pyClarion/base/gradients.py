@@ -1,27 +1,35 @@
 """
 Provides support for basic native automatic diffferentiation in pyClarion.
 
-Defines the `diffable`, `OpTracer`, and `DiffableNumDict` classes, which support 
-automatic reverse-mode differentiation with gradient tapes/Wengert lists.
+Defines the `diffable`, `GradientTape`, and `DiffableNumDict` classes, which 
+support automatic reverse-mode differentiation.
 
 Based on CMU autodiff lecture notes:
 http://www.cs.cmu.edu/~wcohen/10-605/notes/autodiff.pdf
+
+The GradientTape design is based on the tensorflow 2 GradientTape.
 """
 
 
-__all__ = ["diffable", "OpTracer", "DiffableNumDict"]
+__all__ = ["diffable", "GradientTape", "DiffableNumDict"]
 
 
-from .numdicts import BaseNumDict
+from .numdicts import NumDict
 
 from itertools import chain
 from math import log
 from contextvars import ContextVar
 from typing import (
     Tuple, List, Mapping, Any, Union, Callable, TypeVar, Hashable, Optional, 
-    Dict, Iterable, Type
+    Dict, Iterable, Type, Set, Mapping, Sequence, cast
 )
 import operator
+
+
+V = TypeVar(
+    "V", 
+    bound=Union[List["diffable"], Tuple["diffable", ...], "DiffableNumDict"]
+)
 
 
 # A context variable for storing gradient tapes.
@@ -32,7 +40,7 @@ class diffable(object):
     """
     A floating point value amenable to reverse-mode gradient computations.
 
-    Collaborates with OpTracer. Does not expose the full float inteface.
+    Collaborates with GradientTape. Does not expose the full float inteface.
     
     By default, supports backpropagation with the following operations: abs, +, 
     -, *, /, **, &, |. The bitwise operations & and | are interpreted as fuzzy 
@@ -46,7 +54,7 @@ class diffable(object):
     __slots__ = ("_val", "_op", "_operands", "_index")
 
     _basic_ops = {
-        "neg", "abs" "add", "sub", "mul", "truediv", "pow", "and", "or"
+        "", "neg", "abs" "add", "sub", "mul", "truediv", "pow", "and", "or"
     }
 
     ops: Dict[str, Callable[..., float]] = {
@@ -67,7 +75,7 @@ class diffable(object):
         "add": [(lambda a, b: 1.0), (lambda a, b: 1.0)],
         "sub": [(lambda a, b: 1.0), (lambda a, b: -1.0)],
         "mul": [(lambda a, b: b), (lambda a, b: a)],
-        "truediv": [(lambda a, b: 1 / b), (lambda a, b: - a * (b ** -2))],
+        "truediv": [(lambda a, b: 1 / b), (lambda a, b: - a / (b ** 2))],
         "pow": [
             (lambda a, b: b * (a ** (b - 1))), 
             (lambda a, b: log(a) * (a ** b))
@@ -84,15 +92,17 @@ class diffable(object):
 
     def __init__(
         self, 
-        val: float = 0.0, 
-        op: str = "var", 
+        val: Any = 0.0, 
+        op: str = "", 
         operands: Tuple[int, ...] = () 
     ) -> None:
         """
         Initialize a new diffable instance.
 
+        Will attempt to convert val to float.
+
         Avoid manually setting op and operands. These will be handled 
-        automatically in the context of a OpTracer. 
+        automatically in the context of a GradientTape. 
 
         :param val: Real value associated with diffable.
         :param op: Name of operation by which val was computed.
@@ -100,12 +110,12 @@ class diffable(object):
             computed.
         """
 
-        self._val = val
+        self.val = val
         self._op = op
         self._operands = operands
 
-        self._index = 0
-        self.add_to_current_tape()
+        self._index = None
+        self.register()
 
     def __repr__(self):
 
@@ -117,7 +127,7 @@ class diffable(object):
 
     def __float__(self):
 
-        return self.val
+        return float(self.val)
 
     def __neg__(self):
 
@@ -165,72 +175,98 @@ class diffable(object):
 
     def __add__(self, other):
 
-        return diffable(
-            self.val + other.val, 
-            op="add", 
-            operands=(self.index, other.index) 
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                self.val + other.val, 
+                op="add", 
+                operands=(self.index, other.index) 
+            )
+        else:
+            return NotImplemented
 
     def __sub__(self, other):
 
-        return diffable(
-            val=self.val - other.val,
-            op="sub",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                val=self.val - other.val,
+                op="sub",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     def __mul__(self, other):
 
-        return diffable(
-            self.val * other.val,
-            op="mul",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                self.val * other.val,
+                op="mul",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     def __truediv__(self, other):
 
-        return diffable(
-            self.val / other.val,
-            op="truediv",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                self.val / other.val,
+                op="truediv",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     def __pow__(self, other):
 
-        return diffable(
-            self.val ** other.val,
-            op="pow",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                self.val ** other.val,
+                op="pow",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     def __and__(self, other):
 
-        return diffable(
-            min(self.val, other.val),
-            op="and",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                min(self.val, other.val),
+                op="and",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     def __or__(self, other):
 
-        return diffable(
-            max(self.val, other.val),
-            op="and",
-            operands=(self.index, other.index)
-        )
+        if isinstance(other, diffable):
+            return diffable(
+                max(self.val, other.val),
+                op="and",
+                operands=(self.index, other.index)
+            )
+        else:
+            return NotImplemented
 
     @property
     def val(self) -> float:
+        """
+        Numerical value associated with self. 
+        
+        If a new value is set, will be converted to float first.
+        """
 
         return self._val
     
     @val.setter
-    def val(self, v: float) -> None:
+    def val(self, v: Any) -> None:
 
         self._val = float(v)
     
     @property
-    def index(self) -> int:
+    def index(self) -> Optional[int]:
 
         return self._index
 
@@ -244,7 +280,7 @@ class diffable(object):
         
         return self._operands
 
-    def add_to_current_tape(self):
+    def register(self):
         """
         If currently within context of a gradient tape, add self to tape.
         
@@ -256,8 +292,24 @@ class diffable(object):
         except LookupError:
             pass # Maybe print a warning? - Can
         else:
-            self._index = len(l)
-            l.append(self)
+            if self._index is None:
+                self._index = len(l)
+                l.append(self)
+            else:
+                msg = "Diffable already registered in tape. Reset first."
+                raise ValueError(msg)
+
+    def release(self):
+        """
+        Release self from affiliation to a gradient tape.
+
+        Removes all tape and op data from self. Calling this method manually 
+        will corrupt any active gradient tape associated with self.
+        """
+
+        self._index = None
+        self._op = ""
+        self._operands = ()
 
     @classmethod
     def add_op(
@@ -298,13 +350,81 @@ class diffable(object):
             del cls.grads[name]
 
 
-class OpTracerCtxError(Exception):
-    """Raised when a OpTracer event occurs in the wrong context."""
+class DiffableNumDict(NumDict):
+    """
+    A numdict for storing and manipulating diffable values.
+    
+    This type of numdict is fixed to operate only on diffable instances and 
+    does not support default values. 
+    """
+
+    __slots__ = ()
+
+    def __init__(self, d, dtype=diffable, default=None) -> None:
+
+        # This is a hacky solution, but would otherwise have to rewrite many 
+        # ops. - Can
+        if dtype != diffable:
+            msg = "Cannot instantiate DiffableNumDict with dtype {}."
+            raise TypeError(msg.format(dtype.__name__))
+
+        super().__init__(d, dtype, default)
+
+    def __setitem__(self, key, obj):
+        """
+        Map key to val.
+
+        If val is in self, will set self[key].val to obj. If val is not in self, 
+        will set self[key] to obj.
+        """
+
+        if key in self:
+            self._dict[key].val = obj
+        else:
+            self._dict[key] = obj
+
+    def __delitem__(self, key):
+
+        del self._dict[key]
+
+    @property
+    def default(self):
+
+        return self._default
+
+    @default.setter
+    def default(self, val):
+
+        if val is None:
+            self._default = None 
+        else: 
+            if self._default is None:
+                self._default = self._cast(val)
+            else:
+                self._default.val = val
+
+    def register(self):
+        """
+        If currently within context of a gradient tape, add every value of 
+        self to tape.
+        
+        Does nothing if not currently within context of a gradient tape.
+        """
+
+        for v in self.values():
+            v.register()
+
+        if self.default is not None:
+            self.default.register()
+
+
+class GradientTapeCtxError(Exception):
+    """Raised when an GradientTape event occurs in the wrong context."""
 
     pass
 
 
-class OpTracer(object):
+class GradientTape(object):
     """
     A simple gradient tape.
 
@@ -316,10 +436,16 @@ class OpTracer(object):
     _token: Any
     _recording: bool
 
-    def __init__(self) -> None:
+    def __init__(self, persistent: bool = False) -> None:
 
         self._tape = []
         self._recording = False
+        self._persistent = persistent
+
+    def __del__(self) -> None:
+
+        for v in self._tape:
+            v.release()
 
     def __len__(self):
 
@@ -341,7 +467,7 @@ class OpTracer(object):
             self._token = tape_ctx.set([])
             self._recording = True
         else:
-            raise OpTracerCtxError("Cannot stack tapes.")
+            raise GradientTapeCtxError("Cannot stack tapes.")
         
         return self
 
@@ -350,119 +476,153 @@ class OpTracer(object):
         self._recording = False
         self._tape = tape_ctx.get()
         tape_ctx.reset(self._token)
+    
+    @property
+    def persistent(self) -> bool:
+
+        return self._persistent
 
     def reset(self) -> None:
         """Reset tape."""
 
         if self._recording:
-            raise OpTracerCtxError("Cannot reset while recording.")
+            raise GradientTapeCtxError("Cannot reset while recording.")
         else:
+            for v in self._tape:
+                v.release()
             self._tape = []
             self._recording = False
 
-    def watch(self, diffables: Iterable[diffable]) -> None:
-        """Add diffable variables to gradient tape."""
+    def gradients(
+        self, output: diffable, *variables: V, forward: bool = True
+    ) -> Union[V, Tuple[V, ...]]:
+        """
+        Compute gradients of variables against output.
+
+        Accepts as variables a sequence of lists or tuples of diffables or 
+        diffable numdicts.
+
+        If variables contains only one element, will return a single value 
+        matching the type of element. Otherwise will return a tuple, with each 
+        element matching the corresponding variables entry.
+
+        Issues a sequence of calls to self.forward(), self.extract_indices(), 
+        self.backward(), and self.extract_grads(). The call to self.forward() 
+        is only issued if self.persistent is True and can be blocked by setting 
+        the forward kwd to False. If self.persistent is False, will release 
+        diffables associated with self prior to returning.
+
+        :param output: Diffable against which to take gradients.
+        :param variables: A sequence of mappings or sequences of diffable 
+            numdicts containing variable values for the backward pass. 
+            Gradients will be calculated only for these values.
+        :param forward: Whether to perform a forward pass prior to computing 
+            gradients if self is persistent. By default, True.
+        """
 
         if self._recording:
-            for v in diffables:
-                v.add_to_current_tape()
-        else:
-            raise OpTracerCtxError("Tape not currently recording.")
+            msg = "Cannot compute gradients while recording."
+            raise GradientTapeCtxError(msg)
 
-    def forward(self) -> None:
+        if output.index is not None:
+            if self._persistent and forward:
+                self._forward()
+            seed = output.index
+            indices = self._extract_indices(*variables)
+            grads = self._backward(seed, indices)
+            grad_sequence = self._extract_grads(grads, *variables)
+        else:
+            msg = "Output has no recorded tape index."
+            raise ValueError(msg)
+
+        if not self._persistent:
+            self.reset()
+
+        return grad_sequence
+
+    def _forward(self) -> None:
         """Perform a forward pass over the current tape."""
         
+        if self._recording:
+            msg = "Cannot compute forward pass while recording."
+            raise GradientTapeCtxError(msg)
+
         for entry in self._tape:
-            if entry.op == "var":
+            if entry.op == "":
                 pass
             else:
                 args = (self._tape[i] for i in entry.operands)
                 entry.val = diffable.ops[entry.op](*args)
 
-    def backward(self, f: Union[diffable, int], val=1.0) -> Dict[int, float]:
+    def _backward(
+        self, seed: int, indices: Set[int], seed_val: float = 1.0
+    ) -> Dict[int, float]:
         """
         Perform a backward pass over the current tape.
 
-        :param f: Diffable value or index with which to seed the backward pass.
-        :param val: The seed value.
+        :param seed: Tape index seeding the backward pass.
+        :param variables: A set of tape indices to be treated as variables in 
+            the backward pass. Gradients will be calculated only for these 
+            variables.
+        :param seed_val: The seed value.
         """
 
-        if isinstance(f, diffable):
-            idx = f.index
-        elif isinstance(f, int):
-            idx = f
-        else:
-            msg = "Unexpected seed type for backward pass: {}"
-            raise TypeError(msg.format(type(f).__name__))
+        if self._recording:
+            msg = "Cannot compute backward pass while recording."
+            raise GradientTapeCtxError(msg)
 
-        delta = {idx: val}
+        delta = {seed: seed_val}
         for i, entry in reversed(list(enumerate(self))):
             delta.setdefault(i, 0.0)
-            if entry.op != "var":
+            if entry.op != "":
                 for j, k in enumerate(entry.operands):
-                    op_j = diffable.grads[entry.op][j]
-                    delta.setdefault(k, 0.0)
-                    args_j = (self[k].val for k in entry.operands)
-                    delta[k] += delta[i] * op_j(*args_j)
+                    if self[k].op != "" or self[k].index in indices:
+                        op_j = diffable.grads[entry.op][j]
+                        delta.setdefault(k, 0.0)
+                        args_j = (self[k].val for k in entry.operands)
+                        delta[k] += delta[i] * op_j(*args_j)
         
         return delta
 
-
-class DiffableNumDict(BaseNumDict, Mapping[Any, diffable]):
-    """
-    A numdict for storing and manipulating diffable values.
-    
-    This type of numdict is fixed to operate only on diffable instances and 
-    does not support default values. 
-    """
-
-    __slots__ = ()
-
-    def __init__(
-        self, 
-        d: Mapping, 
-        dtype: Type = diffable, 
-        default: None = None
-    ) -> None:
-
-        # This is a hacky solution, but would otherwise have to rewrite many 
-        # ops. - Can
-        if dtype != diffable:
-            msg = "Cannot instantiate DiffNumDict with dtype {}."
-            raise TypeError(msg.format(dtype.__name__))
-        if default is not None:
-            msg = "Default values not allowed."
-            raise TypeError(msg)
-
-        super().__init__(d, dtype, default)
-
-    def __setitem__(self, key, obj):
-        """
-        Map key to val.
-
-        If val is in self and obj has type diffable, will set self[key].val to 
-        obj.val. If obj is not a diffable instance, will set self[key].val to 
-        float(obj). If val is not in self and obj is a diffable instance, will 
-        set self[key] to obj. If obj is not a diffable instance will set 
-        self[key] to diffable(obj).
-        """
-
-        if key in self:
-            if type(obj) == diffable:
-                self._dict[key].val = obj.val
+    @staticmethod
+    def _extract_indices(*variables: V) -> Set[int]:
+        """Extract tape indices for diffables in variables."""
+        
+        s: Set[int] = set()
+        for item in variables:
+            if isinstance(item, DiffableNumDict):
+                s.update([v.index for v in item.values()])
+            elif isinstance(item, (list, tuple)):
+                s.update(type(item)([v.index for v in item]))
             else:
-                self._dict[key].val = float(obj)
+                msg = "Unexpected type passed as variable: {}."
+                raise TypeError(msg.format(type(item).__name__))
+        
+        return s
+
+    @staticmethod
+    def _extract_grads(
+        grads: Dict[int, float], *variables: V
+    ) -> Union[V, Tuple[V, ...]]:
+        """Extract grads for diffables in variables from raw grad dict."""
+        
+        ret: List[V] = []
+        for item in variables:
+            if isinstance(item, DiffableNumDict):
+                d = {k: grads[v.index] for k, v in item.items()}
+                if item.default is None:
+                    default = None
+                else:
+                    default = grads[item.default.index]
+                dd = DiffableNumDict(d, default=default)
+                ret.append(cast(V, dd))
+            if isinstance(item, list):
+                l = [grads[v.index] for v in item]
+                ret.append(cast(V, l))
+        
+        if len(ret) > 1:
+            return tuple(ret)
+        elif len(ret) == 1:
+            return ret.pop()
         else:
-            if type(obj) == diffable:
-                self._dict[key] = obj
-            else:
-                self._dict[key] = diffable(obj)
-
-    def __delitem__(self, key):
-
-        del self._dict[key]
-
-    @property
-    def dtype(self):
-
-        return self._dtype
+            raise ValueError("Must provide at least one variable.")
