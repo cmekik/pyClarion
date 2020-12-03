@@ -4,10 +4,11 @@ Provides support for basic native automatic diffferentiation in pyClarion.
 Defines the `diffable`, `GradientTape`, and `DiffableNumDict` classes, which 
 support automatic reverse-mode differentiation.
 
-Based on CMU autodiff lecture notes:
+The general implementation is based on CMU autodiff lecture notes:
 http://www.cs.cmu.edu/~wcohen/10-605/notes/autodiff.pdf
 
-The GradientTape design is based on the tensorflow 2 GradientTape.
+The GradientTape design is based on the tensorflow 2 GradientTape:
+https://www.tensorflow.org/api_docs/python/tf/GradientTape
 """
 
 

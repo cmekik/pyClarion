@@ -25,15 +25,16 @@ Developer mode is recommended due to the experimental status of the library. Ins
 
 # Examples
 
-The `examples/` folder provides some simple examples demonstrating various aspects of using the pyClarion library to assemble and simulate Clarion agents.
+The `examples/` folder provides some simple examples demonstrating various aspects of using the `pyClarion` library to assemble and simulate Clarion agents.
 
 The recommended reading order is as follows:
 
-- `free_association.py` - Introduces the basic concepts of the pyClarion library using the example of a very simple free association task.
+- `free_association.py` - Introduces the basic concepts of the `pyClarion` library using the example of a very simple free association task.
 - `lagged_features.py` - Demonstrates how to set up lagged features, which may be useful in various contexts such as recurrent processing and temporal difference learning.
-- `flow_control.py` - An introduction to how pyClarion handles control through the example of using gates to select the mode of reasoning.
-- `chunk_extraction.py` - An introduction to how pyClarion supports learning processes. Demonstrates a simple case of learning through chunk extraction.  
-- `working_memory.py` - An introduction to more complex modeling using pyClarion. Demonstrates a simple case of question answering, where the non-action-centered subsystem drives action selection in the action-centered subsystem through working memory.
+- `flow_control.py` - An introduction to how `pyClarion` handles control through the example of using gates to select the mode of reasoning.
+- `chunk_extraction.py` - An introduction to how `pyClarion` supports learning processes. Demonstrates a simple case of learning through chunk extraction.  
+- `working_memory.py` - An introduction to more complex modeling using `pyClarion`. Demonstrates a simple case of question answering, where the non-action-centered subsystem drives action selection in the action-centered subsystem through working memory.
+- `gradients.py` - An overview of the minimalistic automatic differentiation functionality available in `pyClarion`. May be read at any time.
 
 # Implementation Overview
 
@@ -53,10 +54,11 @@ The `pyClarion` library source code is organized as follows:
 
     - `symbols.py` - Defines construct symbols.
     - `numdicts.py` - Defines numerical dictionaries, which are essentially dicts that support mathematical operations.
+    - `gradients.py` - Defines some simple tools for supporting basic automatic differentiation.
     - `components.py` - Defines basic abstractions for defining emitters and updaters.
     - `realizers.py` - Defines realizer objects.
 
-    The recommended reading order for `base/` is to start with `symbols.py` or `numdicts.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. Reading `components.py` on its own may be confusing.
+    The recommended reading order for `base/` is to start with `symbols.py` or `numdicts.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. Reading `components.py` on its own may be confusing. `gradients.py` may be read at any time after reading `numdicts.py`.
 
 - `pyClarion/components/` contains definitions for concrete component implementations. Assuming familiarity with `base/`, the files in this folder may be read in any order after an initial reading of `propagators.py` and `cycles.py`. The former defines some basic emitters for basic constructs, while the latter defines activations sequences at the agent and subsystem levels. 
 
