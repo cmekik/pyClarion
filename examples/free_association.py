@@ -445,8 +445,6 @@ with alice:
 # their contents and checking for any missing expected links. If missing 
 # expected links are encountered a RealizerAssemblyError will be thrown.
 
-alice.finalize_assembly()
-
 # Agent setup is now complete!
 
 

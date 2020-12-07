@@ -1,6 +1,6 @@
-`pyClarion` is a python package for implementing agents according to the Clarion cognitive architecture.
+`pyClarion` is a python package for implementing agents in the Clarion cognitive architecture.
 
-It is highly experimental, and aims to be easy to learn, read, extend, and experiment with.
+It is highly experimental and aims to be easy to learn, read, extend, and experiment with.
 
 The primary resource for the implementation is Ron Sun's *Anatomy of the Mind* (2016; OUP).
 
@@ -12,7 +12,7 @@ The primary resource for the implementation is Ron Sun's *Anatomy of the Mind* (
 
 # Installation
 
-After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate to the pyClarion folder, then:
+After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate to the pyClarion folder then:
 
 - To install in developer mode (recommended), run
 ```pip install -e .```
@@ -21,7 +21,7 @@ After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate t
 
 WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your installation may fail.
 
-Developer mode is recommended due to the experimental status of the library. Installing in this mode means that changes made to the pyClarion folder will be reflected in the pyClarion package, enabling fast prototyping and experimentation.
+Developer mode is recommended to encourage and facilitate referring to `pyClarion` source code. Prior to installing in this mode, please ensure that the `pyClarion` folder is located at a convenient long-term location. Installing in developer mode means that changes made to the `pyClarion` folder will be reflected in the `pyClarion` package.
 
 # Examples
 
@@ -38,11 +38,11 @@ The recommended reading order is as follows:
 
 # Implementation Overview
 
-`pyClarion` views Clarion agents as a hierarchical networks of neural networks. Thus, constructing a `pyClarion` agent amounts to declaring what components exist, what they do, where they are placed in the hierarchy, and how they network with other components.
+`pyClarion` views Clarion agents primarily as hierarchical networks of neural networks. Thus, constructing a `pyClarion` agent amounts to declaring what components exist, what they do, where they are placed in the hierarchy, and how they network with other components.
 
 Simulated constructs are named and represented with symbolic tokens called construct symbols. Each construct symbol may be associated with one or more construct realizers, which define and implement the behavior of the named constructs in a specific context. Construct symbols allow consistent and efficient communication of construct information using basic datastructures such as dicts, lists and sets of construct symbols. Construct realizers encapsulate complex behaviors associated with client constructs and provide a clean interface for multiple distinct realizations of the same construct.
 
-Minimally, a construct realizer pairs a construct symbol, which names the construct represented by the realizer, with an `Emitter` object. The emitter is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other `pyClarion` components. Realizers may additionally be given `Updater` objects to handle more complex or customized learning behavior, and, in some cases, they may house resources shared by subordinate constructs (e.g., chunk and rule databases). To implement customized behaviors, it is sufficient to write suitable `Emitter` or `Updater` classes and pass them to a construct realizer.
+Minimally, a construct realizer pairs a construct symbol, which names the construct represented by the realizer, with an `Emitter` object. The emitter is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other `pyClarion` components. Realizers may additionally be given `Updater` objects to handle more complex or customized learning behavior, and, in some cases, they may house resources shared by subordinate constructs (e.g., chunk and rule databases). To implement customized behaviors, it is sufficient to write suitable `Emitter` or `Updater` classes and pass instances of these custom classes to a construct realizer.
 
 # Reading Guide
 
@@ -58,7 +58,7 @@ The `pyClarion` library source code is organized as follows:
     - `components.py` - Defines basic abstractions for defining emitters and updaters.
     - `realizers.py` - Defines realizer objects.
 
-    The recommended reading order for `base/` is to start with `symbols.py` or `numdicts.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. Reading `components.py` on its own may be confusing. `gradients.py` may be read at any time after reading `numdicts.py`.
+    The recommended reading order for `base/` is to start with `symbols.py` or `numdicts.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. Reading `components.py` on its own may be confusing, though it may be useful to skim it prior to reading `realizers.py`. `gradients.py` may be read at any time after reading `numdicts.py`.
 
 - `pyClarion/components/` contains definitions for concrete component implementations. Assuming familiarity with `base/`, the files in this folder may be read in any order after an initial reading of `propagators.py` and `cycles.py`. The former defines some basic emitters for basic constructs, while the latter defines activations sequences at the agent and subsystem levels. 
 
