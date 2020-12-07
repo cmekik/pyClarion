@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Filtered`, `Gated`, and `Pruned` propagators, allowing input filtering and output gating.
 - `ActionRules` propagator class.
 - Buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
-- BLA updater for `RegisterArray`: `RegisterArrayBLAUpdater`.
+- `blas.py` defining BLA databases and some basic related updaters.
 - `updaters.py` defining updater chains and conditional updaters.
 
 ### Changed

@@ -5,12 +5,12 @@ __all__ = ["BLAs", "RegisterArrayBLAUpdater"]
 
 
 from ..base.symbols import ConstructType
-from ..base.components import Inputs, UpdaterC
+from ..base.components import Inputs, UpdaterC, UpdaterS
 from .buffers import collect_cmd_data, RegisterArray
 
 from typing import Any
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 
 
 class BLAs(Mapping):
@@ -192,7 +192,7 @@ class BLAs(Mapping):
         """
         Update BLA database according to promises.
 
-        Steps every existing BLA, adds invocations as promised. Also adds or 
+        Steps every existing BLA, adds invocations as promised. Also adds 
         entries according to promises made. Does NOT remove any items.
         """
 
@@ -248,7 +248,14 @@ class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
 
     _serves = ConstructType.buffer
 
-    def __init__(self, density, baseline=0.0, amplitude=2, decay=.5, depth=1):
+    def __init__(
+        self, 
+        density: float = 1.0, 
+        baseline: float = 0.0, 
+        amplitude: float = 2.0, 
+        decay: float = 0.5, 
+        depth: int = 1
+    ):
 
         self.blas = BLAs(density, baseline, amplitude, decay, depth)
 
@@ -311,3 +318,92 @@ class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
                 if self.blas[item].below_threshold:
                     cell.clear_store()
                     del self.blas[item]
+
+
+class BLAInvocationTracker(UpdaterC):
+    """
+    Monitors a construct for invocations for BLA updates.
+
+    Reports invocations above a threshold to a client BLA database.
+    """
+
+    # TODO: Needs testing. - Can
+
+    _serves = ConstructType.basic_construct
+
+    def __init__(
+        self, blas: BLAs, ctype: ConstructType, threshold: float
+    ) -> None:
+
+        self.blas = blas
+        self.ctype = ctype
+        self.threshold = threshold
+
+    @property
+    def expected(self):
+
+        return frozenset()
+
+    def __call__(
+        self,
+        propagator: Any,
+        inputs: Inputs,
+        output: Any,
+        update_data: Inputs
+    ) -> None:
+        """
+        Register invocations of monitored constructs.
+        
+        Issues a call to BLAs.register_invocation() with option add_new=True 
+        for each element in output of appropriate construct type that is above 
+        threshold in activation.
+        """
+
+        for c, v in output.items():
+            if c.ctype in self.ctype and v > self.threshold:
+                self.blas.register_invocation(c, add_new=True)
+    
+
+class BLADrivenDeleter(UpdaterS):
+    """
+    Deletes entries in a database when BLAs fall below threshold.
+
+    Removes entries based on the state of a BLA database. Assumes keys in 
+    client db and BLA database match.
+    """
+
+    # TODO: Needs testing. - Can
+
+    _serves = ConstructType.container_construct
+    
+    def __init__(self, db: MutableMapping, blas: BLAs) -> None:
+
+        self.db = db
+        self.blas = blas
+
+    @property
+    def expected(self):
+
+        return frozenset()
+
+    def __call__(
+        self, 
+        inputs: Inputs, 
+        output: Any, 
+        update_data: Inputs
+    ) -> None:
+        """
+        Delete any entries in client db whose BLA is below threshold.
+        
+        Will first call update routine on the bla database. Then will evaluate 
+        each entry against density parameter. Entries below threshold will be 
+        removed both from client db AND the BLA database.
+        """
+
+        self.blas.update()
+
+        for entry, bla in self.blas.items():
+            if bla.below_threshold:
+                del self.blas[entry]
+                del self.db[entry]
+    

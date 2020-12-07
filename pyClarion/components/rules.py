@@ -4,7 +4,7 @@
 __all__ = ["Rules", "AssociativeRules", "ActionRules"]
 
 
-from ..base import ConstructType, Symbol, Propagator, rule
+from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule
 from ..base import numdicts as nd
 
 from types import MappingProxyType
@@ -27,11 +27,10 @@ class Rules(MutableMapping):
     }            
     """
 
-    # TODO: This class should support deferred updates, just like the Chunks 
-    # database. - Can
-
     class Rule(object):
         """Represents a rule form."""
+
+        # TODO: Updater and update requests need testing. - Can 
 
         __slots__ = ("_conc", "_weights")
 
@@ -93,6 +92,31 @@ class Rules(MutableMapping):
 
             return self._weights
 
+    class Updater(UpdaterS):
+        """
+        Applies requested updates to a client Rules instance.
+        
+        Assumes any updates will be issued by constructs subordinate to 
+        self.client.
+        """
+
+        _serves = ConstructType.container_construct
+
+        def __init__(self, rules: "Rules") -> None:
+            """Initialize a Rules.Updater instance."""
+
+            self.rules = rules
+
+        @property
+        def expected(self):
+
+            return frozenset()
+
+        def __call__(self, inputs, output, update_data):
+            """Resolve all outstanding rule database update requests."""
+
+            self.rules.resolve_update_requests()
+
     def __init__(
         self, 
         data: Mapping[rule, "Rules.Rule"] = None,
@@ -106,6 +130,10 @@ class Rules(MutableMapping):
 
         self._data = data
         self.max_conds = max_conds
+
+        self._promises: MutableMapping[rule, Rules.Rule] = dict()
+        self._promises_proxy = MappingProxyType(self._promises)
+        self._updater = type(self).Updater(self)
 
     def __repr__(self):
 
@@ -133,11 +161,22 @@ class Rules(MutableMapping):
 
         del self._data[key]
 
+    @property
+    def updater(self):
+        """Updater object for bound to self."""
+
+        return self._updater
+
+    @property
+    def promises(self):
+        """A view of promised updates."""
+
+        return self._promises_proxy
+
     def link(self, r, conc, *conds, weights=None):
         """Add a new rule."""
 
         form = self.Rule(conc, *conds, weights=weights)
-        self._validate_rule_form(form)
         self[r] = form
 
     def contains_form(self, form):
@@ -148,6 +187,38 @@ class Rules(MutableMapping):
         """
 
         return any(form == entry for entry in self.values())
+
+    def request_update(self, r, form):
+        """
+        Inform self of a new rule to be applied at a later time.
+        
+        Adds (r, form) to an internal future update dict. Upon call to 
+        self.resolve_update_requests(), the update dict will be passed as an 
+        argument to self.update(). 
+        
+        Will overwrite existing rule if r is already member of self. Does 
+        not check for duplicate forms. Will throw an error if an update is 
+        already registered for rule r.
+
+        Does not validate the rule form before registering the request. 
+        Validation occurs at update time. 
+        """
+
+        if ch in self._promises:
+            msg = "Rule {} already registered for a promised update."
+            raise ValueError(msg.format(r))
+        else:
+            self._promises[r] = form
+
+    def resolve_update_requests(self):
+        """
+        Apply any promised updates (see Rules.request_update()).
+        
+        Clears promised update dict upon completion.
+        """
+
+        self.update(self._promises)
+        self._promises.clear()
 
     def _validate_rule_form(self, form):
 
