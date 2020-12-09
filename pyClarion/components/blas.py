@@ -1,7 +1,10 @@
 """Basic tools for tracking and updating base-level activations."""
 
 
-__all__ = ["BLAs", "RegisterArrayBLAUpdater"]
+__all__ = [
+    "BLAs", "RegisterArrayBLAUpdater", "BLAInvocationTracker", 
+    "BLADrivenDeleter"
+]
 
 
 from ..base.symbols import ConstructType

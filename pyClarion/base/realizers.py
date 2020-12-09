@@ -635,8 +635,8 @@ class Structure(Realizer[Ct, UpdaterS]):
         
         Subordinate constructs are prioritized in the update order. Further, 
         Structures are prioritized over Constructs in the ordering. In other 
-        words, updates are applied in a bottom-up manner relative to the 
-        construct hierarchy. There are otherwise no guarantees as to the 
+        words, updates are applied in a roughly bottom-up manner relative to 
+        the construct hierarchy. There are otherwise no guarantees as to the 
         ordering of updates.
         """
 
