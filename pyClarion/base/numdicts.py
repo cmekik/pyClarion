@@ -40,10 +40,11 @@ d[key] to check for (explicit) membership.
 
 __all__ = [
     "NumDict", "FrozenNumDict", "restrict", "keep", "drop", "transform_keys", 
-    "threshold", "clip", "isclose", "valuewise", "val_sum", "elementwise", 
-    "ew_sum", "ew_max", "boltzmann", "draw"
+    "group", "threshold", "clip", "isclose", "valuewise", "val_sum", 
+    "elementwise", "ew_sum", "ew_max", "boltzmann", "draw"
 ]
 
+from .symbols import group_by
 
 from collections.abc import MutableMapping, Mapping
 from typing import TypeVar, Container, Callable, Hashable, Any, Type
@@ -52,6 +53,7 @@ import operator
 import numbers
 import math
 import random
+from pprint import pprint
 
 
 class BaseNumDict(Mapping):
@@ -138,19 +140,19 @@ class BaseNumDict(Mapping):
 
     def __lt__(self, other):
 
-        return self.apply_binary_op(operator.lt)
+        return self.apply_binary_op(other, operator.lt)
 
     def __le__(self, other):
 
-        return self.apply_binary_op(operator.le)
+        return self.apply_binary_op(other, operator.le)
 
     def __gt__(self, other):
 
-        return self.apply_binary_op(operator.gt)
+        return self.apply_binary_op(other, operator.gt)
 
     def __ge__(self, other):
 
-        return self.apply_binary_op(operator.ge)
+        return self.apply_binary_op(other, operator.ge)
    
     def __add__(self, other):
 
@@ -542,9 +544,7 @@ def drop(d: D, func: Callable[..., bool]):
     return type(d)(mapping, d.dtype, d.default)
 
 
-def transform_keys(
-    d: D, func: Callable[..., Hashable], *args, **kwds
-) -> D:
+def transform_keys(d: D, func: Callable[..., Hashable], *args, **kwds) -> D:
     """
     Return a copy of d where each key is mapped to func(key, *args, **kwds).
 
@@ -557,17 +557,34 @@ def transform_keys(
     return type(d)(mapping, d.dtype, d.default)
 
 
+def group(d: D, func: Callable[..., Hashable], *args, **kwds) -> D:
+    """
+    Return a nested numdict where the keys of d are grouped by func.
+
+    The function func is assumed to be a grouping function, s.t. for each key in 
+    d, func(key, *args, **kwds) returns a group key.
+    """
+
+    grouped = group_by(d.keys(), func)
+    mapping = {}
+    for k, g in grouped.items():
+        mapping[k] = type(d)({x: d[x] for x in g}, d.dtype, d.default)
+
+    return type(d)(mapping, type(d), None)
+
+
 def threshold(d: D, th: numbers.Number) -> D:
     """
     Return a copy of d containing only values above theshold.
     
-    Values below threshold are effectively sent to the default, if this is 
-    defined.
+    If the default is below threshold, it is set to None in the output.
     """
 
     mapping = {k: d[k] for k in d if th < d[k]}
+    if d.default is not None:
+        default = d.default if th < d.default else None 
 
-    return type(d)(mapping, d.dtype, d.default)
+    return type(d)(mapping, d.dtype, default)
 
 
 def clip(d: D, low: numbers.Number = None, high: numbers.Number = None) -> D:
