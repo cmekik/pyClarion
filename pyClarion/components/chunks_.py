@@ -1,7 +1,7 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-__all__ = ["Chunks", "TopDown", "BottomUp", "ChunkExtractor"]
+__all__ = ["Chunk", "Chunks", "TopDown", "BottomUp", "ChunkExtractor"]
 
 
 from ..base.symbols import (
@@ -16,7 +16,7 @@ from .propagators import ThresholdSelector
 
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
-    List, Optional
+    List, Optional, TypeVar, Type, Generic
 )
 from collections.abc import MutableMapping
 from collections import namedtuple
@@ -28,7 +28,107 @@ from types import MappingProxyType
 import operator
 
 
-class Chunks(MutableMapping):
+class Chunk(object):
+    """
+    Represents the form of a chunk.
+    
+    Specifies features and dimensional weights.
+    """
+
+    __slots__ = ("_features", "_weights")
+
+    def __init__(
+        self, 
+        features: Collection[feature], 
+        weights: Mapping[Tuple[Hashable, int], float] = None
+    ):
+
+        # why is this annoying mypy?
+        func = feature.dim.fget # type: ignore
+        dims = tuple(map(func, features))
+
+        if weights is not None:
+            ws = nd.NumDict(weights) 
+            ws = nd.restrict(ws, dims)
+        else:
+            ws = nd.NumDict()
+
+        ws.extend(dims, value=1.0)
+
+        self._features = frozenset(features)
+        self._weights = nd.FrozenNumDict(ws)
+
+    def __repr__(self):
+
+        template = "{}(features={}, weights={})"
+        name = type(self).__name__
+        frepr, wrepr = repr(self.features), repr(self.weights)
+
+        return template.format(name, frepr, wrepr)
+
+    def __eq__(self, other):
+
+        if isinstance(other, Chunk):
+            b = (
+                self.features == other.features and
+                nd.isclose(self.weights, other.weights)
+            )
+            return b
+        else:
+            return NotImplemented
+
+    @property
+    def features(self):
+        """Features associated with chunk defined by self."""
+        
+        return self._features
+    
+    @property
+    def weights(self):
+        """Dimensional weights for chunk defined by self."""
+
+        return self._weights
+
+    def top_down(self, strength):
+        """
+        Compute top-down strengths for features of self.
+        
+        Multiplies strength by dimensional weights to get dimensional 
+        strengths. Features are then activated to the level of the 
+        corresponding dimensional strength. 
+
+        Implementation is based on p. 77-78 of Anatomy of the Mind.
+        """
+
+        d = nd.NumDict()
+        weighted = strength * self.weights
+        d.extend(self.features)
+        d.set_by(weighted, feature.dim.fget)
+
+        return d
+
+    def bottom_up(self, strengths):
+        """
+        Compute bottom up strength for chunk associated with self.
+
+        The bottom-up strength is computed as the weighted average of 
+        dimensional strengths. Dimensional strengths are given by the 
+        strength of the maximally activated feature in each dimension. 
+
+        Implementation is based on p. 77-78 of Anatomy of the Mind. However, 
+        no nonlinearity is included in the denominator of the equation.
+        """
+
+        d = nd.restrict(strengths, self.features)
+        d = d.by(feature.dim.fget, max) # get maxima by dimensions
+        weighted = d * self.weights / nd.val_sum(self.weights)
+        strength = nd.val_sum(weighted)
+
+        return strength
+
+
+Ct = TypeVar("Ct", bound="Chunk")
+class Chunks(MutableMapping, Generic[Ct]):
     """
     A simple chunk database.
 
@@ -49,103 +149,6 @@ class Chunks(MutableMapping):
     deferred updates. These methods are useful for cases where multiple 
     constructs may want to add chunks to the same database.
     """
-
-    class Chunk(object):
-        """
-        Represents the form of a chunk.
-        
-        Specifies features and dimensional weights.
-        """
-
-        __slots__ = ("_features", "_weights")
-
-        def __init__(
-            self, 
-            features: Collection[feature], 
-            weights: Mapping[Tuple[Hashable, int], float] = None
-        ):
-
-            # why is this annoying mypy?
-            func = feature.dim.fget # type: ignore
-            dims = tuple(map(func, features))
-
-            if weights is not None:
-                ws = nd.NumDict(weights) 
-                ws = nd.restrict(ws, dims)
-            else:
-                ws = nd.NumDict()
-
-            ws.extend(dims, value=1.0)
-
-            self._features = frozenset(features)
-            self._weights = nd.FrozenNumDict(ws)
-
-        def __repr__(self):
-
-            template = "{}(features={}, weights={})"
-            name = type(self).__name__
-            frepr, wrepr = repr(self.features), repr(self.weights)
-
-            return template.format(name, frepr, wrepr)
-
-        def __eq__(self, other):
-
-            if isinstance(other, Chunks.Chunk):
-                b = (
-                    self.features == other.features and
-                    nd.isclose(self.weights, other.weights)
-                )
-                return b
-            else:
-                return NotImplemented
-
-        @property
-        def features(self):
-            """Features associated with chunk defined by self."""
-            
-            return self._features
-        
-        @property
-        def weights(self):
-            """Dimensional weights for chunk defined by self."""
-
-            return self._weights
-
-        def top_down(self, strength):
-            """
-            Compute top-down strengths for features of self.
-            
-            Multiplies strength by dimensional weights to get dimensional 
-            strengths. Features are then activated to the level of the 
-            corresponding dimensional strength. 
-
-            Implementation is based on p. 77-78 of Anatomy of the Mind.
-            """
-
-            d = nd.NumDict()
-            weighted = strength * self.weights
-            d.extend(self.features)
-            d.set_by(weighted, feature.dim.fget)
-
-            return d
-
-        def bottom_up(self, strengths):
-            """
-            Compute bottom up strength for chunk associated with self.
-
-            The bottom-up strength is computed as the weighted average of 
-            dimensional strengths. Dimensional strengths are given by the 
-            strength of the maximally activated feature in each dimension. 
-
-            Implementation is based on p. 77-78 of Anatomy of the Mind.
-            """
-
-            d = nd.restrict(strengths, self.features)
-            d = d.by(feature.dim.fget, max) # get maxima by dimensions
-            weighted = d * self.weights / nd.val_sum(self.weights)
-            strength = nd.val_sum(weighted)
-
-            return strength
 
     class Updater(UpdaterS):
         """
@@ -172,15 +175,21 @@ class Chunks(MutableMapping):
 
             self.chunks.resolve_update_requests()
 
-    def __init__(self, data: Mapping[chunk, "Chunks.Chunk"] = None) -> None:
+    def __init__(
+        self, 
+        data: Mapping[chunk, Ct] = None, 
+        chunk_type: Type[Ct] = None
+    ) -> None:
 
         if data is None:
             data = dict()
         else:
             data = dict(data)
 
-        self._data: MutableMapping[chunk, Chunks.Chunk] = data
-        self._promises: MutableMapping[chunk, Chunks.Chunk] = dict()
+        self._data: MutableMapping[chunk, Ct] = data
+        self.Chunk = chunk_type if chunk_type is not None else Chunk
+        
+        self._promises: MutableMapping[chunk, Chunk] = dict()
         self._promises_proxy = MappingProxyType(self._promises)
         self._updater = type(self).Updater(self)
 
@@ -207,7 +216,11 @@ class Chunks(MutableMapping):
 
     def __setitem__(self, key, val):
 
-        self._data[key] = val
+        if isinstance(val, self.Chunk):
+            self._data[key] = val
+        else:
+            msg = "This chunk database expects chunks of type '{}'." 
+            TypeError(msg.format(type(self.Chunk.__name__)))
 
     @property
     def updater(self):
@@ -370,7 +383,7 @@ class ChunkExtractor(Propagator):
         self.threshold = threshold
 
         self._counter = count(start=1, step=1)
-        self._to_add: Optional[Tuple[chunk, Chunks.Chunk]] = None
+        self._to_add: Optional[Tuple[chunk, Chunk]] = None
 
     @property
     def expected(self):

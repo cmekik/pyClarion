@@ -1,18 +1,99 @@
 """Tools for creating, managing, and processing rules."""
 
 
-__all__ = ["Rules", "AssociativeRules", "ActionRules"]
+__all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
 from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule
 from ..base import numdicts as nd
 
+from typing import Mapping, TypeVar, Generic, Type
 from types import MappingProxyType
-from typing import Mapping
 from collections.abc import MutableMapping
 
 
-class Rules(MutableMapping):
+
+
+class Rule(object):
+    """Represents a rule form."""
+
+    __slots__ = ("_conc", "_weights")
+
+    def __init__(self, conc, *conds, weights=None):
+        """
+        Initialize a new rule.
+
+        If conditions contains items that do not appear in weights, these 
+        weights is extend to map each of these items to a weight of 1. If 
+        weights is None, it is assumed to be an empty weight dict. 
+
+        At the end of initialization, if the weights sum to more than 1.0, 
+        weights is renormalized such that each weight w is mapped to 
+        w / sum(weights.values())
+
+        :param conclusion: A chunk symbol for the rule conclusion.
+        :param conditions: A sequence of chunk symbols representing rule 
+            conditions.
+        :param weights: An optional mapping from condition chunk symbols 
+            to condition weights.
+        """
+        
+        ws = nd.NumDict()
+        if weights is not None:
+            ws.update(weights)
+        ws.extend(conds, value=1.0)
+
+        w_sum = nd.val_sum(ws)
+        if w_sum > 1.0: 
+            ws /= w_sum
+
+        self._conc = conc
+        self._weights = nd.FrozenNumDict(ws)
+
+    def __repr__(self):
+
+        return "Rule(weights={})".format(self.weights)
+
+    def __eq__(self, other):
+
+        if isinstance(other, Rule):
+            b = (
+                self.conc == other.conc and 
+                nd.isclose(self.weights, other.weights)
+            )
+            return b
+        else:
+            return NotImplemented
+
+    @property
+    def conc(self):
+        """Conclusion of rule."""
+
+        return self._conc
+
+    @property
+    def weights(self):
+        """Conditions and condition weights of rule."""
+
+        return self._weights
+
+    def strength(self, strengths):
+        """
+        Compute rule strength given condition strengths.
+        
+        The rule strength is computed as the weighted sum of the condition 
+        strengths in strengths.
+
+        Implementation based on p. 60 and p. 73 of Anatomy of the Mind.
+        """
+
+        weighted = nd.restrict(strengths, self.weights) * self.weights
+        
+        return nd.val_sum(weighted)
+
+
+Rt = TypeVar("Rt", bound="Rule")
+class Rules(MutableMapping, Generic[Rt]):
     """
     A simple rule database.
 
@@ -27,70 +108,7 @@ class Rules(MutableMapping):
     }            
     """
 
-    class Rule(object):
-        """Represents a rule form."""
-
-        # TODO: Updater and update requests need testing. - Can 
-
-        __slots__ = ("_conc", "_weights")
-
-        def __init__(self, conc, *conds, weights=None):
-            """
-            Initialize a new rule.
-
-            If conditions contains items that do not appear in weights, these 
-            weights is extend to map each of these items to a weight of 1. If 
-            weights is None, it is assumed to be an empty weight dict. 
-
-            At the end of initialization, if the weights sum to more than 1.0, 
-            weights is renormalized such that each weight w is mapped to 
-            w / sum(weights.values())
-
-            :param conclusion: A chunk symbol for the rule conclusion.
-            :param conditions: A sequence of chunk symbols representing rule 
-                conditions.
-            :param weights: An optional mapping from condition chunk symbols 
-                to condition weights.
-            """
-            
-            ws = nd.NumDict()
-            if weights is not None:
-                ws.update(weights)
-            ws.extend(conds, value=1.0)
-
-            w_sum = nd.val_sum(ws)
-            if w_sum > 1.0: 
-                ws /= w_sum
-
-            self._conc = conc
-            self._weights = nd.FrozenNumDict(ws)
-
-        def __repr__(self):
-
-            return "Rule(weights={})".format(self.weights)
-
-        def __eq__(self, other):
-
-            if isinstance(other, Rules.Rule):
-                b = (
-                    self.conc == other.conc and 
-                    nd.isclose(self.weights, other.weights)
-                )
-                return b
-            else:
-                return NotImplemented
-
-        @property
-        def conc(self):
-            """Conclusion of rule."""
-
-            return self._conc
-
-        @property
-        def weights(self):
-            """Conditions and condition weights of rule."""
-
-            return self._weights
+    # TODO: Updater and update requests need testing. - Can 
 
     class Updater(UpdaterS):
         """
@@ -119,8 +137,9 @@ class Rules(MutableMapping):
 
     def __init__(
         self, 
-        data: Mapping[rule, "Rules.Rule"] = None,
-        max_conds: int = None
+        data: Mapping[rule, Rule] = None,
+        max_conds: int = None,
+        rule_type: Rt = None
     ) -> None:
 
         if data is None:
@@ -130,8 +149,9 @@ class Rules(MutableMapping):
 
         self._data = data
         self.max_conds = max_conds
+        self.Rule = rule_type if rule_type is not None else Rule
 
-        self._promises: MutableMapping[rule, Rules.Rule] = dict()
+        self._promises: MutableMapping[rule, Rule] = dict()
         self._promises_proxy = MappingProxyType(self._promises)
         self._updater = type(self).Updater(self)
 
@@ -155,7 +175,11 @@ class Rules(MutableMapping):
     def __setitem__(self, key, val):
 
         self._validate_rule_form(val)
-        self._data[key] = val
+        if isinstance(val, self.Rule):
+            self._data[key] = val
+        else:
+            msg = "This rule database expects rules of type '{}'." 
+            TypeError(msg.format(type(self.Rule.__name__)))
 
     def __delitem__(self, key):
 
@@ -183,7 +207,7 @@ class Rules(MutableMapping):
         """
         Check if the rule set contains a given rule form.
         
-        See Rules.Rule for details on rule forms.
+        See Rule for details on rule forms.
         """
 
         return any(form == entry for entry in self.values())
@@ -255,9 +279,7 @@ class AssociativeRules(Propagator):
         d = nd.NumDict()
         strengths = inputs[self.source]
         for r, form in self.rules.items():
-            cd = nd.restrict(strengths, form.weights)
-            cd *= form.weights 
-            s_r = nd.val_sum(cd)
+            s_r = form.strength(strengths)
             d[form.conc] = max(d[form.conc], s_r)
             d[r] = s_r
         
@@ -299,8 +321,7 @@ class ActionRules(Propagator):
 
         s_r = nd.NumDict()
         for r, form in self.rules.items():
-            _s_r = nd.restrict(strengths, form.weights) * form.weights
-            s_r[r] = nd.val_sum(_s_r)
+            s_r[r] = form.strength(strengths)
         prs = nd.boltzmann(s_r, self.temperature)
         selection = nd.draw(prs, 1)
         s_a = s_r * selection
