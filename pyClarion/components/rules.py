@@ -7,7 +7,7 @@ __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule
 from ..base import numdicts as nd
 
-from typing import Mapping, TypeVar, Generic, Type
+from typing import Mapping, TypeVar, Generic, Type, overload
 from types import MappingProxyType
 from collections.abc import MutableMapping
 
@@ -135,11 +135,33 @@ class Rules(MutableMapping, Generic[Rt]):
 
             self.rules.resolve_update_requests()
 
+    @overload
+    def __init__(self: Rules[Rule]) -> None:
+        ...
+
+    @overload
+    def __init__(self: Rules[Rule], *, max_conds: int) -> None:
+        ...
+
+    @overload
+    def __init__(self, *, rule_type: Type[Rt]) -> None:
+        ...
+
+    @overload
+    def __init__(self, *, max_conds: int, rule_type: Type[Rt]) -> None:
+        ...
+
+    @overload
+    def __init__(
+        self, data: Mapping[rule, Rule], max_conds: int, rule_type: Type[Rt]
+    ) -> None:
+        ...
+
     def __init__(
         self, 
         data: Mapping[rule, Rule] = None,
         max_conds: int = None,
-        rule_type: Rt = None
+        rule_type: Type[Rt] = None
     ) -> None:
 
         if data is None:

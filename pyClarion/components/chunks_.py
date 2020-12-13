@@ -16,9 +16,8 @@ from .propagators import ThresholdSelector
 
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
-    List, Optional, TypeVar, Type, Generic, cast
+    List, Optional, TypeVar, Type, Generic, MutableMapping, cast, overload, Any, Dict
 )
-from collections.abc import MutableMapping
 from collections import namedtuple
 from statistics import mean
 from itertools import count
@@ -127,7 +126,7 @@ class Chunk(object):
 
 
 Ct = TypeVar("Ct", bound="Chunk")
-class Chunks(MutableMapping, Generic[Ct]):
+class Chunks(MutableMapping[chunk, Ct]):
     """
     A simple chunk database.
 
@@ -174,21 +173,34 @@ class Chunks(MutableMapping, Generic[Ct]):
 
             self.chunks.resolve_update_requests()
 
+    @overload
+    def __init__(self: Chunks[Chunk]) -> None:
+        ...
+
+    @overload
+    def __init__(self: Chunks[Ct], *, chunk_type: Type[Ct]) -> None:
+        ...
+
+    @overload
+    def __init__(self, data: Mapping[chunk, Ct], chunk_type: Type[Ct]) -> None:
+        ...
+
     def __init__(
-        self, 
+        self: Chunks[Ct], 
         data: Mapping[chunk, Ct] = None, 
         chunk_type: Type[Ct] = None
     ) -> None:
 
+        _data: Dict[chunk, Ct]
         if data is None:
-            data = dict()
+            _data = dict()
         else:
-            data = dict(data)
+            _data = dict(data)
 
-        self._data: MutableMapping[chunk, Ct] = data
+        self._data: MutableMapping[chunk, Ct] = _data
         self.Chunk = chunk_type if chunk_type is not None else Chunk
         
-        self._promises: MutableMapping[chunk, Chunk] = dict()
+        self._promises: MutableMapping[chunk, Ct] = dict()
         self._promises_proxy = MappingProxyType(self._promises)
         self._updater = type(self).Updater(self)
 
