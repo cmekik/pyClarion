@@ -12,7 +12,7 @@ __all__ = [
     "log", 
     "keep", "drop", "transform_keys",
     "threshold", "clip", "boltzmann", "draw",
-    "by", "sum_by", "max_by"
+    "by", "sum_by", "max_by",
     "ew_sum", "ew_mean", "ew_max", "ew_min",
     "constant", "freeze", "unfreeze", "is_close", "val_sum"
 ]
