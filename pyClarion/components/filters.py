@@ -86,7 +86,7 @@ class Gated(Propagator):
 
         w = inputs[self.gate][self.client]
         if self.invert:
-            w = 1.0 - w
+            w = 1 - w
 
         return w * output
 
@@ -144,7 +144,7 @@ class Filtered(Propagator):
 
         ws = inputs[self.sieve]
         if self.invert:
-            ws = ~ ws
+            ws = 1 - ws
 
         preprocessed = {}
         func = self.base.expects
@@ -211,7 +211,7 @@ class Pruned(Propagator):
 
         ws = inputs[self.sieve]
         if self.invert:
-            ws = ~ ws
+            ws = 1 - ws
 
         preprocessed = {}
         func = self.base.expects
@@ -220,7 +220,7 @@ class Pruned(Propagator):
             if src in self.exempt:
                 preprocessed[src] = d
             else:
-                preprocessed[src] = nd.FrozenNumDict(d, self._match)
+                preprocessed[src] = nd.drop(d, func=self._match)
 
         return MappingProxyType(preprocessed)
 

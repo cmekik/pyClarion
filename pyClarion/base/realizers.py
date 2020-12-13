@@ -5,7 +5,6 @@ __all__ = ["Realizer", "Construct", "Structure"]
 
 
 from .symbols import ConstructType, Symbol, ConstructRef, feature
-from .numdicts import FrozenNumDict
 from .components import (
     Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
 )

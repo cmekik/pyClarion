@@ -25,7 +25,7 @@ def collect_cmd_data(
     construct: Symbol, 
     inputs: Inputs, 
     controller: Tuple[subsystem, terminus]
-) -> nd.FrozenNumDict:
+) -> nd.NumDict:
     """
     Extract command data from inputs. 
     
@@ -110,8 +110,8 @@ class ParamSet(Propagator):
         interface: Interface,
     ) -> None:
 
-        self.store = nd.NumDict()
-        self.flags = nd.NumDict()
+        self.store = nd.MutableNumDict(default=0.0)
+        self.flags = nd.MutableNumDict(default=0.0)
 
         self.controller = controller
         self.interface = interface
@@ -145,17 +145,17 @@ class ParamSet(Propagator):
         elif val == self.interface.clear_val:
             self.clear_store()
         elif val == self.interface.update_val:
-            param_strengths = nd.restrict(data, self.interface.params)
+            param_strengths = nd.keep(data, keys=self.interface.params)
             self.update_store(param_strengths)
         elif val == self.interface.overwrite_val:
             self.clear_store()
-            param_strengths = nd.restrict(data, self.interface.params)
+            param_strengths = nd.keep(data, keys=self.interface.params)
             self.update_store(param_strengths)
         else:
             raise ValueError("Unexpected command value: {}.".format(repr(val)))
 
-        d = nd.NumDict()
-        strengths = nd.transform_keys(self.store, feature.tag.fget)
+        d = nd.MutableNumDict()
+        strengths = nd.transform_keys(self.store, func=feature.tag.fget)
         for construct in self.interface.clients:
             d[construct] = strengths[self.interface.func(construct)]
 
@@ -174,7 +174,7 @@ class ParamSet(Propagator):
         Write op is implemented using the max operation. 
         """
 
-        self.store |= strengths
+        self.store.max(strengths)
 
     def clear_store(self):
         """Clear any nodes stored in self."""
@@ -183,7 +183,7 @@ class ParamSet(Propagator):
 
     def update_flags(self, strengths):
 
-        self.flags |= strengths
+        self.flags.max(strengths)
 
     def clear_flags(self):
 
@@ -262,8 +262,8 @@ class Register(Propagator):
             set to true, received commands are outputted with a lag value of 1.
         """
 
-        self.store = nd.NumDict() 
-        self.flags = nd.NumDict()
+        self.store = nd.MutableNumDict(default=0.0) 
+        self.flags = nd.MutableNumDict(default=0.0)
 
         self.controller = controller
         self.source = source
@@ -312,10 +312,10 @@ class Register(Propagator):
         if len(self.store) == 0:
             self.flags[self.interface.null_flag] = 1.0
 
-        d = nd.NumDict(self.store)
-        d |= self.flags
+        d = nd.MutableNumDict(self.store, 0.0)
+        d.max(self.flags)
 
-        return nd.NumDict(d)
+        return d
 
     def update(self, inputs, output):
         """
@@ -333,7 +333,7 @@ class Register(Propagator):
         Write op is implemented using the max operation. 
         """
 
-        self.store |= strengths
+        self.store.max(strengths)
 
     def clear_store(self):
         """Clear any nodes stored in self."""
@@ -342,7 +342,7 @@ class Register(Propagator):
 
     def update_flags(self, strengths):
 
-        self.flags |= strengths
+        self.flags.max(strengths)
 
     def clear_flags(self):
 
@@ -524,8 +524,8 @@ class RegisterArray(Propagator):
         self.source = source
         self.interface = interface
 
-        self.flags = nd.NumDict()
-        self.gate = nd.NumDict()
+        self.flags = nd.MutableNumDict(default=0.0)
+        self.gate = nd.MutableNumDict(default=0.0)
         self.cells = tuple(
             Register(
                 controller=controller,
@@ -576,13 +576,13 @@ class RegisterArray(Propagator):
         if cmds[self.interface.reset_dim] == self.interface.reset_val:
             self.reset_cells()
 
-        d = nd.NumDict()
+        d = nd.MutableNumDict(default=0.0)
         for cell, dim in zip(self.cells, self.interface.read_dims):
             cell_strengths = cell.call(inputs)
             if cmds[dim] == self.interface.read_val:
-                d |= cell_strengths
+                d.max(cell_strengths)
 
-        d |= self.flags
+        d.max(self.flags)
         
         return d
 
@@ -609,7 +609,7 @@ class RegisterArray(Propagator):
 
     def update_flags(self, strengths):
 
-        self.flags |= strengths
+        self.flags.max(strengths)
 
     def clear_flags(self):
 

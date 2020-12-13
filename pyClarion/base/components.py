@@ -9,7 +9,7 @@ __all__ = [
 
 
 from .symbols import ConstructType, Symbol, feature, group_by_dims
-from .numdicts import NumDict, FrozenNumDict
+from .numdicts import D, NumDict, MutableNumDict
 
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
@@ -118,7 +118,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: Inputs) -> NumDict:
+    def call(self, inputs: Inputs) -> D:
         """
         Compute construct's output.
 
@@ -142,18 +142,20 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         pass
 
     @staticmethod
-    def emit(data: NumDict = None) -> FrozenNumDict:
+    def emit(data: D = None) -> NumDict:
         """
         Emit output.
 
-        If data is None, emits an empty frozen numdict. Otherwise, emits a 
-        frozen version of data.
+        If data is None, emits an empty numdict. Otherwise, emits a frozen 
+        version of data.
         """
 
-        d = data if data is not None else NumDict()
-        d.squeeze()
+        d = data if data is not None else NumDict(default=0.0)
 
-        return FrozenNumDict(d)
+        if isinstance(d, MutableNumDict):
+            d.squeeze(0.0)
+
+        return NumDict(d, default=0.0)
 
 
 class Cycle(Emitter):

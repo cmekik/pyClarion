@@ -38,7 +38,7 @@ class Rule(object):
             to condition weights.
         """
         
-        ws = nd.NumDict()
+        ws = nd.MutableNumDict()
         if weights is not None:
             ws.update(weights)
         ws.extend(conds, value=1.0)
@@ -48,7 +48,7 @@ class Rule(object):
             ws /= w_sum
 
         self._conc = conc
-        self._weights = nd.FrozenNumDict(ws)
+        self._weights = nd.freeze(ws)
 
     def __repr__(self):
 
@@ -87,7 +87,7 @@ class Rule(object):
         Implementation based on p. 60 and p. 73 of Anatomy of the Mind.
         """
 
-        weighted = nd.restrict(strengths, self.weights) * self.weights
+        weighted = nd.drop(strengths, keys=self.weights) * self.weights
         
         return nd.val_sum(weighted)
 
@@ -276,7 +276,7 @@ class AssociativeRules(Propagator):
 
     def call(self, inputs):
 
-        d = nd.NumDict()
+        d = nd.MutableNumDict(default=0.0)
         strengths = inputs[self.source]
         for r, form in self.rules.items():
             s_r = form.strength(strengths)
@@ -319,14 +319,14 @@ class ActionRules(Propagator):
 
         strengths = inputs[self.source]
 
-        s_r = nd.NumDict()
+        s_r = nd.MutableNumDict()
         for r, form in self.rules.items():
             s_r[r] = form.strength(strengths)
         prs = nd.boltzmann(s_r, self.temperature)
         selection = nd.draw(prs, 1)
         s_a = s_r * selection
 
-        d = nd.NumDict()
+        d = nd.MutableNumDict()
         for r in s_a:
             d[self.rules[r].conc] = max(d[self.rules[r].conc], s_a[r])
         d |= selection

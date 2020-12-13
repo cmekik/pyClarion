@@ -89,7 +89,7 @@ gate_interface = ParamSet.Interface(
 # In this particular simulation, we set our default action values to have a 
 # constant activation of 0.5
 
-default_strengths = nd.NumDict()
+default_strengths = nd.MutableNumDict()
 default_strengths.extend(gate_interface.defaults, value=0.5)
 
 # We initialize and populate chunk and rule databases as in 

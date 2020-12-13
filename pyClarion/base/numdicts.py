@@ -1,87 +1,399 @@
-"""
-Class and function definitions for numerical dictionaries.
-
-Numerical dictionaries (numdicts, for short) are, simply, dictionaries that map 
-keys to numerical values. They may be viewed as a generalization of the 
-dictionary-of-keys representation for sparse matirces in that no underlying 
-array structure is asssumed.
-
-This module exports the NumDict and FrozenNumDict classes and various functions 
-operating over these classes. NumDict and FrozenNumDict are both derived from 
-the helper class BaseNumDict and differ in that NumDict instances are mutable 
-while FrozenNumDict instances are not.
-
-All numdicts support several basic numerical operations like +, -, *, /, etc. 
-Some boolean operations are also supported. These are modeled after fuzzy set 
-theory: 
-    - ~ computes 1 - d[k] for each k in d, 
-    - & is min(d1[k], d2[k]) for each k in d1 or d2, 
-    - | is max(d1[k], d2[k]) for each k in d1 or d2 
-
-For binary ops applied to two numdicts, the resulting numdict inherits the type 
-of the left operand (similar to set/frozenset). If an operand in a binary op 
-is a constant numerical value, then that value is broadcast to all keys in the 
-other operand.
-
-Numdicts may have default values (and they do by default). Defaults are updated 
-appropriately when mathematical ops are applied. Querying a missing key simply 
-returns the default value (if it is defined), but the missing key is not added 
-to the queried numdict. If a numdict is mutable and missing keys should be 
-added when queried, the setdefault() method may be used.
-
-From an implementation point of view, numdicts are MutableMappings wrapping 
-plain dicts. When a key occurs in the wrapped dict, it is considered an 
-explicit member of the numdict. Containment checks against numdicts will only 
-succeed for explicit members. Note that d[key] may succeed for non-explicit 
-members if a default value is defined, in this case it is dangerous to use 
-d[key] to check for (explicit) membership.
-"""
+"""Definitions for numerical dictionaries with autodiff support."""
 
 
 __all__ = [
-    "NumDict", "FrozenNumDict", "restrict", "keep", "drop", "transform_keys", 
-    "group", "threshold", "clip", "isclose", "valuewise", "val_sum", 
-    "elementwise", "ew_sum", "ew_max", "boltzmann", "draw"
+    # types
+    "Op", "GradientOp", "D", 
+    # decorators for registering new ops
+    "op", "grad", 
+    # classes
+    "GradientTape", "NumDict", "MutableNumDict", 
+    # functions from here onward
+    "log", 
+    "keep", "drop", "transform_keys",
+    "threshold", "clip", "boltzmann", "draw",
+    "by", "sum_by", "max_by"
+    "ew_sum", "ew_mean", "ew_max", "ew_min",
+    "constant", "freeze", "unfreeze", "is_close", "val_sum"
 ]
 
-from .symbols import group_by
 
-from collections.abc import MutableMapping, Mapping
-from typing import TypeVar, Container, Callable, Hashable, Any, Type
+from typing import (
+    Mapping, Any, Hashable, TypeVar, Type, Optional, Callable, Iterable, Dict, 
+    List, Union, Tuple, Set, Container, overload, cast
+)
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from itertools import chain
-import operator
-import numbers
+from functools import wraps
 import math
 import random
-from pprint import pprint
+import operator
 
 
-class BaseNumDict(Mapping):
+# Types for defining differentiable ops and their gradients.
+
+Op = Callable[..., "NumDict"]
+GradientOp = Callable[..., Tuple["NumDict", ...]]
+
+# For a given mathematical operation, the type Op is for computing the 
+# forward pass and the type GradientOp is for computing the backward pass.
+
+# The argument signature of Op should roughly be 
+#   *inputs: NumDict, **kwds: Any
+# More precisely, inputs should be of length 1 at least and ops may be of 
+# fixed arity. Any required arguments that are not of type D should be set as 
+# named arguments.
+
+# Likewise, the argument signature of GradientOp should roughly be:
+#   grads: NumDict, *inputs: NumDict, **kwds: Any
+# Here, *inputs, **kwds are the same as for Op, corresponding exactly to the 
+# signature of the associated forward op. Finally, grads is the incoming 
+# gradient for the backward pass.
+
+# Mappings for recording and retrieving ops and their gradients. 
+OPS: Dict[str, Op] = {}
+GRADS: Dict[str, GradientOp] = {}
+
+# Context variable for storing active gradient tapes.
+TAPE: ContextVar = ContextVar("TAPE")
+
+
+class GradientTapeError(Exception):
+    """Raised when an inappropriate GradientTape event occurs."""
+    pass
+
+
+@dataclass
+class TapeCell(object):
+    """A gradient tape entry."""
+
+    value: "NumDict"
+    op: str = ""
+    operands: Tuple[int, ...] = ()
+    kwds: dict = field(default_factory=dict) 
+
+
+class GradientTape(object):
     """
-    Base class for numerical dictionaries.
+    A simple gradient tape.
 
-    Supports various mathematical ops. For details, see numdicts module 
-    description.
+    Tracks diffable ops and computes forward and backward passes. Does not 
+    support nesting.
     """
 
-    __slots__ = ("_dtype", "_dict", "_default")
+    # May support nesting and higher order derivatives. Investigate.
 
-    def __init__(self, data=None, dtype=float, default=0.0):
+    __slots__ = ("_tape", "_index", "_token", "_recording", "_persistent")
+
+    _tape: List[TapeCell] 
+    _index: Dict[int, int]
+    _token: Any
+    _recording: bool
+    _persistent: bool
+
+    def __init__(self, persistent: bool = False) -> None:
+
+        self._tape = []
+        self._index = {}
+        self._recording = False
+        self._persistent = persistent
+
+    def __enter__(self):
+
+        try:
+            TAPE.get()
+        except LookupError:
+            self._token = TAPE.set(self)
+            self._recording = True
+        else:
+            raise GradientTapeError("Cannot stack tapes.")
+        
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+
+        self._recording = False
+        TAPE.reset(self._token)
+    
+    @property
+    def persistent(self) -> bool:
+
+        return self._persistent
+
+    @property
+    def data(self) -> List[TapeCell]:
+
+        return self._tape
+
+    def reset(self) -> None:
+        """Reset tape."""
+
+        if self._recording:
+            raise GradientTapeError("Cannot reset while recording.")
+        else:
+            self._tape = []
+            self._index = {}
+
+    def register(
+        self, 
+        value: "NumDict", 
+        op: str = "", 
+        inputs: Tuple["NumDict", ...] = (), 
+        kwds: dict = None
+    ) -> None:
+
+        if not self._recording:
+            msg = "Cannot register object when not recording."
+            raise GradientTapeError(msg)
+
+        if kwds is None:
+            kwds = {}
+
+        # register any new operands
+        for numdict in inputs:
+            if id(numdict) not in self._index:
+                self.register(numdict)
+
+        operands = tuple(self._index[id(numdict)] for numdict in inputs)
+        cell = TapeCell(value, op, operands, kwds)
+        self._index[id(value)] = len(self._tape)
+        self._tape.append(cell)
+
+    def index(self, numdict: "NumDict") -> int:
+        """Return the tape index at which numdict is registered."""
+
+        return self._index[id(numdict)]
+
+    def forward(self, *indices: int) -> Union[Tuple["NumDict", ...], "NumDict"]:
+        """Perform a forward pass over the current tape."""
+
+        if self._recording:
+            msg = "Cannot compute forward pass while recording."
+            raise GradientTapeError(msg)
+        elif not self._persistent:
+            msg = "Forward pass is not enabled on non-persistent tape."
+            raise GradientTapeError(msg)
+
+        self._index.clear()
+        for i, entry in enumerate(self._tape):
+            if entry.op == "":
+                self._index[id(entry.value)] = i
+            else:
+                op = OPS[entry.op]
+                inputs = (self._tape[i].value for i in entry.operands)
+                output = op(*inputs, **entry.kwds) 
+                self._index[id(output)] = i
+                entry.value = output
+
+        values = tuple(self._tape[i].value for i in indices)
+
+        if len(values) == 1:
+            return values[0]
+        else:
+            return tuple(values)
+
+    def backward(
+        self, seed: int, indices: Set[int], seed_val: float = 1.0
+    ) -> Dict[int, "NumDict"]: 
+        """
+        Perform a backward pass over the current tape.
+
+        :param seed: Tape index seeding the backward pass.
+        :param variables: A set of tape indices to be treated as variables in 
+            the backward pass. Gradients will be calculated only for these 
+            variables.
+        :param seed_val: The seed value.
+        """
+
+        # Need to ensure correctness: the seed may not be a single value...
+        # Perhaps should assume, if not single value, that we are 
+        # differentiating against the sum. Need to think about correct 
+        # implementation.
+
+        if self._recording:
+            msg = "Cannot compute backward pass while recording."
+            raise GradientTapeError(msg)
+
+        delta = {seed: NumDict(default=seed_val)}
+        for i, entry in reversed(list(enumerate(self._tape))):
+            delta.setdefault(i, NumDict(default=0.0))
+            if entry.op:
+                grad_op = GRADS[entry.op]
+                inputs = (self._tape[k].value for k in entry.operands)
+                grads = grad_op(delta[i], *inputs, **entry.kwds) 
+                for j, k in enumerate(entry.operands):
+                    if k in indices or self._tape[k].op != "":
+                        delta.setdefault(k, NumDict(default=0.0))
+                        delta[k] += grads[j]
+
+        if not self.persistent:
+            self.reset()
+
+        return delta
+
+    @overload
+    def gradients(
+        self, output: "NumDict", variables: "NumDict"
+    ) -> Tuple["NumDict", "NumDict"]:
+        ...
+
+    @overload
+    def gradients(
+        self, output: "NumDict", variables: "NumDict", forward: bool
+    ) -> Tuple["NumDict", "NumDict"]:
+        ...
+
+    @overload
+    def gradients(
+        self, output: "NumDict", variables: Tuple["NumDict", ...]
+    ) -> Tuple["NumDict", Tuple["NumDict", ...]]:
+        ...
+
+    @overload
+    def gradients(
+        self, output: "NumDict", variables: Tuple["NumDict", ...], forward: bool
+    ) -> Tuple["NumDict", Tuple["NumDict", ...]]:
+        ...
+
+    def gradients(
+        self, 
+        output: "NumDict", 
+        variables: Union["NumDict", Tuple["NumDict", ...]], 
+        forward: bool = True
+    ) -> Tuple["NumDict", Union["NumDict", Tuple["NumDict", ...]]]:
+        """
+        Compute gradients of variables against output.
+
+        Accepts as variables a sequence of numdicts.
+
+        If variables contains only one element, will return a single value. 
+        Otherwise will return a tuple, with each element matching the 
+        corresponding variables entry.
+
+        :param output: Value against which to take gradients.
+        :param variables: A sequence of numdicts containing variable values for 
+            the backward pass. Gradients will be calculated only for these 
+            values.
+        :param forward: Whether to perform a forward pass prior to computing 
+            gradients if self is persistent. By default, True.
+        """
+
+        if self._recording:
+            msg = "Cannot compute gradients while recording."
+            raise GradientTapeError(msg)
+
+        index = self._index
+        seed = index[id(output)]
+        if isinstance(variables, tuple):
+            indices = set(index[id(var)] for var in variables)
+        else:
+            indices = {index[id(variables)]}
+        
+        if self._persistent and forward:
+            output = cast("NumDict", self.forward(seed))
+        grads = self.backward(seed, indices)
+
+        result: Union["NumDict", Tuple["NumDict", ...]]
+        if isinstance(variables, tuple):
+            return output, tuple(grads[index[id(var)]] for var in variables)
+        else:
+            return output, grads[index[id(variables)]]
+
+
+def _register(
+    value: "NumDict", op: str, inputs: Tuple["NumDict", ...], kwds: dict
+) -> None:
+
+    try:
+        tape = TAPE.get()
+    except LookupError:
+        pass # Maybe print a warning? - Can
+    else:
+        if value is not NotImplemented:
+            # _args must contain NumDicts only
+            _inputs = []
+            for x in inputs: 
+                if isinstance(x, NumDict):
+                    _input = x
+                else:
+                    _input = type(value)(default=x)
+                _inputs.append(_input)
+            tape.register(value, op, _inputs, kwds)
+
+
+def op(func: Op) -> Op:
+    """Decorator for registering differentiable mathematical ops."""
+
+    OPS[func.__qualname__] = func
+
+    @wraps(func)
+    def wrapper(*inputs: "NumDict", **kwds: Any) -> "NumDict":
+        """Compute op and register result in current active tape."""
+
+        output = func(*inputs, **kwds) 
+        _register(output, func.__qualname__, inputs, kwds)
+
+        return output
+    
+    return wrapper
+
+
+def grad(op: Op) -> Callable[[GradientOp], GradientOp]:
+    """Decorator for registering op gradient functions."""
+
+    def wrapper(func: GradientOp) -> GradientOp:
+
+        GRADS[op.__qualname__] = func
+
+        return func
+
+    return wrapper
+
+
+class NumDict(Mapping[Hashable, float]):
+    """
+    A numerical dictionary (immutable).
+
+    Maps keys to numerical values and supports various mathematical ops. 
+
+    May have a default value. Defaults are updated appropriately when 
+    mathematical ops are applied. Querying a missing key returns the default 
+    value (if it is defined), but the missing key is not added to the queried 
+    numdict. 
+
+    If a key is explicitly passed to a numdict, it is considered an explicit 
+    member of the numdict. If default value is defined, any key that is not an 
+    explicit member is considered an implicit member. Containment checks will 
+    only succeed for explicit members.
+    """
+
+    __slots__ = ("_dict", "_default")
+
+    _dict: Dict[Hashable, float]
+    _default: Optional[float]
+
+    def __init__(
+        self, 
+        data: Mapping[Hashable, Union[float, int]] = None, 
+        default: Union[float, int] = None
+    ) -> None:
+        """
+        Initialize a new NumDict instance.
+
+        :param data: Mapping from which to populate values of self.
+        :param default: Default value for keys not in self.
+        """
 
         if data is None:
             data = {}
 
-        self._dtype = dtype
-        self._dict = {k: self._cast(data[k]) for k in data}
-        self._default = self._cast(default) if default is not None else None
+        self._dict = {k: float(data[k]) for k in data}
+        self._default = float(default) if default is not None else None
 
     @property
-    def dtype(self):
-
-        return self._dtype
-
-    @property
-    def default(self):
+    def default(self) -> Optional[float]:
+        """Default value of NumDict instance."""
 
         return self._default
 
@@ -109,14 +421,20 @@ class BaseNumDict(Mapping):
         """
         Return True iff key is explicitly set in self.
 
-        Warning, if a self.default is not None, self[key] may return a value 
+        Warning: If self.default is not None, self[key] may return a value 
         when `key in self` returns False. Do not use self[key] to check for 
         containment.
         """
 
         return key in self._dict
 
-    def __getitem__(self, key):
+    def __getitem__(self, key) -> float:
+        """
+        Return the value explicitly or implicitly associated with key.
+
+        Note that self[key] will succeed for implicit members. It is dangerous 
+        to use d[key] to check for (explicit) membership.
+        """
 
         try:
             return self._dict[key]
@@ -126,105 +444,155 @@ class BaseNumDict(Mapping):
             else:
                 return self._default
 
-    def __neg__(self):
+    def __neg__(self) -> "NumDict":
 
-        return self.apply_unary_op(operator.neg)
+        return self.unary(operator.neg)
 
-    def __abs__(self):
+    __neg__ = op(__neg__)
 
-        return self.apply_unary_op(operator.abs)
+    @staticmethod
+    @grad(__neg__)
+    def _grad_neg(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-    def __invert__(self):
+        return (constant(d, -1.0),)
 
-        return self.apply_unary_op(self._inv)
+    def __abs__(self) -> "NumDict":
 
-    def __lt__(self, other):
+        return self.unary(operator.abs)
+    
+    __abs__ = op(__abs__)
 
-        return self.apply_binary_op(other, operator.lt)
+    @staticmethod
+    @grad(__abs__)
+    def _abs_grad(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-    def __le__(self, other):
+        return (2 * (d > 0) - 1,)
 
-        return self.apply_binary_op(other, operator.le)
+    def __eq__( # type: ignore[override]
+        self, other: Union["NumDict", float, int]
+    ) -> "NumDict":
 
-    def __gt__(self, other):
+        return self.binary(other, operator.eq)
 
-        return self.apply_binary_op(other, operator.gt)
+    def __ne__( # type: ignore[override]
+        self, other: Union["NumDict", float, int]
+    ) -> "NumDict":
 
-    def __ge__(self, other):
+        return self.binary(other, operator.ne)
 
-        return self.apply_binary_op(other, operator.ge)
-   
-    def __add__(self, other):
+    def __lt__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return self.apply_binary_op(other, operator.add)
+        return self.binary(other, operator.lt)
 
-    def __sub__(self, other):
+    def __le__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return self.apply_binary_op(other, operator.sub)
+        return self.binary(other, operator.le)
 
-    def __mul__(self, other):
+    def __gt__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return self.apply_binary_op(other, operator.mul)
+        return self.binary(other, operator.gt)
 
-    def __truediv__(self, other):
+    def __ge__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return self.apply_binary_op(other, operator.truediv)
+        return self.binary(other, operator.ge)
 
-    def __pow__(self, other):
+    def __add__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return self.apply_binary_op(other, operator.pow)
+        return self.binary(other, operator.add)
 
-    def __and__(self, other):
+    __add__ = op(__add__)
 
-        return self.apply_binary_op(other, min)
-
-    def __or__(self, other):
-
-        return self.apply_binary_op(other, max)
-
-    def __radd__(self, other):
-
-        return self.apply_binary_op(other, operator.add)
-
-    def __rsub__(self, other):
-
-        return operator.neg(self) + other
-
-    def __rmul__(self, other):
-
-        return self.apply_binary_op(other, operator.mul)
-
-    def __rtruediv__(self, other):
-
-        return self.apply_binary_op(other, self._rtruediv)
-
-    def __rpow__(self, other):
-
-        return self.apply_binary_op(other, self._rpow)
-
-    def __rand__(self, other):
-
-        return self.apply_binary_op(other, min)
-
-    def __ror__(self, other):
-
-        return self.apply_binary_op(other, max)
-
-    def by(self, keyfunc, op):
-        """
-        Compute op over elements grouped by keyfunc.
+    @staticmethod
+    @grad(__add__)
+    def _grad_add(grads, d1, d2):
         
-        Key should be a function mapping each key in self to a grouping key.
-        """
+        return (grads * constant(d1, 1), grads * constant(d2, 1))    
 
-        d = {}
-        for k, v in self.items():
-            d.setdefault(keyfunc(k), []).append(v)
-        mapping = {k: op(v) for k, v in d.items()}
+    def __sub__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
-        return type(self)(mapping, self.dtype, self.default)
+        return self.binary(other, operator.sub)
 
-    def apply_unary_op(self, op):
+    __sub__ = op(__sub__)
+
+    @staticmethod
+    @grad(__sub__)
+    def _grad_sub(grads, d1, d2):
+        
+        return (grads * constant(d1, 1), grads * constant(d2, -1))
+
+    def __mul__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self.binary(other, operator.mul)
+
+    __mul__ = op(__mul__)
+
+    @staticmethod
+    @grad(__mul__)
+    def _grad_mul(grads, d1, d2):
+
+        return (grads * d2, grads * d1)
+
+    def __truediv__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self.binary(other, operator.truediv)
+
+    __truediv__ = op(__truediv__)
+
+    @staticmethod
+    @grad(__truediv__)
+    def _grad_truediv(grads, d1, d2):
+
+        return (grads / d2, grads * (- d1) / (d2 ** 2))
+
+    def __pow__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self.binary(other, operator.pow)
+
+    __pow__ = op(__pow__)
+
+    @staticmethod
+    @grad(__pow__)
+    def _grad_pow(grads, d1, d2):
+
+        return (grads * d2 * (d1 ** (d2 - 1)), grads * log(d1) * (d1 ** d2))
+
+    def __radd__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self + other
+
+    def __rsub__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return (- self) + other
+
+    def __rmul__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self * other
+
+    def __rtruediv__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self.binary(other, self._rtruediv)
+
+    __rtruediv__ = op(__rtruediv__)
+
+    @staticmethod
+    @grad(__rtruediv__)
+    def _grad_rtruediv(grads, d1, d2): # TODO: check correctness! - Can
+
+        return (grads * (- d2) / (d1 ** 2), grads / d1) 
+
+    def __rpow__(self, other: Union["NumDict", float, int]) -> "NumDict":
+
+        return self.binary(other, self._rpow)
+
+    __rpow__ = op(__rpow__)
+
+    @staticmethod
+    @grad(__rpow__)
+    def _grad_rpow(grads, d1, d2): # TODO: check correctness! - Can
+
+        return (grads * log(d2) * (d2 ** d1), grads * d1 * (d2 ** (d1 - 1)))
+
+    def unary(self, op: Callable[[float], float]) -> "NumDict":
         """
         Apply op to each element of self.
 
@@ -232,15 +600,20 @@ class BaseNumDict(Mapping):
         """
 
         mapping = {k: op(self._dict[k]) for k in self}
-        
+
+        default: Optional[float]
         if self.default is not None:
             default = op(self.default)
         else:
             default = None
 
-        return type(self)(mapping, self.dtype, default)
+        return NumDict(mapping, default)
 
-    def apply_binary_op(self, other, op):
+    def binary(
+        self, 
+        other: Union["NumDict", float, int], 
+        op: Callable[[float, float], float]
+    ) -> "NumDict":
         """
         Apply binary op to each element of self and other.
 
@@ -252,48 +625,26 @@ class BaseNumDict(Mapping):
         op(self_default, other_default). Otherwise no default is defined.
         """
 
-        if isinstance(other, BaseNumDict):
-            if self._dtype_matches(other.dtype): 
-                keys = set(self.keys()) | set(other.keys())
-                mapping = {k: op(self[k], other[k]) for k in keys}
-                if self.default is None:
-                    default = None
-                elif other.default is None:
-                    default = None
-                else:
-                    default = op(self.default, other.default)
-                return type(self)(mapping, self.dtype, default)
-            else:
-                return NotImplemented
-        elif self._dtype_matches(type(other)):
-            keys = self.keys()
-            mapping = {k: op(self[k], other) for k in keys}
-            if self.default is None:
-                default = None
-            else: 
-                default = op(self.default, other)
-            return type(self)(mapping, self.dtype, default)
+        _other: "NumDict"
+        if isinstance(other, (float, int)):
+            _other = NumDict(default=other)
+        elif isinstance(other, NumDict):
+            _other = cast(NumDict, other)
         else:
             return NotImplemented
 
-    def _cast(self, val):
+        keys = set(self.keys()) | set(_other.keys())
+        mapping = {k: op(self[k], _other[k]) for k in keys}
 
-        if type(val) != self.dtype:
-            return self.dtype(val)
+        default: Optional[float]    
+        if self.default is None:
+            default = None
+        elif _other.default is None:
+            default = None
         else:
-            return val
-
-    def _dtype_matches(self, dtype):
-
-        if self.dtype == dtype:
-            return True
-        else:
-            return False
+            default = op(self.default, _other.default)
         
-    @staticmethod
-    def _inv(x):
-
-        return 1.0 - x
+        return NumDict(mapping, default)
 
     @staticmethod
     def _rtruediv(a, b):
@@ -306,110 +657,90 @@ class BaseNumDict(Mapping):
         return b ** a
 
 
-class FrozenNumDict(BaseNumDict, Mapping):
-    """
-    A frozen numerical dictionary.
-
-    Supports various mathematical ops, but not in-place opreations. For 
-    details, see numdicts module description.
-    """
-
-    __slots__ = ()
-
-
-class NumDict(BaseNumDict, MutableMapping):
-    """
-    A mutable numerical dictionary.
-
-    Supports various mathematical ops, including in-place operations. For 
-    details, see numdicts module description.
-    """
+class MutableNumDict(NumDict):
 
     __slots__ = ()
 
     @property
-    def default(self):
+    def default(self) -> Optional[float]:
+        """Default value of NumDict instance."""
 
         return self._default
 
     @default.setter
-    def default(self, val):
+    def default(self, val: Union[float, int]):
 
-        if val is None:
-            self._default = None 
-        else: 
-            self._default = self._cast(val)
+        self._default = float(val)
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Hashable, val: Union[float, int]) -> None:
 
-        self._dict[key] = self._cast(val)
+        self._dict[key] = float(val)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Hashable) -> None:
 
         del self._dict[key]
 
-    def __iadd__(self, other):
+    def __iadd__(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
 
-        return self.apply_iop(other, operator.add)
+        return self._inplace(other, operator.add)
 
-    def __isub__(self, other):
+    def __isub__(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
 
-        return self.apply_iop(other, operator.sub)
+        return self._inplace(other, operator.sub)
 
-    def __imul__(self, other):
+    def __imul__(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
 
-        return self.apply_iop(other, operator.mul)
+        return self._inplace(other, operator.mul)
 
-    def __itruediv__(self, other):
+    def __itruediv__(
+        self, other: Union[NumDict, float, int]
+    ) -> "MutableNumDict":
 
-        return self.apply_iop(other, operator.truediv)
+        return self._inplace(other, operator.truediv)
 
-    def __ipow__(self, other):
+    def __ipow__(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
 
-        return self.apply_iop(other, operator.pow)
+        return self._inplace(other, operator.pow)
 
-    def __iand__(self, other):
+    def max(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
+        """Compute elementwise maximums in-place and return self."""
 
-        return self.apply_iop(other, min)
+        return self._inplace(other, max)
 
-    def __ior__(self, other):
+    def min(self, other: Union[NumDict, float, int]) -> "MutableNumDict":
+        """Compute elementwise minimums in-place and return self."""
 
-        return self.apply_iop(other, max)
+        return self._inplace(other, min)
 
-    def setdefault(self, key, default=None):
+    def update(self, mapping):
+        """Update self with keys and values of mapping."""
+
+        for k, v in mapping.items():
+            self.__setitem__(k, v)
+
+    def clear(self):
+        """Remove all explicit members of self."""
+
+        self._dict.clear()
+
+    def squeeze(self, default: float = None):
         """
-        Return self[key]; on failure, return default and set it as value of key. 
+        Drop explicit values that are close to self.default (inplace).
         
-        If default is None, but self.default is defined, will return 
-        self.default and set self[key] = self.default. If no default is 
-        available, will throw a value error.
+        :param default: Default value to assume, if self.default is None. If 
+            provided when self.default is defined, will be ignored.
         """
 
-        if key in self:
-            return self[key]
+        if self.default is not None:
+            default = self.default
+        elif default is not None:
+            pass
         else:
-            if default is not None:
-                self[key] = default
-            elif default is None and self.default is not None:
-                default = self.default
-                self[key] = default
-            else: 
-                raise ValueError("No default value specified.")
-            return default
-
-    def squeeze(self):
-        """
-        Drop values that are close to self.default.
-        
-        Inplace operation.
-        """
-
-        if self.default is None:
             raise ValueError("Cannot squeeze numdict with no default.")
 
         keys = list(self.keys())
         for k in keys:
-            if math.isclose(self[k], self.default):
+            if math.isclose(self[k], default):
                 del self[k]
 
     def extend(self, *iterables, value=None):
@@ -420,8 +751,8 @@ class NumDict(BaseNumDict, MutableMapping):
 
         For each item in the union of iterables, if the item does not already 
         have a set value in self, sets the item to have value `value`, which, 
-        if None is passed, defaults to self.default, if defined, and 
-        self.dtype() otherwise.
+        if None is passed, defaults to self.default, if defined, and 0.0 
+        otherwise.
         """
 
         if value is not None:
@@ -429,38 +760,44 @@ class NumDict(BaseNumDict, MutableMapping):
         elif self.default is not None:
             v = self.default
         else:
-            v = self.dtype()
+            v = 0.0
 
         for k in chain(*iterables):
             if k not in self:
                 self[k] = v
 
-    def keep(self, func):
+    def keep(self, func=None, keys=None):
         """
-        Keep only the keys that are mapped to True by func.
-        
-        Inplace operation.
+        Keep only the desired keys as explicit members (inplace).
 
-        Keys are kept iff func(key) is True.
+        Keys are kept iff func(key) is True or key in container is True.
         """
+
+        if func is None and keys is None:
+            raise ValueError("Must pass at least one of func or keys.")
 
         keys = list(self.keys())
         for key in keys:
-            if not func(key):
+            keep = func is not None and func(key)
+            keep |= keys is not None and key in keys
+            if not keep:
                 del self[key]
 
-    def drop(self, func):
+    def drop(self, func=None, keys=None):
         """
-        Drop all keys that are mapped to True by func.
-        
-        Inplace operation.
+        Drop unwanted explicit members (inplace).
 
-        Keys are dropped iff func(key) is True.
+        Keys are dropped iff func(key) is True or key in container is True.
         """
+
+        if func is None and keys is None:
+            raise ValueError("Must pass at least one of func or keys.")
 
         keys = list(self.keys())
         for key in keys:
-            if func(key):
+            drop = func is not None and func(key)
+            drop |= keys is not None and key in container
+            if drop:
                 del self[key]
 
     def set_by(self, other, keyfunc):
@@ -469,39 +806,38 @@ class NumDict(BaseNumDict, MutableMapping):
         for k in self:
             self[k] = other[keyfunc(k)]
 
-    def apply_iop(self, other, op):
+    def _inplace(
+        self, other: Union[NumDict, float], op: Callable[[float, float], float]
+    ) -> "MutableNumDict":
         """
         Apply binary op in place.
         
-        Will attempt to coerce values of other to self.dtype. Defaults will be 
-        updated as appropriate. In particular, if either self or other has no 
-        default, self will have no default. Otherwise, the new default is 
-        op(self.default, other.default).
+        Defaults will be updated as appropriate. In particular, if either self 
+        or other has no default, self will have no default. Otherwise, the new 
+        default is op(self.default, other.default).
         """
 
-        if isinstance(other, BaseNumDict):
-            if self._dtype_matches(other.dtype):
-                keys = set(self.keys()) | set(other.keys())
-                for k in keys:
-                    self[k] = op(self[k], other[k])
-                if self.default is None:
-                    default = None
-                elif other.default is None:
-                    default = None
-                else:
-                    default = op(self.default, other.default) 
-                self.default = default
-                return self
-            else:
-                return NotImplemented
-        elif self._dtype_matches(type(other)):
-            for k, v in self.items():
-                self[k] = op(v, other)
-            if self.default is not None:
-                self.default = op(self.default, other)
-            return self
+        _other: NumDict
+        if isinstance(other, (float, int)):
+            _other = NumDict(default=other)
+        elif isinstance(other, NumDict):
+            _other = cast(NumDict, other)
         else:
             return NotImplemented
+
+        keys = set(self.keys()) | set(_other.keys())
+        for k in keys:
+            self[k] = op(self[k], _other[k])
+        
+        if self.default is None:
+            default = None
+        elif _other.default is None:
+            default = None
+        else:
+            default = op(self.default, _other.default) 
+        self._default = default
+        
+        return self
 
 
 #################
@@ -509,71 +845,88 @@ class NumDict(BaseNumDict, MutableMapping):
 #################
 
 
-D = TypeVar("D", bound=BaseNumDict)
-D1 = TypeVar("D1", bound=BaseNumDict)
-D2 = TypeVar("D2", bound=BaseNumDict)
+D = Union[MutableNumDict, NumDict]
 
 
-def astype(d: D, dtype: Type) -> D:
-    """Return a copy of self with contents cast to dtype."""
-
-    return type(d)(d._dict, dtype, d.default)
+### Basic Ops ###
 
 
-def restrict(d: D, container: Container) -> D:
-    """Return a numdict whose keys are restricted by container."""
+def _log(x):
 
-    mapping = {k: d[k] for k in d if k in container}
-
-    return type(d)(mapping, d.dtype, d.default)
-
-
-def keep(d: D, func: Callable[..., bool]):
-    """Return a copy of d keeping only the keys mapped to True by func."""
-
-    mapping = {k: d[k] for k in d if func(k)}
-
-    return type(d)(mapping, d.dtype, d.default)
+    try:
+        return math.log(x)
+    except ValueError:
+        return float("nan")
 
 
-def drop(d: D, func: Callable[..., bool]):
-    """Return a copy of d dropping the keys mapped to True by func."""
+@op
+def log(d: Union[NumDict, MutableNumDict]) -> NumDict:
+    
+    return d.unary(_log)
 
-    mapping = {k: d[k] for k in d if func(k)}
+@grad(log)
+def _grad_log(grads: NumDict, d: D) -> Tuple[NumDict]:
 
-    return type(d)(mapping, d.dtype, d.default)
+    return (grads / d,)
 
 
-def transform_keys(d: D, func: Callable[..., Hashable], *args, **kwds) -> D:
+def keep(
+    d: D, func: Callable[..., bool] = None, keys: Container = None
+) -> NumDict:
     """
-    Return a copy of d where each key is mapped to func(key, *args, **kwds).
-
-    Warning: If function is not one-to-one wrt keys, output will be 
-    corrupted. This is not checked.
+    Return a copy of d keeping only the desired keys. 
+    
+    Keys are kept iff func(key) is True or key in container is True.
     """
 
-    mapping = {func(k, *args, **kwds): d[k] for k in d}
+    if func is None and keys is None:
+        raise ValueError("At least one of func or keys must not be None.")
 
-    return type(d)(mapping, d.dtype, d.default)
+    mapping = {
+        k: d[k] for k in d 
+        if (func is not None and func(k)) or (keys is not None and k in keys)
+    }
+
+    return NumDict(mapping, d.default)
 
 
-def group(d: D, func: Callable[..., Hashable], *args, **kwds) -> D:
+def drop(
+    d: D, func: Callable[..., bool] = None, keys: Container = None
+) -> NumDict:
     """
-    Return a nested numdict where the keys of d are grouped by func.
-
-    The function func is assumed to be a grouping function, s.t. for each key in 
-    d, func(key, *args, **kwds) returns a group key.
+    Return a copy of d dropping unwanted keys. 
+    
+    Keys are dropped iff func(key) is True or key in container is True.
     """
 
-    grouped = group_by(d.keys(), func)
-    mapping = {}
-    for k, g in grouped.items():
-        mapping[k] = type(d)({x: d[x] for x in g}, d.dtype, d.default)
+    if func is None and keys is None:
+        raise ValueError("At least one of func or keys must not be None.")
 
-    return type(d)(mapping, type(d), None)
+    mapping = {
+        k: d[k] for k in d 
+        if (func is not None and not func(k)) or 
+        (keys is not None and k not in keys)
+    }
+
+    return NumDict(mapping, d.default)
 
 
-def threshold(d: D, th: numbers.Number) -> D:
+def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
+    """
+    Return a copy of d where each key is mapped to func(key, **kwds).
+
+    Warning: If function is not one-to-one wrt keys, will raise ValueError.
+    """
+
+    mapping = {func(k, **kwds): d[k] for k in d}
+
+    if len(d) != len(mapping):
+        raise ValueError("Func must be one-to-one on keys of arg d.")
+
+    return NumDict(mapping, d.default)
+
+
+def threshold(d: D, *, th: float) -> NumDict:
     """
     Return a copy of d containing only values above theshold.
     
@@ -584,60 +937,121 @@ def threshold(d: D, th: numbers.Number) -> D:
     if d.default is not None:
         default = d.default if th < d.default else None 
 
-    return type(d)(mapping, d.dtype, default)
+    return NumDict(mapping, default)
 
 
-def clip(d: D, low: numbers.Number = None, high: numbers.Number = None) -> D:
+def clip(d: D, low: float = None, high: float = None) -> NumDict:
     """
     Return a copy of d with values clipped.
     
     dtype must define +/- inf values.
     """
 
-    low = low or d.dtype("-inf")
-    high = high or d.dtype("inf")
+    low = low or float("-inf")
+    high = high or float("inf")
 
     mapping = {k: max(low, min(high, d[k])) for k in d}
 
-    return type(d)(mapping, d.dtype, d.default)
+    return NumDict(mapping, d.default)
 
 
-def isclose(d1: D1, d2: D2) -> bool:
-    """Return True if self is close to other in values."""
+def boltzmann(d: D, t: float) -> NumDict:
+    """Construct a boltzmann distribution from d with temperature t."""
+
+    output = MutableNumDict(default=0.0)
+    if len(d) > 0:
+        numerators = math.e ** (d / t)
+        denominator = val_sum(numerators)
+        output.max(numerators / denominator)
+
+    return NumDict(output)
+
+
+def draw(d: D, k: int=1, val=1.0) -> NumDict:
+    """
+    Draw k keys from numdict without replacement.
     
-    _d = d1.apply_binary_op(d2, math.isclose)
-
-    return all(_d.values())
-
-
-def valuewise(op, d: D) -> Any:
-    """
-    Apply op to values of d.
-
-    Output inherits dtype of d.
+    If k >= len(d), returns a selection of all elements in d. Sampled elements 
+    are given a value of 1.0 by default. Output inherits type, dtype and 
+    default values from d.
     """
 
-    v = d.dtype()
-    for item in d.values():
-        v = op(v, item)
+    pr = MutableNumDict(d)
+    output = MutableNumDict()
+    if len(d) > k:
+        while len(output) < k:
+            cs, ws = tuple(zip(*pr.items()))
+            choices = random.choices(cs, weights=ws)
+            output.extend(choices, value=val)
+            pr.keep(output.__contains__)
+    else:
+        output.extend(d, value=val)
+    
+    return NumDict(output, d.default)
 
-    return v
+
+### By Ops ###
 
 
-def val_sum(d: D) -> Any:
-    """Return the sum of the values of d."""
-
-    return valuewise(operator.add, d)
-
-
-def elementwise(op, *ds: D, dtype=None) -> D:
+def by(
+    d: D, 
+    op: Callable[..., float],
+    keyfunc: Callable[..., Hashable], 
+    **kwds: Any
+) -> NumDict:
     """
-    Apply op element wise to sequence of numdicts ds.
+    Compute op over elements grouped by keyfunc.
+    
+    Key should be a function mapping each key in self to a grouping key. New 
+    keys are determined based on the result of keyfunc(k, **kwds), where 
+    k is a key from d. 
+    """
+
+    _d: Dict[Hashable, List[float]] = {}
+    for k, v in d.items():
+        _d.setdefault(keyfunc(k, **kwds), []).append(v)
+    mapping = {k: op(v) for k, v in _d.items()}
+
+    return NumDict(mapping, d.default)
+
+
+@op
+def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
+    """
+    Sum the values of d grouped by keyfunc.
+    
+    Maps each l in the range of keyfunc to the sum of all d[k] such that 
+    keyfunc(k) is equal to l. See by() for further details.
+    """
+
+    return by(d, sum, keyfunc, **kwds)
+
+@grad(sum_by)
+def _grad_sum_by(grads, d, *, keyfunc):
+
+    return (NumDict({k: grads[keyfunc(k)] for k in d}),)
+
+
+def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
+    """
+    Find maximum values in d grouped by keyfunc.
+    
+    Maps each l in the range of keyfunc to the max of all d[k] such that 
+    keyfunc(k) is equal to l. See by() for further details.
+    """
+
+    return by(d, max, keyfunc, **kwds)
+
+
+### Elementwise Variadic Ops ###
+
+
+def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
+    """
+    Apply op elementwise to a sequence of numdicts.
     
     Value of dtype is inherited from the first d if None is passed.
     """
-
-    _dtype = dtype or ds[0].dtype
 
     keys: set = set()
     keys.update(*ds)
@@ -649,59 +1063,99 @@ def elementwise(op, *ds: D, dtype=None) -> D:
         for k in keys:
             grouped.setdefault(k, []).append(d[k])
 
-    return type(d)({k: op(grouped[k]) for k in grouped}, _dtype, op(defaults))
+    return NumDict({k: op(grouped[k]) for k in grouped}, op(defaults))
 
 
-def ew_sum(*ds: D, dtype=None) -> D:
+def ew_sum(*ds: D) -> NumDict:
     """
     Elementwise sum of values in ds.
     
     Wraps elementwise().
     """
 
-    return elementwise(sum, *ds, dtype=None)
+    return elementwise(sum, *ds)
 
 
-def ew_max(*ds: D, dtype=None)  -> D:
+def ew_mean(*ds: D) -> NumDict:
+    """
+    Elementwise sum of values in ds.
+    
+    Wraps elementwise().
+    """
+
+    return elementwise(sum, *ds) / len(ds)
+
+
+def ew_max(*ds: D)  -> NumDict:
     """
     Elementwise maximum of values in ds.
     
     Wraps elementwise().
     """
 
-    return elementwise(max, *ds, dtype=None)
+    return elementwise(max, *ds)
 
 
-def boltzmann(d: D, t: float) -> D:
-    """Construct a boltzmann distribution from d with temperature t."""
-
-    output = NumDict()
-    if len(d) > 0:
-        numerators = math.e ** (d / t)
-        denominator = val_sum(numerators)
-        output |= numerators / denominator
-
-    return type(d)(output)
-
-
-def draw(d: D, k: int=1, val=1.0) -> D:
+def ew_min(*ds: D) -> NumDict:
     """
-    Draw k keys from numdict without replacement.
+    Elementwise maximum of values in ds.
     
-    If k >= len(d), returns a selection of all elements in d. Sampled elements 
-    are given a value of 1.0 by default. Output inherits type, dtype and 
-    default values from d.
+    Wraps elementwise().
     """
 
-    pr = NumDict(d)
-    output = NumDict()
-    if len(d) > k:
-        while len(output) < k:
-            cs, ws = tuple(zip(*pr.items()))
-            choices = random.choices(cs, weights=ws)
-            output.extend(choices, value=val)
-            pr.keep(output.__contains__)
+    return elementwise(min, *ds)
+
+
+### Non-differentiable functions ###
+
+
+def constant(d: D, value: float) -> NumDict:
+    """Return a copy of d where all values are set to a constant."""
+
+    mapping = {k: value for k in d._dict}
+
+    default: Optional[float]
+    if d.default is not None:
+        default = value
     else:
-        output.extend(d, value=val)
+        default = None
+
+    return type(d)(mapping, default)
+
+
+def freeze(d: MutableNumDict) -> NumDict:
+    """Return a frozen copy of d."""
+
+    return NumDict(d, d.default)
+
+
+def unfreeze(d: NumDict) -> MutableNumDict:
+    """Return a mutable copy of d."""
+
+    return MutableNumDict(d, d.default)
+
+
+def isclose(d1: D, d2: D) -> bool:
+    """Return True if self is close to other in values."""
     
-    return type(d)(output, d.dtype, d.default)
+    _d = d1.binary(d2, math.isclose)
+
+    return all(_d.values())
+
+
+def valuewise(
+    op: Callable[[float, float], float], d: D, initial: float
+) -> float:
+    """Recursively apply commutative binary op to values of d."""
+
+    v = initial
+    for item in d.values():
+        v = op(v, item)
+
+    return v
+
+
+def val_sum(d: D) -> Any:
+    """Return the sum of the values of d."""
+
+    return valuewise(operator.add, d, 0.0)

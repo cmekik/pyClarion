@@ -43,12 +43,9 @@ class MaxNodes(Propagator):
 
     def call(self, inputs):
 
-        d = nd.NumDict()
-        for strengths in inputs.values():
-            d |= strengths
-        d.keep(self._filter)
+        d = nd.ew_max(*inputs.values())
 
-        return d
+        return nd.keep(d, func=self._filter)
 
     def _filter(self, f):
 
@@ -78,7 +75,7 @@ class Repeater(Propagator):
 
     def call(self, inputs):
 
-        return nd.NumDict(inputs[self.source])
+        return inputs[self.source]
 
 
 class Lag(Propagator):
@@ -104,9 +101,8 @@ class Lag(Propagator):
 
     def call(self, inputs):
 
-        d = nd.NumDict(inputs[self.source])
-        d = nd.transform_keys(d, lag, val=1)
-        d.keep(self._filter)
+        d = nd.transform_keys(inputs[self.source], func=lag, val=1)
+        d = nd.keep(d, func=self._filter)
 
         return d
 
@@ -141,9 +137,7 @@ class ThresholdSelector(Propagator):
 
     def call(self, inputs):
 
-        d = nd.NumDict(inputs[self.source])
-
-        return nd.threshold(d, self.threshold) 
+        return nd.threshold(inputs[self.source], self.threshold) 
 
 
 class BoltzmannSelector(Propagator):
@@ -174,8 +168,8 @@ class BoltzmannSelector(Propagator):
         Boltzmann distribution.
         """
 
-        strengths = nd.NumDict(inputs[self.source])
-        thresholded = nd.threshold(strengths, self.threshold) 
+        strengths = inputs[self.source]
+        thresholded = nd.threshold(strengths, th=self.threshold) 
         probabilities = nd.boltzmann(thresholded, self.temperature)
         d = nd.draw(probabilities, 1)
 
@@ -220,10 +214,12 @@ class ActionSelector(Propagator):
         """
 
         strengths = inputs[self.source]
+        params = self.client_interface.params
+        cmds_by_dims = self.client_interface.cmds_by_dims
 
-        d = nd.NumDict({f: strengths[f] for f in self.client_interface.params})
+        d = nd.MutableNumDict({f: strengths[f] for f in params})
 
-        for dim, fs in self.client_interface.cmds_by_dims.items():
+        for dim, fs in cmds_by_dims.items():
             ipt = nd.NumDict({f: strengths[f] for f in fs})
             prs = nd.boltzmann(ipt, self.temperature)
             selection = nd.draw(prs, 1)
@@ -249,7 +245,7 @@ class Constants(Propagator):
 
     def __init__(self, strengths = None) -> None:
 
-        self.strengths = nd.NumDict(strengths) or nd.NumDict()
+        self.strengths = strengths or nd.NumDict(default=0.0)
 
     @property
     def expected(self):
@@ -264,12 +260,12 @@ class Constants(Propagator):
     def update_strengths(self, strengths):
         """Update self with contents of dict-like strengths."""
 
-        self.strengths.update(strengths)
+        self.strengths = strengths
 
     def clear(self) -> None:
         """Clear stored node strengths."""
 
-        self.strengths.clear()
+        self.strengths = nd.NumDict(default=0.0)
 
 
 class Stimulus(Propagator):
@@ -279,7 +275,7 @@ class Stimulus(Propagator):
 
     def __init__(self):
 
-        self.stimulus = nd.NumDict()
+        self.stimulus = nd.MutableNumDict()
 
     @property
     def expected(self):
@@ -293,6 +289,6 @@ class Stimulus(Propagator):
     def call(self, inputs):
 
         d = self.stimulus
-        self.stimulus = nd.NumDict()
+        self.stimulus = nd.MutableNumDict()
 
         return d

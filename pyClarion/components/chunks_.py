@@ -16,7 +16,7 @@ from .propagators import ThresholdSelector
 
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
-    List, Optional, TypeVar, Type, Generic
+    List, Optional, TypeVar, Type, Generic, cast
 )
 from collections.abc import MutableMapping
 from collections import namedtuple
@@ -40,23 +40,21 @@ class Chunk(object):
     def __init__(
         self, 
         features: Collection[feature], 
-        weights: Mapping[Tuple[Hashable, int], float] = None
+        weights: Mapping[Tuple[Hashable, int], Union[float, int]] = None
     ):
 
-        # why is this annoying mypy?
+        # mypy typing false alarm for fget
         func = feature.dim.fget # type: ignore
         dims = tuple(map(func, features))
 
-        if weights is not None:
-            ws = nd.NumDict(weights) 
-            ws = nd.restrict(ws, dims)
-        else:
-            ws = nd.NumDict()
-
+        # cast is required b/c mapping keys are considered invariant
+        _weights = cast(Optional[Mapping[Hashable, Union[float, int]]], weights)
+        ws = nd.MutableNumDict(_weights) 
+        ws.keep(keys=dims)
         ws.extend(dims, value=1.0)
 
         self._features = frozenset(features)
-        self._weights = nd.FrozenNumDict(ws)
+        self._weights = ws
 
     def __repr__(self):
 
@@ -100,8 +98,9 @@ class Chunk(object):
         Implementation is based on p. 77-78 of Anatomy of the Mind.
         """
 
-        d = nd.NumDict()
         weighted = strength * self.weights
+
+        d = nd.MutableNumDict(default=0.0)
         d.extend(self.features)
         d.set_by(weighted, feature.dim.fget)
 
@@ -119,8 +118,8 @@ class Chunk(object):
         no nonlinearity is included in the denominator of the equation.
         """
 
-        d = nd.restrict(strengths, self.features)
-        d = d.by(feature.dim.fget, max) # get maxima by dimensions
+        d = nd.keep(strengths, keys=self.features)
+        d = nd.max_by(d, keyfunc=feature.dim.fget) # get maxima by dims
         weighted = d * self.weights / nd.val_sum(self.weights)
         strength = nd.val_sum(weighted)
 
@@ -318,10 +317,10 @@ class TopDown(Propagator):
     def call(self, inputs):
         """Execute a top-down activation cycle."""
 
-        d = nd.NumDict()
+        d = nd.MutableNumDict(default=0.0)
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
-            d |= form.top_down(strengths[ch])
+            d.max(form.top_down(strengths[ch]))
 
         return d
 
@@ -349,7 +348,7 @@ class BottomUp(Propagator):
             methods.
         """
 
-        d = nd.NumDict()
+        d = nd.MutableNumDict()
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
             d[ch] = form.bottom_up(strengths)
@@ -393,8 +392,8 @@ class ChunkExtractor(Propagator):
     def call(self, inputs):
         """Extract a chunk from bottom-level activations."""
 
-        d = nd.NumDict()
-        fs = nd.threshold(inputs[self.source], self.threshold)
+        d = nd.MutableNumDict()
+        fs = nd.threshold(inputs[self.source], th=self.threshold)
 
         if len(fs) > 0:
 

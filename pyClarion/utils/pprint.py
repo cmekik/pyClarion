@@ -4,7 +4,7 @@
 __all__ = ["PrettyPrinter", "pprint", "pformat"]
 
 
-from ..base.numdicts import BaseNumDict
+from ..base.numdicts import NumDict
 from ..components import Chunks, Rules, BLAs, Chunk, Rule
 
 from typing import ClassVar
@@ -29,7 +29,7 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         stream.write(',\n')
         stream.write("".join(end))
 
-    _dispatch[BaseNumDict.__repr__] = _pprint_numdict
+    _dispatch[NumDict.__repr__] = _pprint_numdict
 
     def _pprint_Chunks(
         self, object, stream, indent, allowance, context, level
