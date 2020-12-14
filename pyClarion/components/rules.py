@@ -12,8 +12,6 @@ from types import MappingProxyType
 from collections.abc import MutableMapping
 
 
-
-
 class Rule(object):
     """Represents a rule form."""
 
@@ -153,13 +151,13 @@ class Rules(MutableMapping, Generic[Rt]):
 
     @overload
     def __init__(
-        self, data: Mapping[rule, Rule], max_conds: int, rule_type: Type[Rt]
+        self, data: Mapping[rule, Rt], max_conds: int, rule_type: Type[Rt]
     ) -> None:
         ...
 
     def __init__(
         self, 
-        data: Mapping[rule, Rule] = None,
+        data: Mapping[rule, Rt] = None,
         max_conds: int = None,
         rule_type: Type[Rt] = None
     ) -> None:
