@@ -136,11 +136,11 @@ class Rules(MutableMapping, Generic[Rt]):
             self.rules.resolve_update_requests()
 
     @overload
-    def __init__(self: Rules[Rule]) -> None:
+    def __init__(self: "Rules[Rule]") -> None:
         ...
 
     @overload
-    def __init__(self: Rules[Rule], *, max_conds: int) -> None:
+    def __init__(self: "Rules[Rule]", *, max_conds: int) -> None:
         ...
 
     @overload

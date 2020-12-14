@@ -9,7 +9,7 @@ __all__ = [
     # classes
     "GradientTape", "NumDict", "MutableNumDict", 
     # functions from here onward
-    "log", 
+    "log", "exp", "sigmoid",
     "keep", "drop", "transform_keys",
     "threshold", "clip", "boltzmann", "draw",
     "by", "sum_by", "max_by",
@@ -64,6 +64,7 @@ class GradientTapeError(Exception):
     pass
 
 
+# Needs to be registered with pprint, awful to read w/ large numdicts.
 @dataclass
 class TapeCell(object):
     """A gradient tape entry."""
@@ -98,6 +99,16 @@ class GradientTape(object):
         self._index = {}
         self._recording = False
         self._persistent = persistent
+
+    def __repr__(self):
+
+        s = "<{} persistent={} recording={} len={}>"
+        name = type(self).__name__ 
+        persistent = self.persistent
+        recording = self._recording 
+        length = len(self.data)
+        
+        return s.format(name, persistent, recording, length)
 
     def __enter__(self):
 
@@ -165,6 +176,16 @@ class GradientTape(object):
 
         return self._index[id(numdict)]
 
+    @overload
+    def forward(self, __1: int) -> "NumDict":
+        ...
+
+    @overload
+    def forward(
+        self, __1: int, __2: int, *indices: int
+    ) -> Tuple["NumDict", ...]:
+        ...
+
     def forward(self, *indices: int) -> Union[Tuple["NumDict", ...], "NumDict"]:
         """Perform a forward pass over the current tape."""
 
@@ -231,6 +252,26 @@ class GradientTape(object):
             self.reset()
 
         return delta
+
+
+    @overload
+    def evaluate(self, __1: "NumDict") -> "NumDict":
+        ...
+
+    @overload
+    def evaluate(
+        self, __1: "NumDict", __2: "NumDict", *variables: "NumDict"
+    ) -> Tuple["NumDict", ...]:
+        ...
+
+    def evaluate(
+        self, *variables: "NumDict"
+    ) -> Union["NumDict", Tuple["NumDict", ...]]:
+        """Evaluate variables against current state of the tape."""
+        
+        indices = [self.index(var) for var in variables]
+
+        return self.forward(*indices)
 
     @overload
     def gradients(
@@ -454,7 +495,7 @@ class NumDict(Mapping[Hashable, float]):
     @grad(__neg__)
     def _grad_neg(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-        return (constant(d, -1.0),)
+        return (grads * constant(d, -1.0),)
 
     def __abs__(self) -> "NumDict":
 
@@ -466,7 +507,7 @@ class NumDict(Mapping[Hashable, float]):
     @grad(__abs__)
     def _abs_grad(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-        return (2 * (d > 0) - 1,)
+        return (grads * ((2 * (d > 0)) - 1),)
 
     def __eq__( # type: ignore[override]
         self, other: Union["NumDict", float, int]
@@ -712,16 +753,28 @@ class MutableNumDict(NumDict):
 
         return self._inplace(other, min)
 
-    def update(self, mapping):
-        """Update self with keys and values of mapping."""
+    def update(self, numdict: NumDict, update_default: bool = False) -> None:
+        """
+        Update self with keys and values of mapping.
+        
+        Optionally, also update default.
+        """
 
-        for k, v in mapping.items():
+        for k, v in numdict.items():
             self.__setitem__(k, v)
+        if update_default:
+            self.default = numdict.default
 
-    def clear(self):
-        """Remove all explicit members of self."""
+    def clear(self, clear_default: bool = False) -> None:
+        """
+        Remove all explicit members of self.
+        
+        Optionally, also clear default.
+        """
 
         self._dict.clear()
+        if clear_default:
+            self.default = None
 
     def squeeze(self, default: float = None):
         """
@@ -851,6 +904,18 @@ D = Union[MutableNumDict, NumDict]
 ### Basic Ops ###
 
 
+@op
+def exp(d: D) -> NumDict:
+    """Apply exponentiation elementwise to d."""
+
+    return math.e ** d
+
+@grad(exp)
+def _grad_exp(grads, d):
+
+    return (grads * exp(d),)
+
+
 def _log(x):
 
     try:
@@ -858,9 +923,9 @@ def _log(x):
     except ValueError:
         return float("nan")
 
-
 @op
-def log(d: Union[NumDict, MutableNumDict]) -> NumDict:
+def log(d: D) -> NumDict:
+    """Apply the log function elementwise to d."""
     
     return d.unary(_log)
 
@@ -870,6 +935,14 @@ def _grad_log(grads: NumDict, d: D) -> Tuple[NumDict]:
     return (grads / d,)
 
 
+# no need for grad definition as defined using diffable ops.
+def sigmoid(d: D) -> NumDict:
+    """Apply the logistic function elementwise to d."""
+
+    return 1 / (1 + exp(-d))
+
+
+# needs grad definition
 def keep(
     d: D, func: Callable[..., bool] = None, keys: Container = None
 ) -> NumDict:
@@ -890,6 +963,7 @@ def keep(
     return NumDict(mapping, d.default)
 
 
+# needs grad definition
 def drop(
     d: D, func: Callable[..., bool] = None, keys: Container = None
 ) -> NumDict:
@@ -911,6 +985,26 @@ def drop(
     return NumDict(mapping, d.default)
 
 
+@op
+def set_by(
+    target: D, source: D, *, keyfunc: Callable[..., Hashable]
+) -> NumDict:
+    """
+    Construct a numdict mapping target keys to matching values in source. 
+    
+    For each key in source, output[key] = source[keyfunc(key)]. Defaults are 
+    discarded.
+    """
+
+    return NumDict({k: source[keyfunc(k)] for k in target}, None)
+
+@grad(set_by)
+def _grad_set_by(grads, target, source, *, keyfunc):
+
+    return (grads * NumDict(default=0), sum_by(grads, keyfunc=keyfunc))
+
+
+# needs grad definition
 def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
     """
     Return a copy of d where each key is mapped to func(key, **kwds).
@@ -926,6 +1020,7 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
     return NumDict(mapping, d.default)
 
 
+# needs grad definition? is this even differentiable?
 def threshold(d: D, *, th: float) -> NumDict:
     """
     Return a copy of d containing only values above theshold.
@@ -940,6 +1035,7 @@ def threshold(d: D, *, th: float) -> NumDict:
     return NumDict(mapping, default)
 
 
+# needs grad definition
 def clip(d: D, low: float = None, high: float = None) -> NumDict:
     """
     Return a copy of d with values clipped.
@@ -955,18 +1051,20 @@ def clip(d: D, low: float = None, high: float = None) -> NumDict:
     return NumDict(mapping, d.default)
 
 
+# needs grad definition, not to mention reworking
 def boltzmann(d: D, t: float) -> NumDict:
     """Construct a boltzmann distribution from d with temperature t."""
 
     output = MutableNumDict(default=0.0)
     if len(d) > 0:
-        numerators = math.e ** (d / t)
+        numerators = exp(d / t)
         denominator = val_sum(numerators)
         output.max(numerators / denominator)
 
     return NumDict(output)
 
 
+# needs grad definition
 def draw(d: D, k: int=1, val=1.0) -> NumDict:
     """
     Draw k keys from numdict without replacement.
@@ -1004,7 +1102,7 @@ def by(
     
     Key should be a function mapping each key in self to a grouping key. New 
     keys are determined based on the result of keyfunc(k, **kwds), where 
-    k is a key from d. 
+    k is a key from d. Defaults are discarded.
     """
 
     _d: Dict[Hashable, List[float]] = {}
@@ -1012,7 +1110,7 @@ def by(
         _d.setdefault(keyfunc(k, **kwds), []).append(v)
     mapping = {k: op(v) for k, v in _d.items()}
 
-    return NumDict(mapping, d.default)
+    return NumDict(mapping)
 
 
 @op
@@ -1032,6 +1130,8 @@ def _grad_sum_by(grads, d, *, keyfunc):
     return (NumDict({k: grads[keyfunc(k)] for k in d}),)
 
 
+#needs grad definition
+@op
 def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
     """
     Find maximum values in d grouped by keyfunc.
@@ -1042,6 +1142,16 @@ def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 
     return by(d, max, keyfunc, **kwds)
 
+@grad(max_by)
+def _grad_max_by(grads, d, *, keyfunc):
+
+    _isclose = math.isclose
+    y = max_by(d, keyfunc=keyfunc) # Should block tape registration.
+    arg_max = {k for k, v in d.items() if _isclose(v, y[keyfunc(k)])}
+    grad_max = NumDict({k: grads[keyfunc(k)] if k in arg_max else 0 for k in d})
+
+    return (grad_max,)
+
 
 ### Elementwise Variadic Ops ###
 
@@ -1050,7 +1160,8 @@ def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
     """
     Apply op elementwise to a sequence of numdicts.
     
-    Value of dtype is inherited from the first d if None is passed.
+    If any numdict in ds has None default, then default is None, otherwise the 
+    new default is calculated by running op on all defaults.
     """
 
     keys: set = set()
@@ -1062,10 +1173,16 @@ def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
         defaults.append(d.default)
         for k in keys:
             grouped.setdefault(k, []).append(d[k])
+    
+    if any([d is None for d in defaults]):
+        default = None
+    else:
+        default = op(defaults)
 
-    return NumDict({k: op(grouped[k]) for k in grouped}, op(defaults))
+    return NumDict({k: op(grouped[k]) for k in grouped}, default)
 
 
+# needs grad definition
 def ew_sum(*ds: D) -> NumDict:
     """
     Elementwise sum of values in ds.
@@ -1076,6 +1193,7 @@ def ew_sum(*ds: D) -> NumDict:
     return elementwise(sum, *ds)
 
 
+# needs grad definition
 def ew_mean(*ds: D) -> NumDict:
     """
     Elementwise sum of values in ds.
@@ -1086,6 +1204,7 @@ def ew_mean(*ds: D) -> NumDict:
     return elementwise(sum, *ds) / len(ds)
 
 
+# needs grad definition
 def ew_max(*ds: D)  -> NumDict:
     """
     Elementwise maximum of values in ds.
@@ -1096,6 +1215,7 @@ def ew_max(*ds: D)  -> NumDict:
     return elementwise(max, *ds)
 
 
+# needs grad definition
 def ew_min(*ds: D) -> NumDict:
     """
     Elementwise maximum of values in ds.

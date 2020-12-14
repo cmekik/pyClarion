@@ -174,11 +174,11 @@ class Chunks(MutableMapping[chunk, Ct]):
             self.chunks.resolve_update_requests()
 
     @overload
-    def __init__(self: Chunks[Chunk]) -> None:
+    def __init__(self: "Chunks[Chunk]") -> None:
         ...
 
     @overload
-    def __init__(self: Chunks[Ct], *, chunk_type: Type[Ct]) -> None:
+    def __init__(self: "Chunks[Ct]", *, chunk_type: Type[Ct]) -> None:
         ...
 
     @overload
@@ -186,7 +186,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         ...
 
     def __init__(
-        self: Chunks[Ct], 
+        self: "Chunks[Ct]", 
         data: Mapping[chunk, Ct] = None, 
         chunk_type: Type[Ct] = None
     ) -> None:
