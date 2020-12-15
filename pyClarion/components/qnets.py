@@ -4,7 +4,7 @@
 __all__ = ["SimpleQNet", "ReinforcementMap"]
 
 
-from ..base import nd
+from .. import numdicts as nd
 from ..base.symbols import ConstructType, Symbol, feature, features, buffer  
 from ..base.components import FeatureDomain, FeatureInterface, Propagator
 

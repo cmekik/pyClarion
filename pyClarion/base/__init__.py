@@ -11,6 +11,5 @@ Activation propagation follows a pull-based message-passing architecture.
 
 
 from .symbols import *
-from . import numdicts as nd
 from .components import *
 from .realizers import *

@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `numdicts` submodule, providing dictionaries that support numerical operations and automatic differentiation.
-- `utils` subpackage for miscellaneous utilities.
-- `pprint` submodule in `utils`, whic extends stdlib `pprint` to handle some `pyClarion` objects.
+- `utils` subpackage for miscellaneous utilities, including `pprint` submodule, which extends stdlib `pprint` to handle some `pyClarion` objects.
 - Attribute `assets` for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
 - New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
 - `Token` class for building structured symbolic tokens.
@@ -20,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `Propagator` and `Cycle` classes for specifying activation propagation procedures for `Construct` and `Structure` instances.
     - `Assets`, a simple namespace object for holding structure assets.
     - `FeatureDomain`, `FeatureInterface`, `SimpleDomain`, `SimpleInterface` for structuring specification of feature domains and feature driven control of components
+    - `SimpleQNet` and `ReinforcementMap` for building simple Q-learning models.
 - Use of `with` statements to automate adding constructs to containers.
 - `AgentCycle`, `CycleS` abstraction and `ACSCycle` classes for controlling structure propagation.  
 - Chunk, rule, and BLA databases `Chunks` and `Rules`, `BLAs`.

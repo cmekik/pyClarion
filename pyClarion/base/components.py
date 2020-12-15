@@ -9,7 +9,7 @@ __all__ = [
 
 
 from .symbols import ConstructType, Symbol, feature, group_by_dims
-from .numdicts import D, NumDict, MutableNumDict
+from ..numdicts import D, NumDict, MutableNumDict
 
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 

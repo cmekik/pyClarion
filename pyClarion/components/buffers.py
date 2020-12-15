@@ -9,7 +9,7 @@ from ..base.symbols import (
     feature, subsystem, terminus,
     group_by_dims, lag
 )
-from ..base import numdicts as nd
+from .. import numdicts as nd
 from ..base.components import (
     Inputs, Propagator, FeatureInterface, FeatureDomain
 )

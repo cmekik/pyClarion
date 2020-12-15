@@ -7,7 +7,7 @@ __all__ = ["Gated", "Filtered", "Pruned"]
 from ..base.symbols import (
     ConstructType, Symbol, feature, subsystem, terminus
 )
-from ..base import numdicts as nd
+from .. import numdicts as nd
 from ..base.components import FeatureInterface, Propagator
 
 from itertools import product

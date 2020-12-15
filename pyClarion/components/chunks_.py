@@ -8,7 +8,7 @@ from ..base.symbols import (
     ConstructType, Symbol, 
     feature, chunk, terminus, subsystem
 )
-from ..base import numdicts as nd
+from .. import numdicts as nd
 from ..base.components import Propagator, FeatureInterface, UpdaterS 
 from ..base.realizers import Construct
 
@@ -117,6 +117,7 @@ class Chunk(object):
         no nonlinearity is included in the denominator of the equation.
         """
 
+        print(strengths)
         d = nd.keep(strengths, keys=self.features)
         d = nd.max_by(d, keyfunc=feature.dim.fget) # get maxima by dims
         weighted = d * self.weights / nd.val_sum(self.weights)

@@ -5,7 +5,7 @@ __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
 from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule
-from ..base import numdicts as nd
+from .. import numdicts as nd
 
 from typing import Mapping, TypeVar, Generic, Type, overload
 from types import MappingProxyType

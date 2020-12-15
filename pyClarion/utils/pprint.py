@@ -4,7 +4,7 @@
 __all__ = ["PrettyPrinter", "pprint", "pformat"]
 
 
-from ..base.numdicts import NumDict
+from ..numdicts import NumDict
 from ..components import Chunks, Rules, BLAs, Chunk, Rule
 
 from typing import ClassVar
