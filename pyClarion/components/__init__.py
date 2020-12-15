@@ -7,5 +7,6 @@ from .chunks_ import *
 from .cycles import *
 from .filters import *
 from .propagators import *
+from .qnets import *
 from .rules import *
 from .updaters import *

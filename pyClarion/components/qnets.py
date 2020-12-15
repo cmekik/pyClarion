@@ -1,6 +1,9 @@
 """Definitions for setting up Q-Nets."""
 
 
+__all__ = ["SimpleQNet", "ReinforcementMap"]
+
+
 from ..base import nd
 from ..base.symbols import ConstructType, Symbol, feature, features, buffer  
 from ..base.components import FeatureDomain, FeatureInterface, Propagator
@@ -49,7 +52,8 @@ class SimpleQNet(Propagator):
     A simple q-network.
     
     Structured as a feed-forward multilayer perceptron and trained using 
-    vanilla stochastic gradient descent.
+    vanilla gradient descent with backpropagation. Weight updates are applied 
+    on every step..
     """
 
     _serves = ConstructType.flow_bb
