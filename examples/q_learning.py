@@ -210,7 +210,7 @@ with learner:
 # We are ready to run the task. We'll run it for 500 trials with an initial 
 # reinforcement of 0.
 
-task = ABTask(500)
+task = ABTask(800)
 r = nd.NumDict({feature(("r", "respond")): 0})
 losses, rs, qs = [], [], []
 for stimulus in task:
@@ -238,6 +238,7 @@ rs = [nd.transform_keys(d, func=lambda f: "r") for d in rs]
 rs = nd.exponential_moving_avg(*rs, alpha=0.3)
 
 qs = [nd.max_by(d, keyfunc=lambda f: "max(q)") for d in qs]
+qs = [nd.log(d / (1 - d)) for d in qs] # Unsquash qs
 qs = nd.exponential_moving_avg(*qs, alpha=0.3)
 
 stats = dict()
@@ -262,10 +263,14 @@ except ImportError:
     msg = "Could not display graph of training stats: matplotlib not installed."
     print(msg)
 else:
-    plt.plot(stats["loss"], alpha=0.8, label="loss")
-    plt.plot(stats["r"], alpha=0.8, label="r")
-    plt.plot(stats["max(q)"], alpha=0.8, label="max(q)")
-    plt.legend()
+    fig, (ax1, ax2, ax3) = plt.subplots(3)
+    fig.suptitle('Training Statistics')
+    ax1.plot(stats["loss"], alpha=0.8, label="loss")
+    ax2.plot(stats["r"], alpha=0.8, label="r")
+    ax3.plot(stats["max(q)"], alpha=0.8, label="max(q)")
+    ax1.legend()
+    ax2.legend()
+    ax3.legend()
     plt.show()
 
 
