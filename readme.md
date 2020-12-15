@@ -30,10 +30,11 @@ The `examples/` folder provides some simple examples demonstrating various aspec
 The recommended reading order is as follows:
 
 - `free_association.py` - Introduces the basic concepts of the `pyClarion` library using the example of a very simple free association task.
-- `lagged_features.py` - Demonstrates how to set up lagged features, which may be useful in various contexts such as recurrent processing and temporal difference learning.
+- `lagged_features.py` - Demonstrates how to set up lagged features, which may be useful in various contexts such as recurrent processing.
 - `flow_control.py` - An introduction to how `pyClarion` handles control through the example of using gates to select the mode of reasoning.
+- `q_learning.py` - A demonstration of implicit learning in `pyClarion`. Can be read immediately after `free_association.py`, but see `flow_control.py` for further discussion of feature interfaces.
 - `chunk_extraction.py` - An introduction to how `pyClarion` supports learning processes. Demonstrates a simple case of learning through chunk extraction.  
-- `working_memory.py` - An introduction to more complex modeling using `pyClarion`. Demonstrates a simple case of question answering, where the non-action-centered subsystem drives action selection in the action-centered subsystem through working memory.
+- `working_memory.py` - Demonstrates a simple case of question answering, where the non-action-centered subsystem drives action selection in the action-centered subsystem through working memory.
 - `gradients.py` - An overview of the minimalistic automatic differentiation functionality available in `pyClarion`. May be read at any time.
 
 # Implementation Overview
