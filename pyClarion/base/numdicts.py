@@ -9,7 +9,7 @@ __all__ = [
     # classes
     "GradientTape", "NumDict", "MutableNumDict", 
     # functions from here onward
-    "log", "exp", "sigmoid",
+    "epsilon", "log", "exp", "sigmoid",
     "keep", "drop", "transform_keys",
     "threshold", "clip", "boltzmann", "draw",
     "by", "sum_by", "max_by",
@@ -904,6 +904,12 @@ D = Union[MutableNumDict, NumDict]
 ### Basic Ops ###
 
 
+def epsilon():
+    """A very small value (1e-07),"""
+
+    return 1e-07
+
+
 @op
 def exp(d: D) -> NumDict:
     """Apply exponentiation elementwise to d."""
@@ -1261,6 +1267,33 @@ def isclose(d1: D, d2: D) -> bool:
     _d = d1.binary(d2, math.isclose)
 
     return all(_d.values())
+
+
+def exponential_moving_avg(d: D, *ds: D, alpha: float) -> List[NumDict]:
+    """Given a sequence of numdicts, return a smoothed sequence."""
+
+    avg = [d]
+    for _d in ds:
+        avg.append(alpha * _d + (1 - alpha) * avg[-1])
+
+    return avg
+
+
+def tabulate(*ds: D) -> Dict[Hashable, List[float]]:
+    """
+    Tabulate data from a sequence of numdicts.
+
+    Produces a dictionary inheriting its keys from ds, and mapping each key to 
+    a list such that the ith value of the list is equal to ds[i][k].
+    """
+
+    tabulation: Dict[Hashable, List[float]] = {}
+    for d in ds:
+        for k, v in d.items():
+            l = tabulation.setdefault(k, [])
+            l.append(v)
+
+    return tabulation
 
 
 def valuewise(
