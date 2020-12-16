@@ -1,4 +1,4 @@
-"""Tools for defining construct behavior."""
+"""Tools for networking constructs and defining construct behavior."""
 
 
 __all__ = ["Realizer", "Construct", "Structure"]
@@ -6,8 +6,10 @@ __all__ = ["Realizer", "Construct", "Structure"]
 
 from .symbols import ConstructType, Symbol, ConstructRef, feature
 from .components import (
-    Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
+    Inputs, Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
 )
+from ..numdicts import NumDict
+
 from itertools import combinations, chain
 from abc import abstractmethod
 from types import MappingProxyType
@@ -24,10 +26,10 @@ Et = TypeVar("Et", bound="Emitter")
 Pt = TypeVar("Pt", bound="Propagator")
 Ut = TypeVar("Ut", bound="Updater")
 Ct = TypeVar("Ct", bound="Cycle")
+Ot = TypeVar("Ot", bound=Union[NumDict, Inputs])
 
-Inputs = Mapping[Symbol, Any]
-PullFunc = Callable[[], Any]
-PullFuncs = Mapping[Symbol, Callable[[], Any]]
+PullFunc = Callable[[], Inputs]
+PullFuncs = Mapping[Symbol, Callable[[], Inputs]]
 StructureItem = Tuple[Symbol, "Realizer"]
 
 
@@ -37,7 +39,7 @@ build_ctx: ContextVar[Tuple[Symbol, ...]] = ContextVar("build_ctx")
 build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
 
 
-class Realizer(Generic[Et, Ut]):
+class Realizer(Generic[Et, Ut, Ot]):
     """
     Base class for construct realizers.
 
@@ -47,8 +49,8 @@ class Realizer(Generic[Et, Ut]):
     Follows a pull-based message-passing pattern for activation propagation. 
     """
 
-    _inputs: Dict[Symbol, Callable[[], Any]]
-    _output: Optional[Any]
+    _inputs: Dict[Symbol, PullFunc]
+    _output: Ot
     _emitter: Et
     _updater: Optional[Ut]
     _input_cache: Inputs
@@ -121,7 +123,7 @@ class Realizer(Generic[Et, Ut]):
         return MappingProxyType(self._inputs)
 
     @property
-    def output(self) -> Any:
+    def output(self) -> Ot:
         """
         Current output of self.
         
@@ -131,7 +133,7 @@ class Realizer(Generic[Et, Ut]):
         return self._output
 
     @output.setter
-    def output(self, output: Any) -> None:
+    def output(self, output: Ot) -> None:
 
         self._output = output
 
@@ -197,7 +199,7 @@ class Realizer(Generic[Et, Ut]):
         for construct in self.inputs:
             self.drop(construct)
 
-    def view(self) -> Any:
+    def view(self) -> Ot:
         """Return current output of self."""
         
         return self._output
@@ -298,7 +300,7 @@ class Realizer(Generic[Et, Ut]):
             raise TypeError(msg.format(type(name).__name__))
 
 
-class Construct(Realizer[Pt, UpdaterC[Pt]]):
+class Construct(Realizer[Pt, UpdaterC[Pt], NumDict]):
     """
     A basic construct.
     
@@ -343,7 +345,7 @@ class Construct(Realizer[Pt, UpdaterC[Pt]]):
             )
 
         
-class Structure(Realizer[Ct, UpdaterS]):
+class Structure(Realizer[Ct, UpdaterS, Union[NumDict, Inputs]]):
     """
     A composite construct.
     
@@ -603,7 +605,7 @@ class Structure(Realizer[Ct, UpdaterS]):
                 realizer.reweave()
             self.update_links(construct)
 
-    def reset_output(self):
+    def reset_output(self) -> None:
         """Set output of self to reflect member outputs."""
 
         ctype = self.emitter.output
@@ -656,7 +658,7 @@ class Structure(Realizer[Ct, UpdaterS]):
                 update_data=self._update_cache
             )
 
-    def _log_del(self, construct):
+    def _log_del(self, construct) -> None:
 
         try:
             context = build_ctx.get()
@@ -666,7 +668,7 @@ class Structure(Realizer[Ct, UpdaterS]):
             msg = "Removing %s from %s in %s."
             logging.debug(msg, construct, self.construct, context)
 
-    def _log_add(self, construct):
+    def _log_add(self, construct) -> None:
 
         try:
             context = build_ctx.get()

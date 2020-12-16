@@ -85,7 +85,7 @@ class Rule(object):
         Implementation based on p. 60 and p. 73 of Anatomy of the Mind.
         """
 
-        weighted = nd.drop(strengths, keys=self.weights) * self.weights
+        weighted = nd.keep(strengths, keys=self.weights) * self.weights
         
         return nd.val_sum(weighted)
 

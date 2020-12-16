@@ -14,7 +14,7 @@ from ..base.components import (
     Inputs, Propagator, FeatureInterface, FeatureDomain
 )
 
-from typing import Callable, Hashable, Tuple, List, Mapping, Collection
+from typing import Callable, Hashable, Tuple, List, Mapping, Collection, cast
 from dataclasses import dataclass
 from itertools import chain, product
 from types import MappingProxyType
@@ -36,12 +36,14 @@ def collect_cmd_data(
     try:
         data = inputs[subsystem][terminus]
     except KeyError:
-        data = frozenset()
         msg = "Failed data pull from %s in %s."
         logging.warning(msg, controller, construct)
-    
-    return data
 
+    if isinstance(data, nd.NumDict):
+        return data
+    else:
+        raise ValueError("Unexpected input structure.")
+    
 
 class ParamSet(Propagator):
     """A controlled store of parameters."""

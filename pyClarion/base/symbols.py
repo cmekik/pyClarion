@@ -11,7 +11,9 @@ __all__ = [
 
 
 from enum import Flag, auto
-from typing import Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar
+from typing import (
+    Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar, cast
+)
 
 
 class ConstructType(Flag):
@@ -92,6 +94,8 @@ class Token(object):
 
     __slots__ = ("_args")
 
+    _args: Tuple[Hashable, ...]
+
     def __init__(self, *args: Hashable):
 
         super().__setattr__("_args", tuple(args))
@@ -153,7 +157,6 @@ class Symbol(Token):
         elif isinstance(ctype, int):
             ctype = ConstructType(ctype)
         elif isinstance(ctype, ConstructType):
-            # do nothing, all good.
             pass
         else:
             raise TypeError(
@@ -174,15 +177,13 @@ class Symbol(Token):
     def ctype(self) -> ConstructType:
         """Construct type associated with self."""
 
-        # NOTE: mypy complains that self._args not defined. So, ignore. - Can
-        return self._args[0] # type: ignore
+        return cast(ConstructType, self._args[0])
 
     @property
-    def cid(self) -> Tuple[Hashable, ...]:
+    def cid(self) -> Hashable:
         """Construct identifier associated with self."""
 
-        # NOTE: mypy complains that self._args not defined. So, ignore. - Can
-        return self._args[1] # type: ignore
+        return self._args[1] 
 
 
 # Address for a construct w/in a simulated agent or component.

@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
-    "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
+    "Inputs", "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", 
+    "UpdaterS", "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
     "SimpleInterface"
 ]
 
@@ -14,18 +14,51 @@ from ..numdicts import D, NumDict, MutableNumDict
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
     Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Collection, 
-    FrozenSet, cast, no_type_check
+    FrozenSet, AbstractSet, ValuesView, cast, no_type_check,
 )
+from typing_extensions import Protocol
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
 from dataclasses import dataclass
 import logging
 
 
-Inputs = Mapping[Symbol, NumDict]
 Ft = TypeVar("Ft", bound="FeatureInterface")
 Dt = TypeVar("Dt", bound="FeatureDomain")
 Pt = TypeVar("Pt", bound="Propagator")
+
+
+# Input type for pyClarion activation Propagators.
+# Would ideally want:
+# Inputs = Union[Mapping[Symbol, NumDict], Mapping[Symbol, "Inputs"]]
+# mypy can't handle recursive types... so using a Protocol based solution as 
+# suggested by Sg495 in mypy issue #731 - Can
+
+_Inputs = Union[NumDict, "Inputs"]
+
+class Inputs(Protocol):
+    """Recursive type for Propagator inputs."""
+
+    def __getitem__(self, key: Symbol) -> "_Inputs":
+        ...
+
+    def __contains__(self, key: object) -> bool:
+        ...
+
+    def __len__(self) -> int:
+        ...
+
+    def __iter__(self) -> Iterator[Symbol]:
+        ...
+
+    def keys(self) -> AbstractSet[Symbol]:
+        ...
+
+    def values(self) -> ValuesView["_Inputs"]:
+        ...
+
+    def items(self) -> AbstractSet[Tuple[Symbol, "_Inputs"]]:
+        ...
 
 
 class Component(object):
@@ -107,7 +140,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
     interface: Ft
     domain: Dt
 
-    def __call__(self, inputs: Inputs) -> Mapping:
+    def __call__(self, inputs: Inputs) -> NumDict:
         """
         Execute construct's forward propagation cycle.
 
@@ -128,7 +161,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         raise NotImplementedError()
 
-    def update(self, inputs: Inputs, output: Any) -> None:
+    def update(self, inputs: Inputs, output: NumDict) -> None:
         """
         Apply essential updates to self.
         
@@ -172,6 +205,19 @@ class Cycle(Emitter):
     def expected(self):
 
         return frozenset()
+
+    @staticmethod
+    @abstractmethod
+    def emit(data: Inputs = None) -> Inputs:
+        """
+        Emit output.
+
+        If no data is passed in, emits a default or null value of the expected
+        output type. Otherwise, ensures output is of the expected type and 
+        (preferably) immutable before returning the result. 
+        """
+
+        raise NotImplementedError()
 
 
 class Updater(Component, Generic[Ft]):
