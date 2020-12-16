@@ -49,6 +49,12 @@ class ABTask(object):
 
     @staticmethod
     def reinforcements(stimulus, actions):
+        """
+        Compute ABTask reinforcements.
+
+        Returns a reward of 1 if the stimulus prompt and action match, -1 if 
+        there is a mismatch, and 0 if the standby action is taken.
+        """
 
         actions = nd.keep(
             actions, 
@@ -98,10 +104,10 @@ output_interface = SimpleInterface(
     }
 )
 
-# To specify the reinforcement signals, we use the ReinforcementMap object. 
-# This object expects a mapping from features representing reinforcement 
-# signals to the dimensions that they reinforce (including the lag value). The 
-# mapping must be one-to-one.
+# To specify reinforcement signals, we use a feature domain defined using the
+# ReinforcementMap class. ReinforcementMap expects a mapping from features 
+# representing reinforcement signals to the dimensions that they reinforce 
+# (including the lag value). The mapping must be one-to-one.
 
 reinforcement_map = ReinforcementMap(
     mapping={
@@ -177,11 +183,11 @@ with learner:
         qnet = Construct(
             name=flow_bb("q_net"),
             emitter=SimpleQNet(
-                source=features("in"),
+                x_source=features("in"),
                 r_source=buffer("reinforcement"),
                 a_source=flow_in("ext_actions_lag1"),
-                input_domain=input_domain,
-                output_interface=output_interface,
+                domain=input_domain,
+                interface=output_interface,
                 reinforcement_map=reinforcement_map,
                 layers=[5, 5],
                 gamma=0.7,
@@ -246,15 +252,15 @@ for d in (nd.tabulate(*data) for data in (losses, rs, qs)):
     stats.update(d)
 
 print("Initial statistics (smoothed, first 5 trials):")
-print("      loss:", [round(v, 2) for v in stats["loss"][:5]])
-print("    max(q):", [round(v, 2) for v in stats["max(q)"][:5]])
 print("         r:", [round(v, 2) for v in stats["r"][:5]])
+print("    max(q):", [round(v, 2) for v in stats["max(q)"][:5]])
+print("      loss:", [round(v, 2) for v in stats["loss"][:5]])
 print()
 
 print("Final statistics (smoothed, last 5 trials):")
-print("      loss:", [round(v, 2) for v in stats["loss"][-5:]])
-print("    max(q):", [round(v, 2) for v in stats["max(q)"][-5:]])
 print("         r:", [round(v, 2) for v in stats["r"][-5:]])
+print("    max(q):", [round(v, 2) for v in stats["max(q)"][-5:]])
+print("      loss:", [round(v, 2) for v in stats["loss"][-5:]])
 print()
 
 try:
@@ -263,11 +269,13 @@ except ImportError:
     msg = "Could not display graph of training stats: matplotlib not installed."
     print(msg)
 else:
-    fig, (ax1, ax2, ax3) = plt.subplots(3)
-    fig.suptitle('Training Statistics')
-    ax1.plot(stats["loss"], alpha=0.8, label="loss")
-    ax2.plot(stats["r"], alpha=0.8, label="r")
-    ax3.plot(stats["max(q)"], alpha=0.8, label="max(q)")
+    fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
+    fig.suptitle('Training Statistics (Smoothed Over Trials)')
+    plt.xlabel("Trials")
+    ax1.plot(stats["r"], alpha=0.8, label="r")
+    ax1.hlines(y=0, xmin=0, xmax=task.length, alpha=0.4, linestyle='--')
+    ax2.plot(stats["max(q)"],alpha=0.8, label="max(q)")
+    ax3.plot(stats["loss"], alpha=0.8, label="loss")
     ax1.legend()
     ax2.legend()
     ax3.legend()

@@ -13,6 +13,7 @@ from typing import List, Mapping, Tuple, Hashable
 from dataclasses import dataclass
 import random
 import math
+import warnings
 
 
 def glorot_normal(fan_in, fan_out):
@@ -22,6 +23,11 @@ def glorot_normal(fan_in, fan_out):
     sd = var ** 0.5
 
     return random.gauss(0.0, sd)
+
+
+class NetConfigWarning(UserWarning):
+    """Signals a non-fatal error during neural network configuration."""
+    pass
 
 
 @dataclass
@@ -50,36 +56,48 @@ class ReinforcementMap(FeatureDomain):
 class SimpleQNet(Propagator):
     """
     A simple q-network.
+
+    Supports multiple action dimensions, but does not support action parameters
+    (i.e., assumes action space is discrete). Will issue a warning if configured
+    with an interface defining action parameters.
     
     Structured as a feed-forward multilayer perceptron and trained using 
-    vanilla gradient descent with backpropagation. Weight updates are applied 
-    on every step..
+    vanilla gradient descent with backpropagation. Weight updates are applied
+    on every step.
     """
 
     _serves = ConstructType.flow_bb
     
     def __init__(
         self, 
-        source: Symbol,
+        x_source: Symbol,
         r_source: Symbol, 
         a_source: Symbol,
-        input_domain: FeatureDomain,
-        output_interface: FeatureInterface,
+        domain: FeatureDomain,
+        interface: FeatureInterface,
         reinforcement_map: ReinforcementMap,
         layers: List[int], 
         gamma: float,
         lr: float
-    ):
+    ) -> None:
 
-        self.source = source
+        if len(interface.params) != 0:
+            msg = (
+                "Received interface defining action params; "
+                "these are not supported by {} and will be ignored."
+            )
+            tname = type(self).__name__
+            warnings.warn(msg.format(tname), category=NetConfigWarning)
+
+        self.x_source = x_source
         self.r_source = r_source
         self.a_source = a_source
         self.gamma = gamma
         self.lr = lr
 
-        self.input_domain = input_domain
+        self.domain = domain
+        self.interface = interface
         self.reinforcement_map = reinforcement_map
-        self.output_interface = output_interface
 
         self._layers = tuple(layers)
 
@@ -89,7 +107,7 @@ class SimpleQNet(Propagator):
     @property
     def expected(self):
 
-        return frozenset((self.source, self.r_source, self.a_source))
+        return frozenset((self.x_source, self.r_source, self.a_source))
 
     @property
     def layers(self):
@@ -98,19 +116,18 @@ class SimpleQNet(Propagator):
 
     def _build_variables(self):
 
-        layer_in = self.input_domain.features
-        layer_out = self.output_interface.cmds
         layers = self.layers
-        defaults = self.output_interface.defaults
+        layer_in = self.domain.features
+        layer_out = self.interface.cmds
+        defaults = self.interface.defaults
         rdims = self.reinforcement_map.mapping.values()
         eps = nd.epsilon()
 
         inputs = nd.MutableNumDict(default=0)
         rs = nd.MutableNumDict({k: 0 for k in rdims}, default=0)
         qs = nd.MutableNumDict({k: eps for k in layer_out}, default=eps)
+        actions = nd.MutableNumDict({k: 1 for k in defaults}, default=0)
         inputs_lag1 = nd.MutableNumDict(default=0)
-        actions_lag1 = nd.MutableNumDict({k: 1 for k in defaults}, default=0)
-        qs_lag1 = nd.MutableNumDict({k: eps for k in layer_out}, default=eps)
 
         weights, biases = [], []
         hiddens = [{(l, i) for i in range(n)} for l, n in enumerate(layers)]
@@ -130,9 +147,9 @@ class SimpleQNet(Propagator):
         self._inputs = inputs
         self._rs = rs
         self._qs = qs
+        self._actions = actions
         self._inputs_lag1 = inputs_lag1
-        self._actions_lag1 = actions_lag1
-        self._qs_lag1 = qs_lag1
+
         self.weights = weights
         self.biases = biases
 
@@ -141,13 +158,13 @@ class SimpleQNet(Propagator):
         inputs = self._inputs
         rs = self._rs
         qs_next = self._qs
-        actions = self._actions_lag1
+        actions = self._actions
         gamma = self.gamma
 
         weights = self.weights
         biases = self.biases
 
-        keyfunc = lambda k: k.dim
+        get_dim = feature.dim.fget
         with nd.GradientTape(persistent=True) as tape:
             output = inputs
             for i, (w, b) in enumerate(zip(weights, biases)):
@@ -158,10 +175,10 @@ class SimpleQNet(Propagator):
                 if i == len(weights) - 1:
                     qs = output
                 output = nd.sigmoid(output)
-            # Assuming exactly one action is mapped to a value of 1.
-            q_action = nd.sum_by((qs * actions), keyfunc=keyfunc)
+            # Assuming exactly one action/dim is mapped to a value of 1.
+            q_action = nd.sum_by((qs * actions), keyfunc=get_dim)
             # Assuming qs_next is unsquashed.
-            max_qs_next = nd.max_by(qs_next, keyfunc=keyfunc)
+            max_qs_next = nd.max_by(qs_next, keyfunc=get_dim)
             errors = (rs + (gamma * max_qs_next)) - q_action
             loss_dict = (errors ** 2) / 2
             loss = nd.sum_by(loss_dict, keyfunc=lambda k: "loss")
@@ -173,16 +190,15 @@ class SimpleQNet(Propagator):
 
     def call(self, inputs):
 
-        strengths = inputs[self.source]
-        input_features = self.input_domain.features
+        x_strengths = inputs[self.x_source]
+        input_features = self.domain.features
 
         tape = self._tape
         output = self._output
         loss = self.loss
 
-        _inputs = nd.keep(strengths, keys=input_features)
-        self._inputs.clear()
-        self._inputs.update(_inputs)
+        _inputs = nd.keep(x_strengths, keys=input_features)
+        self._inputs.clearupdate(_inputs)
 
         loss, output = tape.evaluate(loss, output)
         self.loss = loss
@@ -190,13 +206,13 @@ class SimpleQNet(Propagator):
 
         return output
 
-    def update(self, inputs, output):
+    def update(self, inputs, output) -> None:
         
-        strengths = inputs[self.source]
+        x_strengths = inputs[self.x_source]
         r_strengths = inputs[self.r_source]
         a_strengths = inputs[self.a_source]
 
-        input_features = self.input_domain.features
+        input_features = self.domain.features
         r_map = self.reinforcement_map.mapping
 
         tape = self._tape
@@ -210,18 +226,13 @@ class SimpleQNet(Propagator):
 
         rs = nd.keep(r_strengths, keys=r_map)
         rs = nd.NumDict({r_map[k]: v for k, v in r_strengths.items()}, 0)
+        
+        unsquashed_qs = nd.log(output / (1 - output))
 
-        self._inputs.clear()
-        self._inputs.update(inputs_lag1)
-
-        self._actions_lag1.clear()
-        self._actions_lag1.update(a_strengths)
-
-        self._qs.clear()
-        self._qs.update(nd.log(output / (1 - output)))
-
-        self._rs.clear()
-        self._rs.update(rs)
+        self._inputs.clearupdate(inputs_lag1)
+        self._actions.clearupdate(a_strengths)
+        self._qs.clearupdate(unsquashed_qs)
+        self._rs.clearupdate(rs)
 
         loss, output = tape.evaluate(loss, output)
         self._output = output
@@ -232,7 +243,6 @@ class SimpleQNet(Propagator):
         
         self.loss = loss
 
-        _inputs = nd.keep(strengths, keys=input_features)
-        self._inputs_lag1.clear()
-        self._inputs_lag1.update(_inputs)
+        _inputs_lag1 = nd.keep(x_strengths, keys=input_features)
+        self._inputs_lag1.clearupdate(_inputs_lag1)
         

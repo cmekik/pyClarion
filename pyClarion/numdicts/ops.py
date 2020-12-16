@@ -53,7 +53,7 @@ def set_by(
 @register_grad(set_by)
 def _grad_set_by(grads, target, source, *, keyfunc):
 
-    return (grads * NumDict(default=0), sum_by(grads, keyfunc=keyfunc))
+    return (grads * 0, sum_by(grads, keyfunc=keyfunc))
 
 
 @register_op
