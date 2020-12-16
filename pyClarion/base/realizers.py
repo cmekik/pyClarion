@@ -6,7 +6,7 @@ __all__ = ["Realizer", "Construct", "Structure"]
 
 from .symbols import ConstructType, Symbol, ConstructRef, feature
 from .components import (
-    Inputs, Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
+    Activations, Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
 )
 from ..numdicts import NumDict
 
@@ -26,10 +26,10 @@ Et = TypeVar("Et", bound="Emitter")
 Pt = TypeVar("Pt", bound="Propagator")
 Ut = TypeVar("Ut", bound="Updater")
 Ct = TypeVar("Ct", bound="Cycle")
-Ot = TypeVar("Ot", bound=Union[NumDict, Inputs])
+Ot = TypeVar("Ot", bound=Union[NumDict, Activations])
 
-PullFunc = Callable[[], Inputs]
-PullFuncs = Mapping[Symbol, Callable[[], Inputs]]
+PullFunc = Union[Callable[[], NumDict], Callable[[], Activations]]
+PullFuncs = Mapping[Symbol, PullFunc]
 StructureItem = Tuple[Symbol, "Realizer"]
 
 
@@ -37,6 +37,11 @@ StructureItem = Tuple[Symbol, "Realizer"]
 # items to be added to structures. 
 build_ctx: ContextVar[Tuple[Symbol, ...]] = ContextVar("build_ctx")
 build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
+
+
+class RealizerError(Exception):
+    """Thrown when a realizer is found not to be properly initialized."""
+    pass
 
 
 class Realizer(Generic[Et, Ut, Ot]):
@@ -53,8 +58,8 @@ class Realizer(Generic[Et, Ut, Ot]):
     _output: Ot
     _emitter: Et
     _updater: Optional[Ut]
-    _input_cache: Inputs
-    _update_cache: Inputs
+    _input_cache: Activations
+    _update_cache: Activations
 
     def __init__(self, name: Symbol, emitter: Et, updater: Ut = None) -> None:
         """
@@ -142,10 +147,6 @@ class Realizer(Generic[Et, Ut, Ot]):
         
         self._output = self.emitter.emit() # default/empty output
 
-    class RealizerAssemblyError(Exception):
-        """Thrown when a simulation start precondition is violated."""
-        pass
-
     def finalize_assembly(self):
         """Execute final initialization and checks prior to simulation."""
 
@@ -153,7 +154,7 @@ class Realizer(Generic[Et, Ut, Ot]):
         b &= self.updater is None or self.updater.check_links(self.inputs)
         
         if not b:
-            raise type(self).RealizerAssemblyError(self._link_error_msg())
+            raise RealizerError(self._link_error_msg())
 
     def step(self) -> None:
         """Advance the simulation by one time step."""
@@ -345,7 +346,7 @@ class Construct(Realizer[Pt, UpdaterC[Pt], NumDict]):
             )
 
         
-class Structure(Realizer[Ct, UpdaterS, Union[NumDict, Inputs]]):
+class Structure(Realizer[Ct, UpdaterS, Activations]):
     """
     A composite construct.
     

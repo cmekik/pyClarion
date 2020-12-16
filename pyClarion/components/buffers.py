@@ -11,7 +11,7 @@ from ..base.symbols import (
 )
 from .. import numdicts as nd
 from ..base.components import (
-    Inputs, Propagator, FeatureInterface, FeatureDomain
+    Activations, Propagator, FeatureInterface, FeatureDomain
 )
 
 from typing import Callable, Hashable, Tuple, List, Mapping, Collection, cast
@@ -23,7 +23,7 @@ import logging
 
 def collect_cmd_data(
     construct: Symbol, 
-    inputs: Inputs, 
+    inputs: Activations, 
     controller: Tuple[subsystem, terminus]
 ) -> nd.NumDict:
     """

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- Type `Inputs` renamed to `Activations` to better reflect usage.
+
+### Fixed
+
+- `Structure` output type was `Union[NumDict, Inputs]` instead of just `Inputs`.
+- `PullFunc` output type was `Inputs` instead of `Union[NumDict, Inputs]`.
+- `PullFuncs` callable output type was `Inputs` instead of `Union[NumDict, Inputs]`.
+
 ## [0.14.0] (2020-12-16)
 
 ### Added

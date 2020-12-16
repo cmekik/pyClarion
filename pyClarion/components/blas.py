@@ -7,11 +7,12 @@ __all__ = [
 ]
 
 
-from ..base.symbols import ConstructType
-from ..base.components import Inputs, UpdaterC, UpdaterS
 from .buffers import collect_cmd_data, RegisterArray
+from ..base.symbols import ConstructType, Symbol
+from ..base.components import Activations, UpdaterC, UpdaterS
+from ..numdicts import NumDict
 
-from typing import Any
+from typing import Any, cast
 from collections import deque
 from collections.abc import Mapping, MutableMapping
 
@@ -275,9 +276,9 @@ class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
     def __call__(
         self,
         propagator: RegisterArray,
-        inputs: Inputs,
-        output: Any,
-        update_data: Inputs
+        inputs: Activations,
+        output: NumDict,
+        update_data: Activations
     ) -> None:
         """
         Update register array according to BLAs.
@@ -355,9 +356,9 @@ class BLAInvocationTracker(UpdaterC):
     def __call__(
         self,
         propagator: Any,
-        inputs: Inputs,
-        output: Any,
-        update_data: Inputs
+        inputs: Activations,
+        output: NumDict,
+        update_data: Activations
     ) -> None:
         """
         Register invocations of monitored constructs.
@@ -368,6 +369,7 @@ class BLAInvocationTracker(UpdaterC):
         """
 
         for c, v in output.items():
+            c = cast(Symbol, c)
             if c.ctype in self.ctype and v > self.threshold:
                 self.blas.register_invocation(c, add_new=True)
     
@@ -396,9 +398,9 @@ class BLADrivenDeleter(UpdaterS):
 
     def __call__(
         self, 
-        inputs: Inputs, 
-        output: Any, 
-        update_data: Inputs
+        inputs: Activations, 
+        output: Activations, 
+        update_data: Activations
     ) -> None:
         """
         Delete any entries in client db whose BLA is below threshold.

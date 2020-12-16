@@ -5,7 +5,7 @@ __all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
 
 
 from ..base.symbols import ConstructType, Symbol
-from ..base.components import Inputs, Cycle
+from ..base.components import Cycle
 
 from types import MappingProxyType
 from typing import Dict, Mapping, Tuple, Container, cast
@@ -47,7 +47,7 @@ class CycleS(Cycle):
     @staticmethod
     def emit(data=None):
 
-        mapping = data if data is not None else cast(Inputs, dict())
+        mapping = data if data is not None else dict()
 
         return MappingProxyType(mapping=mapping)
 
