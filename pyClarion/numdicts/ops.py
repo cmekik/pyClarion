@@ -1,6 +1,9 @@
 """Ops on numerical dictionaries with automdiff support."""
 
 
+# TODO: GradientOps may not handle defaults correctly! Check and correct. - Can
+
+
 __all__ = ["log", "exp", "sigmoid", "set_by", "sum_by", "max_by"]
 
 
@@ -71,8 +74,8 @@ def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 
 @register_grad(sum_by)
 def _grad_sum_by(grads, d, *, keyfunc):
-
-    return (NumDict({k: grads[keyfunc(k)] for k in d}),)
+    
+    return (set_by(d, grads, keyfunc=keyfunc),)
 
 
 @register_op
@@ -91,11 +94,12 @@ def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 
     return value
 
+# TODO: _grad_max_by is not differentiable, should probably be made so. - Can
 @register_grad(max_by)
 def _grad_max_by(grads, d, *, keyfunc):
 
     _isclose = math.isclose
-    y = max_by(d, keyfunc=keyfunc) # Should block tape registration.
+    y = max_by(d, keyfunc=keyfunc)
     arg_max = {k for k, v in d.items() if _isclose(v, y[keyfunc(k)])}
     grad_max = NumDict({k: grads[keyfunc(k)] if k in arg_max else 0 for k in d})
 

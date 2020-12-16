@@ -1,6 +1,9 @@
 """Basic definitions for numerical dictionaries with autodiff support."""
 
 
+# TODO: GradientOps may not handle defaults correctly! Check and correct. - Can
+
+
 __all__ = [
     "Op", "GradientOp", "D", "GradientTape", "NumDict", "MutableNumDict", 
     "record_call", "register_op", "register_grad"
@@ -9,7 +12,7 @@ __all__ = [
 
 from typing import (
     Mapping, Any, Hashable, TypeVar, Type, Optional, Callable, Iterable, Dict, 
-    List, Union, Tuple, Set, Container, overload, cast
+    List, Union, Tuple, Set, Container, Iterator, overload, cast
 )
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -55,7 +58,7 @@ class GradientTapeError(Exception):
     pass
 
 
-# Needs to be registered with pprint, awful to read w/ large numdicts.
+# Needs to have a nice repr, awful to read w/ large numdicts.
 @dataclass
 class TapeCell(object):
     """A gradient tape entry."""
@@ -75,6 +78,8 @@ class GradientTape(object):
     """
 
     # May support nesting and higher order derivatives. Investigate.
+    # Seems like it can work if all supported ops have grad functions that are 
+    # themselves diffable... Test it. - Can
 
     __slots__ = ("_tape", "_index", "_token", "_recording", "_persistent")
 
@@ -426,27 +431,27 @@ class NumDict(Mapping[Hashable, float]):
 
         return self._default
 
-    def __str__(self):
+    def __str__(self) -> str:
 
         fmtargs = type(self).__name__, str(self._dict), self._default
 
         return "{}({}, default={})".format(*fmtargs)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         fmtargs = type(self).__name__, repr(self._dict), self._default
 
         return "{}({}, default={})".format(*fmtargs)
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self._dict)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Hashable]:
 
         yield from iter(self._dict)
 
-    def __contains__(self, key):
+    def __contains__(self, key: Any) -> bool:
         """
         Return True iff key is explicitly set in self.
 
@@ -457,7 +462,7 @@ class NumDict(Mapping[Hashable, float]):
 
         return key in self._dict
 
-    def __getitem__(self, key) -> float:
+    def __getitem__(self, key: Any) -> float:
         """
         Return the value explicitly or implicitly associated with key.
 
@@ -485,7 +490,7 @@ class NumDict(Mapping[Hashable, float]):
     @register_grad(__neg__)
     def _grad_neg(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-        return (grads * d.constant(-1.0),)
+        return (grads * d.constant(val=-1.0),)
 
     @register_op
     def __abs__(self) -> "NumDict":
@@ -499,7 +504,7 @@ class NumDict(Mapping[Hashable, float]):
     @register_grad(__abs__)
     def _abs_grad(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
 
-        return (grads * ((2 * (d > 0)) - 1),)
+        return (grads * ((d ** 2) ** 0.5),)
 
     def __eq__( # type: ignore[override]
         self, other: Union["NumDict", float, int]
@@ -539,9 +544,11 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__add__)
-    def _grad_add(grads, d1, d2):
+    def _grad_add(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]:
         
-        return (grads * d1.constant(1), grads * d2.constant(1))    
+        return (grads * d1.constant(val=1), grads * d2.constant(val=1))    
 
     @register_op
     def __sub__(self, other: Union["NumDict", float, int]) -> "NumDict":
@@ -553,9 +560,11 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__sub__)
-    def _grad_sub(grads, d1, d2):
+    def _grad_sub(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]:
         
-        return (grads * d1.constant(1), grads * d2.constant(-1))
+        return (grads * d1.constant(val=1), grads * d2.constant(val=-1))
 
     @register_op
     def __mul__(self, other: Union["NumDict", float, int]) -> "NumDict":
@@ -567,7 +576,9 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__mul__)
-    def _grad_mul(grads, d1, d2):
+    def _grad_mul(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]:
 
         return (grads * d2, grads * d1)
 
@@ -581,7 +592,9 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__truediv__)
-    def _grad_truediv(grads, d1, d2):
+    def _grad_truediv(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]:
 
         return (grads / d2, grads * (- d1) / (d2 ** 2))
 
@@ -595,7 +608,9 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__pow__)
-    def _grad_pow(grads, d1, d2):
+    def _grad_pow(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]:
 
         return (grads * d2 * (d1 ** (d2 - 1)), grads * d1.log() * (d1 ** d2))
 
@@ -621,7 +636,9 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__rtruediv__)
-    def _grad_rtruediv(grads, d1, d2): # TODO: check correctness! - Can
+    def _grad_rtruediv(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]: # TODO: check correctness! - Can
 
         return (grads * (- d2) / (d1 ** 2), grads / d1) 
 
@@ -635,11 +652,15 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(__rpow__)
-    def _grad_rpow(grads, d1, d2): # TODO: check correctness! - Can
+    def _grad_rpow(
+        grads: "NumDict", d1: "NumDict", d2: "NumDict"
+    ) -> Tuple["NumDict", ...]: # TODO: check correctness! - Can
 
         return (grads * d2.log() * (d2 ** d1), grads * d1 * (d2 ** (d1 - 1)))
 
-    def constant(self, value: float) -> "NumDict":
+    # TODO: Is it necessary to register constant as an op? - Can 
+    @register_op
+    def constant(self, *, val: float) -> "NumDict":
         """
         Return a copy of d where all values are set to a constant.
         
@@ -647,15 +668,24 @@ class NumDict(Mapping[Hashable, float]):
         default.
         """
 
-        mapping = {k: value for k in self._dict}
+        mapping = {k: val for k in self._dict}
 
         default: Optional[float]
         if self.default is not None:
-            default = value
+            default = val
         else:
             default = None
 
         return NumDict(mapping, default)
+
+    @staticmethod
+    @register_grad(constant)
+    def _grad_constant(
+        grads: "NumDict", d: "NumDict", *, value: float
+    ) -> Tuple["NumDict", ...]:
+
+        return (grads * d.constant(val=0),)
+
 
     @register_op
     def exp(self) -> "NumDict":
@@ -666,8 +696,9 @@ class NumDict(Mapping[Hashable, float]):
         
         return value
 
+    @staticmethod
     @register_grad(exp)
-    def _grad_exp(grads, d):
+    def _grad_exp(grads: "NumDict", d: "NumDict") -> Tuple["NumDict", ...]:
 
         return (grads * d.exp(),)
 
@@ -682,7 +713,7 @@ class NumDict(Mapping[Hashable, float]):
 
     @staticmethod
     @register_grad(log)
-    def _grad_log(grads, d):
+    def _grad_log(grads: "NumDict", d: "NumDict") -> Tuple["NumDict", ...]:
 
         return (grads / d,)
 

@@ -22,7 +22,7 @@ from dataclasses import dataclass
 import logging
 
 
-Inputs = Mapping[Symbol, Any]
+Inputs = Mapping[Symbol, NumDict]
 Ft = TypeVar("Ft", bound="FeatureInterface")
 Dt = TypeVar("Dt", bound="FeatureDomain")
 Pt = TypeVar("Pt", bound="Propagator")
@@ -124,8 +124,6 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         :param construct: Name of the client construct. 
         :param inputs: Pairs the names of input constructs with their outputs. 
-        :param kwds: Optional parameters. Propagator instances are recommended 
-            to throw errors upon receipt of unexpected keywords.
         """
 
         raise NotImplementedError()
@@ -147,13 +145,14 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         Emit output.
 
         If data is None, emits an empty numdict. Otherwise, emits a frozen 
-        version of data.
+        version of data. Coerces defaults to be 0.0.
         """
 
         d = data if data is not None else NumDict(default=0.0)
 
         if isinstance(d, MutableNumDict):
-            d.squeeze(0.0)
+            d.default = 0.0
+            d = d.squeeze()
 
         return NumDict(d, default=0.0)
 
@@ -272,7 +271,7 @@ class FeatureDomain(object):
     Formally defines a feature domain.
 
     Represents a collection of features defined for the purposes of a 
-    simulation with hooks for parsing out dimensions, tags, etc.
+    simulation with methods for parsing out dimensions, tags, etc.
     
     Intended to be used as a dataclass.
     """
