@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `Structure` output type was `Union[NumDict, Inputs]` instead of just `Inputs`.
-- `PullFunc` output type was `Inputs` instead of `Union[NumDict, Inputs]`.
-- `PullFuncs` callable output type was `Inputs` instead of `Union[NumDict, Inputs]`.
+- Only possible `PullFunc` output type was `Inputs` instead of `NumDict` and `Inputs`.
+- `PullFuncs` callable output type had same issue as `PullFunc`.
+- `MutableNumDict.keep()` and `MutableNumDict.drop()`. 
 
 ## [0.14.0] (2020-12-16)
 

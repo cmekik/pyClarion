@@ -962,11 +962,11 @@ class MutableNumDict(NumDict):
         if func is None and keys is None:
             raise ValueError("Must pass at least one of func or keys.")
 
-        keys = list(self.keys())
-        for key in keys:
-            keep = func is not None and func(key, **kwds)
-            keep |= keys is not None and key in keys
-            if not keep:
+        self_keys = list(self.keys())
+        for key in self_keys:
+            func_success = func is not None and func(key, **kwds)
+            key_success = keys is not None and key in keys
+            if not (func_success or key_success):
                 del self[key]
 
         return self
@@ -986,11 +986,11 @@ class MutableNumDict(NumDict):
         if func is None and keys is None:
             raise ValueError("Must pass at least one of func or keys.")
 
-        keys = list(self.keys())
-        for key in keys:
-            drop = func is not None and func(key, **kwds)
-            drop |= keys is not None and key in keys
-            if drop:
+        _keys = list(self.keys())
+        for key in _keys:
+            func_success = func is not None and func(key, **kwds)
+            key_success = keys is not None and key in keys
+            if func_success or key_success:
                 del self[key]
 
         return self
