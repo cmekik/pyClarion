@@ -88,12 +88,12 @@ class ABTask(object):
 
 # To specify all this we use pyClarion feature domains and feature interfaces.
 
-input_domain = SimpleDomain({
+domain = SimpleDomain({
     feature("A"), 
     feature("B"), 
 })
 
-output_interface = SimpleInterface(
+interface = SimpleInterface(
     cmds={
         feature("respond", "A"),
         feature("respond", "B"),
@@ -109,7 +109,7 @@ output_interface = SimpleInterface(
 # representing reinforcement signals to the dimensions that they reinforce 
 # (including the lag value). The mapping must be one-to-one.
 
-reinforcement_map = ReinforcementMap(
+r_map = ReinforcementMap(
     mapping={
         feature(("r", "respond")): ("respond", 0),
     }
@@ -122,9 +122,9 @@ learner = Structure(
     name=agent("learner"),
     emitter=AgentCycle(),
     assets=Assets(
-        input_domain=input_domain,
-        output_interface=output_interface,
-        reinforcement_map=reinforcement_map
+        domain=domain,
+        interface=interface,
+        r_map=r_map
     )
 )
 
@@ -186,9 +186,9 @@ with learner:
                 x_source=features("in"),
                 r_source=buffer("reinforcement"),
                 a_source=flow_in("ext_actions_lag1"),
-                domain=input_domain,
-                interface=output_interface,
-                reinforcement_map=reinforcement_map,
+                domain=learner.assets.domain,
+                interface=learner.assets.interface,
+                r_map=learner.assets.r_map,
                 layers=[5, 5],
                 gamma=0.7,
                 lr=0.3
@@ -203,7 +203,7 @@ with learner:
             name=terminus("ext_actions"),
             emitter=ActionSelector(
                 source=features("out"),
-                client_interface=learner.assets.output_interface,
+                client_interface=learner.assets.interface,
                 temperature=0.05
             )
         )
