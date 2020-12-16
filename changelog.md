@@ -8,36 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Several additions to `components` subpackage, including:
+    - `chunks_` submodule defining chunk databases and several related components.
+    - `rules` submodule defining rule databases and several related components.
+    - `qnets` submodule defining `SimpleQNet` and `ReinforcementMap` for building simple Q-learning models.
+    - `buffers` submodule defnining buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
+    - `blas` defining BLA databases and some basic related updaters.
+- Various quality of life improvements including:
+    - Use of `with` statements to automate adding constructs to containers.
+    - `assets` attribute for `Structure` objects for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
+    - `utils.pprint` submodule which extends stdlib `pprint` to handle some `pyClarion` objects.
+- Examples `flow_control.py`, `q_learning.py`, `chunk_extraction.py`, `working_memory.py`.
+- New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
 - `numdicts` subpackage, providing dictionaries that support numerical operations and automatic differentiation.
-- `utils` subpackage for miscellaneous utilities, including `pprint` submodule, which extends stdlib `pprint` to handle some `pyClarion` objects.
-- `components` submodule defining basic abstractions for components:
+- `base.components` submodule defining basic abstractions for components:
     - `Component`, `Emitter`, `Updater` abstractions for specifying components and setting up links.
     - `Propagator` and `Cycle` classes for specifying activation propagation procedures for `Construct` and `Structure` instances.
     - `Assets`, a simple namespace object for holding structure assets.
     - `FeatureDomain`, `FeatureInterface`, `SimpleDomain`, `SimpleInterface` for structuring specification of feature domains and feature driven control of components
-- `qnets.py` submodule defining `SimpleQNet` and `ReinforcementMap` for building simple Q-learning models.
-- `buffers.py` submodule defnining buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
-- `blas.py` defining BLA databases and some basic related updaters.
-- `filters.py` defining `Filtered`, `Gated`, and `Pruned` propagators, allowing input filtering and output gating.
-- `updaters.py` defining updater chains and conditional updaters.
-- Use of `with` statements to automate adding constructs to containers.
-- Examples `flow_control.py`, `q_learning.py`, `chunk_extraction.py`, `working_memory.py`.
-- New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
-- `assets` attribute for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
-- Chunk, and rule databases: `Chunks` and `Rules`.
-- Chunk extraction termini `ChunkExtractor` and `ControlledExtractor`.
-- `ActionRules` propagator class. 
 
 ### Changed
 
-- Reorganzied library. The basic design has persisted, but almost everything has changed. Expect no backwards compatibility.
-- `ConstructSymbol` replaced with new `Symbol` class.
-- Old construct realizer classes simplified and replaced: 
-    - `Structure` class for containers
-    - `Construct` class for basic constructs.
-- Realizers and propagators all modified to emit and operate on numdicts, as defined by `numdicts` submodule. 
-- Individual chunk and feature nodes no longer explicitly represented, instead use of feature pools is encouraged.
-- `nacs_proc` function converted to `NACSCycle` class.
+- Reorganzied library. The basic design has persisted, but almost everything else has changed. Expect no backwards compatibility. Some notable changes include:
+    - `ConstructSymbol` replaced with new `Symbol` class.
+    - Old construct realizer classes simplified and replaced: 
+        - `Structure` class for containers
+        - `Construct` class for basic constructs.
+    - Realizers and propagators all modified to emit and operate on numdicts, as defined by `numdicts` submodule. 
+    - Individual chunk and feature nodes no longer explicitly represented, instead use of feature pools is encouraged.
 
 ### Fixed 
 
