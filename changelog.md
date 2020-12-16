@@ -4,35 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.14.0] (2020-12-16)
 
 ### Added
 
-- `numdicts` submodule, providing dictionaries that support numerical operations and automatic differentiation.
+- `numdicts` subpackage, providing dictionaries that support numerical operations and automatic differentiation.
 - `utils` subpackage for miscellaneous utilities, including `pprint` submodule, which extends stdlib `pprint` to handle some `pyClarion` objects.
-- Attribute `assets` for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
-- New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
-- `Token` class for building structured symbolic tokens.
-- Examples `lagged_features.py`, `flow_control.py`, `chunk_extraction.py`, `working_memory.py`.
-- `components` submodule defining basic abstractions for defining components:
+- `components` submodule defining basic abstractions for components:
     - `Component`, `Emitter`, `Updater` abstractions for specifying components and setting up links.
     - `Propagator` and `Cycle` classes for specifying activation propagation procedures for `Construct` and `Structure` instances.
     - `Assets`, a simple namespace object for holding structure assets.
     - `FeatureDomain`, `FeatureInterface`, `SimpleDomain`, `SimpleInterface` for structuring specification of feature domains and feature driven control of components
-    - `SimpleQNet` and `ReinforcementMap` for building simple Q-learning models.
-- Use of `with` statements to automate adding constructs to containers.
-- `AgentCycle`, `CycleS` abstraction and `ACSCycle` classes for controlling structure propagation.  
-- Chunk, rule, and BLA databases `Chunks` and `Rules`, `BLAs`.
-- Chunk extraction termini `ChunkExtractor` and `ControlledExtractor`.
-- `Filtered`, `Gated`, and `Pruned` propagators, allowing input filtering and output gating.
-- `ActionRules` propagator class.
-- Buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
+- `qnets.py` submodule defining `SimpleQNet` and `ReinforcementMap` for building simple Q-learning models.
+- `buffers.py` submodule defnining buffer propagators `ParamSet`, `Register`, and `RegisterArray`.
 - `blas.py` defining BLA databases and some basic related updaters.
+- `filters.py` defining `Filtered`, `Gated`, and `Pruned` propagators, allowing input filtering and output gating.
 - `updaters.py` defining updater chains and conditional updaters.
+- Use of `with` statements to automate adding constructs to containers.
+- Examples `flow_control.py`, `q_learning.py`, `chunk_extraction.py`, `working_memory.py`.
+- New construct types and symbols for rules, feature/chunk pools, and preprocessing flows.
+- `assets` attribute for `Structure` objects. This is a simple dict for storing datastructures shared by multiple components of the parent realizer (e.g, chunk database may be shared by updaters).
+- Chunk, and rule databases: `Chunks` and `Rules`.
+- Chunk extraction termini `ChunkExtractor` and `ControlledExtractor`.
+- `ActionRules` propagator class. 
 
 ### Changed
 
-- Reorganzied library.
+- Reorganzied library. The basic design has persisted, but almost everything has changed. Expect no backwards compatibility.
 - `ConstructSymbol` replaced with new `Symbol` class.
 - Old construct realizer classes simplified and replaced: 
     - `Structure` class for containers
@@ -41,16 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Individual chunk and feature nodes no longer explicitly represented, instead use of feature pools is encouraged.
 - `nacs_proc` function converted to `NACSCycle` class.
 
-### Removed
-
-- `funcs.py`
-- `packets.py`
-
 ### Fixed 
 
 - Circular imports.
 
-## 0.13.1 (2019-03-07)
+## [0.13.1] (2019-03-07)
 
 ### Added
 
@@ -69,7 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `BasicConstructRealizer.clear_activations()` may throw attribute errors when realizer has already been cleared or has no output.
 - `SimpleNodeJunction` would not recognize a construct symbol of the same form as its stored construct symbol. This caused nodes to fail to output activations. Due to use of `is` in construct symbol checks (should have used `==`).
 
-## 0.13.0
+## [0.13.0]
 
 ### Added
 
