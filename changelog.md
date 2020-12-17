@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Runtime checkable generic protocol `SymbolTrie`
+
 ### Changed
 
 - Type `Inputs` to `SymbolTrie[NumDict]` to be more precise.
