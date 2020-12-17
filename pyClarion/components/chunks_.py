@@ -99,8 +99,8 @@ class Chunk(object):
 
         weighted = strength * self.weights
 
-        d = nd.MutableNumDict()
-        d.extend(self.features, value=0.0)
+        d = nd.MutableNumDict(default=0.0)
+        d.extend(self.features)
         d.set_by(weighted, feature.dim.fget)
 
         return d
