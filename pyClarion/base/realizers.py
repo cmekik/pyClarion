@@ -35,8 +35,8 @@ StructureItem = Tuple[Symbol, "Realizer"]
 
 # Context variables for automating/simplifying agent construction. Helps track
 # items to be added to structures. 
-build_ctx: ContextVar[Tuple[Symbol, ...]] = ContextVar("build_ctx")
-build_list: ContextVar[List["Realizer"]] = ContextVar("build_list")
+BUILD_CTX: ContextVar[Tuple[Symbol, ...]] = ContextVar("BUILD_CTX")
+BUILD_LIST: ContextVar[List["Realizer"]] = ContextVar("BUILD_LIST")
 
 
 class RealizerError(Exception):
@@ -239,7 +239,7 @@ class Realizer(Generic[Et, Ut, Ot]):
         """If current context contains an add queue, add self to it."""
 
         try:
-            lst = build_list.get()
+            lst = BUILD_LIST.get()
         except LookupError:
             pass
         else:
@@ -249,7 +249,7 @@ class Realizer(Generic[Et, Ut, Ot]):
 
         tname = type(self).__name__
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             msg = "Initializing %s %s."
             logging.debug(msg, tname, construct)
@@ -260,7 +260,7 @@ class Realizer(Generic[Et, Ut, Ot]):
     def _log_watch(self, construct: Symbol) -> None:
 
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             logging.debug("Connecting %s to %s.", construct, self.construct)
         else:
@@ -270,7 +270,7 @@ class Realizer(Generic[Et, Ut, Ot]):
     def _log_drop(self, construct: Symbol) -> None:
 
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             msg = "Disconnecting %s from %s."
             logging.debug(msg, construct, self.construct)
@@ -285,7 +285,7 @@ class Realizer(Generic[Et, Ut, Ot]):
         s -= set(self.inputs)
 
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             msg = "Construct {} missing expected link(s): {}."
             return msg.format(self.construct, s)
@@ -429,22 +429,22 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
         logging.debug("Entering context %s.", self.construct)
         # This sets the context variable up to track objects to be added to 
         # self.
-        parent = build_ctx.get(())
-        self._build_ctx_token = build_ctx.set(parent + (self.construct,))
-        self._build_list_token = build_list.set([])
+        parent = BUILD_CTX.get(())
+        self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
+        self._build_list_token = BUILD_LIST.set([])
 
     def __exit__(self, exc_type, exc_value, traceback):
 
         if exc_type is None:
             # Add any newly defined realizers to self and clean up the context.
-            context, add_list = build_ctx.get(), build_list.get()
+            context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
             for realizer in add_list:
                 self.add(realizer)
             if len(context) <= 1:
                 self.finalize_assembly()
         
-        build_ctx.reset(self._build_ctx_token)
-        build_list.reset(self._build_list_token)
+        BUILD_CTX.reset(self._build_ctx_token)
+        BUILD_LIST.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)
 
     def finalize_assembly(self) -> None:
@@ -452,7 +452,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
         ctxmgr: Union[Structure, ContextManager[Structure]]
         
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             ctxmgr = self
         else:
@@ -662,7 +662,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
     def _log_del(self, construct) -> None:
 
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             logging.debug("Removing %s from %s.", construct, self.construct)
         else:
@@ -672,7 +672,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
     def _log_add(self, construct) -> None:
 
         try:
-            context = build_ctx.get()
+            context = BUILD_CTX.get()
         except LookupError:
             logging.debug("Adding %s to %s.", construct, self.construct)
         else:
