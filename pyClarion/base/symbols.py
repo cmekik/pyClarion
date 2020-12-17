@@ -2,9 +2,9 @@
 
 
 __all__ = [
-    "ConstructType", "Token", "Symbol", "ConstructRef", "feature", 
-    "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", "flow_tb", 
-    "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
+    "ConstructType", "Token", "Symbol", "SymbolicAddress", "SymbolTrie", 
+    "feature", "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", 
+    "flow_tb", "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
     "group_by", "group_by_ctype", "group_by_dims", "group_by_tags", 
     "group_by_vals", "group_by_lags", "lag"
 ]
@@ -12,8 +12,10 @@ __all__ = [
 
 from enum import Flag, auto
 from typing import (
-    Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar, cast
+    Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar, Iterator, 
+    AbstractSet, ValuesView, Optional, Any, cast
 )
+from typing_extensions import Protocol, runtime_checkable
 
 
 class ConstructType(Flag):
@@ -187,7 +189,40 @@ class Symbol(Token):
 
 
 # Address for a construct w/in a simulated agent or component.
-ConstructRef = Union[Symbol, Tuple[Symbol, ...]]
+SymbolicAddress = Union[Symbol, Tuple[Symbol, ...]]
+
+
+L = TypeVar("L", covariant=True)
+@runtime_checkable
+class SymbolTrie(Protocol[L]):
+    """
+    A recursive type for relaying structured construct data.
+
+    Assumed immutable.
+    """
+
+    # Based on a suggestion by Sg495 in mypy issue #731 - Can
+
+    def __getitem__(self, key: Symbol) -> Union[L, "SymbolTrie[L]"]:
+        ...
+
+    def __contains__(self, key: object) -> bool:
+        ...
+
+    def __len__(self) -> int:
+        ...
+
+    def __iter__(self) -> Iterator[Symbol]:
+        ...
+
+    def keys(self) -> AbstractSet[Symbol]:
+        ...
+
+    def values(self) -> ValuesView[Union[L, "SymbolTrie[L]"]]:
+        ...
+
+    def items(self) -> AbstractSet[Tuple[Symbol, Union[L, "SymbolTrie[L]"]]]:
+        ...
 
 
 class feature(Symbol):

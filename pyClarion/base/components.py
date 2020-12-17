@@ -2,13 +2,13 @@
 
 
 __all__ = [
-    "Activations", "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", 
-    "UpdaterS", "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
+    "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
+    "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
     "SimpleInterface"
 ]
 
 
-from .symbols import ConstructType, Symbol, feature, group_by_dims
+from .symbols import ConstructType, Symbol, SymbolTrie, feature, group_by_dims
 from ..numdicts import D, NumDict, MutableNumDict
 
 from typing import (
@@ -16,7 +16,6 @@ from typing import (
     Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Collection, 
     FrozenSet, AbstractSet, ValuesView, cast, no_type_check,
 )
-from typing_extensions import Protocol
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
 from dataclasses import dataclass
@@ -26,46 +25,6 @@ import logging
 Ft = TypeVar("Ft", bound="FeatureInterface")
 Dt = TypeVar("Dt", bound="FeatureDomain")
 Pt = TypeVar("Pt", bound="Propagator")
-
-
-# Activation type for pyClarion Emitters.
-# Would ideally want:
-# Inputs = Union[Mapping[Symbol, NumDict], Mapping[Symbol, "Activations"]]
-# mypy can't handle recursive types... so using a Protocol based solution as 
-# suggested by Sg495 in mypy issue #731 - Can
-
-_Activations = Union[NumDict, "Activations"]
-
-class Activations(Protocol):
-    """
-    Recursive type for activation data.
-    
-    Associates constructs with activation patterns.
-
-    This is roughly a nested mapping type where keys are Symbols and values are 
-    data of type Activations or NumDict.
-    """
-
-    def __getitem__(self, key: Symbol) -> "_Activations":
-        ...
-
-    def __contains__(self, key: object) -> bool:
-        ...
-
-    def __len__(self) -> int:
-        ...
-
-    def __iter__(self) -> Iterator[Symbol]:
-        ...
-
-    def keys(self) -> AbstractSet[Symbol]:
-        ...
-
-    def values(self) -> ValuesView["_Activations"]:
-        ...
-
-    def items(self) -> AbstractSet[Tuple[Symbol, "_Activations"]]:
-        ...
 
 
 class Component(object):
@@ -147,7 +106,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
     interface: Ft
     domain: Dt
 
-    def __call__(self, inputs: Activations) -> NumDict:
+    def __call__(self, inputs: SymbolTrie[NumDict]) -> NumDict:
         """
         Execute construct's forward propagation cycle.
 
@@ -158,7 +117,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: Activations) -> D:
+    def call(self, inputs: SymbolTrie[NumDict]) -> D:
         """
         Compute construct's output.
 
@@ -168,7 +127,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         raise NotImplementedError()
 
-    def update(self, inputs: Activations, output: NumDict) -> None:
+    def update(self, inputs: SymbolTrie[NumDict], output: NumDict) -> None:
         """
         Apply essential updates to self.
         
@@ -215,7 +174,7 @@ class Cycle(Emitter):
 
     @staticmethod
     @abstractmethod
-    def emit(data: Activations = None) -> Activations:
+    def emit(data: SymbolTrie[NumDict] = None) -> SymbolTrie[NumDict]:
         """
         Emit output.
 
@@ -249,9 +208,9 @@ class UpdaterC(Updater, Generic[Pt]):
     def __call__(
         self, 
         propagator: Pt, 
-        inputs: Activations, 
+        inputs: SymbolTrie[NumDict], 
         output: NumDict, 
-        update_data: Activations
+        update_data: SymbolTrie[NumDict]
     ) -> None:
         """
         Apply updates to propagator. 
@@ -282,9 +241,9 @@ class UpdaterS(Updater):
     @abstractmethod
     def __call__(
         self, 
-        inputs: Activations, 
-        output: Activations, 
-        update_data: Activations
+        inputs: SymbolTrie[NumDict], 
+        output: SymbolTrie[NumDict], 
+        update_data: SymbolTrie[NumDict]
     ) -> None:
         """
         Apply updates to relevant asset(s) of client construct. 

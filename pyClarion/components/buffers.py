@@ -5,14 +5,12 @@ __all__ = ["ParamSet", "Register", "RegisterArray", "collect_cmd_data"]
 
 
 from ..base.symbols import (
-    ConstructType, Symbol, 
+    ConstructType, Symbol, SymbolTrie,
     feature, subsystem, terminus,
     group_by_dims, lag
 )
 from .. import numdicts as nd
-from ..base.components import (
-    Activations, Propagator, FeatureInterface, FeatureDomain
-)
+from ..base.components import Propagator, FeatureInterface, FeatureDomain
 
 from typing import Callable, Hashable, Tuple, List, Mapping, Collection, cast
 from dataclasses import dataclass
@@ -23,7 +21,7 @@ import logging
 
 def collect_cmd_data(
     construct: Symbol, 
-    inputs: Activations, 
+    inputs: SymbolTrie[nd.NumDict], 
     controller: Tuple[subsystem, terminus]
 ) -> nd.NumDict:
     """

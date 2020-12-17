@@ -4,9 +4,9 @@
 __all__ = ["Realizer", "Construct", "Structure"]
 
 
-from .symbols import ConstructType, Symbol, ConstructRef, feature
+from .symbols import ConstructType, Symbol, SymbolicAddress, SymbolTrie, feature
 from .components import (
-    Activations, Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
+    Emitter, Propagator, Updater, UpdaterC, UpdaterS, Cycle, Assets
 )
 from ..numdicts import NumDict
 
@@ -26,9 +26,9 @@ Et = TypeVar("Et", bound="Emitter")
 Pt = TypeVar("Pt", bound="Propagator")
 Ut = TypeVar("Ut", bound="Updater")
 Ct = TypeVar("Ct", bound="Cycle")
-Ot = TypeVar("Ot", bound=Union[NumDict, Activations])
+Ot = TypeVar("Ot", bound=Union[NumDict, SymbolTrie[NumDict]])
 
-PullFunc = Union[Callable[[], NumDict], Callable[[], Activations]]
+PullFunc = Union[Callable[[], NumDict], Callable[[], SymbolTrie[NumDict]]]
 PullFuncs = Mapping[Symbol, PullFunc]
 StructureItem = Tuple[Symbol, "Realizer"]
 
@@ -58,8 +58,8 @@ class Realizer(Generic[Et, Ut, Ot]):
     _output: Ot
     _emitter: Et
     _updater: Optional[Ut]
-    _input_cache: Activations
-    _update_cache: Activations
+    _input_cache: SymbolTrie[NumDict]
+    _update_cache: SymbolTrie[NumDict]
 
     def __init__(self, name: Symbol, emitter: Et, updater: Ut = None) -> None:
         """
@@ -346,7 +346,7 @@ class Construct(Realizer[Pt, UpdaterC[Pt], NumDict]):
             )
 
         
-class Structure(Realizer[Ct, UpdaterS, Activations]):
+class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
     """
     A composite construct.
     
@@ -380,7 +380,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
         self._dict = {}
         self.assets = assets if assets is not None else Assets()
 
-    def __contains__(self, key: ConstructRef) -> bool:
+    def __contains__(self, key: SymbolicAddress) -> bool:
 
         try:
             self.__getitem__(key)
@@ -393,7 +393,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
         for construct in chain(*self._dict.values()):
             yield construct
 
-    def __getitem__(self, key: ConstructRef) -> Any:
+    def __getitem__(self, key: SymbolicAddress) -> Any:
 
         if isinstance(key, tuple):
             if len(key) == 0:
@@ -408,7 +408,7 @@ class Structure(Realizer[Ct, UpdaterS, Activations]):
             return self._dict[key.ctype][key]
 
     # TODO: Recursive application needs testing. - Can
-    def __delitem__(self, key: ConstructRef) -> None:
+    def __delitem__(self, key: SymbolicAddress) -> None:
 
         if isinstance(key, tuple):
             if len(key) == 0:
