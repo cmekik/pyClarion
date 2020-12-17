@@ -94,11 +94,6 @@ class Emitter(Component):
         raise NotImplementedError()
 
 
-class PropagatorError(UserWarning):
-    """Issued when a Propagator instance encounters a fatal error."""
-    pass
-
-
 class Propagator(Emitter, Generic[Ft, Dt]):
     """
     Emitter for basic constructs.
@@ -164,7 +159,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
                 "construct {}, expected '0.0'."
             )
             msg = msg.format(d.default, cls.__name__, self.client)
-            raise PropagatorError(msg)
+            raise ValueError(msg)
 
         if isinstance(d, nd.NumDict):
             return d

@@ -8,14 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Type `Inputs` renamed to `Activations` to better reflect usage.
+- Type `Inputs` to `SymbolTrie[NumDict]` to be more precise.
 
 ### Fixed
 
-- `Structure` output type was `Union[NumDict, Inputs]` instead of just `Inputs`.
-- Only possible `PullFunc` output type was `Inputs` instead of `NumDict` and `Inputs`.
-- `PullFuncs` callable output type had same issue as `PullFunc`.
-- `MutableNumDict.keep()` and `MutableNumDict.drop()`. 
+- `Structure` output type.
+- `PullFunc` output type.
+- `PullFuncs` output type.
+- Incorrect filtering behaviour for `MutableNumDict.keep()` and `MutableNumDict.drop()`. 
 
 ## [0.14.0] (2020-12-16)
 
