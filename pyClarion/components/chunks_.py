@@ -360,7 +360,7 @@ class BottomUp(Propagator):
             methods.
         """
 
-        d = nd.MutableNumDict()
+        d = nd.MutableNumDict(default=0.0)
         strengths = inputs[self.source]
         for ch, form in self.chunks.items():
             d[ch] = form.bottom_up(strengths)
@@ -404,7 +404,7 @@ class ChunkExtractor(Propagator):
     def call(self, inputs):
         """Extract a chunk from bottom-level activations."""
 
-        d = nd.MutableNumDict()
+        d = nd.MutableNumDict(default=0.0)
         fs = nd.threshold(inputs[self.source], th=self.threshold)
 
         if len(fs) > 0:

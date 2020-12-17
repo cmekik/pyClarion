@@ -82,7 +82,7 @@ wm_interface = RegisterArray.Interface(
 
 # We set up default action activations, as in `flow_control.py`.
 
-default_strengths = nd.MutableNumDict()
+default_strengths = nd.MutableNumDict(default=0)
 default_strengths.extend(
     wm_interface.defaults,
     speech_interface.defaults,

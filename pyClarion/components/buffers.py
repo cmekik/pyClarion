@@ -154,7 +154,7 @@ class ParamSet(Propagator):
         else:
             raise ValueError("Unexpected command value: {}.".format(repr(val)))
 
-        d = nd.MutableNumDict()
+        d = nd.MutableNumDict(default=0)
         strengths = nd.transform_keys(self.store, func=feature.tag.fget)
         for construct in self.interface.clients:
             d[construct] = strengths[self.interface.func(construct)]

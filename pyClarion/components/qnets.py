@@ -203,6 +203,7 @@ class SimpleQNet(Propagator):
 
         # squash the q values to lie in (0, 1)
         d = nd.sigmoid(qs)
+        d = nd.with_default(d, default=0)
 
         return d
 

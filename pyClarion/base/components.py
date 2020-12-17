@@ -9,7 +9,7 @@ __all__ = [
 
 
 from .symbols import ConstructType, Symbol, SymbolTrie, feature, group_by_dims
-from ..numdicts import D, NumDict, MutableNumDict
+from .. import numdicts as nd
 
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
@@ -19,6 +19,7 @@ from typing import (
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
 from dataclasses import dataclass
+import warnings
 import logging
 
 
@@ -80,9 +81,8 @@ class Emitter(Component):
     entrusted construct computes its output. 
     """
 
-    @staticmethod
     @abstractmethod
-    def emit(data: Any = None) -> Any:
+    def emit(self, data: Any = None) -> Any:
         """
         Emit output.
 
@@ -92,6 +92,11 @@ class Emitter(Component):
         """
 
         raise NotImplementedError()
+
+
+class PropagatorError(UserWarning):
+    """Issued when a Propagator instance encounters a fatal error."""
+    pass
 
 
 class Propagator(Emitter, Generic[Ft, Dt]):
@@ -106,7 +111,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
     interface: Ft
     domain: Dt
 
-    def __call__(self, inputs: SymbolTrie[NumDict]) -> NumDict:
+    def __call__(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
         """
         Execute construct's forward propagation cycle.
 
@@ -117,7 +122,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: SymbolTrie[NumDict]) -> D:
+    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.D:
         """
         Compute construct's output.
 
@@ -127,7 +132,9 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         raise NotImplementedError()
 
-    def update(self, inputs: SymbolTrie[NumDict], output: NumDict) -> None:
+    def update(
+        self, inputs: SymbolTrie[nd.NumDict], output: nd.NumDict
+    ) -> None:
         """
         Apply essential updates to self.
         
@@ -138,22 +145,31 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         pass
 
-    @staticmethod
-    def emit(data: D = None) -> NumDict:
+    def emit(self, data: nd.D = None) -> nd.NumDict:
         """
         Emit output.
 
         If data is None, emits an empty numdict. Otherwise, emits a frozen 
-        version of data. Coerces defaults to be 0.0.
+        version of data. 
+        
+        Raises a PropagatorError if default value of data is not 0.0.
         """
 
-        d = data if data is not None else NumDict(default=0.0)
+        d = data if data is not None else nd.NumDict(default=0.0)
 
-        if isinstance(d, MutableNumDict):
-            d.default = 0.0
-            d = d.squeeze()
+        if d.default != 0.0:
+            cls = type(self)
+            msg = (
+                "Unexpected default value '{}' in output of propagator {} for "
+                "construct {}, expected '0.0'."
+            )
+            msg = msg.format(d.default, cls.__name__, self.client)
+            raise PropagatorError(msg)
 
-        return NumDict(d, default=0.0)
+        if isinstance(d, nd.NumDict):
+            return d
+        else:
+            return nd.freeze(d)
 
 
 class Cycle(Emitter):
@@ -172,9 +188,10 @@ class Cycle(Emitter):
 
         return frozenset()
 
-    @staticmethod
     @abstractmethod
-    def emit(data: SymbolTrie[NumDict] = None) -> SymbolTrie[NumDict]:
+    def emit(
+        self, data: SymbolTrie[nd.NumDict] = None
+    ) -> SymbolTrie[nd.NumDict]:
         """
         Emit output.
 
@@ -208,9 +225,9 @@ class UpdaterC(Updater, Generic[Pt]):
     def __call__(
         self, 
         propagator: Pt, 
-        inputs: SymbolTrie[NumDict], 
-        output: NumDict, 
-        update_data: SymbolTrie[NumDict]
+        inputs: SymbolTrie[nd.NumDict], 
+        output: nd.NumDict, 
+        update_data: SymbolTrie[nd.NumDict]
     ) -> None:
         """
         Apply updates to propagator. 
@@ -241,9 +258,9 @@ class UpdaterS(Updater):
     @abstractmethod
     def __call__(
         self, 
-        inputs: SymbolTrie[NumDict], 
-        output: SymbolTrie[NumDict], 
-        update_data: SymbolTrie[NumDict]
+        inputs: SymbolTrie[nd.NumDict], 
+        output: SymbolTrie[nd.NumDict], 
+        update_data: SymbolTrie[nd.NumDict]
     ) -> None:
         """
         Apply updates to relevant asset(s) of client construct. 

@@ -2,7 +2,7 @@
 
 
 __all__ = [
-    "epsilon", "freeze", "unfreeze", "isclose", "keep", "drop", 
+    "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
     "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
     "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise", 
     "val_sum", "exponential_moving_avg", "tabulate"
@@ -34,6 +34,11 @@ def unfreeze(d: NumDict) -> MutableNumDict:
     """Return a mutable copy of d."""
 
     return MutableNumDict(d, d.default)
+
+
+def with_default(d: D, default: float) -> NumDict:
+
+    return NumDict(d, default=default)
 
 
 def isclose(d1: D, d2: D) -> bool:

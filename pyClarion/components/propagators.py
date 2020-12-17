@@ -172,7 +172,9 @@ class BoltzmannSelector(Propagator):
         thresholded = nd.threshold(strengths, th=self.threshold) 
         probabilities = nd.boltzmann(thresholded, self.temperature)
         d = nd.draw(probabilities, 1)
-
+        d = nd.with_default(d, default=0)
+        print(d)
+        
         return d
 
 
@@ -217,7 +219,7 @@ class ActionSelector(Propagator):
         params = self.client_interface.params
         cmds_by_dims = self.client_interface.cmds_by_dims
 
-        d = nd.MutableNumDict({f: strengths[f] for f in params})
+        d = nd.MutableNumDict({f: strengths[f] for f in params}, default=0)
 
         for dim, fs in cmds_by_dims.items():
             ipt = nd.NumDict({f: strengths[f] for f in fs})
@@ -244,8 +246,9 @@ class Constants(Propagator):
     _serves = ConstructType.basic_construct
 
     def __init__(self, strengths = None) -> None:
-
+        
         self.strengths = strengths or nd.NumDict(default=0.0)
+        self._check_default(strengths)
 
     @property
     def expected(self):
@@ -260,12 +263,20 @@ class Constants(Propagator):
     def update_strengths(self, strengths):
         """Update self with contents of dict-like strengths."""
 
+        self._check_default(strengths)
         self.strengths = strengths
 
     def clear(self) -> None:
         """Clear stored node strengths."""
 
         self.strengths = nd.NumDict(default=0.0)
+
+    @staticmethod
+    def _check_default(strengths):
+
+        if strengths.default != 0.0:
+            msg = "Unexpected default '{}', expected '0'."
+            raise ValueError(msg.format(strengths.default))
 
 
 class Stimulus(Propagator):
@@ -275,7 +286,7 @@ class Stimulus(Propagator):
 
     def __init__(self):
 
-        self.stimulus = nd.MutableNumDict()
+        self.stimulus = nd.MutableNumDict(default=0.0)
 
     @property
     def expected(self):
@@ -289,6 +300,6 @@ class Stimulus(Propagator):
     def call(self, inputs):
 
         d = self.stimulus
-        self.stimulus = nd.MutableNumDict()
+        self.stimulus = nd.MutableNumDict(default=0.0)
 
         return d
