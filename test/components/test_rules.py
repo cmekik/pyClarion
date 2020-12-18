@@ -102,14 +102,14 @@ class TestActionRules(unittest.TestCase):
         expected = nd.transform_keys(inputs[chunks(1)], func=get_rule)
         expected = nd.boltzmann(expected, t=.1)
 
-        N = 2000
+        N = 4000
 
         selected = []
         is_rule = lambda sym: sym.ctype in ConstructType.rule
         for _ in range(N):
             strengths = action_rules.call(inputs)
             s = nd.keep(strengths, func=is_rule)
-            s = nd.threshold(s, th=0, keep_default=True)
+            s = nd.threshold(s, th=0)
             s = s.constant(val=1)
             s = nd.with_default(s, default=0) 
             selected.append(s)
