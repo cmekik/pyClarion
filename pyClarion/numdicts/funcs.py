@@ -185,13 +185,18 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
         return NumDict(default=default)
 
 
-def draw(d: D, n: int=1, val=1.0) -> NumDict:
+def draw(
+    d: D, 
+    n: int = 1, 
+    val: Union[float, int] = 1.0, 
+    default: Union[float, int] = 0.0
+) -> NumDict:
     """
     Draw k keys from numdict without replacement.
     
     If k >= len(d), returns a selection of all elements in d. 
     
-    Sampled elements are given a value of 1.0 by default. Output inherits its
+    Sampled elements are given a val of 1.0 by default. Output inherits its
     default value from d.
     """
 
