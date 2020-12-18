@@ -5,7 +5,7 @@ __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
     "squeeze", "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
     "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise", 
-    "val_sum", "exponential_moving_avg", "tabulate"
+    "val_sum", "val_max", "val_min", "exponential_moving_avg", "tabulate"
 ]
 
 from .numdicts import NumDict, MutableNumDict, D
@@ -305,7 +305,7 @@ def ew_min(*ds: D) -> NumDict:
 def valuewise(
     op: Callable[[float, float], float], d: D, initial: float
 ) -> float:
-    """Recursively apply commutative binary op to values of d."""
+    """Recursively apply commutative binary op to explicit values of d."""
 
     v = initial
     for item in d.values():
@@ -321,8 +321,15 @@ def val_sum(d: D) -> float:
 
 
 def val_max(d: D) -> float:
+    """Return the maximum explicit value in d."""
 
     return valuewise(max, d, float("-inf"))
+
+
+def val_min(d: D) -> float:
+    """Return the minimum explicit value in d."""
+
+    return valuewise(max, d, float("+inf"))
 
 
 def exponential_moving_avg(d: D, *ds: D, alpha: float) -> List[NumDict]:
