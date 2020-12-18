@@ -171,7 +171,7 @@ class BoltzmannSelector(Propagator):
         strengths = inputs[self.source]
         thresholded = nd.threshold(strengths, th=self.threshold) 
         probabilities = nd.boltzmann(thresholded, self.temperature)
-        d = nd.draw(probabilities, 1)
+        d = nd.draw(probabilities, n=1)
         d = nd.with_default(d, default=0)
         print(d)
         
@@ -224,7 +224,7 @@ class ActionSelector(Propagator):
         for dim, fs in cmds_by_dims.items():
             ipt = nd.NumDict({f: strengths[f] for f in fs})
             prs = nd.boltzmann(ipt, self.temperature)
-            selection = nd.draw(prs, 1)
+            selection = nd.draw(prs, n=1)
             d.update(selection)
 
         return d

@@ -3,7 +3,7 @@
 
 __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
-    "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
+    "squeeze", "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
     "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise", 
     "val_sum", "exponential_moving_avg", "tabulate"
 ]
@@ -11,7 +11,7 @@ __all__ = [
 from .numdicts import NumDict, MutableNumDict, D
 
 from typing import (
-    TypeVar, Callable, Hashable, Dict, Union, List, Any, Container
+    TypeVar, Callable, Hashable, Dict, Union, List, Any, Container, Optional
 )
 import random
 import operator
@@ -36,7 +36,27 @@ def unfreeze(d: NumDict) -> MutableNumDict:
     return MutableNumDict(d, d.default)
 
 
-def with_default(d: D, default: float) -> NumDict:
+def squeeze(d: D, default: float = None) -> NumDict:
+    """
+    Return a copy of d dropping explicit members close to the default .
+    
+    :param default: Default value to assume if self.default is None. If 
+        provided when self.default is defined, will be ignored.
+    """
+
+    if d.default is not None:
+        default = d.default
+    elif default is not None:
+        pass
+    else:
+        raise ValueError("Cannot squeeze numdict with no default.")
+
+    mapping = {k: v for k, v in d.items() if not math.isclose(v, default)}
+
+    return NumDict(mapping, default)
+
+
+def with_default(d: D, *, default: Optional[Union[float, int]]) -> NumDict:
 
     return NumDict(d, default=default)
 
@@ -114,16 +134,19 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
     return NumDict(mapping, d.default)
 
 
-def threshold(d: D, *, th: float) -> NumDict:
+def threshold(
+    d: D, *, th: Union[float, int], keep_default: bool = False
+) -> NumDict:
     """
     Return a copy of d containing only values above theshold.
     
-    If the default is below threshold, it is set to None in the output.
+    If the default is below threshold it is set to None in the output, unless 
+    keep default is True.
     """
 
     mapping = {k: d[k] for k in d if th < d[k]}
     if d.default is not None:
-        default = d.default if th < d.default else None 
+        default = d.default if keep_default or th < d.default else None 
 
     return NumDict(mapping, default)
 
@@ -143,31 +166,39 @@ def clip(d: D, low: float = None, high: float = None) -> NumDict:
     return NumDict(mapping, d.default)
 
 
-def boltzmann(d: D, t: float) -> NumDict:
-    """Construct a boltzmann distribution from d with temperature t."""
+def boltzmann(d: D, t: Union[float, int]) -> NumDict:
+    """
+    Construct a boltzmann distribution from d with temperature t.
 
-    output = MutableNumDict(default=0.0)
+    If d has a default, the returned value will have a default of 0, and, if d 
+    is empty, the return value will also be empty.
+    """
+
+    default = 0 if d.default is not None else None
     if len(d) > 0:
-        numerators = (d / t).exp()
+        x = d / t
+        x = x - val_max(x) # softmax(x) = softmax(x + c)
+        numerators = x.exp()
         denominator = val_sum(numerators)
-        output.max(numerators / denominator)
+        return with_default(numerators / denominator, default=default)
+    else:
+        return NumDict(default=default)
 
-    return NumDict(output)
 
-
-def draw(d: D, k: int=1, val=1.0) -> NumDict:
+def draw(d: D, n: int=1, val=1.0) -> NumDict:
     """
     Draw k keys from numdict without replacement.
     
-    If k >= len(d), returns a selection of all elements in d. Sampled elements 
-    are given a value of 1.0 by default. Output inherits type, dtype and 
-    default values from d.
+    If k >= len(d), returns a selection of all elements in d. 
+    
+    Sampled elements are given a value of 1.0 by default. Output inherits its
+    default value from d.
     """
 
     pr = MutableNumDict(d)
     output = MutableNumDict()
-    if len(d) > k:
-        while len(output) < k:
+    if len(d) > n:
+        while len(output) < n:
             cs, ws = tuple(zip(*pr.items()))
             choices = random.choices(cs, weights=ws)
             output.extend(choices, value=val)
@@ -278,10 +309,15 @@ def valuewise(
     return v
 
 
-def val_sum(d: D) -> Any:
+def val_sum(d: D) -> float:
     """Return the sum of the values of d."""
 
     return valuewise(operator.add, d, 0.0)
+
+
+def val_max(d: D) -> float:
+
+    return valuewise(max, d, float("-inf"))
 
 
 def exponential_moving_avg(d: D, *ds: D, alpha: float) -> List[NumDict]:

@@ -308,7 +308,7 @@ class AssociativeRules(Propagator):
 
 class ActionRules(Propagator):
     """
-    Propagates activations among chunks through action rules.
+    Propagates activations from condition to action chunks using action rules.
     
     Action rules compete to be selected based on their rule strengths, which is 
     equal to the product of an action rule's weight and the strength of its 
@@ -339,16 +339,16 @@ class ActionRules(Propagator):
 
         strengths = inputs[self.source]
 
-        s_r = nd.MutableNumDict()
+        s_r = nd.MutableNumDict(default=0)
         for r, form in self.rules.items():
             s_r[r] = form.strength(strengths)
-        prs = nd.boltzmann(s_r, self.temperature)
-        selection = nd.draw(prs, 1)
-        s_a = s_r * selection
 
-        d = nd.MutableNumDict()
-        for r in s_a:
-            d[self.rules[r].conc] = max(d[self.rules[r].conc], s_a[r])
-        d |= selection
+        probabilities = nd.boltzmann(s_r, self.temperature)
+        selection = nd.draw(probabilities, n=1)
+
+        s_a = s_r * selection
+        s_a = nd.threshold(s_a, th=0, keep_default=True)
+        d = nd.transform_keys(s_a, func=lambda r: self.rules[r].conc)
+        d += s_a
 
         return d

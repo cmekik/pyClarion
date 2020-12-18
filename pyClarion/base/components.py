@@ -161,10 +161,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
             msg = msg.format(d.default, cls.__name__, self.client)
             raise ValueError(msg)
 
-        if isinstance(d, nd.NumDict):
-            return d
-        else:
-            return nd.freeze(d)
+        return nd.squeeze(d)
 
 
 class Cycle(Emitter):
