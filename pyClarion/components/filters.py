@@ -12,12 +12,17 @@ from ..base.components import FeatureInterface, Propagator
 
 from itertools import product
 from dataclasses import dataclass
-from typing import NamedTuple, Tuple, Hashable, Union, Mapping, Set, Iterable
+from typing import (
+    NamedTuple, Tuple, Hashable, Union, Mapping, Set, Iterable, Generic, TypeVar
+)
 from types import MappingProxyType
 import pprint
 
 
-class Gated(Propagator):
+Pt = TypeVar("Pt", bound=Propagator)
+
+
+class Gated(Propagator, Generic[Pt]):
     """
     Gates output of an activation propagator.
     
@@ -27,13 +32,8 @@ class Gated(Propagator):
 
     The gating signal is assumed to be in the interval [0, 1],
     """
-    
-    def __init__(
-        self, 
-        base: Propagator, 
-        gate: Symbol,
-        invert: bool = False
-    ) -> None:
+
+    def __init__(self, base: Pt, gate: Symbol, invert: bool = False) -> None:
 
         self.base = base
         self.gate = gate
@@ -91,7 +91,7 @@ class Gated(Propagator):
         return w * output
 
 
-class Filtered(Propagator):
+class Filtered(Propagator, Generic[Pt]):
     """
     Filters the input to a propagator.
     
@@ -100,10 +100,10 @@ class Filtered(Propagator):
 
     The filtering signal is assumed to be in the interval [0, 1].
     """
-    
+
     def __init__(
         self, 
-        base: Propagator, 
+        base: Pt, 
         sieve: Symbol,
         exempt: Set[Symbol] = None, 
         invert: bool = True
@@ -158,7 +158,7 @@ class Filtered(Propagator):
         return MappingProxyType(preprocessed)
 
 
-class Pruned(Propagator):
+class Pruned(Propagator, Generic[Pt]):
     """
     Prunes the input to an activation propagator.
     
@@ -168,7 +168,7 @@ class Pruned(Propagator):
 
     def __init__(
         self, 
-        base: Propagator, 
+        base: Pt, 
         accept: ConstructType,
         exempt: Set[Symbol] = None, 
         invert: bool = True
@@ -206,8 +206,6 @@ class Pruned(Propagator):
         self.base.update(preprocessed, output)
 
     def preprocess(self, inputs):
-
-        raise NotImplementedError()
 
         ws = inputs[self.sieve]
         if self.invert:
