@@ -7,27 +7,6 @@ import unittest
 
 class TestChunkMethods(unittest.TestCase):
 
-    def test_Chunk_weights_correctly_initialized(self):
-
-        ch = Chunk(
-            features={
-                feature(tag=1, lag=0), 
-                feature(tag=2, lag=1), 
-                feature(tag=3, lag=0)
-            },
-            weights={(1, 0): 0.2}            
-        )
-
-        weights = {
-            (1, 0): 0.2, 
-            (2, 1): 1.0, 
-            (3, 0): 1.0
-        }
-
-        for key, value in weights.items():
-            with self.subTest(key=key):
-                self.assertAlmostEqual(ch.weights[key], value)
-
     def test_bottom_up_returns_mean_weighted_max_dimensional_strength(self):
 
         ch = Chunk(

@@ -385,7 +385,9 @@ def register_grad(op: Op) -> Callable[[GradientOp], GradientOp]:
     return wrapper
 
 
-class NumDict(Mapping[Hashable, float]):
+# Ideally, NumDict would be covariant in its keys. But this is not compatible 
+# with Mapping. - Can
+class NumDict(Mapping[Any, float]):
     """
     A numerical dictionary (immutable).
 
@@ -404,12 +406,12 @@ class NumDict(Mapping[Hashable, float]):
 
     __slots__ = ("_dict", "_default")
 
-    _dict: Dict[Hashable, float]
+    _dict: Dict[Any, float]
     _default: Optional[float]
 
     def __init__(
         self, 
-        data: Mapping[Hashable, Union[float, int]] = None, 
+        data: Mapping[Any, Union[float, int]] = None, 
         default: Union[float, int] = None
     ) -> None:
         """

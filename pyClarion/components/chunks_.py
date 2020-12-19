@@ -42,15 +42,12 @@ class Chunk(object):
         weights: Mapping[Tuple[Hashable, int], Union[float, int]] = None
     ):
 
-        # mypy typing false alarm for fget
-        get_dim = feature.dim.fget # type: ignore
-        dims = tuple(map(get_dim, features))
-
-        # cast is required b/c mapping keys are considered invariant
-        _ws = cast(Optional[Mapping[Hashable, Union[float, int]]], weights)
-        ws = nd.MutableNumDict(_ws) 
+        dims = tuple(f.dim for f in features)
+        ws = nd.MutableNumDict(weights) 
         ws.keep(keys=dims)
         ws.extend(dims, value=1.0)
+
+        assert set(f.dim for f in features) == set(ws)
 
         self._features = frozenset(features)
         self._weights = ws
