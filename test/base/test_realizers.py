@@ -1,33 +1,24 @@
-
-from pyClarion import Symbol, Propagator
+from pyClarion import Symbol
 from pyClarion.base.realizers import Realizer
 
 import unittest
 from unittest import mock
 
+
 class TestRealizerMethods(unittest.TestCase):
 
-    def test_init_requires_name_of_type_Symbol(self):
+    def test_init_accepts_name_of_type_Symbol(self):
 
-        propagator = mock.Mock()
-        
-        with self.subTest(name=Symbol("chunks", 1)):
-            Realizer(name=Symbol("chunks", 1), emitter=propagator) # Ok
-        
-        with self.subTest(name="My Realizer"):
-            self.assertRaises(
-                TypeError, 
-                Realizer,
-                name="My Realizer", 
-                emitter=propagator
-            )
-    
-        with self.subTest(name=1234):
-            self.assertRaises(
-                TypeError, 
-                Realizer,
-                name=1234, 
-                emitter=propagator
-            )
-    
-    
+        emitter = mock.Mock()
+        Realizer(name=Symbol("chunks", 1), emitter=emitter) # Ok
+
+    def test_init_rejects_name_of_type_other_than_Symbol(self):        
+
+        emitter = mock.Mock()
+        self.assertRaises(
+            TypeError, 
+            Realizer,
+            name="My Realizer", 
+            emitter=emitter
+        )
+ 

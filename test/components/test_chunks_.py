@@ -1,6 +1,3 @@
-"""Test cases for pyClarion.components.chunks_."""
-
-
 from pyClarion.base import feature, chunk
 from pyClarion.components.chunks_ import Chunk
 from pyClarion.numdicts import NumDict

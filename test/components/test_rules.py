@@ -7,27 +7,29 @@ from pyClarion import nd
 
 class TestActionRules(unittest.TestCase):
 
-    def test_init_requires_rules_with_unique_conditions(self) -> None:
+    def test_init_accepts_rules_with_unique_conditions(self) -> None:
 
-        with self.subTest(max_conds=1):
-            try:
-                ActionRules(source=chunks(1), rules=Rules(max_conds=1)) # Ok
-            except ValueError:
-                self.fail("Unexpected ValueError.")
+        try:
+            ActionRules(source=chunks(1), rules=Rules(max_conds=1)) # Ok
+        except ValueError:
+            self.fail("Unexpected ValueError.")
 
-        with self.subTest(max_conds=7):
-            with self.assertRaises(ValueError):
-                ActionRules(source=chunks(1), rules=Rules(max_conds=7))
+    def test_init_rejects_rules_with_multiple_conditions(self) -> None:
 
-        with self.subTest(max_conds=None):
-            with self.assertRaises(ValueError):
-                ActionRules(source=chunks(1), rules=Rules()) # unconstrained
+        with self.assertRaises(ValueError):
+            ActionRules(source=chunks(1), rules=Rules(max_conds=7))
+
+    def test_init_rejects_rules_with_unconstrained_conditions(self) -> None:
+
+        with self.assertRaises(ValueError):
+            ActionRules(source=chunks(1), rules=Rules()) # unconstrained
 
     def test_call_return_value_has_zero_default(self) -> None:
 
-        rules = ActionRules(source=chunks(1), rules=Rules(max_conds=1))
         inputs = mock.MagicMock()
         inputs.__getitem__ = mock.Mock(return_value=nd.NumDict(default=0))
+
+        rules = ActionRules(source=chunks(1), rules=Rules(max_conds=1))
         outputs = rules.call(inputs)
 
         self.assertEqual(outputs.default, 0)
@@ -41,12 +43,6 @@ class TestActionRules(unittest.TestCase):
         rules.link(rule("D"), chunk("Action 2"), chunk("Condition D"))
         rules.link(rule("E"), chunk("Action 2"), chunk("Condition E"))
 
-        action_rules = ActionRules(
-            source=chunks(1), 
-            rules=rules, 
-            temperature=1 # high temperature to ensure variety
-        )
-
         inputs = {
             chunks(1): nd.NumDict({
                 chunk("Condition A"): .7,
@@ -57,31 +53,31 @@ class TestActionRules(unittest.TestCase):
             })
         }
 
-        for _ in range(10):
+        action_rules = ActionRules(
+            source=chunks(1), 
+            rules=rules, 
+            temperature=1 # high temperature to ensure variety
+        )
+        strengths = action_rules.call(inputs)
+        above_zero = nd.threshold(strengths, th=0.0)
 
-            strengths = action_rules.call(inputs)
-
-            above_zero = nd.threshold(strengths, th=0.0)
-
-            self.assertEqual(
-                len(above_zero), 2, 
-                msg="Expected at most two items above zero activation."
+        self.assertEqual(
+            len(above_zero), 2, 
+            msg="Expected at most two items above zero activation."
+        )
+        if chunk("Action 1") in above_zero:
+            self.assertTrue(
+                rule("A") in above_zero or 
+                rule("B") in above_zero or 
+                rule("C") in above_zero,
+                msg="Unexpected rule paired with Action 1."   
             )
-  
-            if chunk("Action 1") in above_zero:
-                self.assertTrue(
-                    rule("A") in above_zero or 
-                    rule("B") in above_zero or 
-                    rule("C") in above_zero,
-                    msg="Unexpected rule paired with Action 1."   
-                )
-
-            if chunk("Action 2") in above_zero:
-                self.assertTrue(
-                    rule("D") in above_zero or 
-                    rule("E") in above_zero,
-                    msg="Unexpected rule paired with Action 2."   
-                )
+        if chunk("Action 2") in above_zero:
+            self.assertTrue(
+                rule("D") in above_zero or 
+                rule("E") in above_zero,
+                msg="Unexpected rule paired with Action 2."   
+            )
 
     def test_rule_selection_follows_boltzmann_distribution(self):
         
@@ -91,12 +87,6 @@ class TestActionRules(unittest.TestCase):
         rules.link(rule("C"), chunk("Action 1"), chunk("Condition C"))
         rules.link(rule("D"), chunk("Action 2"), chunk("Condition D"))
         rules.link(rule("E"), chunk("Action 2"), chunk("Condition E"))
-
-        action_rules = ActionRules(
-            source=chunks(1), 
-            rules=rules, 
-            temperature=.1 # relatively high temperature to ensure variety
-        )
 
         inputs = {
             chunks(1): nd.NumDict({
@@ -109,6 +99,13 @@ class TestActionRules(unittest.TestCase):
         }
 
         get_rule = lambda c: rule(c.cid[-1])
+
+        action_rules = ActionRules(
+            source=chunks(1), 
+            rules=rules, 
+            temperature=.1 # relatively high temperature to ensure variety
+        )
+
         expected = nd.transform_keys(inputs[chunks(1)], func=get_rule)
         expected = nd.boltzmann(expected, t=.1)
 
