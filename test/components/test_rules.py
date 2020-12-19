@@ -1,38 +1,11 @@
 import unittest
-from unittest import mock
 
 from pyClarion import rule, chunk, chunks, ConstructType
 from pyClarion.components.rules import ActionRules, Rules
 from pyClarion import nd
 
+
 class TestActionRules(unittest.TestCase):
-
-    def test_init_accepts_rules_with_unique_conditions(self) -> None:
-
-        try:
-            ActionRules(source=chunks(1), rules=Rules(max_conds=1)) # Ok
-        except ValueError:
-            self.fail("Unexpected ValueError.")
-
-    def test_init_rejects_rules_with_multiple_conditions(self) -> None:
-
-        with self.assertRaises(ValueError):
-            ActionRules(source=chunks(1), rules=Rules(max_conds=7))
-
-    def test_init_rejects_rules_with_unconstrained_conditions(self) -> None:
-
-        with self.assertRaises(ValueError):
-            ActionRules(source=chunks(1), rules=Rules()) # unconstrained
-
-    def test_call_return_value_has_zero_default(self) -> None:
-
-        inputs = mock.MagicMock()
-        inputs.__getitem__ = mock.Mock(return_value=nd.NumDict(default=0))
-
-        rules = ActionRules(source=chunks(1), rules=Rules(max_conds=1))
-        outputs = rules.call(inputs)
-
-        self.assertEqual(outputs.default, 0)
 
     def test_call_activates_unique_action_and_rule_pair(self):
 
