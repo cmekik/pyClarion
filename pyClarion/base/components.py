@@ -494,7 +494,7 @@ class FeatureInterface(FeatureDomain):
         :param data: A set of features.
         """
 
-        _cmds = set(cast(feature, f) for f in data if f in self.cmds)
+        _cmds = set(f for f in self.cmds if f in data)
 
         cmds, groups = {}, group_by_dims(features=_cmds)
         for k, g in groups.items():
@@ -566,11 +566,9 @@ class SimpleDomain(FeatureDomain):
         self.__post_init__()
 
     def _validate_data(self) -> None:
-
         pass
 
     def _set_interface_properties(self) ->None:
-
         pass
 
 
@@ -594,9 +592,7 @@ class SimpleInterface(FeatureInterface):
         self.__post_init__()
 
     def _validate_data(self) -> None:
-
         pass
 
     def _set_interface_properties(self) -> None:
-
         pass
