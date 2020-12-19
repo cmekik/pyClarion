@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 from pyClarion import rule, chunk, chunks, ConstructType
 from pyClarion.components.rules import ActionRules, Rules
@@ -21,6 +22,15 @@ class TestActionRules(unittest.TestCase):
         with self.subTest(max_conds=None):
             with self.assertRaises(ValueError):
                 ActionRules(source=chunks(1), rules=Rules()) # unconstrained
+
+    def test_call_return_value_has_zero_default(self) -> None:
+
+        rules = ActionRules(source=chunks(1), rules=Rules(max_conds=1))
+        inputs = mock.MagicMock()
+        inputs.__getitem__ = mock.Mock(return_value=nd.NumDict(default=0))
+        outputs = rules.call(inputs)
+
+        self.assertEqual(outputs.default, 0)
 
     def test_call_activates_unique_action_and_rule_pair(self):
 
@@ -102,7 +112,7 @@ class TestActionRules(unittest.TestCase):
         expected = nd.transform_keys(inputs[chunks(1)], func=get_rule)
         expected = nd.boltzmann(expected, t=.1)
 
-        N = 4000
+        N = 100
 
         selected = []
         is_rule = lambda sym: sym.ctype in ConstructType.rule

@@ -525,7 +525,7 @@ def group_by_ctype(
 
 def group_by_dims(
     features: Iterable[feature]
-) -> Dict[Hashable, Tuple[feature, ...]]:
+) -> Dict[Tuple[Hashable, int], Tuple[feature, ...]]:
     """
     Construct a dict grouping features by their dimensions.
     

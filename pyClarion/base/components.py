@@ -67,7 +67,7 @@ class Component(object):
 
         return construct in self.expected
 
-    def check_links(self, linked: Collection[Symbol]):
+    def check_links(self, linked: Collection[Symbol]) -> bool:
         """Return True iff expected constructs are a subset of linked."""
 
         return self.expected.issubset(linked)
@@ -147,21 +147,17 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         If data is None, emits an empty numdict. Otherwise, emits a frozen 
         version of data. 
         
-        Raises a PropagatorError if default value of data is not 0.0.
+        Raises ValueError if default of data is not 0.
         """
 
+        if not (data is None or data.default == 0): 
+            msg = "Unexpected default {} in argument 'data'; expected 0."
+            raise ValueError(msg.format(repr(data.default)))
+
         d = data if data is not None else nd.NumDict(default=0.0)
+        d = nd.squeeze(d)
 
-        if d.default != 0.0:
-            cls = type(self)
-            msg = (
-                "Unexpected default value '{}' in output of propagator {} for "
-                "construct {}, expected '0.0'."
-            )
-            msg = msg.format(d.default, cls.__name__, self.client)
-            raise ValueError(msg)
-
-        return nd.squeeze(d)
+        return d
 
 
 class Cycle(Emitter):
@@ -176,7 +172,7 @@ class Cycle(Emitter):
     sequence: Iterable[ConstructType]
 
     @property
-    def expected(self):
+    def expected(self) -> FrozenSet[Symbol]:
 
         return frozenset()
 
@@ -301,35 +297,40 @@ class FeatureDomain(object):
     _tags: FrozenSet[Hashable]
     _dims: FrozenSet[Tuple[Hashable, int]]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
 
         self.compute_properties()
 
     @property
-    def features(self):
+    def features(self) -> FrozenSet[feature]:
         """The set of features defined by self."""
         
         return self._features
 
     @property
-    def tags(self):
+    def tags(self) -> FrozenSet[Hashable]:
         """The set of dimensional labels defined by self."""
         
         return self._tags
 
     @property
-    def dims(self):
+    def dims(self) -> FrozenSet[Tuple[Hashable, int]]:
         """The set of feature dimensions (w/ lags) defined by self."""
         
         return self._dims
 
     @property
-    def features_by_dims(self):
+    def features_by_dims(
+        self
+    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
         """Features grouped by dims."""
+
+        # type should be more precise, but cannot b/c group_by does not support 
+        # it.
 
         return self._features_by_dims
 
-    def compute_properties(self):
+    def compute_properties(self) -> None:
         """
         Compute domain properties.
         
@@ -345,14 +346,14 @@ class FeatureDomain(object):
         self._set_derivative_properties()
         self._validate_interface_properties()
 
-    def _validate_data(self):
+    def _validate_data(self) -> None:
 
         # Should throw errors if dataclass members violate assumptions or 
         # requirements
 
         raise NotImplementedError()
 
-    def _set_interface_properties(self):
+    def _set_interface_properties(self) -> None:
         """
         Set basic interface properties.
         
@@ -364,22 +365,22 @@ class FeatureDomain(object):
 
         raise NotImplementedError()
 
-    def _set_derivative_properties(self):
+    def _set_derivative_properties(self) -> None:
 
         self._tags = frozenset(f.tag for f in self.features)
         self._dims = frozenset(f.dim for f in self.features)
         self._features_by_dims = MappingProxyType(group_by_dims(self.features))
 
-    def _validate_interface_properties(self):
+    def _validate_interface_properties(self) -> None:
 
         _features_dims = set(f.dim for f in self.features)
         _features_tags = set(f.tag for f in self.features)
 
         # TODO: Use a more suitable exception class. - Can
 
-        if self.tags != _features_tags:
+        if not (self.tags == _features_tags):
             raise ValueError("self.tag conflicts with self.features.")
-        if self.dims != _features_dims:
+        if not (self.dims == _features_dims):
             raise ValueError("self.dims conflicts with self.features.")
 
 
@@ -401,91 +402,99 @@ class FeatureInterface(FeatureDomain):
     _params: FrozenSet[feature]
 
     @property
-    def cmds(self):
+    def cmds(self) -> FrozenSet[feature]:
         """Features representing (discrete) actions."""
 
         return self._cmds
 
     @property
-    def defaults(self):
+    def defaults(self) -> FrozenSet[feature]:
         """Features representing default actions."""
         
         return self._defaults
 
     @property
-    def flags(self):
+    def flags(self) -> FrozenSet[feature]:
         """Features representing the state of the client process."""
 
         return self._flags
 
     @property
-    def params(self):
+    def params(self) -> FrozenSet[feature]:
         """Features representing action parameters."""
 
         return self._params
 
     @property
-    def cmd_tags(self):
+    def cmd_tags(self) -> FrozenSet[Hashable]:
         """The set of command dimensional labels defined by self."""
         
         return self._cmd_tags
 
     @property
-    def cmd_dims(self):
+    def cmd_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
         """The set of command feature dimensions (w/ lags) defined by self."""
         
         return self._cmd_dims
 
     @property
-    def flag_tags(self):
+    def flag_tags(self) -> FrozenSet[Hashable]:
         """The set of flag dimensional labels defined by self."""
         
         return self._flag_tags
 
     @property
-    def flag_dims(self):
+    def flag_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
         """The set of flag feature dimensions (w/ lags) defined by self."""
         
         return self._flag_dims
 
     @property
-    def param_tags(self):
+    def param_tags(self) -> FrozenSet[Hashable]:
         """The set of param dimensional labels defined by self."""
         
         return self._param_tags
 
     @property
-    def param_dims(self):
+    def param_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
         """The set of param feature dimensions (w/ lags) defined by self."""
         
         return self._param_dims
 
     @property
-    def cmds_by_dims(self):
+    def cmds_by_dims(
+        self
+    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
         """Command features grouped by dims."""
 
         return self._cmds_by_dims
 
     @property
-    def flags_by_dims(self):
+    def flags_by_dims(
+        self
+    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
         """Flag features grouped by dims."""
 
         return self._flags_by_dims
 
     @property
-    def params_by_dims(self):
+    def params_by_dims(
+        self
+    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
         """Param features grouped by dims."""
 
         return self._params_by_dims
 
-    def parse_commands(self, data):
+    def parse_commands(
+        self, data: nd.NumDict
+    ) -> Dict[Tuple[Hashable, int], Hashable]:
         """
         Determine the value associated with each control dimension.
         
         :param data: A set of features.
         """
 
-        _cmds = set(f for f in data if f in self.cmds)
+        _cmds = set(cast(feature, f) for f in data if f in self.cmds)
 
         cmds, groups = {}, group_by_dims(features=_cmds)
         for k, g in groups.items():
@@ -500,7 +509,7 @@ class FeatureInterface(FeatureDomain):
 
         return cmds
 
-    def _set_interface_properties(self):
+    def _set_interface_properties(self) -> None:
         """
         Set basic interface properties.
         
@@ -510,7 +519,7 @@ class FeatureInterface(FeatureDomain):
 
         raise NotImplementedError()
 
-    def _set_derivative_properties(self):
+    def _set_derivative_properties(self) -> None:
 
         self._cmd_tags = frozenset(f.tag for f in self.cmds)
         self._cmd_dims = frozenset(f.dim for f in self.cmds)
@@ -529,7 +538,7 @@ class FeatureInterface(FeatureDomain):
 
         super()._set_derivative_properties()
 
-    def _validate_interface_properties(self):
+    def _validate_interface_properties(self) -> None:
 
         super()._validate_interface_properties()
 
@@ -550,17 +559,17 @@ class FeatureInterface(FeatureDomain):
 class SimpleDomain(FeatureDomain):
     """A simple feature domain, specified through enumeration."""
 
-    def __init__(self, features):
+    def __init__(self, features: Collection[feature]) -> None:
 
         self._features = frozenset(features)
 
         self.__post_init__()
 
-    def _validate_data(self):
+    def _validate_data(self) -> None:
 
         pass
 
-    def _set_interface_properties(self):
+    def _set_interface_properties(self) ->None:
 
         pass
 
@@ -569,7 +578,13 @@ class SimpleDomain(FeatureDomain):
 class SimpleInterface(FeatureInterface):
     """A simple feature interface, specified through enumeration."""
 
-    def __init__(self, cmds, defaults, flags=None, params=None):
+    def __init__(
+        self, 
+        cmds: Collection[feature], 
+        defaults: Collection[feature], 
+        flags: Collection[feature] = None, 
+        params: Collection[feature] = None
+    ) -> None:
 
         self._cmds = frozenset(cmds)
         self._defaults = frozenset(defaults)
@@ -578,10 +593,10 @@ class SimpleInterface(FeatureInterface):
 
         self.__post_init__()
 
-    def _validate_data(self):
+    def _validate_data(self) -> None:
 
         pass
 
-    def _set_interface_properties(self):
+    def _set_interface_properties(self) -> None:
 
         pass

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Runtime checkable generic protocol `SymbolTrie`
+- Functions `squeeze`, `with_default`, `val_max`, `val_min` in `numdicts.funcs`
 
 ### Changed
 
