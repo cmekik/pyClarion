@@ -10,10 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Runtime checkable generic protocol `SymbolTrie`
 - Functions `squeeze`, `with_default`, `val_max`, `val_min` in `numdicts.funcs`
+- Compact rule definitions; enabled by nested use of `Chunks.define` and 
+`Rules.define` (see Changed).
 
 ### Changed
 
 - Type `Inputs` to `SymbolTrie[NumDict]` to be more precise.
+- `Chunks.link()` renamed `Chunks.define()` and returns a `chunk`.
+- `Rules.link()` renamed `Rules.define()` and returns a `rule`.
 
 ### Fixed
 

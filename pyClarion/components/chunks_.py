@@ -242,7 +242,7 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return self._promises_proxy
 
-    def link(self, ch, *features, weights=None) -> chunk:
+    def define(self, ch, *features, weights=None) -> chunk:
         """
         Create a new entry linking chunk to features.
         

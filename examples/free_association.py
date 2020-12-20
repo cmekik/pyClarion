@@ -144,8 +144,8 @@ chunk_names = ["FRUIT", "APPLE", "JUICE"]
 cdb = Chunks()
 rdb = Rules()
 
-# We can add rules to the rule database using the `link()` method of the rule 
-# database. The argument signature for `link()` is a rule symbol, followed by 
+# We can add rules to the rule database using the `define()` method of the rule 
+# database. The argument signature for `define()` is a rule symbol, followed by 
 # its conclusion chunk and then by one or more condition chunks. Thus, below, 
 # `chunk("FRUIT")` is the conclusion and `chunk("APPLE")` is the only condition. 
 # In other words, this rule establishes an association from the concept APPLE 
@@ -153,40 +153,40 @@ rdb = Rules()
 # apples are fruits. In truth, we may also designate condition weights, but 
 # this feature is not explored here.
 
-rdb.link(rule(1), chunk("FRUIT"), chunk("APPLE"))
+rdb.define(rule(1), chunk("FRUIT"), chunk("APPLE"))
 
 # We proceed in much the same way to link chunk and feature nodes in order to 
 # define chunks. 
 
-# The chunk database has a `link()` method, which can be used to link a chunk 
+# The chunk database has a `define()` method, which can be used to link a chunk 
 # node to feature nodes, creating a fully-formed chunk. The call signature 
 # expects the chunk node first, followed by the feature nodes. By default, 
 # feature notes have a dimensional weight of 1, dimensional weights may be set 
-# explicitly through a keyword argument to `links()`.
+# explicitly through a keyword argument to `define()`.
 
-# The first call to `link()` connects the 'APPLE' chunk node to the red and 
+# The first call to `define()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node. 
 
-cdb.link( 
+cdb.define( 
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
     feature("tasty")
 )
 
-# The second call to `link()` connects the 'JUICE' chunk node to the tasty 
+# The second call to `define()` connects the 'JUICE' chunk node to the tasty 
 # feature node and the liquid state feature node.
 
-cdb.link(
+cdb.define(
     chunk("JUICE"),
     feature("tasty"),
     feature("state", "liquid")
 )
 
-# The third and last call to `link()` connects the 'FRUIT' chunk node to the 
+# The third and last call to `define()` connects the 'FRUIT' chunk node to the 
 # sweet and tasty feature nodes.
 
-cdb.link(
+cdb.define(
     chunk("FRUIT"),
     feature("tasty"),
     feature("sweet")
@@ -194,18 +194,18 @@ cdb.link(
 
 # In models with lots of pre-built knowledge, it may be helpful to express 
 # chunk and rule definitions more compactly. This can easily be done, as 
-# rdb.link() and cdb.link() both return the initial symbol that they are passed.
-# So rule(1), which was defined earlier, can equivalently and compactly be 
-# defined as follows. 
+# rdb.define() and cdb.define() both return the initial symbol that they are 
+# passed. So rule(1), which was defined earlier, can equivalently and compactly 
+# be defined as follows. 
 
-rdb.link(
+rdb.define(
     rule(1), 
-    cdb.link(
+    cdb.define(
         chunk("JUICE"),
         feature("tasty"),
         feature("state", "liquid")
     ),
-    cdb.link( 
+    cdb.define( 
         chunk("APPLE"), 
         feature("color", "#ff0000"), 
         feature("color", "#008000"),

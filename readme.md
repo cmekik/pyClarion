@@ -23,7 +23,87 @@ WARNING: Be sure to include the '`.`' in the install commands. Otherwise, your i
 
 Developer mode is recommended to encourage and facilitate referring to pyClarion source code. Prior to installing in this mode, please ensure that the pyClarion folder is located at a convenient long-term location. Installing in developer mode means that changes made to the pyClarion folder will be reflected in the pyClarion package.
 
-# Examples
+# Snippets
+
+The following snippets illustrate the style and some capabilities of the library. 
+
+See the Detailed Examples and Design Overview sections below for further details. 
+
+**Snippet 1: Agent Assembly**
+
+```python
+from pyClarion import (
+    chunks, terminus, buffer, subsystem, agent,
+    Construct, Structure,
+    AgentCycle, NACSCycle, MaxNodes, BoltzmannSelector, Stimulus,
+    Chunks, Assets
+)
+
+my_agent = Structure(
+    name=agent("my_agent"),
+    emitter=AgentCycle()
+)
+
+with my_agent: # Automatically adds and links constructs defined in scope
+
+    sensory = Construct(
+        name=buffer("sensory"),
+        emitter=Stimulus()
+    )
+
+    nacs = Structure(
+        name=subsystem("nacs"),
+        emitter=NACSCycle(),
+        assets=Assets(
+            cdb=Chunks()
+        )
+    )
+
+    with nacs: # Nesting allowed
+
+        chunk_pool = Construct(
+            name=chunks("main"),
+            emitter=MaxNodes(
+                sources={buffer("sensory")}
+            )
+        )
+
+        Construct(
+            name=terminus("retrieval"),
+            emitter=BoltzmannSelector(
+                source=chunks("main"),
+                temperature=.01
+            )
+        )
+
+assert my_agent[subsystem("nacs"), chunks("main")] == chunk_pool
+```
+
+**Snippet 2: Compact Rule and Chunk Specification**
+
+```python
+from pyClarion import feature, chunk, rule, Chunks, Rules
+
+cdb = Chunks()
+rdb = Rules()
+
+rdb.define(
+    rule(1),
+    cdb.define( # chunk("conclusion") passed to rdb.define()
+        chunk("conclusion"),
+        feature("A"),
+        feature("B")
+    ),
+    cdb.define(
+        chunk("condition"),
+        feature("X"),
+        feature("Y"),
+        feature("Z")
+    )
+)
+```
+
+# Detailed Examples
 
 The `examples/` folder provides some simple examples demonstrating various aspects of using the pyClarion library to assemble and simulate Clarion agents.
 
@@ -40,13 +120,17 @@ The following examples are optional:
 - `lagged_features.py` - Demonstrates how to set up lagged features, which may be useful in various contexts such as recurrent processing. May be read at any time after `free_association.py`.
 - `gradients.py` - An overview of the automatic differentiation tools available in pyClarion. May be read at any time.
 
-# Implementation Overview
+# Design Overview
 
 PyClarion views Clarion agents primarily as hierarchical networks of neural networks. Thus, constructing a pyClarion agent amounts to declaring what components exist, what they do, where they are placed in the hierarchy, and how they network with other components.
 
-Simulated constructs are named and represented with symbolic tokens called construct symbols. Each construct symbol may be associated with one or more construct realizers, which define and implement the behavior of the named constructs in a specific context. Construct symbols allow consistent and efficient communication of construct information using basic datastructures such as dicts, lists and sets of construct symbols. Construct realizers encapsulate complex behaviors associated with client constructs and provide a clean interface for multiple distinct realizations of the same construct.
+Simulated constructs are named and represented with symbolic tokens called construct symbols. Each construct symbol may be associated with one or more construct realizers, which define and implement the behavior of the named constructs in a specific context. 
 
-Minimally, a construct realizer pairs a construct symbol, which names the construct represented by the realizer, with an `Emitter` object. The emitter is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other pyClarion components. Realizers may additionally be given `Updater` objects to handle more complex or customized learning behavior, and, in some cases, they may house resources shared by subordinate constructs (e.g., chunk and rule databases). To implement customized behaviors, it is sufficient to write suitable `Emitter` or `Updater` classes and pass instances of these custom classes to a construct realizer.
+Construct symbols allow consistent and efficient communication of construct information using basic datastructures such as dicts, lists and sets. Construct realizers encapsulate complex behaviors associated with client constructs and provide a clean interface for multiple distinct realizations of the same construct.
+
+Minimally, a construct realizer pairs a construct symbol, which names the construct represented by the realizer, with an `Emitter` object. The emitter is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other pyClarion components. 
+
+Realizers may additionally be given `Updater` objects to handle more complex or customized learning behavior, and, in some cases, they may house resources shared by subordinate constructs (e.g., chunk and rule databases). To implement customized behaviors, it is sufficient to write suitable `Emitter` or `Updater` classes and pass instances of these custom classes to a construct realizer.
 
 There are two realizer types: `Construct` and `Structure`. The `Construct` type is for basic constructs, which are the leaves of the construct hierarchy (e.g., buffers, feature pools, implicit decision networks, etc.). The `Structure` type is for constructs higher up in the hierarchy (e.g., subsystems and agents). The emitter type for `Construct` is `Propagator`, and, for `Structure`, it is `Cycle`. 
 

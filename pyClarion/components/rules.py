@@ -217,12 +217,12 @@ class Rules(MutableMapping, Generic[Rt]):
 
         return self._promises_proxy
 
-    def link(
+    def define(
         self, 
         r: rule, 
         conc: chunk, 
         *conds: chunk, 
-        weights: Dict[rule, float] = None
+        weights: Dict[chunk, float] = None
     ) -> rule:
         """
         Add a new rule.
