@@ -4,10 +4,10 @@
 __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
-from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule
+from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule, chunk
 from .. import numdicts as nd
 
-from typing import Mapping, TypeVar, Generic, Type, overload
+from typing import Mapping, TypeVar, Generic, Type, Dict, overload
 from types import MappingProxyType
 from collections.abc import MutableMapping
 
@@ -217,11 +217,22 @@ class Rules(MutableMapping, Generic[Rt]):
 
         return self._promises_proxy
 
-    def link(self, r, conc, *conds, weights=None):
-        """Add a new rule."""
+    def link(
+        self, 
+        r: rule, 
+        conc: chunk, 
+        *conds: chunk, 
+        weights: Dict[rule, float] = None
+    ) -> rule:
+        """
+        Add a new rule.
+        
+        Returns the rule symbol.
+        """
 
-        form = self.Rule(conc, *conds, weights=weights)
-        self[r] = form
+        self[r] = self.Rule(conc, *conds, weights=weights)
+
+        return r
 
     def contains_form(self, form):
         """

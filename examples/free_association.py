@@ -141,8 +141,8 @@ chunk_names = ["FRUIT", "APPLE", "JUICE"]
 # To house chunk and rule definitions, we initialize a chunk database and a 
 # rule database.
 
-chunk_db = Chunks()
-rule_db = Rules()
+cdb = Chunks()
+rdb = Rules()
 
 # We can add rules to the rule database using the `link()` method of the rule 
 # database. The argument signature for `link()` is a rule symbol, followed by 
@@ -153,7 +153,7 @@ rule_db = Rules()
 # apples are fruits. In truth, we may also designate condition weights, but 
 # this feature is not explored here.
 
-rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE"))
+rdb.link(rule(1), chunk("FRUIT"), chunk("APPLE"))
 
 # We proceed in much the same way to link chunk and feature nodes in order to 
 # define chunks. 
@@ -167,7 +167,7 @@ rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE"))
 # The first call to `link()` connects the 'APPLE' chunk node to the red and 
 # green color feature nodes and the tasty feature node. 
 
-chunk_db.link( 
+cdb.link( 
     chunk("APPLE"), 
     feature("color", "#ff0000"), 
     feature("color", "#008000"),
@@ -177,7 +177,7 @@ chunk_db.link(
 # The second call to `link()` connects the 'JUICE' chunk node to the tasty 
 # feature node and the liquid state feature node.
 
-chunk_db.link(
+cdb.link(
     chunk("JUICE"),
     feature("tasty"),
     feature("state", "liquid")
@@ -186,10 +186,31 @@ chunk_db.link(
 # The third and last call to `link()` connects the 'FRUIT' chunk node to the 
 # sweet and tasty feature nodes.
 
-chunk_db.link(
+cdb.link(
     chunk("FRUIT"),
     feature("tasty"),
     feature("sweet")
+)
+
+# In models with lots of pre-built knowledge, it may be helpful to express 
+# chunk and rule definitions more compactly. This can easily be done, as 
+# rdb.link() and cdb.link() both return the initial symbol that they are passed.
+# So rule(1), which was defined earlier, can equivalently and compactly be 
+# defined as follows. 
+
+rdb.link(
+    rule(1), 
+    cdb.link(
+        chunk("JUICE"),
+        feature("tasty"),
+        feature("state", "liquid")
+    ),
+    cdb.link( 
+        chunk("APPLE"), 
+        feature("color", "#ff0000"), 
+        feature("color", "#008000"),
+        feature("tasty")
+    )
 )
 
 
@@ -272,8 +293,8 @@ with alice:
         name=subsystem("nacs"),
         emitter=NACSCycle(),
         assets=Assets(
-            chunk_db=chunk_db,
-            rule_db=rule_db
+            cdb=cdb,
+            rdb=rdb
         )
     )
 
@@ -376,7 +397,7 @@ with alice:
             name=flow_tt("associations"),
             emitter=AssociativeRules(
                 source=chunks("main"),
-                rules=nacs.assets.rule_db
+                rules=nacs.assets.rdb
             ) 
         )
 
@@ -384,7 +405,7 @@ with alice:
             name=flow_bt("main"), 
             emitter=BottomUp(
                 source=features("main"),
-                chunks=nacs.assets.chunk_db
+                chunks=nacs.assets.cdb
             ) 
         )
 
@@ -392,7 +413,7 @@ with alice:
             name=flow_tb("main"), 
             emitter=TopDown(
                 source=chunks("main"),
-                chunks=nacs.assets.chunk_db
+                chunks=nacs.assets.cdb
             ) 
         )
 

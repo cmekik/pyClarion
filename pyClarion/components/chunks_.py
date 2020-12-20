@@ -242,10 +242,16 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return self._promises_proxy
 
-    def link(self, ch, *features, weights=None):
-        """Link chunk to features."""
+    def link(self, ch, *features, weights=None) -> chunk:
+        """
+        Create a new entry linking chunk to features.
+        
+        Returns the chunk symbol.
+        """
 
         self[ch] = self.Chunk(features=features, weights=weights)
+
+        return ch
 
     def find_form(self, form, check_promises=True):
         """
