@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Runtime checkable generic protocol `SymbolTrie`
+- New differentiable op `tanh` in `numdicts.ops`.
 - Functions `squeeze`, `with_default`, `val_max`, `val_min`, `all_val`, `any_val` in `numdicts.funcs`
 - Compact rule definitions; enabled by nested use of `Chunks.define` and 
 `Rules.define` (see Changed).

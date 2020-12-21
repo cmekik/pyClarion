@@ -61,9 +61,10 @@ class SimpleQNet(Propagator):
     (i.e., assumes action space is discrete). Will issue a warning if configured
     with an interface defining action parameters.
     
-    Structured as a feed-forward multilayer perceptron and trained using 
-    vanilla gradient descent with backpropagation. Weight updates are applied
-    on every step.
+    Structured as a feed-forward multilayer perceptron with tanh nonlinearity 
+    in hidden layers. Trained using vanilla gradient descent with 
+    backpropagation. Weight updates are applied on every step (i.e., online 
+    learning).
     """
 
     _serves = ConstructType.flow_bb
@@ -172,7 +173,7 @@ class SimpleQNet(Propagator):
                 qs = nd.sum_by(qs, keyfunc=lambda k: k[0])
                 qs = qs + b
                 if i != len(weights) - 1: # don't squash final layer output
-                    qs = nd.sigmoid(qs)
+                    qs = nd.tanh(qs)
             # Assuming exactly one action/dim is mapped to a value of 1.
             q_action = nd.sum_by((qs * actions), keyfunc=get_dim)
             max_qs_next = nd.max_by(qs_next, keyfunc=get_dim)

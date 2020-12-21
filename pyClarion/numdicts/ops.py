@@ -4,7 +4,7 @@
 # TODO: GradientOps may not handle defaults correctly! Check and correct. - Can
 
 
-__all__ = ["log", "exp", "sigmoid", "set_by", "sum_by", "max_by"]
+__all__ = ["log", "exp", "sigmoid", "tanh", "set_by", "sum_by", "max_by"]
 
 
 from .numdicts import (
@@ -32,6 +32,12 @@ def sigmoid(d: D) -> NumDict:
     """Apply the logistic function elementwise to d."""
 
     return 1 / (1 + (-d).exp())
+
+
+def tanh(d: D) -> NumDict:
+    """Apply the tanh function elementwise to d."""
+
+    return (2 * sigmoid(d)) - 1
 
 
 @register_op
