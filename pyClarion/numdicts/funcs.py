@@ -5,7 +5,8 @@ __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
     "squeeze", "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
     "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise", 
-    "val_sum", "val_max", "val_min", "exponential_moving_avg", "tabulate"
+    "val_sum", "val_max", "val_min", "all_val", "any_val", 
+    "exponential_moving_avg", "tabulate"
 ]
 
 from .numdicts import NumDict, MutableNumDict, D
@@ -307,6 +308,9 @@ def valuewise(
 ) -> float:
     """Recursively apply commutative binary op to explicit values of d."""
 
+    if not 0 < len(d):
+        raise ValueError("Arg d must be non-empty.")
+
     v = initial
     for item in d.values():
         v = op(v, item)
@@ -330,6 +334,16 @@ def val_min(d: D) -> float:
     """Return the minimum explicit value in d."""
 
     return valuewise(max, d, float("+inf"))
+
+def all_val(d: D) -> bool:
+    """Return True if all values, including the default, are truthy."""
+
+    return all(v for v in d.values()) and bool(d.default)
+
+def any_val(d: D) -> bool:
+    """Return True if any values, including the default, are truthy."""
+
+    return any(v for v in d.values()) or bool(d.default)
 
 
 def exponential_moving_avg(d: D, *ds: D, alpha: float) -> List[NumDict]:

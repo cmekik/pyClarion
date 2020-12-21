@@ -161,11 +161,8 @@ class Symbol(Token):
         elif isinstance(ctype, ConstructType):
             pass
         else:
-            raise TypeError(
-                "Unexpected type {} for arg ctype.".format(
-                    type(ctype).__name__
-                )
-            )
+            msg = "Unexpected type {} for arg ctype."
+            raise TypeError(msg.format(type(ctype).__name__))
 
         super().__init__(ctype, cid)
 

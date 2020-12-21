@@ -4,12 +4,13 @@
 __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
-from ..base import ConstructType, Symbol, Propagator, UpdaterS, rule, chunk
+from ..base import ConstructType, Symbol, SymbolTrie, Propagator, UpdaterS, \
+    rule, chunk
 from .. import numdicts as nd
 
-from typing import Mapping, TypeVar, Generic, Type, Dict, overload
+from typing import Mapping, MutableMapping, TypeVar, Generic, Type, Dict, \
+    FrozenSet, overload, cast
 from types import MappingProxyType
-from collections.abc import MutableMapping
 
 
 class Rule(object):
@@ -17,17 +18,18 @@ class Rule(object):
 
     __slots__ = ("_conc", "_weights")
 
-    def __init__(self, conc, *conds, weights=None):
+    def __init__(
+        self, conc: chunk, *conds: chunk, weights: Dict[chunk, float] = None
+    ):
         """
         Initialize a new rule.
 
-        If conditions contains items that do not appear in weights, these 
-        weights is extend to map each of these items to a weight of 1. If 
-        weights is None, it is assumed to be an empty weight dict. 
+        If conditions contains items that do not appear in weights, weights is 
+        extended to map each of these items to a weight of 1. If weights is 
+        None, every cond is assigned a weight of 1. 
 
-        At the end of initialization, if the weights sum to more than 1.0, 
-        weights is renormalized such that each weight w is mapped to 
-        w / sum(weights.values())
+        If the weights sum to more than 1.0, weights is renormalized such that 
+        each weight w is mapped to w / sum(weights.values()).
 
         :param conclusion: A chunk symbol for the rule conclusion.
         :param conditions: A sequence of chunk symbols representing rule 
@@ -35,10 +37,15 @@ class Rule(object):
         :param weights: An optional mapping from condition chunk symbols 
             to condition weights.
         """
-        
-        ws = nd.MutableNumDict()
+
+        # preconditions
         if weights is not None:
-            ws.update(weights)
+            if not set(conds).issuperset(weights): 
+                ValueError("Keys of arg `weights` do not match conds.")
+            if not all(0 < v for v in weights.values()):
+                ValueError("Weights must be strictly positive.")
+
+        ws = nd.MutableNumDict(weights)
         ws.extend(conds, value=1.0)
 
         w_sum = nd.val_sum(ws)
@@ -48,11 +55,15 @@ class Rule(object):
         self._conc = conc
         self._weights = nd.freeze(ws)
 
-    def __repr__(self):
+        # postconditions
+        assert set(self._weights) == set(conds), "Each cond must have a weight."
+        assert nd.val_sum(ws) <= 1, "Inferred weights must sum to one or less."
 
-        return "Rule(weights={})".format(self.weights)
+    def __repr__(self) -> str:
 
-    def __eq__(self, other):
+        return "Rule(conc={}, weights={})".format(self.conc, self.weights)
+
+    def __eq__(self, other) -> bool:
 
         if isinstance(other, Rule):
             b = (
@@ -64,18 +75,18 @@ class Rule(object):
             return NotImplemented
 
     @property
-    def conc(self):
+    def conc(self) -> chunk:
         """Conclusion of rule."""
 
         return self._conc
 
     @property
-    def weights(self):
+    def weights(self) -> nd.NumDict:
         """Conditions and condition weights of rule."""
 
         return self._weights
 
-    def strength(self, strengths):
+    def strength(self, strengths: nd.NumDict) -> float:
         """
         Compute rule strength given condition strengths.
         
@@ -91,7 +102,7 @@ class Rule(object):
 
 
 Rt = TypeVar("Rt", bound="Rule")
-class Rules(MutableMapping, Generic[Rt]):
+class Rules(MutableMapping[rule, Rt], Generic[Rt]):
     """
     A simple rule database.
 
@@ -295,25 +306,31 @@ class AssociativeRules(Propagator):
 
     _serves = ConstructType.flow_tt
 
-    def __init__(self, source: Symbol, rules: Rules):
+    def __init__(self, source: Symbol, rules: Rules) -> None:
 
         self.source = source
         self.rules = rules
 
     @property
-    def expected(self):
+    def expected(self) -> FrozenSet[Symbol]:
 
         return frozenset((self.source,))
 
-    def call(self, inputs):
+    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+
+        strengths = inputs[self.source]
+        if not isinstance(strengths, nd.NumDict):
+            raise TypeError("Input must be of type NumDict.")
 
         d = nd.MutableNumDict(default=0.0)
-        strengths = inputs[self.source]
         for r, form in self.rules.items():
             s_r = form.strength(strengths)
             d[form.conc] = max(d[form.conc], s_r)
             d[r] = s_r
-        
+        d.squeeze()
+
+        assert d.default == 0, "Unexpected output default."
+
         return d
 
 
@@ -342,24 +359,29 @@ class ActionRules(Propagator):
         self.temperature = temperature
 
     @property
-    def expected(self):
+    def expected(self) -> FrozenSet[Symbol]:
 
         return frozenset((self.source,))
 
-    def call(self, inputs):
+    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
 
+        # preconditions
         strengths = inputs[self.source]
+        if not isinstance(strengths, nd.NumDict):
+            raise TypeError("Input must be of type NumDict.")
 
-        s_r = nd.MutableNumDict(default=0)
+        d = nd.MutableNumDict(default=0)
         for r, form in self.rules.items():
-            s_r[r] = form.strength(strengths)
+            d[r] = form.strength(strengths)
 
-        probabilities = nd.boltzmann(s_r, self.temperature)
+        probabilities = nd.boltzmann(d, self.temperature)
         selection = nd.draw(probabilities, n=1)
 
-        s_a = s_r * selection
-        s_a = nd.threshold(s_a, th=0, keep_default=True)
-        d = nd.transform_keys(s_a, func=lambda r: self.rules[r].conc)
-        d += s_a
+        d *= selection
+        d.squeeze()
+        d.max(nd.transform_keys(d, func=lambda r: self.rules[r].conc))
+
+        # postconditions
+        assert d.default == 0, "Unexpected output default."
 
         return d

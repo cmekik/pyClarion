@@ -117,11 +117,10 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         return self.emit(self.call(inputs))
 
     @abstractmethod
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.D:
+    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
         """
         Compute construct's output.
 
-        :param construct: Name of the client construct. 
         :param inputs: Pairs the names of input constructs with their outputs. 
         """
 
@@ -149,15 +148,19 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         
         Raises ValueError if default of data is not 0.
         """
-
-        if not (data is None or data.default == 0): 
-            msg = "Unexpected default {} in argument 'data'; expected 0."
-            raise ValueError(msg.format(repr(data.default)))
-
-        d = data if data is not None else nd.NumDict(default=0.0)
-        d = nd.squeeze(d)
-
-        return d
+        
+        if data is None:
+            return nd.NumDict(default=0.0)
+        elif data.default != 0:
+            msg = "Unexpected default in passed to {}."
+            raise ValueError(msg.format(type(self).__name__))
+        elif isinstance(data, nd.NumDict):
+            d = nd.squeeze(data) # squeezing should not be done here...
+            assert type(d) == nd.NumDict, "NumDict subtypes not allowed."
+            return d
+        else:
+            msg = "Expected NumDict instance, got {}"
+            raise TypeError(msg.format(type(data).__name__))
 
 
 class Cycle(Emitter):

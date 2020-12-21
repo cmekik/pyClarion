@@ -7,14 +7,9 @@ from pyClarion import nd
 
 class TestActionRules(unittest.TestCase):
 
-    def test_call_activates_unique_action_and_rule_pair(self):
+    def test_call_returns_empty_numdict_when_no_rules_exist(self):
 
         rules = Rules(max_conds=1)
-        rules.link(rule("A"), chunk("Action 1"), chunk("Condition A"))
-        rules.link(rule("B"), chunk("Action 1"), chunk("Condition B"))
-        rules.link(rule("C"), chunk("Action 1"), chunk("Condition C"))
-        rules.link(rule("D"), chunk("Action 2"), chunk("Condition D"))
-        rules.link(rule("E"), chunk("Action 2"), chunk("Condition E"))
 
         inputs = {
             chunks(1): nd.NumDict({
@@ -23,7 +18,35 @@ class TestActionRules(unittest.TestCase):
                 chunk("Condition C"): .6,
                 chunk("Condition D"): .5,
                 chunk("Condition E"): .3
-            })
+            }, default=0)
+        }
+
+        action_rules = ActionRules(
+            source=chunks(1), 
+            rules=rules, 
+            temperature=1 # high temperature to ensure variety
+        )
+        strengths = action_rules.call(inputs)
+
+        self.assertEqual(len(strengths), 0, msg="Unexpected items in output.")
+
+    def test_call_activates_unique_action_and_rule_pair(self):
+
+        rules = Rules(max_conds=1)
+        rules.define(rule("A"), chunk("Action 1"), chunk("Condition A"))
+        rules.define(rule("B"), chunk("Action 1"), chunk("Condition B"))
+        rules.define(rule("C"), chunk("Action 1"), chunk("Condition C"))
+        rules.define(rule("D"), chunk("Action 2"), chunk("Condition D"))
+        rules.define(rule("E"), chunk("Action 2"), chunk("Condition E"))
+
+        inputs = {
+            chunks(1): nd.NumDict({
+                chunk("Condition A"): .7,
+                chunk("Condition B"): .2,
+                chunk("Condition C"): .6,
+                chunk("Condition D"): .5,
+                chunk("Condition E"): .3
+            }, default=0)
         }
 
         action_rules = ActionRules(
@@ -55,11 +78,11 @@ class TestActionRules(unittest.TestCase):
     def test_rule_selection_follows_boltzmann_distribution(self):
         
         rules = Rules(max_conds=1)
-        rules.link(rule("A"), chunk("Action 1"), chunk("Condition A"))
-        rules.link(rule("B"), chunk("Action 1"), chunk("Condition B"))
-        rules.link(rule("C"), chunk("Action 1"), chunk("Condition C"))
-        rules.link(rule("D"), chunk("Action 2"), chunk("Condition D"))
-        rules.link(rule("E"), chunk("Action 2"), chunk("Condition E"))
+        rules.define(rule("A"), chunk("Action 1"), chunk("Condition A"))
+        rules.define(rule("B"), chunk("Action 1"), chunk("Condition B"))
+        rules.define(rule("C"), chunk("Action 1"), chunk("Condition C"))
+        rules.define(rule("D"), chunk("Action 2"), chunk("Condition D"))
+        rules.define(rule("E"), chunk("Action 2"), chunk("Condition E"))
 
         inputs = {
             chunks(1): nd.NumDict({
@@ -68,7 +91,7 @@ class TestActionRules(unittest.TestCase):
                 chunk("Condition C"): .6,
                 chunk("Condition D"): .5,
                 chunk("Condition E"): .3
-            })
+            }, default=0)
         }
 
         get_rule = lambda c: rule(c.cid[-1])
@@ -81,6 +104,7 @@ class TestActionRules(unittest.TestCase):
 
         expected = nd.transform_keys(inputs[chunks(1)], func=get_rule)
         expected = nd.boltzmann(expected, t=.1)
+        expected = nd.with_default(expected, default=None)
 
         N = 100
 

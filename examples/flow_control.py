@@ -98,25 +98,25 @@ default_strengths.extend(gate_interface.defaults, value=0.5)
 chunk_db = Chunks()
 rule_db = Rules()
 
-rule_db.link(rule("1"), chunk("FRUIT"), chunk("APPLE")) 
+rule_db.define(
+    rule("1"), 
+    chunk_db.define( 
+        chunk("FRUIT"),
+        feature("tasty", True),
+        feature("sweet", True)
+    ),
+    chunk_db.define( 
+        chunk("APPLE"), 
+        feature("color", "#ff0000"), 
+        feature("color", "#008000"),
+        feature("tasty", True)
+    )
+) 
 
-chunk_db.link( 
-    chunk("APPLE"), 
-    feature("color", "#ff0000"), 
-    feature("color", "#008000"),
-    feature("tasty", True)
-)
-
-chunk_db.link( 
+chunk_db.define( 
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
-)
-
-chunk_db.link( 
-    chunk("FRUIT"),
-    feature("tasty", True),
-    feature("sweet", True)
 )
 
 

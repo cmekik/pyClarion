@@ -42,12 +42,14 @@ class Chunk(object):
         weights: Mapping[Tuple[Hashable, int], Union[float, int]] = None
     ):
 
-        dims = tuple(f.dim for f in features)
+        dims = set(f.dim for f in features)
+        if not (weights is None or dims.issuperset(weights)):
+            raise ValueError("Weight dims do not match features.")
+
         ws = nd.MutableNumDict(weights) 
-        ws.keep(keys=dims)
         ws.extend(dims, value=1.0)
 
-        assert set(f.dim for f in features) == set(ws)
+        assert set(ws) == dims
 
         self._features = frozenset(features)
         self._weights = ws
@@ -116,8 +118,8 @@ class Chunk(object):
 
         d = nd.keep(strengths, keys=self.features)
         d = nd.max_by(d, keyfunc=feature.dim.fget) # get maxima by dims
-        weighted = d * self.weights / nd.val_sum(self.weights)
-        strength = nd.val_sum(weighted)
+        weighted = d * self.weights 
+        strength = nd.val_sum(weighted) / nd.val_sum(self.weights)
 
         return strength
 
@@ -188,14 +190,21 @@ class Chunks(MutableMapping[chunk, Ct]):
         chunk_type: Type[Ct] = None
     ) -> None:
 
+        if data is not None and chunk_type is None:
+            msg = "Must specify chunk type explicitly when data is passed."
+            raise ValueError(msg)
+
         _data: Dict[chunk, Ct]
         if data is None:
             _data = dict()
         else:
             _data = dict(data)
-
         self._data: MutableMapping[chunk, Ct] = _data
-        self.Chunk = chunk_type if chunk_type is not None else Chunk
+
+        if chunk_type is None:
+            self.Chunk = Chunk
+        else:
+            self.Chunk = chunk_type
         
         self._promises: MutableMapping[chunk, Ct] = dict()
         self._promises_proxy = MappingProxyType(self._promises)

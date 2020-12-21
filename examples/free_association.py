@@ -481,6 +481,7 @@ with alice:
 # Alice performs one simulation step. 
 
 stimulus.emitter.input({chunk("APPLE"): 1.})
+print(stimulus.emitter.stimulus)
 alice.step()
 
 # To see what came to Alice's mind, we can simply inspect the output state of 

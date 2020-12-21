@@ -73,7 +73,7 @@ speech_interface = SimpleInterface(
 # memory state.
 
 wm_interface = RegisterArray.Interface(
-    slots=7,
+    slots=3,
     mapping={
         "retrieve": terminus("retrieval"),
         "extract":  terminus("bl-state")
@@ -96,7 +96,7 @@ nacs_cdb = Chunks()
 # We then manually populate the database with chunk representing the fruits 
 # that alice discovered in `chunk_extraction.py`.
 
-nacs_cdb.link(
+nacs_cdb.define(
     chunk("APPLE"),
     feature("word", "/apple/"),
     feature("color", "red"),
@@ -105,7 +105,7 @@ nacs_cdb.link(
     feature("texture", "smooth")
 )
 
-nacs_cdb.link(
+nacs_cdb.define(
     chunk("ORANGE"),
     feature("word", "/orange/"),
     feature("color", "orange"),
@@ -114,7 +114,7 @@ nacs_cdb.link(
     feature("texture", "grainy")
 )
 
-nacs_cdb.link(
+nacs_cdb.define(
     chunk("BANANA"),
     feature("word", "/banana/"),
     feature("color", "yellow"),
@@ -123,7 +123,7 @@ nacs_cdb.link(
     feature("texture", "spotty")
 )
 
-nacs_cdb.link(
+nacs_cdb.define(
     chunk("PLUM"),
     feature("word", "/plum/"),
     feature("color", "purple"),

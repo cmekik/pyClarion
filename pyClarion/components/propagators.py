@@ -173,7 +173,6 @@ class BoltzmannSelector(Propagator):
         probabilities = nd.boltzmann(thresholded, self.temperature)
         d = nd.draw(probabilities, n=1)
         d = nd.with_default(d, default=0)
-        print(d)
         
         return d
 
