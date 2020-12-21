@@ -31,6 +31,8 @@ See the Detailed Examples and Design Overview sections below for further details
 
 **Snippet 1: Agent Assembly**
 
+Agents can be built to any degree of complexity and completeness using a uniform syntax that takes advantage of context managers.
+
 ```python
 from pyClarion import (
     chunks, terminus, buffer, subsystem, agent,
@@ -79,7 +81,9 @@ with my_agent: # Automatically adds and links constructs defined in scope
 assert my_agent[subsystem("nacs"), chunks("main")] == chunk_pool
 ```
 
-**Snippet 2: Compact Rule and Chunk Specification**
+**Snippet 2: Rule and Chunk Specification**
+
+Rules and chunks can be specified compactly through the use of construct symbols.
 
 ```python
 from pyClarion import feature, chunk, rule, Chunks, Rules
