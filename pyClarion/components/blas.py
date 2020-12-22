@@ -164,7 +164,8 @@ class BLAs(Mapping):
         self._dict: dict = {}
         self._invoked: set = set()
         self._reset: set = set()
-        self._new: set = set()
+        self._del: set = set()
+        self._add: set = set()
 
     def __repr__(self):
 
@@ -202,8 +203,12 @@ class BLAs(Mapping):
         Update BLA database according to promises.
 
         Steps every existing BLA, adds invocations as promised. Also adds 
-        entries according to promises made. Does NOT remove any items.
+        and removes entries according to promises made.
         """
+
+        for key in self._del:
+            del self[key]
+        self._del.clear()
 
         for key, bla in self.items():
             if key in self._invoked:
@@ -212,9 +217,9 @@ class BLAs(Mapping):
                 bla.step(invoked=False)
         self._invoked.clear()
 
-        for key in self._new:
+        for key in self._add:
             self.add(key)
-        self._new.clear()
+        self._add.clear()
 
     def register_invocation(self, key, add_new=False):
         """
@@ -224,32 +229,34 @@ class BLAs(Mapping):
         otherwise throw KeyError. 
         """
 
-        if key in self:
-            self._invoked.add(key)
-        elif add_new:
-            self._new.add(key)
+        if key in self._add or key in self._del or key in self._invoked:
+            msg = "Key {} already registered for a promised update."
+            raise ValueError(msg.format(key))
         else:
-            raise KeyError()
-
-    def request_reset(self, key, add_new=False):
-        """
-        Promise BLA for key will be reset on next update.
-        
-        If key does not already exist in self, add the key if add_new is True, 
-        otherwise throw KeyError. 
-        """
-
-        if key in self:
-            self._reset.add(key)
-        elif add_new:
-            self._new.add(key)
-        else:
-            raise KeyError()
+            if key in self:
+                self._invoked.add(key)
+            elif add_new:
+                self._add.add(key)
+            else:
+                raise KeyError("Key not in BLA database.")
 
     def request_add(self, key):
         """Promise key will be added to database on next update."""
 
-        self._new.add(key)
+        if key in self._add or key in self._del or key in self._invoked:
+            msg = "Key {} already registered for a promised update."
+            raise ValueError(msg.format(key))
+        else:
+            self._add.add(key)
+
+    def request_del(self, key):
+        """Promise key will be deleted from database on next update."""
+
+        if key in self._add or key in self._del or key in self._invoked:
+            msg = "Key {} already registered for a promised update."
+            raise ValueError(msg.format(key))
+        else:
+            self._del.add(key)
 
 
 class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):

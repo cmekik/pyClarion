@@ -206,8 +206,8 @@ class Chunks(MutableMapping[chunk, Ct]):
         else:
             self.Chunk = chunk_type
         
-        self._promises: MutableMapping[chunk, Ct] = dict()
-        self._promises_proxy = MappingProxyType(self._promises)
+        self._add_promises: MutableMapping[chunk, Ct] = dict()
+        self._del_promises: Set[chunk] = set()
         self._updater = type(self).Updater(self)
 
     def __repr__(self):
@@ -246,10 +246,16 @@ class Chunks(MutableMapping[chunk, Ct]):
         return self._updater
 
     @property
-    def promises(self):
+    def add_promises(self):
         """A view of promised updates."""
 
-        return self._promises_proxy
+        return MappingProxyType(self._add_promises)
+
+    @property
+    def del_promises(self):
+        """A view of promised updates."""
+
+        return frozenset(self._del_promises)
 
     def define(self, ch, *features, weights=None) -> chunk:
         """
@@ -275,7 +281,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         for ch, form_ch in self.items():
             if form_ch == form:
                 chunks.add(ch)
-        for ch, form_ch in self._promises.items():
+        for ch, form_ch in self._add_promises.items():
             if form_ch == form:
                 chunks.add(ch)
 
@@ -306,11 +312,24 @@ class Chunks(MutableMapping[chunk, Ct]):
         already registered for chunk ch.
         """
 
-        if ch in self._promises:
+        if ch in self._add_promises or ch in self._del_promises:
             msg = "Chunk {} already registered for a promised update."
             raise ValueError(msg.format(ch))
         else:
-            self._promises[ch] = form
+            self._add_promises[ch] = form
+
+    def request_del(self, ch):
+        """
+        Inform self of an existing chunk to be removed.
+
+        Removes ch in a future update, upon a call to resolve_update_requests.
+        """
+
+        if ch in self._add_promises or ch in self._del_promises:
+            msg = "Chunk {} already registered for a promised update."
+            raise ValueError(msg.format(ch))
+        else:
+            self._del_promises.add(ch)
 
     def resolve_update_requests(self):
         """
@@ -319,8 +338,13 @@ class Chunks(MutableMapping[chunk, Ct]):
         Clears promised update dict upon completion.
         """
 
-        self.update(self._promises)
-        self._promises.clear()
+        for ch in self._del_promises:
+            del self[ch]
+        self._del_promises.clear()
+
+        self.update(self._add_promises)
+        self._add_promises.clear()
+
 
 
 class TopDown(Propagator):
