@@ -95,17 +95,17 @@ default_strengths.extend(gate_interface.defaults, value=0.5)
 # We initialize and populate chunk and rule databases as in 
 # `free_association.py`.
 
-chunk_db = Chunks()
+cdb = Chunks()
 rule_db = Rules()
 
 rule_db.define(
     rule("1"), 
-    chunk_db.define( 
+    cdb.define( 
         chunk("FRUIT"),
         feature("tasty", True),
         feature("sweet", True)
     ),
-    chunk_db.define( 
+    cdb.define( 
         chunk("APPLE"), 
         feature("color", "#ff0000"), 
         feature("color", "#008000"),
@@ -113,7 +113,7 @@ rule_db.define(
     )
 ) 
 
-chunk_db.define( 
+cdb.define( 
     chunk("JUICE"),
     feature("tasty", True),
     feature("state", "liquid")
@@ -221,7 +221,7 @@ with alice:
         name=subsystem("nacs"),
         emitter=NACSCycle(),
         assets=Assets(
-            chunk_db=chunk_db, 
+            cdb=cdb, 
             rule_db=rule_db
         )
     )
@@ -308,7 +308,7 @@ with alice:
             emitter=Gated(
                 base=BottomUp(
                     source=features("main"),
-                    chunks=nacs.assets.chunk_db
+                    chunks=nacs.assets.cdb
                 ),
                 gate=buffer("gate") 
             )
@@ -318,7 +318,7 @@ with alice:
             name=flow_tb("main"), 
             emitter=TopDown(
                 source=chunks("in"),
-                chunks=nacs.assets.chunk_db
+                chunks=nacs.assets.cdb
             ) 
         )
 

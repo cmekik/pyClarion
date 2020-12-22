@@ -15,6 +15,7 @@ from typing import (
     Sequence, Container
 )
 from typing import Iterable, Any
+from itertools import chain
 from copy import copy
 
 
@@ -178,7 +179,17 @@ class BoltzmannSelector(Propagator):
 
 
 class ActionSelector(Propagator):
-    """Selects action paramaters according to Boltzmann distributions."""
+    """
+    Selects actions and paramaters according to Boltzmann distributions.
+
+    Action and parameter features are selected from a given client interface. 
+    For parameter features, if a parameter feature is found to be of a 
+    singleton dimension (i.e., a dimension with only one value), it is treated 
+    like a continuous parameter and its strength is included in the output. If 
+    the parameter dimension has multiple values, one among them is 
+    stochasticallly selected through a boltzmann distribution, as with action 
+    commands.
+    """
 
     _serves = ConstructType.terminus
 
@@ -217,14 +228,21 @@ class ActionSelector(Propagator):
         strengths = inputs[self.source]
         params = self.client_interface.params
         cmds_by_dims = self.client_interface.cmds_by_dims
+        params_by_dims = self.client_interface.params_by_dims
+        items_by_dims = chain(cmds_by_dims.items(), params_by_dims.items())
 
-        d = nd.MutableNumDict({f: strengths[f] for f in params}, default=0)
-
-        for dim, fs in cmds_by_dims.items():
-            ipt = nd.NumDict({f: strengths[f] for f in fs})
-            prs = nd.boltzmann(ipt, self.temperature)
-            selection = nd.draw(prs, n=1)
-            d.update(selection)
+        d = nd.MutableNumDict(default=0)
+        for dim, fs in items_by_dims:
+            if len(fs) == 1: # assume singleton param dim is continuous
+                assert dim in params_by_dims
+                f, = fs
+                d[f] = strengths[f]
+            else: # assume cmd dim or multivalue param dim is discrete
+                assert 1 < len(fs), "Singleton cmd or param dimension found."
+                ipt = nd.NumDict({f: strengths[f] for f in fs})
+                prs = nd.boltzmann(ipt, self.temperature)
+                selection = nd.draw(prs, n=1)
+                d.update(selection)
 
         return d
 

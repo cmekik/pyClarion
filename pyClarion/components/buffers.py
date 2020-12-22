@@ -30,6 +30,8 @@ def collect_cmd_data(
     Logs failure, but does not throw error.
     """
 
+    # This seems somewhat obsolete, update it. - Can
+
     subsystem, terminus = controller
     try:
         data = inputs[subsystem][terminus]
