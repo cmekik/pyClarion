@@ -328,6 +328,8 @@ class Chunks(MutableMapping[chunk, Ct]):
         if ch in self._add_promises or ch in self._del_promises:
             msg = "Chunk {} already registered for a promised update."
             raise ValueError(msg.format(ch))
+        elif ch not in self:
+            raise ValueError("Cannot delete non-existent chunk.")
         else:
             self._del_promises.add(ch)
 

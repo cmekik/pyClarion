@@ -4,12 +4,15 @@
 __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
-from ..base import ConstructType, Symbol, SymbolTrie, Propagator, UpdaterS, \
-    rule, chunk
+from ..base import (
+    ConstructType, Symbol, SymbolTrie, Propagator, UpdaterS, rule, chunk
+)
 from .. import numdicts as nd
 
-from typing import Mapping, MutableMapping, TypeVar, Generic, Type, Dict, \
-    FrozenSet, overload, cast
+from typing import (
+    Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
+    overload, cast
+)
 from types import MappingProxyType
 
 
@@ -182,8 +185,8 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         self.max_conds = max_conds
         self.Rule = rule_type if rule_type is not None else Rule
 
-        self._promises: MutableMapping[rule, Rule] = dict()
-        self._promises_proxy = MappingProxyType(self._promises)
+        self._add_promises: MutableMapping[rule, Rt] = dict()
+        self._del_promises: Set[rule] = set()
         self._updater = type(self).Updater(self)
 
     def __repr__(self):
@@ -223,10 +226,10 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         return self._updater
 
     @property
-    def promises(self):
+    def add_promises(self):
         """A view of promised updates."""
 
-        return self._promises_proxy
+        return MappingProxyType(self._add_promises)
 
     def define(
         self, 
@@ -270,11 +273,21 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         Validation occurs at update time. 
         """
 
-        if ch in self._promises:
+        if r in self._add_promises or r in self._del_promises:
             msg = "Rule {} already registered for a promised update."
             raise ValueError(msg.format(r))
         else:
-            self._promises[r] = form
+            self._add_promises[r] = form
+
+    def request_del(self, r: rule) -> None:
+
+        if r in self._add_promises or r in self._del_promises:
+            msg = "Rule {} already registered for a promised update."
+            raise ValueError(msg.format(r))
+        elif r not in self:
+            raise ValueError("Cannot delete non-existent rule.")
+        else:
+            self._del_promises.add(r)
 
     def resolve_update_requests(self):
         """
@@ -283,8 +296,11 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         Clears promised update dict upon completion.
         """
 
-        self.update(self._promises)
-        self._promises.clear()
+        for r in self._del_promises:
+            del self[r]
+
+        self.update(self._add_promises)
+        self._add_promises.clear()
 
     def _validate_rule_form(self, form):
 

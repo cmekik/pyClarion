@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Functions `squeeze`, `with_default`, `val_max`, `val_min`, `all_val`, `any_val` in `numdicts.funcs`
 - Compact rule definitions; enabled by nested use of `Chunks.define` and 
 `Rules.define` (see Changed).
-- Delete requests for Chunk and BLA databases.
+- Delete requests for Chunk, Rule, and BLA databases.
 
 ### Changed
 
