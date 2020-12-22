@@ -298,6 +298,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         for r in self._del_promises:
             del self[r]
+        self._del_promises.clear()
 
         self.update(self._add_promises)
         self._add_promises.clear()
