@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type `Inputs` to `SymbolTrie[NumDict]` to be more precise.
 - `Chunks.link()` renamed `Chunks.define()` and returns a `chunk`.
 - `Rules.link()` renamed `Rules.define()` and returns a `rule`.
+- For `Chunks` and `Rules`: `request_update` renamed to `request_add`, `resolve_update_requests` renamed `resolve_requests`
 
 ### Fixed
 

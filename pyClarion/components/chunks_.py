@@ -170,7 +170,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         def __call__(self, inputs, output, update_data):
             """Resolve all outstanding chunk database update requests."""
 
-            self.chunks.resolve_update_requests()
+            self.chunks.resolve_requests()
 
     @overload
     def __init__(self: "Chunks[Chunk]") -> None:
@@ -273,7 +273,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         Return the set of chunks matching the given form.
         
         If check_promises is True, will match form against promised chunks (see 
-        Chunks.request_update()).
+        Chunks.request_add()).
         """
 
         # This may need a faster implementation in the future. - Can
@@ -292,19 +292,19 @@ class Chunks(MutableMapping[chunk, Ct]):
         Return true if given chunk form matches at least one chunk.
 
         If check_promises is True, will match form against promised chunks (see 
-        Chunks.request_update()).
+        Chunks.request_add()).
         """
 
         found = self.find_form(form, check_promises)
 
         return 0 < len(found) 
 
-    def request_update(self, ch, form):
+    def request_add(self, ch, form):
         """
-        Inform self of a new chunk to be applied at a later time.
+        Inform self of a new chunk to be added at update time.
         
         Adds (ch, form) to an internal future update dict. Upon call to 
-        self.resolve_update_requests(), the update dict will be passed as an 
+        self.resolve_requests(), the update dict will be passed as an 
         argument to self.update(). 
         
         Will overwrite existing chunks, if ch is already member of self. Does 
@@ -320,9 +320,11 @@ class Chunks(MutableMapping[chunk, Ct]):
 
     def request_del(self, ch):
         """
-        Inform self of an existing chunk to be removed.
+        Inform self of an existing chunk to be removed at update time.
 
-        Removes ch in a future update, upon a call to resolve_update_requests.
+        Adds ch to a future deletion set. Upon a call to resolve_requests(), 
+        every member of the deletion set will be removed. If ch is not already 
+        a member of self, will raise an error.
         """
 
         if ch in self._add_promises or ch in self._del_promises:
@@ -333,9 +335,9 @@ class Chunks(MutableMapping[chunk, Ct]):
         else:
             self._del_promises.add(ch)
 
-    def resolve_update_requests(self):
+    def resolve_requests(self):
         """
-        Apply any promised updates (see Chunks.request_update()).
+        Apply any promised updates (see request_add() and request_del()).
         
         Clears promised update dict upon completion.
         """
@@ -458,7 +460,7 @@ class ChunkExtractor(Propagator):
                 # assuming the self.chunks is updated at that time. By default, 
                 # extractors do not initiate updates for their chunk databases 
                 # that they serve.
-                self.chunks.request_update(ch, form)
+                self.chunks.request_add(ch, form)
             elif len(found) == 1:
                 d.extend(found, value=1.0)
             else:

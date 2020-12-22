@@ -145,7 +145,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         def __call__(self, inputs, output, update_data):
             """Resolve all outstanding rule database update requests."""
 
-            self.rules.resolve_update_requests()
+            self.rules.resolve_requests()
 
     @overload
     def __init__(self: "Rules[Rule]") -> None:
@@ -257,12 +257,12 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         return any(form == entry for entry in self.values())
 
-    def request_update(self, r, form):
+    def request_add(self, r, form):
         """
         Inform self of a new rule to be applied at a later time.
         
         Adds (r, form) to an internal future update dict. Upon call to 
-        self.resolve_update_requests(), the update dict will be passed as an 
+        self.resolve_requests(), the update dict will be passed as an 
         argument to self.update(). 
         
         Will overwrite existing rule if r is already member of self. Does 
@@ -280,6 +280,13 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
             self._add_promises[r] = form
 
     def request_del(self, r: rule) -> None:
+        """
+        Inform self of an existing rule to be removed at update time.
+
+        Adds r to a future deletion set. Upon a call to resolve_requests(), 
+        every member of the deletion set will be removed. If r is not already 
+        a member of self, will raise an error.
+        """
 
         if r in self._add_promises or r in self._del_promises:
             msg = "Rule {} already registered for a promised update."
@@ -289,9 +296,9 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         else:
             self._del_promises.add(r)
 
-    def resolve_update_requests(self):
+    def resolve_requests(self):
         """
-        Apply any promised updates (see Rules.request_update()).
+        Apply any promised updates (see Rules.request_add()).
         
         Clears promised update dict upon completion.
         """
