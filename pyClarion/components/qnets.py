@@ -175,6 +175,8 @@ class SimpleQNet(Propagator):
                 if i != len(weights) - 1: # don't squash final layer output
                     qs = nd.tanh(qs)
             # Assuming exactly one action/dim is mapped to a value of 1.
+            # (Can't check w/ assert bc will be in gradient tape... maybe add 
+            # assertions to gradient tapes.)
             q_action = nd.sum_by((qs * actions), keyfunc=get_dim)
             max_qs_next = nd.max_by(qs_next, keyfunc=get_dim)
             errors = (rs + (gamma * max_qs_next)) - q_action
