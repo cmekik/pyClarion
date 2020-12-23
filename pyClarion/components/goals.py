@@ -1,6 +1,9 @@
 """Tools for handling goals."""
 
 
+__all__ = ["GoalStay"]
+
+
 from ..base.symbols import (
     ConstructType, Symbol, SymbolTrie, feature, chunk, terminus, buffer, 
     subsystem
@@ -17,9 +20,9 @@ from dataclasses import dataclass
 from itertools import product, count
 
 
-class GoalBuffer(Propagator):
+class GoalStay(Propagator):
     """
-    A buffer for coordinating goal management.
+    A propagator for coordinating goal management.
 
     Warning: This component is very experimental.
 

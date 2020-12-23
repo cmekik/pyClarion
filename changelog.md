@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Compact rule definitions; enabled by nested use of `Chunks.define` and 
 `Rules.define` (see Changed).
 - Delete requests for Chunk, Rule, and BLA databases.
+- `GoalStay` propagator for maintaining and coordinating goals.
 
 ### Changed
 
