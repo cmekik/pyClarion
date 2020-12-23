@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 `Rules.define` (see Changed).
 - Delete requests for Chunk, Rule, and BLA databases.
 - `GoalStay` propagator for maintaining and coordinating goals.
+- `BLADrivenStrengths` propagator for determining chunk (and other construct) strengths based on their BLAs.
 
 ### Changed
 

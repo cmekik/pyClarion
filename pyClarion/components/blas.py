@@ -9,10 +9,10 @@ __all__ = [
 
 from .buffers import collect_cmd_data, RegisterArray
 from ..base.symbols import ConstructType, Symbol, SymbolTrie
-from ..base.components import UpdaterC, UpdaterS
-from ..numdicts import NumDict
+from ..base.components import Propagator, UpdaterC, UpdaterS
+from .. import numdicts as nd
 
-from typing import Any, cast
+from typing import Any, FrozenSet, cast
 from collections import deque
 from collections.abc import Mapping, MutableMapping
 
@@ -259,6 +259,43 @@ class BLAs(Mapping):
             self._del.add(key)
 
 
+class BLADrivenStrengths(Propagator):
+    """
+    Emit strengths for items based on their BLAs.
+
+    Assigns to each item in a BLA database a strength equal to tanh(bla), where 
+    bla is the BLA value associated with the item. The tanh function is used to 
+    squash the BLA value to lie in [0, 1]. Optionally, the BLA can be scaled 
+    before being squashed, and thresholding is available, to drop items below a 
+    chosen BLA.
+    """
+
+    _serves = ConstructType.flow_in
+
+    def __init__(self, blas: BLAs, r: float = 1.0, th: float = 0.0) -> None:
+
+        self.blas = blas
+        self.th = th
+        self.r = r
+
+    @property
+    def expected(self) -> FrozenSet[Symbol]:
+
+        return frozenset()
+
+    def call(self, inputs):
+
+        th = self.th
+        r = self.r
+        items = self.blas.items()
+
+        d = nd.NumDict({k: r * v.value for k, v in items}, default=0)
+        d = nd.threshold(d, th=th, keep_default=True)
+        d = nd.tanh(d) # Squash [0, +inf] to [0, 1]
+
+        return d
+
+
 class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
     """Maintains and updates BLA values associated RegisterArray slots."""
 
@@ -283,9 +320,9 @@ class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
     def __call__(
         self,
         propagator: RegisterArray,
-        inputs: SymbolTrie[NumDict],
-        output: NumDict,
-        update_data: SymbolTrie[NumDict]
+        inputs: SymbolTrie[nd.NumDict],
+        output: nd.NumDict,
+        update_data: SymbolTrie[nd.NumDict]
     ) -> None:
         """
         Update register array according to BLAs.
@@ -363,9 +400,9 @@ class BLAInvocationTracker(UpdaterC):
     def __call__(
         self,
         propagator: Any,
-        inputs: SymbolTrie[NumDict],
-        output: NumDict,
-        update_data: SymbolTrie[NumDict]
+        inputs: SymbolTrie[nd.NumDict],
+        output: nd.NumDict,
+        update_data: SymbolTrie[nd.NumDict]
     ) -> None:
         """
         Register invocations of monitored constructs.
@@ -405,9 +442,9 @@ class BLADrivenDeleter(UpdaterS):
 
     def __call__(
         self, 
-        inputs: SymbolTrie[NumDict], 
-        output: SymbolTrie[NumDict], 
-        update_data: SymbolTrie[NumDict]
+        inputs: SymbolTrie[nd.NumDict], 
+        output: SymbolTrie[nd.NumDict], 
+        update_data: SymbolTrie[nd.NumDict]
     ) -> None:
         """
         Delete any entries in client db whose BLA is below threshold.
