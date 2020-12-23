@@ -560,7 +560,11 @@ class FeatureInterface(FeatureDomain):
 
 @dataclass(init=False)
 class SimpleDomain(FeatureDomain):
-    """A simple feature domain, specified through enumeration."""
+    """
+    A simple feature domain, specified through enumeration.
+    
+    :param features: A collection of features defining the domain.
+    """
 
     def __init__(self, features: Collection[feature]) -> None:
 

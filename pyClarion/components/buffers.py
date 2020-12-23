@@ -38,6 +38,7 @@ def collect_cmd_data(
     except KeyError:
         msg = "Failed data pull from %s in %s."
         logging.warning(msg, controller, construct)
+        raise
 
     if isinstance(data, nd.NumDict):
         return data
