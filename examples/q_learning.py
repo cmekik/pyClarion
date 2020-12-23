@@ -191,7 +191,7 @@ with learner:
                 r_map=learner.assets.r_map,
                 layers=[5, 5],
                 gamma=0.7,
-                lr=0.3
+                lr=0.1
             )
         )
 
