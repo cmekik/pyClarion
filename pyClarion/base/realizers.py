@@ -147,22 +147,18 @@ class Realizer(Generic[Et, Ut, Ot]):
         
         self._output = self.emitter.emit() # default/empty output
 
-    def finalize_assembly(self):
-        """Execute final initialization and checks prior to simulation."""
-
-        b = self.emitter.check_links(self.inputs)
-        b &= self.updater is None or self.updater.check_links(self.inputs)
-        
-        if not b:
-            raise RealizerError(self._link_error_msg())
-
     def step(self) -> None:
         """Advance the simulation by one time step."""
 
         self._propagate()
         self._update()
 
-    def accepts(self, source: Symbol) -> bool:
+    def view(self) -> Ot:
+        """Return current output of self."""
+        
+        return self._output
+
+    def _accepts(self, source: Symbol) -> bool:
         """Return true iff self pulls information from source."""
 
         val = self.emitter.expects(source)
@@ -171,7 +167,7 @@ class Realizer(Generic[Et, Ut, Ot]):
 
         return val
 
-    def offer(self, construct: Symbol, callback: PullFunc) -> None:
+    def _offer(self, construct: Symbol, callback: PullFunc) -> None:
         """
         Add link from construct to self if self accepts construct.
         
@@ -181,29 +177,18 @@ class Realizer(Generic[Et, Ut, Ot]):
             Realizer instance.
         """
 
-        if self.accepts(construct):
+        if self._accepts(construct):
             self._log_watch(construct)            
             self._inputs[construct] = callback
 
-    def drop(self, construct: Symbol) -> None:
-        """Remove link from construct to self."""
+    def _finalize_assembly(self):
+        """Execute final initialization and checks prior to simulation."""
 
-        self._log_drop(construct)
-        try:
-            del self._inputs[construct]
-        except KeyError:
-            pass
-
-    def clear_inputs(self) -> None:
-        """Clear self.inputs."""
-
-        for construct in self.inputs:
-            self.drop(construct)
-
-    def view(self) -> Ot:
-        """Return current output of self."""
+        b = self.emitter.check_links(self.inputs)
+        b &= self.updater is None or self.updater.check_links(self.inputs)
         
-        return self._output
+        if not b:
+            raise RealizerError(self._link_error_msg())
 
     @abstractmethod
     def _propagate(self) -> None:
@@ -267,17 +252,6 @@ class Realizer(Generic[Et, Ut, Ot]):
             msg = "Connecting %s to %s in %s."
             logging.debug(msg, construct, self.construct, context)
 
-    def _log_drop(self, construct: Symbol) -> None:
-
-        try:
-            context = BUILD_CTX.get()
-        except LookupError:
-            msg = "Disconnecting %s from %s."
-            logging.debug(msg, construct, self.construct)
-        else:
-            msg = "Disconnecting %s from %s in %s."
-            logging.debug(msg, construct, self.construct, context)
-    
     def _link_error_msg(self):
 
         s = set(self.emitter.expected)
@@ -350,8 +324,13 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
     """
     A composite construct.
     
-    Defines behaviour of higher-level constructs, such as agents and 
-    subsystems, which may contain other constructs. 
+    Defines behaviour of higher-level constructs, such as agents and subsystems,
+    which may contain other constructs. 
+
+    Any Realizer initialized within the body of a with statement having a 
+    Structure object as its context manager will automatically be added to the 
+    Structure upon exit from the context. Nested use of with statements in this 
+    way (e.g. to add objects to subsystems within an agent) is well-behaved.
     """
 
     _dict: Dict[ConstructType, Dict[Symbol, Realizer]]
@@ -421,67 +400,13 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
         if exc_type is None:
             # Add any newly defined realizers to self and clean up the context.
             context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
-            for realizer in add_list:
-                self.add(realizer)
+            self._add(*add_list)
             if len(context) <= 1:
-                self.finalize_assembly()
-        
+                self._finalize_assembly()
+        print(add_list)
         BUILD_CTX.reset(self._build_ctx_token)
         BUILD_LIST.reset(self._build_list_token)
         logging.debug("Exiting context %s.", self.construct)
-
-    def finalize_assembly(self) -> None:
-
-        ctxmgr: Union[Structure, ContextManager[Structure]]
-        
-        try:
-            context = BUILD_CTX.get()
-        except LookupError:
-            ctxmgr = self
-        else:
-            if context[-1] == self.construct:
-                ctxmgr = nullcontext(self)
-            else:
-                ctxmgr = self
-
-        with ctxmgr:
-            for realizer in self.values():
-                if isinstance(realizer, Structure):
-                    realizer.finalize_assembly()
-            for realizer in self.values():
-                if isinstance(realizer, Construct):
-                    realizer.finalize_assembly()
-        
-        self.reset_output()
-        super().finalize_assembly()
-
-    def add(self, *realizers: Realizer) -> None:
-        """
-        Add realizers to self and any associated links.
-        
-        Calling add directly when building an agent may be error-prone, not to 
-        mention cumbersome. A better approach to agent assembly is to use self 
-        as a context manager. 
-        
-        Any construct initialized within the body of a with statement 
-        having self as its context manager will automatically be added to self 
-        upon exit from the context (by a call to self.add()). Nested use of 
-        with statements in this way (e.g. to add objects to subsystems 
-        within an agent) is well-behaved and recommended.
-
-        When calling Structure.add() directly, be sure to assemble agents in a 
-        bottom-up fashion. Otherwise, constructs may not be linked correctly. 
-        If you do not follow a bottom-up assembly pattern, call the reweave() 
-        method on the highest level construct in your model at the end of 
-        assembly.
-        """
-
-        for realizer in realizers:
-            self._log_add(realizer.construct)
-            ctype = realizer.construct.ctype
-            d = self._dict.setdefault(ctype, {})
-            d[realizer.construct] = realizer
-            self.update_links(construct=realizer.construct)
 
     def keys(self, ctype: ConstructType = None) -> Iterator[Symbol]:
         """
@@ -522,30 +447,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
                 for construct, realizer in self._dict[ct].items():
                     yield construct, realizer
 
-    def offer(self, construct: Symbol, callback: PullFunc) -> None:
-        """
-        Add links from construct to self and any accepting members.
-        
-        :param construct: Symbol for target construct.
-        :param callback: A callable that returns data representing the output 
-            of construct. Typically this will be the `view()` method of a 
-            Realizer instance.
-        """
-
-        super().offer(construct, callback)  
-        with self:
-            for realizer in self.values():
-                realizer.offer(construct, callback)
-
-    def update_links(self, construct: Symbol) -> None:
-        """Add links between member construct and any other member of self."""
-
-        target = self[construct]
-        for realizer in self.values():
-            if target.construct != realizer.construct:
-                realizer.offer(target.construct, target.view)
-                target.offer(realizer.construct, realizer.view)
-
     def reset_output(self) -> None:
         """Set output of self to reflect member outputs."""
 
@@ -564,12 +465,56 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
 
         self.reset_output()
 
+    def _add(self, *realizers: Realizer) -> None:
+        """Add realizers to self and any associated links."""
+
+        for realizer in realizers:
+            self._log_add(realizer.construct)
+            ctype = realizer.construct.ctype
+            d = self._dict.setdefault(ctype, {})
+            d[realizer.construct] = realizer
+            self._update_links(construct=realizer.construct)
+
+    def _update_links(self, construct: Symbol) -> None:
+        """Add links between member construct and any other member of self."""
+
+        target = self[construct]
+        for realizer in self.values():
+            if target.construct != realizer.construct:
+                realizer._offer(target.construct, target.view)
+                target._offer(realizer.construct, realizer.view)
+
+    def _offer(self, construct: Symbol, callback: PullFunc) -> None:
+        """
+        Add links from construct to self and any accepting members.
+        
+        :param construct: Symbol for target construct.
+        :param callback: A callable that returns data representing the output 
+            of construct. Typically this will be the `view()` method of a 
+            Realizer instance.
+        """
+
+        super()._offer(construct, callback)  
+        for realizer in self.values():
+            realizer._offer(construct, callback)
+
     def _propagate(self) -> None:
 
         for ctype in self.emitter.sequence:
             for c in self.values(ctype=ctype):
                 c._propagate()
         self.reset_output()
+
+    def _finalize_assembly(self) -> None:
+
+        for realizer in self.values():
+            if isinstance(realizer, Structure):
+                realizer._finalize_assembly()
+        for realizer in self.values():
+            if isinstance(realizer, Construct):
+                realizer._finalize_assembly()
+        self.reset_output()
+        super()._finalize_assembly()
 
     def _update(self) -> None:
         """

@@ -6,9 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- Several `Realizer` methods now protected: `offer()`, `accepts()`
+- Several `Structure` methods now protected: `add()`, `update_links()`, `offer()`
+
 ### Removed 
 
-- Several `Structure` methods: `__delitem__()`, `remove()`, `clear()`, `drop()`, `clear_inputs()`, `clear_links()`, `reweave()`
+- Several `Realizer` methods: `drop()`, `clear_inputs()`, `finalize_assembly()`
+- Several `Structure` methods: `__delitem__()`, `remove()`, `clear()`, `drop()`, `clear_inputs()`, `clear_links()`, `reweave()`, `finalize_assembly()`
 
 ## [0.15.0] (2020-12-24)
 
