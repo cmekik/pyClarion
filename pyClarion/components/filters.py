@@ -170,14 +170,12 @@ class Pruned(Propagator, Generic[Pt]):
         self, 
         base: Pt, 
         accept: ConstructType,
-        exempt: Set[Symbol] = None, 
-        invert: bool = True
+        exempt: Set[Symbol] = None
     ) -> None:
 
         self.base = base
         self.accept = accept
         self.exempt = exempt or set() 
-        self.invert = invert
 
     @property
     def client(self):
@@ -207,10 +205,6 @@ class Pruned(Propagator, Generic[Pt]):
 
     def preprocess(self, inputs):
 
-        ws = inputs[self.sieve]
-        if self.invert:
-            ws = 1 - ws
-
         preprocessed = {}
         func = self.base.expects
         expected = {src: inputs[src] for src in filter(func, inputs)}
@@ -224,4 +218,4 @@ class Pruned(Propagator, Generic[Pt]):
 
     def _match(self, construct):
 
-        return construct.ctype in self.sieve
+        return construct.ctype in self.accept
