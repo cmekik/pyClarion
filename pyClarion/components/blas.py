@@ -198,7 +198,7 @@ class BLAs(Mapping):
             self.depth
         )
 
-    def update(self):
+    def step(self):
         """
         Update BLA database according to promises.
 
@@ -356,7 +356,7 @@ class RegisterArrayBLAUpdater(UpdaterC[RegisterArray]):
                     self.blas.register_invocation(item, add_new=True)
 
         # Update BLAs.
-        self.blas.update()
+        self.blas.step()
 
         # Remove items below threshold.
         for cell in propagator.cells:
@@ -454,7 +454,7 @@ class BLADrivenDeleter(UpdaterS):
         removed both from client db AND the BLA database.
         """
 
-        self.blas.update()
+        self.blas.step()
 
         for entry, bla in self.blas.items():
             if bla.below_threshold:

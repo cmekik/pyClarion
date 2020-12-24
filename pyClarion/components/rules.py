@@ -145,7 +145,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         def __call__(self, inputs, output, update_data):
             """Resolve all outstanding rule database update requests."""
 
-            self.rules.resolve_requests()
+            self.rules.step()
 
     @overload
     def __init__(self: "Rules[Rule]") -> None:
@@ -262,7 +262,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         Inform self of a new rule to be applied at a later time.
         
         Adds (r, form) to an internal future update dict. Upon call to 
-        self.resolve_requests(), the update dict will be passed as an 
+        self.step(), the update dict will be passed as an 
         argument to self.update(). 
         
         Will overwrite existing rule if r is already member of self. Does 
@@ -283,7 +283,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         """
         Inform self of an existing rule to be removed at update time.
 
-        Adds r to a future deletion set. Upon a call to resolve_requests(), 
+        Adds r to a future deletion set. Upon a call to step(), 
         every member of the deletion set will be removed. If r is not already 
         a member of self, will raise an error.
         """
@@ -296,7 +296,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         else:
             self._del_promises.add(r)
 
-    def resolve_requests(self):
+    def step(self):
         """
         Apply any promised updates (see Rules.request_add()).
         

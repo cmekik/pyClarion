@@ -170,7 +170,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         def __call__(self, inputs, output, update_data):
             """Resolve all outstanding chunk database update requests."""
 
-            self.chunks.resolve_requests()
+            self.chunks.step()
 
     @overload
     def __init__(self: "Chunks[Chunk]") -> None:
@@ -304,7 +304,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         Inform self of a new chunk to be added at update time.
         
         Adds (ch, form) to an internal future update dict. Upon call to 
-        self.resolve_requests(), the update dict will be passed as an 
+        self.step(), the update dict will be passed as an 
         argument to self.update(). 
         
         Will overwrite existing chunks, if ch is already member of self. Does 
@@ -322,7 +322,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         """
         Inform self of an existing chunk to be removed at update time.
 
-        Adds ch to a future deletion set. Upon a call to resolve_requests(), 
+        Adds ch to a future deletion set. Upon a call to step(), 
         every member of the deletion set will be removed. If ch is not already 
         a member of self, will raise an error.
         """
@@ -335,7 +335,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         else:
             self._del_promises.add(ch)
 
-    def resolve_requests(self):
+    def step(self):
         """
         Apply any promised updates (see request_add() and request_del()).
         
@@ -348,7 +348,6 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         self.update(self._add_promises)
         self._add_promises.clear()
-
 
 
 class TopDown(Propagator):
