@@ -407,23 +407,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
         else:
             return self._dict[key.ctype][key]
 
-    # TODO: Recursive application needs testing. - Can
-    def __delitem__(self, key: SymbolicAddress) -> None:
-
-        if isinstance(key, tuple):
-            if len(key) == 0:
-                raise KeyError("Key sequence must be of length 1 at least.")
-            elif len(key) == 1:
-                del self[key[0]]
-            else:
-                # Catch & output more informative error here? - Can
-                head = self[key[0]]
-                del head[key[1:]] 
-        else:
-            self._log_del(key)
-            self.drop(construct=key)
-            del self._dict[key.ctype][key]
-
     def __enter__(self):
 
         logging.debug("Entering context %s.", self.construct)
@@ -500,17 +483,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
             d[realizer.construct] = realizer
             self.update_links(construct=realizer.construct)
 
-    def remove(self, *constructs: Symbol) -> None:
-        """Remove constructs from self and any associated links."""
-
-        for construct in constructs:
-            del self[construct]
-
-    def clear(self):
-        """Remove all constructs in self."""
-
-        self.remove(*self.keys())
-
     def keys(self, ctype: ConstructType = None) -> Iterator[Symbol]:
         """
         Return iterator over all construct symbols in self.
@@ -565,21 +537,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
             for realizer in self.values():
                 realizer.offer(construct, callback)
 
-    def drop(self, construct: Symbol) -> None:
-        """Remove links from construct to self and any accepting members."""
-
-        super().drop(construct)
-        for realizer in self.values():
-            realizer.drop(construct)
-
-    def clear_inputs(self) -> None:
-        """Clear self.inputs and remove all associated links."""
-
-        for construct in self.inputs:
-            for realizer in self.values():
-                realizer.drop(construct)
-        super().clear_inputs()           
-
     def update_links(self, construct: Symbol) -> None:
         """Add links between member construct and any other member of self."""
 
@@ -588,23 +545,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
             if target.construct != realizer.construct:
                 realizer.offer(target.construct, target.view)
                 target.offer(realizer.construct, realizer.view)
-
-    def clear_links(self) -> None:
-        """Remove all links to, among, and within all members of self."""
-
-        for realizer in self.values():
-            realizer.clear_inputs()
-            if isinstance(realizer, Structure):
-                realizer.clear_links()
-
-    def reweave(self) -> None:
-        """Recompute all links to, among, and within members of self."""
-
-        self.clear_links()
-        for construct, realizer in self.items():
-            if isinstance(realizer, Structure):
-                realizer.reweave()
-            self.update_links(construct)
 
     def reset_output(self) -> None:
         """Set output of self to reflect member outputs."""
@@ -658,16 +598,6 @@ class Structure(Realizer[Ct, UpdaterS, SymbolTrie[NumDict]]):
                 output=self.output,
                 update_data=self._update_cache
             )
-
-    def _log_del(self, construct) -> None:
-
-        try:
-            context = BUILD_CTX.get()
-        except LookupError:
-            logging.debug("Removing %s from %s.", construct, self.construct)
-        else:
-            msg = "Removing %s from %s in %s."
-            logging.debug(msg, construct, self.construct, context)
 
     def _log_add(self, construct) -> None:
 
