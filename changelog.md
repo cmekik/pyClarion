@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.15.0] (2020-12-24)
 
 ### Added
 
@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Type `Inputs` to `SymbolTrie[NumDict]` to be more precise.
 - `Chunks.link()` renamed `Chunks.define()` and returns a `chunk`.
 - `Rules.link()` renamed `Rules.define()` and returns a `rule`.
-- For `Chunks` and `Rules`: `request_update` renamed to `request_add`, `resolve_update_requests` renamed `resolve_requests`
+- For `Chunks` and `Rules`: `request_update` renamed to `request_add`, `resolve_update_requests` renamed `step`
+- `BLAs.update()` renamed `BLAs.step()`
 
 ### Fixed
 
@@ -31,6 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `PullFunc` output type.
 - `PullFuncs` output type.
 - Incorrect filtering behaviour for `MutableNumDict.keep()` and `MutableNumDict.drop()`. 
+- `Pruned.preprocess()`
+
+### Removed
+
+- `BLAs.request_reset()`
 
 ## [0.14.0] (2020-12-16)
 
