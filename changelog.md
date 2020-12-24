@@ -8,13 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Several `Realizer` methods now protected: `offer()`, `accepts()`
-- Several `Structure` methods now protected: `add()`, `update_links()`, `offer()`
+- Realizers now structurally immutable (see removed for list of removed methods.). Behavior can still be modified by replacing emitters, but constructs may not be added or removed after initial assembly.
+- Streamlined realizer construction; use of with syntax encouraged exclusively:
+    - Several `Realizer` methods now protected: `offer()`, `accepts()`, `finalize_assembly()`
+    - Several `Structure` methods now protected: `add()`, `update_links()`, `offer()`, `finalize_assembly()`
 
 ### Removed 
 
-- Several `Realizer` methods: `drop()`, `clear_inputs()`, `finalize_assembly()`
-- Several `Structure` methods: `__delitem__()`, `remove()`, `clear()`, `drop()`, `clear_inputs()`, `clear_links()`, `reweave()`, `finalize_assembly()`
+- Removed realizer mutation methods:
+    - Several `Realizer` methods: `drop()`, `clear_inputs()`
+    - Several `Structure` methods: `__delitem__()`, `remove()`, `clear()`, `drop()`, `clear_inputs()`, `clear_links()`, `reweave()`
 
 ## [0.15.0] (2020-12-24)
 
