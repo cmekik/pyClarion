@@ -1,7 +1,7 @@
 """Provides propagators for standard Clarion subsystems."""
 
 
-__all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle"]
+__all__ = ["AgentCycle", "CycleS", "ACSCycle", "NACSCycle", "MSCycle"]
 
 
 from ..base.symbols import ConstructType, Symbol
@@ -77,6 +77,24 @@ class NACSCycle(CycleS):
         ConstructType.flow_h,
         ConstructType.features,
         ConstructType.flow_bt,
+        ConstructType.chunks,
+        ConstructType.terminus
+    ]
+
+
+class MSCycle(CycleS):
+    """
+    Motivational subsystem activation cycle.
+
+    Warning: Very experimental.
+    """
+
+    sequence = [
+        ConstructType.flow_in,
+        ConstructType.chunks,
+        ConstructType.features,
+        ConstructType.flow_h,
+        ConstructType.features,
         ConstructType.chunks,
         ConstructType.terminus
     ]

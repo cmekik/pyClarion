@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "BLA", "BLAs", "RegisterArrayBLAUpdater", "BLAInvocationTracker", 
-    "BLADrivenDeleter"
+    "BLA", "BLAs", "BLADrivenStrengths", "RegisterArrayBLAUpdater", 
+    "BLAInvocationTracker", "BLADrivenDeleter"
 ]
 
 

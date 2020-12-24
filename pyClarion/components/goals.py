@@ -209,6 +209,7 @@ class GoalStay(Propagator):
         self.flags = nd.MutableNumDict(default=0)
         self.flags.extend(self.interface.null_flags, value=1.0)
 
+    @property
     def expected(self) -> FrozenSet[Symbol]:
         
         return frozenset((self.controller[0], self.source[0]))
