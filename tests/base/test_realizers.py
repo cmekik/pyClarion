@@ -20,6 +20,14 @@ class TestRealizerMethods(unittest.TestCase):
 @mock.patch.object(clb.Process, "_serves", clb.ConstructType.basic_construct)
 class TestStructureMethods(unittest.TestCase):
 
+    def tearDown(self):
+
+        self.assertEqual(
+            clb.realizers.BUILD_CTX.get(), 
+            (), 
+            "BUILD_CTX cleanup failed."
+        )
+
     def test_assembly_sequence_is_recorded_correctly(self):
 
         nacs = clb.Structure(
@@ -142,7 +150,7 @@ class TestStructureMethods(unittest.TestCase):
                             expected=[clb.buffer("wm")]
                         )
                     )
-
+        
     def test_assembly_links_constructs_correctly(self):
 
         agent = clb.Structure(
@@ -281,3 +289,163 @@ class TestStructureMethods(unittest.TestCase):
         self.assertEqual(nacs.output, nacs_expected, "failed on nacs")
         self.assertEqual(agent.output, agent_expected, "failed on agent")
         
+    def test_assembly_fails_reentering_a_structure(self):
+
+        with self.assertRaises(RuntimeError):
+
+            agent = clb.Structure(
+                name=clb.agent("agent"),
+                assets=None
+            )
+
+            with agent:
+
+                nacs = clb.Structure(
+                    name=clb.subsystem("nacs"),
+                    assets=None
+                )
+
+                with nacs:
+
+                    clb.Construct(
+                        name=clb.chunks("in"),
+                        process=clb.Process()
+                    )
+                
+                with nacs:
+
+                    clb.Construct(
+                        name=clb.chunks("out"),
+                        process=clb.Process()
+                    )
+
+    def test_assembly_succeeds_on_good_nested_sturcture_pull(self):
+
+        agent = clb.Structure(
+            name=clb.agent("agent"),
+            assets=None
+        )
+
+        with agent:
+
+            clb.Construct(
+                name=clb.buffer("wm"),
+                process=clb.Process(
+                    expected=[
+                        (clb.subsystem("acs"), clb.terminus("wm"))
+                    ]
+                )
+            )
+
+            acs = clb.Structure(
+                name=clb.subsystem("acs"),
+                assets=None
+            )
+
+            with acs:
+
+                clb.Construct(
+                    name=clb.terminus("wm"),
+                    process=clb.Process()
+                )
+        
+    def test_assembly_fails_on_bad_nested_sturcture_pull(self):
+
+        with self.assertRaises(RuntimeError):
+
+            agent = clb.Structure(
+                name=clb.agent("agent"),
+                assets=None
+            )
+
+            with agent:
+
+                clb.Construct(
+                    name=clb.buffer("wm"),
+                    process=clb.Process(
+                        expected=[
+                            (clb.subsystem("acs"), clb.terminus("wm"))
+                        ]
+                    )
+                )
+
+                acs = clb.Structure(
+                    name=clb.subsystem("acs"),
+                    assets=None
+                )
+
+                with acs:
+
+                    clb.Construct(
+                        name=clb.terminus("not_wm"),
+                        process=clb.Process()
+                    )
+
+    def test_step_calls_are_correctly_sequenced(self):
+
+        recorded = []
+        
+        def call_recorder(self, inputs):
+
+            recorded.append(self.client)
+
+            return nd.NumDict(default=0)
+
+        with mock.patch.object(clb.Process, "call", call_recorder):
+
+            agent = clb.Structure(
+                name=clb.agent("agent"),
+                assets=None
+            )
+
+            with agent:
+
+                clb.Construct(
+                    name=clb.buffer("wm"),
+                    process=clb.Process(
+                        expected=[
+                            (clb.subsystem("acs"), clb.terminus("wm")),
+                            (clb.subsystem("nacs"), clb.terminus("out"))
+                        ]
+                    )
+                )
+
+                acs = clb.Structure(
+                    name=clb.subsystem("acs"),
+                    assets=None
+                )
+
+                with acs:
+
+                    clb.Construct(
+                        name=clb.terminus("wm"),
+                        process=clb.Process()
+                    )
+
+                nacs = clb.Structure(
+                    name=clb.subsystem("nacs"),
+                    assets=None
+                )
+
+                with nacs:
+
+                    clb.Construct(
+                        name=clb.chunks("out"),
+                        process=clb.Process(expected=[clb.buffer("wm")])
+                    )
+
+                    clb.Construct(
+                        name=clb.terminus("out"),
+                        process=clb.Process(expected=[clb.chunks("out")])
+                    )
+
+            agent.step()
+
+            expected = [
+                clb.buffer("wm"),
+                clb.terminus("wm"),
+                clb.chunks("out"),
+                clb.terminus("out")
+            ]
+            
+            self.assertEqual(expected, recorded)

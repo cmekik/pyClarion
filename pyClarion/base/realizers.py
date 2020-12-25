@@ -30,7 +30,7 @@ StructureItem = Tuple[Symbol, "Realizer"]
 
 # Context variables for automating/simplifying agent construction. Helps track
 # items to be added to structures. 
-BUILD_CTX: ContextVar[Tuple[Symbol, ...]] = ContextVar("BUILD_CTX")
+BUILD_CTX: ContextVar[Tuple[Symbol, ...]] = ContextVar("BUILD_CTX", default=())
 BUILD_LIST: ContextVar[List["Realizer"]] = ContextVar("BUILD_LIST")
 
 
@@ -301,11 +301,13 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         logging.debug("Entering context %s.", self.construct)
         # This sets the context variable up to track objects to be added to 
         # self.
-        parent = BUILD_CTX.get(()) # () is default value (kwds not allowed!)
+        parent = BUILD_CTX.get() # () is default value
         self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
         self._build_list_token = BUILD_LIST.set([])
 
     def __exit__(self, exc_type, exc_value, traceback):
+
+        failed = False
 
         if exc_type is None:
             # Add any newly defined realizers to self and clean up the context.
@@ -315,11 +317,17 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
             self._reset_output()
             if len(context) <= 1:
                 assert len(context) != 0
-                self._finalize_assembly()
+                try:
+                    self._finalize_assembly()
+                except RuntimeError:
+                    failed = True
 
+        logging.debug("Exiting context %s.", self.construct)
         BUILD_CTX.reset(self._build_ctx_token)
         BUILD_LIST.reset(self._build_list_token)
-        logging.debug("Exiting context %s.", self.construct)
+
+        if failed:
+            raise RuntimeError("Failed finalization.")
 
     @property
     def sequence(self) -> Tuple[Symbol, ...]:
