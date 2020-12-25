@@ -508,17 +508,25 @@ class NumDict(Mapping[Any, float]):
 
         return (grads * ((d ** 2) ** 0.5),)
 
-    def __eq__( # type: ignore[override]
-        self, other: Union["NumDict", float, int]
-    ) -> "NumDict":
+    def __eq__(self, other: Any) -> bool:
 
-        return self._binary(other, operator.eq)
+        if isinstance(other, NumDict):
+            _eq = self._binary(other, operator.eq) # use isclose?
+            _eq_vals = all(v == 1.0 for v in _eq.values()) 
+            _eq_default = self.default == other.default
+            return _eq_vals and _eq_default
+        else:
+            return NotImplemented
 
-    def __ne__( # type: ignore[override]
-        self, other: Union["NumDict", float, int]
-    ) -> "NumDict":
+    def __ne__(self, other: Any) -> bool:
 
-        return self._binary(other, operator.ne)
+        if isinstance(other, NumDict):
+            _ne = self._binary(other, operator.ne)
+            _ne_vals = any(v == 1.0 for v in _ne.values())
+            _ne_default = self.default != other.default
+            return _ne_vals or _ne_default
+        else:
+            return NotImplemented
 
     def __lt__(self, other: Union["NumDict", float, int]) -> "NumDict":
 

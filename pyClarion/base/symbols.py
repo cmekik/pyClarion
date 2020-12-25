@@ -4,9 +4,9 @@
 __all__ = [
     "ConstructType", "Token", "Symbol", "SymbolicAddress", "SymbolTrie", 
     "feature", "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", 
-    "flow_tb", "flow_tt", "flow_bb", "terminus", "buffer", "subsystem", "agent", 
-    "group_by", "group_by_ctype", "group_by_dims", "group_by_tags", 
-    "group_by_vals", "group_by_lags", "lag"
+    "flow_tb", "flow_tt", "flow_bb", "terminus", "updater", "buffer", 
+    "subsystem", "agent", "group_by", "group_by_ctype", "group_by_dims", 
+    "group_by_tags", "group_by_vals", "group_by_lags", "lag"
 ]
 
 
@@ -16,6 +16,43 @@ from typing import (
     AbstractSet, ValuesView, Optional, Any, cast
 )
 from typing_extensions import Protocol, runtime_checkable
+
+
+# Address for a construct w/in a simulated agent or component.
+SymbolicAddress = Union["Symbol", Tuple["Symbol", ...]]
+
+
+L = TypeVar("L", covariant=True)
+@runtime_checkable
+class SymbolTrie(Protocol[L]):
+    """
+    A recursive type for relaying structured construct data.
+
+    Assumed immutable.
+    """
+
+    # Based on a suggestion by Sg495 in mypy issue #731 - Can
+
+    def __getitem__(self, key: "Symbol") -> Union[L, "SymbolTrie[L]"]:
+        ...
+
+    def __contains__(self, key: object) -> bool:
+        ...
+
+    def __len__(self) -> int:
+        ...
+
+    def __iter__(self) -> Iterator["Symbol"]:
+        ...
+
+    def keys(self) -> AbstractSet["Symbol"]:
+        ...
+
+    def values(self) -> ValuesView[Union[L, "SymbolTrie[L]"]]:
+        ...
+
+    def items(self) -> AbstractSet[Tuple["Symbol", Union[L, "SymbolTrie[L]"]]]:
+        ...
 
 
 class ConstructType(Flag):
@@ -67,6 +104,7 @@ class ConstructType(Flag):
     flow_tt = auto()
     flow_bb = auto()
     terminus = auto()
+    updater = auto()
     buffer = auto()
     subsystem = auto()
     agent = auto()
@@ -80,8 +118,9 @@ class ConstructType(Flag):
     flow_h = flow_bb | flow_tt
     flow_v = flow_tb | flow_bt
     flow = flow_tb | flow_bt | flow_tt | flow_bb | flow_in
-    basic_construct = node | flow | terminus | buffer
+    basic_construct = node | nodes | flow | terminus | updater | buffer
     container_construct = subsystem | agent
+    any_construct = basic_construct | container_construct
 
 
 class Token(object):
@@ -183,43 +222,6 @@ class Symbol(Token):
         """Construct identifier associated with self."""
 
         return self._args[1] 
-
-
-# Address for a construct w/in a simulated agent or component.
-SymbolicAddress = Union[Symbol, Tuple[Symbol, ...]]
-
-
-L = TypeVar("L", covariant=True)
-@runtime_checkable
-class SymbolTrie(Protocol[L]):
-    """
-    A recursive type for relaying structured construct data.
-
-    Assumed immutable.
-    """
-
-    # Based on a suggestion by Sg495 in mypy issue #731 - Can
-
-    def __getitem__(self, key: Symbol) -> Union[L, "SymbolTrie[L]"]:
-        ...
-
-    def __contains__(self, key: object) -> bool:
-        ...
-
-    def __len__(self) -> int:
-        ...
-
-    def __iter__(self) -> Iterator[Symbol]:
-        ...
-
-    def keys(self) -> AbstractSet[Symbol]:
-        ...
-
-    def values(self) -> ValuesView[Union[L, "SymbolTrie[L]"]]:
-        ...
-
-    def items(self) -> AbstractSet[Tuple[Symbol, Union[L, "SymbolTrie[L]"]]]:
-        ...
 
 
 class feature(Symbol):
@@ -437,6 +439,21 @@ class terminus(Symbol):
         """
 
         super().__init__("terminus", cid)
+
+
+class updater(Symbol):
+    """A terminus symbol."""
+
+    __slots__ = ()
+
+    def __init__(self, cid: Hashable) -> None:
+        """
+        Initialize a new updater symbol.
+
+        :param cid: Updater identifier.
+        """
+
+        super().__init__("updater", cid)
 
 
 class buffer(Symbol):

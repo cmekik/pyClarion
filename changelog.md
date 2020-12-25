@@ -6,8 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- New construct type `updater` for constructs solely dedicated to update processes (e.g., for databases, or due to sequencing requirements). 
+- Automatic activation sequence generation at assembly time: `Structure` instances now step member constructs in roughly the order they were added to the structure. 
+- `WrappedProcess` base class for simplifying compositional component definitions.
+- Construct input structure checking and automated input extraction (see `Process.check_inputs()` and `Process.extract_inputs()`).
+
 ### Changed
 
+- Replaced `Component`, `Emitter`, `Propagator` with `Process`.
+- Former `Updater` components recast as `Process` components serving `updater` constructs.
 - Realizers now structurally immutable (see removed for list of removed methods.). Behavior can still be modified by replacing emitters, but constructs may not be added or removed after initial assembly.
 - Streamlined realizer construction; use of with syntax encouraged exclusively:
     - Several `Realizer` methods now protected: `offer()`, `accepts()`, `finalize_assembly()`
@@ -15,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed 
 
+- `Updater` and all child abstractions.
+- `Cycle` and all child classes and submodule `components.cycles`.
+- Separate update cycle; stepping constructs now issues calls to a single stepping function only (`step()` for basic constructs).
 - Removed realizer mutation methods:
     - Several `Realizer` methods: `drop()`, `clear_inputs()`
     - Several `Structure` methods: `__delitem__()`, `remove()`, `clear()`, `drop()`, `clear_inputs()`, `clear_links()`, `reweave()`

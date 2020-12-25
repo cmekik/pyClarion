@@ -2,109 +2,63 @@
 
 
 __all__ = [
-    "Emitter", "Propagator", "Cycle", "Updater", "UpdaterC", "UpdaterS", 
-    "Assets", "FeatureDomain", "FeatureInterface", "SimpleDomain", 
-    "SimpleInterface"
+    "Process", "WrappedProcess", "Assets", "FeatureDomain", "FeatureInterface", 
+    "SimpleDomain", "SimpleInterface"
 ]
 
 
-from .symbols import ConstructType, Symbol, SymbolTrie, feature, group_by_dims
+from .symbols import (
+    ConstructType, Symbol, SymbolTrie, SymbolicAddress, feature, group_by_dims
+)
 from .. import numdicts as nd
 
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
-    Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Collection, 
-    FrozenSet, AbstractSet, ValuesView, cast, no_type_check,
+    Text, Iterator, Iterable, Mapping, ClassVar, List, FrozenSet, Sequence, 
+    Collection, Set, cast, no_type_check
 )
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
 from dataclasses import dataclass
-import warnings
 import logging
 
 
 Ft = TypeVar("Ft", bound="FeatureInterface")
 Dt = TypeVar("Dt", bound="FeatureDomain")
-Pt = TypeVar("Pt", bound="Propagator")
 
 
-class Component(object):
+class Process(Generic[Ft, Dt]):
     """
     Defines how constructs connect, compute outputs, perform updates etc.
     
-    Each pyClarion construct is entrusted to one or more components, each of 
-    which is responsible for implementing some function or process associated 
-    with the client construct.
-    """
+    Process instances are responsible for implementing the function or process 
+    associated with some client construct.
 
-    _serves: ClassVar[ConstructType]
-    _client: Symbol
-
-    @property
-    def client(self) -> Symbol:
-        """Client construct entrusted to self."""
-
-        return self._client
-
-    @property
-    def expected(self) -> FrozenSet[Symbol]:
-        """Constructs from which self expects to receive activations."""
-
-        raise NotImplementedError()
-
-    def entrust(self, construct: Symbol) -> None:
-        """Entrust handling of construct to self."""
-
-        if construct.ctype in type(self)._serves:
-            self._client = construct
-        else:
-            msg = "{} cannot serve constructs of type {}."
-            name, ctype = type(self).__name__, repr(construct.ctype) 
-            raise ValueError(msg.format(name, ctype))
-
-    def expects(self, construct: Symbol) -> bool:
-        """Return True iff self expects input from construct."""
-
-        return construct in self.expected
-
-    def check_links(self, linked: Collection[Symbol]) -> bool:
-        """Return True iff expected constructs are a subset of linked."""
-
-        return self.expected.issubset(linked)
-
-
-class Emitter(Component):
-    """
-    Base class for propagating strengths, decisions, etc.
+    The attributes `interface` and `domain` are reserved for FeatureDomain and
+    FeatureInterface instances, respectively, each defining the domain or 
+    interface of a Process instance. These may be left undefined.
     
-    Emitters are responsible primarily for defining the process(es) by which an 
-    entrusted construct computes its output. 
-    """
-
-    @abstractmethod
-    def emit(self, data: Any = None) -> Any:
-        """
-        Emit output.
-
-        If no data is passed in, emits a default or null value of the expected
-        output type. Otherwise, ensures output is of the expected type and 
-        (preferably) immutable before returning the result. 
-        """
-
-        raise NotImplementedError()
-
-
-class Propagator(Emitter, Generic[Ft, Dt]):
-    """
-    Emitter for basic constructs.
+    If a domain is defined, it should be assumed that the Process instance will 
+    only operate on features of that domain. If an interface is defined, it 
+    should be assumed that the interface exposes features that can be used to 
+    control the behavior of the Process. 
     
-    Propagates outputs and performs basic (i.e., essential) updates. The 
-    attributes `interface` and `domain` are reserved for feature interfaces and 
-    feature domains, respectively.
+    In some cases, Processes may serve various domains or interfaces that are 
+    not their own in the sense defined above. In such cases, the client domains 
+    or interfaces should NOT be stored in the `domain` or `interface` attribute.
     """
+
+    _serves: ClassVar[ConstructType] = ConstructType.null_construct
 
     interface: Ft
     domain: Dt
+
+    _client: Symbol
+    _expected: Tuple[SymbolicAddress, ...]
+
+    def __init__(self, expected: Sequence[SymbolicAddress] = None):
+
+        self._expected = tuple(expected or ()) 
 
     def __call__(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
         """
@@ -116,7 +70,104 @@ class Propagator(Emitter, Generic[Ft, Dt]):
 
         return self.emit(self.call(inputs))
 
-    @abstractmethod
+    @property
+    def client(self) -> Symbol:
+        """Client construct entrusted to self."""
+
+        return self._client
+
+    @property
+    def expected(self) -> Tuple[SymbolicAddress, ...]:
+        """Constructs from which self expects to receive activations."""
+
+        return self._expected
+
+    def expects(self, construct: Symbol) -> bool:
+        """Return True iff self pulls input from construct."""
+
+        return construct in self._expects()
+
+    def _expects(self) -> Set[Symbol]:
+
+        s = set()
+        for x in self.expected:
+            if isinstance(x, Symbol):
+                s.add(x)
+            else:
+                assert isinstance(x, tuple)
+                if len(x) == 0:
+                    msg = "Empty tuple encountered in symbolic address."
+                    raise RuntimeError(msg)
+                else:
+                    s.add(x[0])
+
+        return s
+
+    def check_inputs(self, inputs: SymbolTrie[nd.NumDict]) -> None:
+        """Raise an error iff inputs to self are NOT as expected."""
+
+        # TODO: Make errors more precise. - Can
+
+        for source in self.expected:
+            if isinstance(source, tuple):
+                val = inputs
+                for i, x in enumerate(source):
+                    try:
+                        _val = val[x]
+                    except KeyError:
+                        msg = "Unexpected input structure."
+                        raise RuntimeError(msg) from None
+                    if i < len(source) - 1:
+                        if isinstance(_val, nd.NumDict):
+                            msg = "Unexpected input structure."
+                            raise RuntimeError(msg)
+                        val = _val
+                    else:
+                        assert i == len(source) - 1
+                        if not isinstance(_val, nd.NumDict):
+                            raise RuntimeError("Unexpected input structure")
+            else:
+                assert isinstance(source, Symbol)
+                if source not in inputs:
+                    raise RuntimeError("Missing expected link.")
+                if not isinstance(inputs[source], nd.NumDict):
+                    raise RuntimeError("Unexpected input structure.")
+
+    def extract_inputs(
+        self, inputs: SymbolTrie[nd.NumDict]
+    ) -> Tuple[nd.NumDict, ...]:
+        """
+        Extract expected inputs from given symbol trie.
+
+        Returns inputs in the order set by self.expected.
+        """
+
+        self.check_inputs(inputs) # Make sure inputs have correct structure.
+
+        # NOTE: Casts below should be safe assuming check_inputs is correct.
+        extracted = []
+        for source in self.expected:
+            if isinstance(source, tuple):
+                _extracted: Any = inputs
+                for x in source:
+                    _extracted = _extracted[x]
+                extracted.append(cast(nd.NumDict, _extracted))
+            else:
+                assert isinstance(source, Symbol)
+                extracted.append(cast(nd.NumDict, inputs[source]))
+
+        return tuple(extracted)
+
+    def entrust(self, construct: Symbol) -> None:
+        """Entrust handling of construct to self."""
+
+        if construct.ctype in type(self)._serves:
+            self._client = construct
+        else:
+            msg = "{} cannot serve constructs of type {}."
+            name, ctype = type(self).__name__, repr(construct.ctype) 
+            raise ValueError(msg.format(name, ctype))
+
     def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
         """
         Compute construct's output.
@@ -124,20 +175,7 @@ class Propagator(Emitter, Generic[Ft, Dt]):
         :param inputs: Pairs the names of input constructs with their outputs. 
         """
 
-        raise NotImplementedError()
-
-    def update(
-        self, inputs: SymbolTrie[nd.NumDict], output: nd.NumDict
-    ) -> None:
-        """
-        Apply essential updates to self.
-        
-        Some components require state updates as part of their basic semantics 
-        (e.g. memory components). This method is a hook for such essential 
-        update routines. 
-        """
-
-        pass
+        return nd.NumDict(default=0)
 
     def emit(self, data: nd.D = None) -> nd.NumDict:
         """
@@ -155,119 +193,99 @@ class Propagator(Emitter, Generic[Ft, Dt]):
             msg = "Unexpected default in passed to {}."
             raise ValueError(msg.format(type(self).__name__))
         elif isinstance(data, nd.NumDict):
-            d = nd.squeeze(data) # squeezing should not be done here...
-            assert type(d) == nd.NumDict, "NumDict subtypes not allowed."
+            d = nd.squeeze(data)
             return d
         else:
             msg = "Expected NumDict instance, got {}"
             raise TypeError(msg.format(type(data).__name__))
 
 
-class Cycle(Emitter):
+Pt = TypeVar("Pt", bound="Process")
+class WrappedProcess(Process[Ft, Dt], Generic[Ft, Dt, Pt]):
     """
-    Emitter for composite constructs (i.e., structures).
-    
-    Defines activation cycles.
-    """
+    A Process wrapped by a pre- and/or post- processor.
 
-    # Specifies data required to construct the output packet
-    output: ClassVar[ConstructType] = ConstructType.null_construct
-    sequence: Iterable[ConstructType]
+    The attribute `base` is reserved for the wrapped Processor instance.
+    """
+    
+    base: Pt
+
+    def __init__(
+        self, base: Pt, expected: Sequence[SymbolicAddress] = None
+    ) -> None:
+
+        _expected = tuple(expected or ())
+
+        super().__init__(expected=_expected + base.expected)
+
+        self._wrapper_expected = _expected
+        self.base = base
 
     @property
-    def expected(self) -> FrozenSet[Symbol]:
+    def client(self) -> Symbol:
+        """Client construct entrusted to self."""
 
-        return frozenset()
+        return self.base.client
 
-    @abstractmethod
-    def emit(
-        self, data: SymbolTrie[nd.NumDict] = None
+    @property
+    def expected(self) -> Tuple[SymbolicAddress, ...]:
+        """
+        Expected input constructs.
+
+        Wrapper's own expected constructs are listed first, followed by those of
+        self.base.
+        """
+
+        return super().expected
+
+    @property
+    def wrapper_expected(self) -> Tuple[SymbolicAddress, ...]:
+        """Input constructs expected exclusively by the wrapper."""
+
+        return self._wrapper_expected
+
+    def entrust(self, construct: Symbol) -> None:
+        """Entrust handling of construct to self."""
+
+        self.base.entrust(construct)
+
+    def call(self, inputs):
+        """
+        Compute base construct's output.
+
+        Feeds base construct preprocessed input and postprocesses its output.
+        """
+
+        preprocessed = self.preprocess(inputs)
+        output = self.base.call(preprocessed)
+        postprocessed = self.postprocess(inputs, output)
+    
+        return postprocessed
+
+    def preprocess(
+        self, inputs: SymbolTrie[nd.NumDict]
     ) -> SymbolTrie[nd.NumDict]:
+        """Preprocess inputs to base construct."""
+
+        return inputs
+
+    def postprocess(self, output: nd.NumDict) -> nd.NumDict:
+        """Postprocess output of base construct."""
+
+        return output
+
+    def check_inputs(self, inputs: SymbolTrie[nd.NumDict]) -> None:
         """
-        Emit output.
+        Raise an error iff inputs to self are NOT as expected.
 
-        If no data is passed in, emits a default or null value of the expected
-        output type. Otherwise, ensures output is of the expected type and 
-        (preferably) immutable before returning the result. 
-        """
-
-        raise NotImplementedError()
-
-
-class Updater(Component, Generic[Ft]):
-    """
-    Defines update processes associated with an entrusted construct.
-
-    Updaters implement learning algorithms (e.g., rule extraction) or maintain 
-    parameters (e.g., BLA updates) associated with a client construct.
-    """
-
-    interface: Ft
-
-
-class UpdaterC(Updater, Generic[Pt]):
-    """
-    Updater for basic constructs.
-
-    Performs updates on the propagator associated with the client construct.
-    """
-
-    @abstractmethod
-    def __call__(
-        self, 
-        propagator: Pt, 
-        inputs: SymbolTrie[nd.NumDict], 
-        output: nd.NumDict, 
-        update_data: SymbolTrie[nd.NumDict]
-    ) -> None:
-        """
-        Apply updates to propagator. 
-        
-        Assumes that propagator is associated with client construct.
-
-        :param propagator: The client construct's propagator.
-        :param inputs: Inputs seen by client construct on current activation 
-            cycle.
-        :param output: The current output of the client construct as computed 
-            by the client's propagator.
-        :param update_data: Current outputs of relevant constructs (as defined 
-            by self.expects()). 
-        """
-                
-        raise NotImplementedError()
-
-
-class UpdaterS(Updater):
-    """
-    Updater for composite constructs (i.e., structures).
-
-    Performs updates on shared assets associated with the client construct.
-    """
-
-    # TODO: Improve type annotations. - Can
-
-    @abstractmethod
-    def __call__(
-        self, 
-        inputs: SymbolTrie[nd.NumDict], 
-        output: SymbolTrie[nd.NumDict], 
-        update_data: SymbolTrie[nd.NumDict]
-    ) -> None:
-        """
-        Apply updates to relevant asset(s) of client construct. 
-        
-        Assumes that self is initialized with references to the relevant 
-        assets.
-
-        :param inputs: Inputs seen by client construct on current activation 
-            cycle.
-        :param output: The current output of the client construct as computed 
-            by the client's propagator.
-        :param update_data: Current outputs of relevant constructs (as defined 
-            by self.expects()). 
+        By default, checks if inputs.keys() is a superset of self.expected then 
+        delegates check to self.base. Inputs passed to the base check are 
+        preprocessed first. 
         """
 
-        raise NotImplementedError()
+        super().check_inputs(inputs)
+        preprocessed = self.preprocess(inputs)
+        self.base.check_inputs(preprocessed)
 
 
 # @no_type_check disables type_checking for Assets (but not subclasses). 
