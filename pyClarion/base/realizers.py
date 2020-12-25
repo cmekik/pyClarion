@@ -246,7 +246,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
     _dict: Dict[Symbol, Realizer]
     _sequence: List[Realizer] = []
     _assets: Any
-    __output: Dict[Symbol, Union[nd.NumDict, SymbolTrie[nd.NumDict]]]
+    _output_dict: Dict[Symbol, Union[nd.NumDict, SymbolTrie[nd.NumDict]]]
 
     def __init__(self, name: Symbol, assets: Any = None) -> None:
         """
@@ -261,8 +261,8 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         
         self._dict = {}
         self._dict_proxy = MappingProxyType(self._dict)
-        self.__output = {}
-        self._output = MappingProxyType(self.__output)
+        self._output_dict = {}
+        self._output = MappingProxyType(self._output_dict)
         self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: SymbolicAddress) -> bool:
@@ -340,8 +340,8 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
     @output.setter
     def output(self, output: SymbolTrie[nd.NumDict]) -> None:
 
-        self.__output.clear()
-        self.__output.update(output.items())
+        self._output_dict.clear()
+        self._output_dict.update(output.items())
 
     @output.deleter
     def output(self) -> None:
