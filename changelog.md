@@ -8,13 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Optional `blas` argument to `Register` and `RegisterArray`, supporting BLA based deletion of stored entries.
 - New construct type `updater` for constructs solely dedicated to update processes (e.g., for databases, or due to sequencing requirements). 
 - Automatic activation sequence generation at assembly time: `Structure` instances now step member constructs in roughly the order they were added to the structure. 
-- `WrappedProcess` base class for simplifying compositional component definitions.
+- `CompositeProcess` and `WrappedProcess` classes for simplifying compositional component definitions.
 - Construct input structure checking and automated input extraction (see `Process.check_inputs()` and `Process.extract_inputs()`).
 
 ### Changed
 
+- Renamed `BLADrivenStrengths` to `BLAStrengths`
+- Combined `BLAInvocationTracker` and `BLADrivenDeleter` into `BLAMaintainer`
 - Renamed `ReniforcementMap` to `ReinforcementDomain`.
 - Replaced `Component`, `Emitter`, `Propagator` with `Process`.
 - Former `Updater` components recast as `Process` components serving `updater` constructs.
@@ -25,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed 
 
+- `RegisterArrayBLAUpdater`, added BLA support to `Register` and `RegisterArray` instead (see added)
 - `Updater` and all child abstractions.
 - `Cycle` and all child classes and submodule `components.cycles`.
 - Separate update cycle; stepping constructs now issues calls to a single stepping function only (`step()` for basic constructs).

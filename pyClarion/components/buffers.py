@@ -11,6 +11,7 @@ from ..base.symbols import (
 )
 from .. import numdicts as nd
 from ..base.components import Process, FeatureInterface, FeatureDomain
+from .blas import BLAs
 
 from typing import Callable, Hashable, Tuple, List, Mapping, Collection, cast
 from dataclasses import dataclass
@@ -161,7 +162,8 @@ class Register(Process):
         self, 
         controller: Tuple[subsystem, terminus], 
         source: subsystem,
-        interface: "Register.Interface"
+        interface: "Register.Interface",
+        blas: BLAs = None
     ) -> None:
         """
         Initialize a Register instance.
@@ -169,9 +171,8 @@ class Register(Process):
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
         :param interface: Defines features for controlling updates to self.
-        :param forward_commands: Optional bool indicating whether or not to 
-            include received commands in emitted output. False by default. If 
-            set to true, received commands are outputted with a lag value of 1.
+        :param blas: Optional BLA database. When items in store are found to 
+            have BLA values below the set density threshold, they are dropped.
         """
 
         # This depends on dict guarantee to preserve insertion order.
@@ -181,6 +182,7 @@ class Register(Process):
         self.interface = interface # This should be unchangeable... - Can
         self.store = nd.MutableNumDict(default=0.0) 
         self.flags = nd.MutableNumDict(default=0.0)
+        self.blas = blas
 
     @property
     def is_empty(self):
@@ -213,44 +215,32 @@ class Register(Process):
         if val == self.interface.standby_val:
             pass
         elif val == self.interface.clear_val:
-            self.clear_store()
+            self.store.clear()
         elif val in self.interface.mapping: 
             channel = self.interface.mapping[val]
-            self.clear_store()
-            self.update_store(channel_map[channel])
-            self.store.squeeze()
-
+            data = channel_map[channel]
+            self.store.clearupdate(data)
+            if self.blas is not None:
+                for key in data:
+                    self.blas.register_invocation(key, add_new=True)
         if len(self.store) == 0:
             self.flags[self.interface.null_flag] = 1.0
         else:
             self.flags.drop(keys=(self.interface.null_flag,))
 
-        d = nd.MutableNumDict(self.store, 0.0)
+        d = nd.MutableNumDict(self.store, default=0)
         d.max(self.flags)
+        d.squeeze()
+
+        if self.blas is not None:
+            self.blas.step()
+            # Remove items below threshold.
+            drop = [x for x in self.store if self.blas[x].below_threshold]
+            self.store.drop(keys=drop)
+            for x in drop:
+                del self.blas[item]
 
         return d
-
-    def update_store(self, strengths):
-        """
-        Update strengths in self.store.
-        
-        Write op is implemented using the max operation. 
-        """
-
-        self.store.max(strengths)
-
-    def clear_store(self):
-        """Clear any nodes stored in self."""
-
-        self.store.clear()
-
-    def update_flags(self, strengths):
-
-        self.flags.max(strengths)
-
-    def clear_flags(self):
-
-        self.flags.clear()
 
     @dataclass
     class Interface(FeatureInterface):
@@ -320,7 +310,8 @@ class RegisterArray(Process):
         self,
         controller: Tuple[subsystem, terminus],
         source: subsystem,
-        interface: "RegisterArray.Interface"
+        interface: "RegisterArray.Interface",
+        blas: BLAs = None
     ) -> None:
         """
         Initialize a new WorkingMemory instance.
@@ -328,9 +319,9 @@ class RegisterArray(Process):
         :param controller: Reference for construct issuing commands to self.
         :param source: Reference for construct from which to pull data.
         :param interface: Defines features for controlling updates to self.
-        :param forward_commands: Optional bool indicating whether or not to 
-            include received commands in emitted output. False by default. If 
-            set to true, received commands are outputted with a lag value of 1.
+        :param blas: Optional BLA database. When items in a cell store are found
+            to have BLA values below the set density threshold, they are 
+            dropped. The database is shared among all register array cells.
         """
 
         # This depends on dict guarantee to preserve insertion order.
@@ -340,6 +331,7 @@ class RegisterArray(Process):
 
         self.flags = nd.MutableNumDict(default=0.0)
         self.gate = nd.MutableNumDict(default=0.0)
+        self.blas = blas
         self.cells = tuple(
             Register(
                 controller=controller,
@@ -352,6 +344,7 @@ class RegisterArray(Process):
                     clear_val=interface.clear_val,
                     flag_val=interface.flag_val
                 ),
+                blas=blas
             )
             for i in range(self.interface.slots)
         )

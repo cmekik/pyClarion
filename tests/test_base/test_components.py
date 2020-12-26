@@ -93,5 +93,4 @@ class TestProcess(unittest.TestCase):
 
 
 class TestWrappedProcess(unittest.TestCase):
-
     pass
