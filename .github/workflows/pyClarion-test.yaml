@@ -5,9 +5,9 @@ name: pyClarion test
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, re-realizer ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, re-realizer ]
 
 jobs:
   build:
@@ -32,3 +32,7 @@ jobs:
     - name: Test with unittest
       run: |
         python -m unittest discover
+    - name: Run examples
+      run: |
+        python examples/gradients.py
+        python examples/lagged_features.py
