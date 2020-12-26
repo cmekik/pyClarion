@@ -1,9 +1,7 @@
 """Basic tools for tracking and updating base-level activations."""
 
 
-__all__ = [
-    "BLA", "BLAs", "BLAStrengths", "RegisterArrayWithBLAs", "BLAMaintainer"
-]
+__all__ = ["BLA", "BLAs", "BLAStrengths", "BLAMaintainer"]
 
 
 # from .buffers import RegisterArray
