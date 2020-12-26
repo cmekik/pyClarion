@@ -103,7 +103,7 @@ class Process(object):
     def check_inputs(self, inputs: SymbolTrie[nd.NumDict]) -> None:
         """Raise an error iff inputs to self are NOT as expected."""
 
-        # TODO: Make errors more precise. - Can
+        # TODO: Make errors more precise & print more informative msgs. - Can
 
         for source in self.expected:
             if isinstance(source, tuple):

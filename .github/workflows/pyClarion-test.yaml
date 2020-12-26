@@ -37,4 +37,6 @@ jobs:
         python examples/gradients.py
         python examples/lagged_features.py
         python examples/free_association.py
+        python examples/flow_control.py
         python examples/chunk_extraction.py
+        python examples/working_memory.py
