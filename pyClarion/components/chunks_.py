@@ -1,7 +1,9 @@
 """Objects associated with defining, managing, and processing chunks."""
 
 
-__all__ = ["Chunk", "Chunks", "TopDown", "BottomUp", "ChunkExtractor"]
+__all__ = [
+    "Chunk", "Chunks", "ChunkDBUpdater", "TopDown", "BottomUp", "ChunkExtractor"
+]
 
 
 from ..base.symbols import (
@@ -16,7 +18,8 @@ from .propagators import ThresholdSelector
 
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
-    List, Optional, TypeVar, Type, Generic, MutableMapping, cast, overload, Any, Dict
+    List, Optional, TypeVar, Type, Generic, MutableMapping, cast, overload, 
+    Any, Dict
 )
 from collections import namedtuple
 from statistics import mean
@@ -406,6 +409,7 @@ class ChunkExtractor(Process):
         threshold: float = 0.85
     ) -> None:
         
+        super().__init__(expected=(source,))
         self.chunks = chunks
         self.prefix = prefix
         self.threshold = threshold
@@ -418,7 +422,7 @@ class ChunkExtractor(Process):
 
         d = nd.MutableNumDict(default=0.0)
         strengths, = self.extract_inputs(inputs)
-        fs = nd.threshold(inputs[self.source], th=self.threshold)
+        fs = nd.threshold(strengths, th=self.threshold)
         if len(fs) > 0:
             form = self.chunks.Chunk(fs)
             found = self.chunks.find_form(form)
