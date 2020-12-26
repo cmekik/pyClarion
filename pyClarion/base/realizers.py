@@ -307,27 +307,19 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __exit__(self, exc_type, exc_value, traceback):
 
-        failed = False
-
-        if exc_type is None:
-            # Add any newly defined realizers to self and clean up the context.
-            context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
-            self._add(*add_list)
-            self._sequence = add_list
-            self._reset_output()
-            if len(context) <= 1:
-                assert len(context) != 0
-                try:
+        try:
+            if exc_type is None:
+                context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
+                self._add(*add_list)
+                self._sequence = add_list
+                self._reset_output()
+                if len(context) <= 1:
+                    assert len(context) != 0
                     self._finalize_assembly()
-                except RuntimeError:
-                    failed = True
-
-        logging.debug("Exiting context %s.", self.construct)
-        BUILD_CTX.reset(self._build_ctx_token)
-        BUILD_LIST.reset(self._build_list_token)
-
-        if failed:
-            raise RuntimeError("Failed finalization.")
+        finally:
+            logging.debug("Exiting context %s.", self.construct)
+            BUILD_CTX.reset(self._build_ctx_token)
+            BUILD_LIST.reset(self._build_list_token)
 
     @property
     def sequence(self) -> Tuple[Symbol, ...]:
