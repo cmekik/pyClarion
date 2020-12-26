@@ -28,8 +28,8 @@ PullFuncs = Mapping[Symbol, PullFunc]
 StructureItem = Tuple[Symbol, "Realizer"]
 
 
-# Context variables for automating/simplifying agent construction. Helps track
-# items to be added to structures. 
+# Context variables for agent construction. Helps track items to be added to 
+# structures. 
 BUILD_CTX: ContextVar[Tuple[Symbol, ...]] = ContextVar("BUILD_CTX", default=())
 BUILD_LIST: ContextVar[List["Realizer"]] = ContextVar("BUILD_LIST")
 
@@ -293,15 +293,12 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
             return self._dict[key]
 
     def __enter__(self):
-        # Make this callable exactly once.
 
         if 0 < len(self._sequence):
             raise RuntimeError("Structure already populated.")
 
         logging.debug("Entering context %s.", self.construct)
-        # This sets the context variable up to track objects to be added to 
-        # self.
-        parent = BUILD_CTX.get() # () is default value
+        parent = BUILD_CTX.get() # default is ()
         self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
         self._build_list_token = BUILD_LIST.set([])
 
