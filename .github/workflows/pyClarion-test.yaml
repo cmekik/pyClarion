@@ -36,3 +36,4 @@ jobs:
       run: |
         python examples/gradients.py
         python examples/lagged_features.py
+        python examples/free_association.py

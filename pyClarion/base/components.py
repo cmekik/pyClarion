@@ -2,8 +2,8 @@
 
 
 __all__ = [
-    "Process", "WrappedProcess", "Assets", "FeatureDomain", "FeatureInterface", 
-    "SimpleDomain", "SimpleInterface"
+    "Process", "CompositeProcess", "WrappedProcess", "Assets", "FeatureDomain", 
+    "FeatureInterface", "SimpleDomain", "SimpleInterface"
 ]
 
 
@@ -23,11 +23,11 @@ from dataclasses import dataclass
 import logging
 
 
-Ft = TypeVar("Ft", bound="FeatureInterface")
-Dt = TypeVar("Dt", bound="FeatureDomain")
+Pt = TypeVar("Pt", bound="Process")
 
 
-class Process(Generic[Ft, Dt]):
+
+class Process(object):
     """
     Defines how constructs connect, compute outputs, perform updates etc.
     
@@ -49,9 +49,6 @@ class Process(Generic[Ft, Dt]):
     """
 
     _serves: ClassVar[ConstructType] = ConstructType.null_construct
-
-    interface: Ft
-    domain: Dt
 
     _client: Symbol
     _expected: Tuple[SymbolicAddress, ...]
@@ -200,13 +197,8 @@ class Process(Generic[Ft, Dt]):
             raise TypeError(msg.format(type(data).__name__))
 
 
-Pt = TypeVar("Pt", bound="Process")
-class WrappedProcess(Process[Ft, Dt], Generic[Ft, Dt, Pt]):
-    """
-    A Process wrapped by a pre- and/or post- processor.
-
-    The attribute `base` is reserved for the wrapped Processor instance.
-    """
+class CompositeProcess(Process, Generic[Pt]):
+    """A process built on top of an existing process."""
     
     base: Pt
 
@@ -218,7 +210,7 @@ class WrappedProcess(Process[Ft, Dt], Generic[Ft, Dt, Pt]):
 
         super().__init__(expected=_expected + base.expected)
 
-        self._wrapper_expected = _expected
+        self._expected_top = _expected
         self.base = base
 
     @property
@@ -239,15 +231,23 @@ class WrappedProcess(Process[Ft, Dt], Generic[Ft, Dt, Pt]):
         return super().expected
 
     @property
-    def wrapper_expected(self) -> Tuple[SymbolicAddress, ...]:
-        """Input constructs expected exclusively by the wrapper."""
+    def expected_top(self) -> Tuple[SymbolicAddress, ...]:
+        """Input constructs expected exclusively by the top of the composite."""
 
-        return self._wrapper_expected
+        return self._expected_top
 
     def entrust(self, construct: Symbol) -> None:
         """Entrust handling of construct to self."""
 
         self.base.entrust(construct)
+
+
+class WrappedProcess(CompositeProcess[Pt]):
+    """
+    A Process wrapped by a pre- and/or post- processor.
+
+    The attribute `base` is reserved for the wrapped Processor instance.
+    """
 
     def call(self, inputs):
         """
@@ -269,23 +269,12 @@ class WrappedProcess(Process[Ft, Dt], Generic[Ft, Dt, Pt]):
 
         return inputs
 
-    def postprocess(self, output: nd.NumDict) -> nd.NumDict:
+    def postprocess(
+        self, inputs: SymbolTrie[nd.NumDict], output: nd.NumDict
+    ) -> nd.NumDict:
         """Postprocess output of base construct."""
 
         return output
-
-    def check_inputs(self, inputs: SymbolTrie[nd.NumDict]) -> None:
-        """
-        Raise an error iff inputs to self are NOT as expected.
-
-        By default, checks if inputs.keys() is a superset of self.expected then 
-        delegates check to self.base. Inputs passed to the base check are 
-        preprocessed first. 
-        """
-
-        super().check_inputs(inputs)
-        preprocessed = self.preprocess(inputs)
-        self.base.check_inputs(preprocessed)
 
 
 # @no_type_check disables type_checking for Assets (but not subclasses). 
