@@ -109,19 +109,19 @@ class PrettyPrinter(_pprint.PrettyPrinter):
 
     _dispatch[Rule.__repr__] = _pprint_Rule
 
-    # def _pprint_BLAs(
-    #     self, object, stream, indent, allowance, context, level
-    # ):
+    def _pprint_BLAs(
+        self, object, stream, indent, allowance, context, level
+    ):
 
-    #     write = stream.write
-    #     name = type(object).__name__
-    #     indent += len(name) + 2
+        write = stream.write
+        name = type(object).__name__
+        indent += len(name) + 2
         
-    #     stream.write('<' + name + ' ')
-    #     self._pprint_dict(object._dict, stream, indent, allowance, context, level)
-    #     stream.write('>')
+        stream.write('<' + name + ' ')
+        self._pprint_dict(object._dict, stream, indent, allowance, context, level)
+        stream.write('>')
 
-    # _dispatch[BLAs.__repr__] = _pprint_BLAs
+    _dispatch[BLAs.__repr__] = _pprint_BLAs
 
 
 def pprint(object, stream=None, indent=1, width=80, depth=None, *,
