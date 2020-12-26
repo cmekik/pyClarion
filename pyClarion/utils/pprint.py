@@ -5,7 +5,7 @@ __all__ = ["PrettyPrinter", "pprint", "pformat"]
 
 
 from ..numdicts import NumDict
-from ..components import Chunks, Rules, Chunk, Rule #, BLAs
+from ..components import Chunks, Rules, Chunk, Rule, BLAs
 
 from typing import ClassVar
 import pprint as _pprint
