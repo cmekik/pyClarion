@@ -7,6 +7,6 @@ from .chunks_ import *
 from .filters import *
 # from .goals import *
 from .propagators import *
-# from .qnets import *
+from .networks import *
 from .rules import *
 # from .updaters import *

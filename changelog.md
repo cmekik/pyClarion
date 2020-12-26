@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed `ReniforcementMap` to `ReinforcementDomain`.
 - Replaced `Component`, `Emitter`, `Propagator` with `Process`.
 - Former `Updater` components recast as `Process` components serving `updater` constructs.
 - Realizers now structurally immutable (see removed for list of removed methods.). Behavior can still be modified by replacing emitters, but constructs may not be added or removed after initial assembly.
