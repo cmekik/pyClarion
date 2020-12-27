@@ -63,7 +63,7 @@ class TestStructureMethods(unittest.TestCase):
             clb.terminus("selection")
         )
 
-        self.assertEqual(nacs.sequence, expected)
+        self.assertEqual(tuple(iter(nacs)), expected)
 
     def test_assembly_sequence_is_recorded_correctly_in_nested_mode(self):
 
@@ -123,8 +123,8 @@ class TestStructureMethods(unittest.TestCase):
             clb.terminus("selection")
         )
 
-        self.assertEqual(agent.sequence, agent_expected)
-        self.assertEqual(nacs.sequence, nacs_expected)
+        self.assertEqual(tuple(iter(agent)), agent_expected)
+        self.assertEqual(tuple(iter(nacs)), nacs_expected)
 
     def test_assembly_fails_on_missing_link_target(self):
 

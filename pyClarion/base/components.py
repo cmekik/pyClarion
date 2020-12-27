@@ -106,29 +106,25 @@ class Process(object):
         # TODO: Make errors more precise & print more informative msgs. - Can
 
         for source in self.expected:
-            if isinstance(source, tuple):
-                val = inputs
-                for i, x in enumerate(source):
-                    try:
-                        _val = val[x]
-                    except KeyError:
-                        msg = "Unexpected input structure."
-                        raise RuntimeError(msg) from None
-                    if i < len(source) - 1:
-                        if isinstance(_val, nd.NumDict):
-                            msg = "Unexpected input structure."
-                            raise RuntimeError(msg)
-                        val = _val
-                    else:
-                        assert i == len(source) - 1
-                        if not isinstance(_val, nd.NumDict):
-                            raise RuntimeError("Unexpected input structure")
-            else:
-                assert isinstance(source, Symbol)
-                if source not in inputs:
-                    raise RuntimeError("Missing expected link.")
-                if not isinstance(inputs[source], nd.NumDict):
-                    raise RuntimeError("Unexpected input structure.")
+            if isinstance(source, Symbol):
+                source = (source,)
+            val = inputs
+            for i, x in enumerate(source):
+                try:
+                    _val = val[x]
+                except KeyError:
+                    msg = "Missing input data: {}."
+                    raise RuntimeError(msg.format(source)) from None
+                if i < len(source) - 1:
+                    if isinstance(_val, nd.NumDict):
+                        msg = "Expected SymbolTrie but got NumDict at: {}."
+                        raise RuntimeError(msg.format(source))
+                    val = _val
+                else:
+                    assert i == len(source) - 1
+                    if not isinstance(_val, nd.NumDict):
+                        msg = "Expected NumDict but got SymbolTrie at: {}"
+                        raise RuntimeError(msg.format(source))
 
     def extract_inputs(
         self, inputs: SymbolTrie[nd.NumDict]
@@ -144,14 +140,12 @@ class Process(object):
         # NOTE: Casts below should be safe assuming check_inputs is correct.
         extracted = []
         for source in self.expected:
-            if isinstance(source, tuple):
-                _extracted: Any = inputs
-                for x in source:
-                    _extracted = _extracted[x]
-                extracted.append(cast(nd.NumDict, _extracted))
-            else:
-                assert isinstance(source, Symbol)
-                extracted.append(cast(nd.NumDict, inputs[source]))
+            if isinstance(source, Symbol):
+                source = (source,)
+            _extracted: Any = inputs
+            for x in source:
+                _extracted = _extracted[x]
+            extracted.append(cast(nd.NumDict, _extracted))
 
         return tuple(extracted)
 

@@ -244,7 +244,6 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
     """
 
     _dict: Dict[Symbol, Realizer]
-    _sequence: List[Realizer] = []
     _assets: Any
     _output_dict: Dict[Symbol, Union[nd.NumDict, SymbolTrie[nd.NumDict]]]
 
@@ -275,8 +274,8 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __iter__(self) -> Iterator[Symbol]:
 
-        for realizer in self._sequence:
-            yield realizer.construct
+        for construct in self._dict:
+            yield construct
 
     def __getitem__(self, key: SymbolicAddress) -> Any:
 
@@ -294,7 +293,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __enter__(self):
 
-        if 0 < len(self._sequence):
+        if 0 < len(self._dict):
             raise RuntimeError("Structure already populated.")
 
         logging.debug("Entering context %s.", self.construct)
@@ -302,13 +301,14 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
         self._build_list_token = BUILD_LIST.set([])
 
+        return self
+
     def __exit__(self, exc_type, exc_value, traceback):
 
         try:
             if exc_type is None:
                 context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
                 self._add(*add_list)
-                self._sequence = add_list
                 self._reset_output()
                 if len(context) <= 1:
                     assert len(context) != 0
@@ -317,17 +317,6 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
             logging.debug("Exiting context %s.", self.construct)
             BUILD_CTX.reset(self._build_ctx_token)
             BUILD_LIST.reset(self._build_list_token)
-
-    @property
-    def sequence(self) -> Tuple[Symbol, ...]:
-        """The cycling sequence."""
-
-        return tuple(r.construct for r in self._sequence)
-
-    @property
-    def dict(self) -> Mapping[Symbol, Realizer]:
-
-        return self._dict_proxy
 
     @property
     def output(self) -> SymbolTrie[nd.NumDict]:
@@ -358,17 +347,19 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         types will be stepped in the order that they were added to self.
         """
 
-        for realizer in self._sequence:
+        # The stepping order is correct b/c in python 3.7 and above, dictionary 
+        # iteration returns values in insertion order. 
+        for realizer in self._dict.values():
             realizer.step()
         self._reset_output()
 
     def _reset_output(self) -> None:
         """Set output of self to reflect member outputs."""
 
-        for r in self._sequence: 
+        for r in self._dict.values(): 
             if isinstance(r, Structure): 
                 r._reset_output()
-        self.output = {r.construct: r.output for r in self._sequence}
+        self.output = {c: r.output for c, r in self._dict.items()}
 
     def _add(self, *realizers: Realizer) -> None:
         """Add realizers to self and any associated links."""
@@ -397,13 +388,12 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
             Realizer instance.
         """
 
-        for realizer in self._sequence:
+        for realizer in self._dict.values():
             realizer._offer(construct, callback)
 
     def _finalize_assembly(self) -> None:
 
-        assert set(self._dict.keys()) == {r.construct for r in self._sequence}
-        for realizer in self._sequence:
+        for realizer in self._dict.values():
             realizer._finalize_assembly()
 
     def _log_add(self, construct) -> None:
