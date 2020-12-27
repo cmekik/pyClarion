@@ -37,7 +37,7 @@ Agents can be built to any degree of complexity and completeness using a uniform
 from pyClarion import (
     chunks, terminus, buffer, subsystem, agent,
     Construct, Structure,
-    AgentCycle, NACSCycle, MaxNodes, BoltzmannSelector, Stimulus,
+    MaxNodes, BoltzmannSelector, Stimulus,
     Chunks, Assets
 )
 
