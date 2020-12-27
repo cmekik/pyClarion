@@ -17,8 +17,8 @@ from random import gauss
 # computing gradients over recorded tapes. 
 
 # In the simplest case, the tape may be used in 'eager' mode. In this mode, the 
-# tape will record all registered ops carried out in the tape context and flush
-# its data when a gradients are retrieved. 
+# tape will record all registered ops carried out in the tape scope and flush
+# its data when gradients are retrieved. 
 
 tape = nd.GradientTape()
 
@@ -146,5 +146,4 @@ print(w)
 # If the need arises for more sophisticated neural network models (e.g., 
 # convolutional networks) or faster performance, it is best to integrate 
 # pyClarion with a dedicated deep-learning/autodiff library by, e.g., writing 
-# Propagator classes that wrap deep neural networks implemented using such 
-# libraries.
+# Process classes that wrap neural networks implemented using such libraries.

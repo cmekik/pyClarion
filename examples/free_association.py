@@ -10,21 +10,17 @@ a cue.
 # Import notes may be skipped on first reading. They are for clarification 
 # purposes only.
 from pyClarion import (
-    # Below are realizer objects, implementing the behavior of simulated 
-    # constructs.
+    # Realizer objects, implementing the behavior of simulated constructs.
     Structure, Construct,
-    # Below are functions for constructing construct symbols, which are used to 
-    # name, index and reference simulated constructs
+    # Constructors for construct symbols, which are used to name, index and 
+    # reference simulated constructs
     agent, subsystem, buffer, feature, chunk, rule, terminus, flow_tt, flow_tb, 
     flow_bt, chunks, features,
-    # The objects below house datastructures handling various important 
-    # concerns such as chunk and rule definitions.
+    # Chunk and rule databases
     Chunks, Rules,
-    # Below is a simple container for shared datastructures like chunk and 
-    # rule containers.
+    # Container for shared datastructures like chunk and rule containers.
     Assets, 
-    # The objects below define how realizers process activations in the forward 
-    # and backward directions.
+    # Realizer processes
     Stimulus, AssociativeRules, BottomUp, TopDown, BoltzmannSelector, MaxNodes, 
     Filtered,
     # Finally, pyClarion augments the stdlib pprint functionality to support 
@@ -43,39 +39,38 @@ from pyClarion import (
 ### Agent Setup ###
 
 # PyClarion agents are created by assembling construct realizers, which are 
-# objects instantiating theoretical constructs. Much of the assembly process is 
-# automated, so agent construction amounts to declaratively specifying the 
-# necessary constructs. There are broadly two main types of construct: 
-# structures, which may contain other constructs, and basic constructs (or 
-# 'constructs' for short), which may not contain other constructs. Structures 
-# and constructs may be viewed as nodes in a hyper-graphical structure 
-# describing the input/output relations among architectural modules.
+# objects instantiating theoretical constructs. The assembly process is 
+# declarative and mostly automated. There are broadly two main types of 
+# construct: structures, which may contain other constructs, and basic 
+# constructs (or 'constructs' for short), which may not contain other 
+# constructs. Structures and constructs may be viewed as nodes in a 
+# hyper-graphical structure describing the input/output relations among 
+# architectural modules.
 
 # Defining Initial Features and Chunks
 
 # An initial step in constructing a pyClarion simulation is to define the 
-# primitive representations that will appear in the simulation, as well as any 
-# initial knowledge available to agent(s). 
+# primitive representations, as well as any initial knowledge available to 
+# agent(s). 
 
 # The primitive representational constructs of Clarion are chunk and feature 
-# nodes. At this stage, we must minimally specify what features will appear in 
-# the simulation, as features define the representational domain over which 
-# chunks and any other knowledge may be constructed.
+# nodes. We must minimally specify what features will appear in the simulation, 
+# as features define the representational domain over which chunks and any 
+# other knowledge may be constructed.
 
 # Feature nodes represent implicit knowledge about the world. In Clarion theory, 
 # each feature node is associated with a unique dimension-value pair (dv pair) 
-# indicating its dimension (e.g., color) and value (e.g., red). In pyClarion, we 
-# further analyze feature dimensions as consisting of a (tag, lag) pair. The 
-# tag simply represents the name of the dimension. The lag value is handy for 
-# tracking the activation of a particular feature over small time windows, as 
-# may be required in, e.g., temporal difference learning. 
+# indicating its dimension (e.g., color) and value (e.g., red). In pyClarion, 
+# feature dimensions are further analyzed as consisting of a (tag, lag) pair. 
+# The tag simply represents the name of the dimension. The lag value is handy 
+# for tracking the activation of a particular feature over small time windows, 
+# as may be required in, e.g., temporal difference learning. 
 
 # In pyClarion, constructs are named using 'construct symbols'. As the name 
 # suggests, construct symbols are intended to behave like formal tokens, and 
 # their primary function is to help associate data with the constructs they 
-# name. As a result, they are required to be immutable and hashable (so that 
-# they may be used with dict-like structures). It may be helpful to think of 
-# construct symbols as fancy python tuples.
+# name. As a result, they are required to be immutable and hashable. It may be 
+# helpful to think of construct symbols as fancy python tuples.
 
 # We can invoke the construct symbol for a particular feature node by calling 
 # the `feature()` constructor as shown below. 
@@ -89,10 +84,9 @@ assert f == feature(tag="my-tag", val="val-1") # does not fail
 # For this simulation, we include (somewhat arbitrarily) feature nodes for the 
 # colors red and green and a feature for each of tastiness, sweetness and the 
 # liquid state. These dv pairs are specified below. We omit lag values from the 
-# specification. (We will not make use of lagged features in this simulation, 
-# and lagged features may be constructed dynamically as needed.) 
+# specification.
 
-# Note that in some cases, we do not provide feature values. This is sometimes 
+# Note that, in some cases, we do not provide feature values. This is sometimes 
 # desirable, when we have singleton dimensions. In such cases, the feature 
 # constructor automatically sets the value to the empty string.
 
@@ -105,9 +99,8 @@ feature_spec = [
 ]
 
 # Feature values for red and green are given in hex code to emphasize the idea 
-# that features in Clarion theory represent implicit knowledge. (Of course, it 
-# is better, in practice, to label features in a way that is intelligible to 
-# readers.)
+# that features in Clarion theory represent implicit knowledge. (It is better, 
+# in practice, to label features in a way that is intelligible to readers.)
 
 # Moving on, let us consider chunk nodes. Chunk nodes correspond roughly to 
 # the concepts known to Alice. Chunk nodes are simpler to identify than feature 
@@ -124,9 +117,9 @@ chunk_names = ["FRUIT", "APPLE", "JUICE"]
 
 # In this simulation, we specify the initial chunks and features explicitly 
 # only for the sake of clarity. Strictly speaking, these specificaions are not 
-# required in this particular case. But, in more complex simulations, where 
-# constructs can pass around commands for example, explicit specification of 
-# at least parts of the feature domain becomes a necessity.
+# required. Only in more complex simulations, where constructs can pass around 
+# commands for example, explicit specification of at least parts of the feature 
+# domain becomes a necessity.
 
 # Now that we've defined the symbols we will be working with, we populate Alice 
 # with some knowledge.
@@ -149,8 +142,8 @@ rdb = Rules()
 # its conclusion chunk and then by one or more condition chunks. Thus, below, 
 # `chunk("FRUIT")` is the conclusion and `chunk("APPLE")` is the only condition. 
 # In other words, this rule establishes an association from the concept APPLE 
-# to the concept FRUIT. This association is meant to capture the fact that 
-# apples are fruits. In truth, we may also designate condition weights, but 
+# to the concept FRUIT. This association is meant to capture the knowledge that 
+# "apples are fruits". In truth, we may also designate condition weights, but 
 # this feature is not explored here.
 
 rdb.define(rule(1), chunk("FRUIT"), chunk("APPLE"))
@@ -226,28 +219,23 @@ alice = Structure(
 # The `name` argument to the Structure constructor is a construct symbol that 
 # serves to label the construct. It is mandatory to provide a name argument to 
 # construct realizers, as names enable automation of important behavior, such 
-# as linking/unlinking constructs. 
+# as linking/unlinking constructs.  
 
-# The `emitter` argument defines how the structure computes its outputs. In 
-# Structure objects, this involves specifying directives for controlling 
-# the firing of subordinate constructs. The `AgentCycle()` object defines such 
-# directives for agents. 
-
-# The next step in agent construction is to populate `alice` with components 
-# representing various cognitive structures postulated by the Clarion theory.
-
-# Constructs may be added to `Structure` objects using the `add()` method, like 
-# `alice.add()`. A call to alice.add() on some construct, places that construct 
-# within Alice's cognitive apparatus and establishes any links specified 
-# between the new construct and any existing consturct within Alice. To do 
-# this, the `Structure` object automatically checks all constructs it contains 
-# and links up those that match.
+# In this particular model, this is all that is needed to initially set up the 
+# agent. The next step is to populate `alice` with components representing 
+# various cognitive structures and processes.
 
 # To facilitate the construction process, pyClarion borrows a pattern from 
 # the nengo library. When a pyClarion construct is initialized in a `with` 
 # statement where the context manager is a pyClarion `Structure`, the construct 
 # is automatically added to the structure serving as the context manager. 
-# Nested use of the with statement is supported.
+# Nested use of the with statement is supported. 
+
+# The order in which constructs are defined within the scope of a with 
+# statement roughly determines the order in which the constructs are called 
+# when the simulation is stepped. The order is rough because constructs of 
+# similar type may be stepped in parallel (though the current implementation is 
+# fully sequential).
 
 with alice:
 
@@ -255,38 +243,32 @@ with alice:
     # the stimulus and the non-action-centered subsystem (NACS). The stimulus 
     # is uncomplicated: it is simply an abstract representation of the task 
     # cue. The NACS, on the other hand, is the Clarion subsystem that is 
-    # responsible for processing non-procedural knowledge. Knowledge is 
-    # represented by chunk and feature nodes within the NACS. These nodes 
-    # receive activations from external buffers and each other, and they 
-    # compete to be selected as the output of NACS at each simulation step.
+    # responsible for processing non-procedural knowledge.
 
     # Stimulus
 
     # We begin by adding the stimulus component to the model. 
 
     # We represent the stimulus with a buffer construct, which is a top-level 
-    # construct within an agent that stores and relays activations to various 
-    # subsystems. Buffers count as constructs, so we invoke the `Construct` 
-    # class (as opposed to the `Structure` class as above). Aside from that, 
-    # the initialization is essentially identical to the way we created the 
-    # `alice` object.
+    # construct within an agent that may temporarily store data and relays 
+    # activations to various subsystems. Buffers count as constructs, so we 
+    # invoke the `Construct` class (as opposed to the `Structure` class as 
+    # above). Aside from that, the initialization is similar to the way we 
+    # created the `alice` object.
 
     stimulus = Construct(
         name=buffer("stimulus"), 
         process=Stimulus()
     )
 
-    # We pass a `buffer()` symbol as name, to indicate that we are defining a 
-    # buffer, and we pass a `Stimulus` object as emitter to provide the 
-    # necessary input/output methods. That completes initialization of the 
-    # stimulus construct.
+    # The `process` argument defines how the structure computes its outputs. It 
+    # is only available in Construct objects. 
 
     # Non-Action-Centered Subsystem
 
     # Next, we set up a realizer for the Non-Action-Centered Subsystem. The 
     # setup is similar, but we create a Structure object because subsystems may 
-    # contain other constructs. The emitter is one that implements the desired 
-    # activation cycle for NACS. 
+    # contain other constructs.  
 
     nacs = Structure(
         name=subsystem("nacs"),
@@ -296,17 +278,12 @@ with alice:
         )
     )
 
-    # The 'sources' argument to the emitter lets the subsystem know that it 
-    # should receive input from the stimulus (more specifically, from the 
-    # buffer construct representing the stimulus).
-
-    # To keep track of the chunks and rules that Alice knows about, we equip 
-    # the NACS with the chunk and rule databases we defined earlier. This is 
-    # done by passing an `Assets` object containing the two databases as the 
-    # structure's `assets` attribute. The `assets` attribute provides a 
-    # namespace for convenient storage of resources shared by construct 
-    # realizers subordinate to a `Structure`. The `Assets` object is 
-    # uncomplicated: It simply records all arguments passed to it as attributes.
+    # To keep track Alice's non-action-centered explicit knowledge, we use the 
+    # chunk and rule databases we defined earlier. We store these databases in 
+    # an `Assets` object. The `assets` attribute simply provides a namespace for
+    # convenient storage of resources shared by construct realizers subordinate 
+    # to a `Structure`. The `Assets` object itself is uncomplicated: It simply 
+    # records all arguments passed to it as attributes.
 
     # In reality, the rule database will only be used by a single construct 
     # realizer. However, it helps to keep a reference to it at the level of 
@@ -321,17 +298,20 @@ with alice:
 
     with nacs:
 
+        # The entry point for activations in the NACS are chunks, so we begin 
+        # by setting up an input chunk pool.
+
         # In the standard implementation of pyClarion, individual chunk and 
         # feature nodes are not explicitly represented in the system. Instead, 
         # chunk and feature pools are used. These pools handle computing the 
         # strengths of chunk and feature nodes in bulk.
 
         # This design offers a number of advantages: it is flexible (we do not 
-        # need to register new chunk or feature nodes), efficient (all chunk 
-        # and feature node activations are computed by one single object in one 
-        # pass), simple (it reduces bookeeping requirements when adding and 
-        # removing nodes) and more intelligible (nodes do not cause clutter in 
-        # large models). 
+        # need to explicitly declare new chunk or feature nodes to the system), 
+        # efficient (all chunk and feature node activations are computed by one 
+        # single object in one pass), simple (it reduces bookeeping requirements
+        # when adding and removing nodes) and more intelligible (nodes do not 
+        # cause clutter in large models). 
 
         # One downside to this approach is that we have to be careful about 
         # tracking the feature domain. This is why it is good to define the 
@@ -342,10 +322,8 @@ with alice:
             process=MaxNodes(sources=[buffer("stimulus")])
         )
 
-        # In general, emitters are aware of the constructs they serve. Thus, 
-        # the MaxNodes emitter will only output activations for chunk nodes 
-        # when paired with a `chunks()` construct, and it will likewise only 
-        # output activations for feature nodes for a `features()` construct.
+        # Next up is a top-down activation flow, where activations flow from 
+        # chunk nodes to linked feature nodes.
 
         Construct(
             name=flow_tb("main"), 
@@ -355,10 +333,19 @@ with alice:
             ) 
         )
 
+        # In this simulation, because there are no bottom-level flows (i.e., 
+        # associative neural networks), we can get away with a single feature 
+        # pool. 
+
         Construct(
             name=features("main"),
             process=MaxNodes(sources=[flow_tb("main")])
         )
+
+        # At the top level, activations are propagated among chunks through an 
+        # associative rule flow. Furthermore, a bottom up flow also produces 
+        # activation recommendations for chunks based on feature strengths in 
+        # the bottom level.
 
         Construct(
             name=flow_tt("associations"),
@@ -376,6 +363,11 @@ with alice:
             ) 
         )
 
+        # The main motivation for having chunk and feature pools is to combine 
+        # activation recommendations from multiple flows. In this case, the 
+        # output chunk pool takes a straight maximum, but it is common for 
+        # inputs from various sources to also be weighted.
+
         Construct(
             name=chunks("out"),
             process=MaxNodes(
@@ -387,6 +379,9 @@ with alice:
             )
         )
         
+        # Finally, a chunk is retrived by an activation-driven competitive 
+        # selection process in a terminus construct.
+
         Construct(
             name=terminus("main"),
             process=Filtered(
@@ -404,18 +399,17 @@ with alice:
         # and emitted as the selected output.
 
         # To prevent information in the stimulus from interfering with output 
-        # selection, the `BoltzmanSelector` is wrapped in a `FilteredT` object. 
-        # This object is configured to filter inputs to the selector 
+        # selection, the `BoltzmanSelector` process is wrapped by a `Filtered` 
+        # object. This object is configured to filter inputs to the selector 
         # proportionally to their strengths in the stimulus buffer. This is one 
         # way to achieve cue-suppression.
 
 # We are now done populating Alice with constructs. On exit from the 
-# highest-level Structure context, pyClarion will automatically finalize the 
-# agent assembly. This process involves setting structure outputs to reflect 
-# their contents and checking for any missing expected links. If missing 
-# expected links are encountered a RealizerAssemblyError will be thrown.
-
-# Agent setup is now complete!
+# highest-level Structure context, pyClarion will automatically populate the 
+# agent, link the various constructs, and finalize the agent assembly. 
+# Finalization involves setting structure outputs to reflect their contents and 
+# checking for any missing expected links. If missing expected links are 
+# encountered an error will be thrown.
 
 
 #########################
@@ -433,14 +427,12 @@ stimulus.process.input({chunk("APPLE"): 1.})
 alice.step()
 
 # To see what came to Alice's mind, we can simply inspect the output state of 
-# the NACS at the end of the cycle. 
+# the agent at the end of the cycle. 
 
-# To do this, we first retrieve the SubsystemPacket object emitted by the 
-# nacs object. This object stores all relevant information about the 
-# state of the NACS at the end of the propagation cycle.
-
-# We can then simply print out a nicely formatted representation of the output 
-# using the subsystem_packet.pstr() method.
+# To do this, we simply access the agents `output` attribute. We can then simply
+# print out a nicely formatted representation of the output using the pprint() 
+# function, which is a version of the stdlib pprint function augmented to handle 
+# various pyClarion objects.
  
 print("Alice's cognitive state upon presentation of 'APPLE':") 
 pprint(alice.output)
@@ -453,8 +445,3 @@ pprint(alice.output)
 # This simple simulation sought to demonstrate the following:
 #   - The mechanics of pyClarion agent construction, and
 #   - The basics of running simulations using pyClarion 
-
-# Some functionalities that are supported but not demonstrated include:
-#   - Dynamic modification of agent components,
-#   - Learning and state/parameter updates,
-#   - Deep customization (e.g., custom emitters, construct symbols etc.).

@@ -22,17 +22,14 @@ from pyClarion import (
 #############
 
 # This simulation demonstrates a basic recipe for chunk extraction in 
-# pyClarion. If you have not worked through the free association example, 
-# please do so first, as you will be missing some of the prerequisite ideas.
+# pyClarion. 
 
 # The basic premise of the recipe is to create a special terminus construct 
-# for chunk extraction. In pyClarion, each simulation step consists of a 
-# propagation stage, called 'propagation time', and an updating/learning stage, 
-# called 'update time'. On each cycle, the chunk extractor recommends chunks 
+# for chunk extraction. On each cycle, the chunk extractor recommends chunks 
 # based on the state of the bottom level at propagation time. If the bottom 
 # level state matches an existing chunk, that chunk is recommended. Otherwise, 
 # a new chunk is recommended. These recommendations are then placed in the 
-# corresponding chunk database at update time by an appropriate updater object.
+# corresponding chunk database by an updater object. 
 
 # Here is the scenario:
 # We are teaching Alice about fruits by showing her pictures of fruits and 
@@ -87,23 +84,16 @@ with alice:
         process=Stimulus()
     )
 
-    # When we create the NACS, we store the chunk database as an asset, as 
-    # before. However, we also pass the chunk database's updater object as an 
-    # updater for NACS. This is because when the extractor recommends a new 
-    # chunk, it will issue an update request to the chunk database. Upon 
-    # receipt, this update request is deferred until update time. The chunk 
-    # database updater takes responsibiity for applying any requested updates. 
-    # This pattern ensures that the chunk database remains constant during 
-    # propagation time. It also helps ensure that updates remain consistent 
-    # even if multiple constructs issue update requests to the same chunk 
-    # database. 
-
     nacs = Structure(
         name=subsystem("nacs"),
         assets=Assets(chunk_db=chunk_db)
     )
 
     with nacs:
+
+        # Although the entry point for the NACS are chunks, in this example we 
+        # start with features as there are no constructs that initially 
+        # activate chunks in the NACS activation cycle. 
 
         Construct(
             name=features("main"),
@@ -150,7 +140,7 @@ with alice:
             )
         )
 
-        # The bottom level ('bl') terminus introduces a new emitter, the 
+        # The bottom level ('bl') terminus introduces the new emitter, the 
         # `ChunkExtractor`. As suggested by the name, this emitter extracts 
         # chunks capturing the state of the bottom level. More precisely, it 
         # first applies a thresholding function to feature activations in the 
@@ -169,6 +159,10 @@ with alice:
                 prefix="bl"
             )
         )
+
+        # The chunk database updater is responsible for applying any requested 
+        # updates to the chunk database. This pattern gives control over the 
+        # timing of updates to the chunk database. 
 
         Construct(
             name=updater("cdb"),
@@ -278,5 +272,5 @@ for i, s in enumerate(queries):
 ##################
 
 # This simple simulation sought to demonstrate the following:
-#   - The basics of learning and updater use, and
+#   - The basics of using updaters, and
 #   - A recipe for chunk extraction from the state of the bottom level. 

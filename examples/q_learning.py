@@ -104,10 +104,10 @@ interface = SimpleInterface(
     }
 )
 
-# To specify reinforcement signals, we use a feature domain defined using the
-# ReinforcementDomain class. ReinforcementDomain expects a mapping from features 
-# representing reinforcement signals to the dimensions that they reinforce 
-# (including the lag value). The mapping must be one-to-one.
+# To specify reinforcement signals, we use ReinforcementDomain, which expects a 
+# mapping from features representing reinforcement signals to the dimensions 
+# that they reinforce (recall, dimensions include the lag value). The mapping 
+# must be one-to-one.
 
 r_map = ReinforcementDomain(
     mapping={
@@ -149,8 +149,8 @@ with learner:
 
     with acs:
 
-        # For training purposes, we use a simple repeater to relay the actions 
-        # selected on the previous step back to the qnet. 
+        # We use a simple repeater to relay the actions selected on the 
+        # previous step back to the qnet. 
 
         Construct(
             name=flow_in("ext_actions_lag1"),
@@ -164,12 +164,16 @@ with learner:
             )
         )
 
-        # Here we construct the Q-Net and integrate it into the bottom level. 
-        # Note that it is designated as a construct of type flow_bb. The 
-        # particular emitter used here, SimpleQNet, will construct an MLP with 
-        # two hidden layers containing 5 nodes each. Weight updates will occur 
-        # at the end of each step (i.e., training is online) through gradient 
-        # descent with backpropagation. 
+        # We construct the Q-Net just like any other Process instance and 
+        # integrate it into the bottom level. Note that it is designated as a 
+        # construct of type flow_bb. The particular Process class used here, 
+        # SimpleQNet, will construct an MLP with two hidden layers containing 5 
+        # nodes each. Weight updates occur at each step (i.e., training is 
+        # online) through gradient descent with backpropagation. 
+
+        # On each trial, the q-net outputs its Q values to drive action 
+        # selection at the designated terminus. The Q values are squashed prior 
+        # being output to ensure that they lie in [0, 1]. 
 
         qnet = Construct(
             name=flow_bb("q_net"),
@@ -193,10 +197,6 @@ with learner:
             )
         )
 
-        # On each trial, the q-net outputs its Q values to drive action 
-        # selection at the designated terminus. The Q values are squashed prior 
-        # being output to ensure that they lie in [0, 1]. 
-
         ext_actions = Construct(
             name=terminus("ext_actions"),
             process=ActionSelector(
@@ -211,7 +211,7 @@ with learner:
 ### Simulation ###
 ##################
 
-# We are ready to run the task. We'll run it for 500 trials with an initial 
+# We are ready to run the task. We'll run it for 800 trials with an initial 
 # reinforcement of 0.
 
 task = ABTask(800)
@@ -284,7 +284,8 @@ else:
 ### CONCLUSION ###
 ##################
 
-# This simple simulation sought to demonstrate q-learning in pyClarion. 
+# This example sought to demonstrate q-learning in pyClarion. 
+
 # SimpleQNet makes use of pyClarion's native autodiff support, which should be 
 # sufficient for learning and experimentation, but may be too slow for more 
 # heavy applications. 

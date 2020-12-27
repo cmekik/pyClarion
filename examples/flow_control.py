@@ -18,48 +18,43 @@ from itertools import count
 ### SETUP ###
 #############
 
-# This example will be addressing the basics of control in pyClarion. By way of 
-# example we present a simple recipe for controlling the mode of reasoning. We 
-# will extend the model presented in `free_association.py` to support control 
+# This example will be addressing the basics of control in pyClarion. We will 
+# extend the model presented in `free_association.py` to support control 
 # of the mode of reasoning.
 
 # In the proposed recipe, control of the mode of reasoning is achieved by 
 # gating the output of various flows present in the original model. Gating is 
-# implemented by an emitter that wraps the base emitter of the flow and 
-# multiplicatively gates its output according to gating parameters received 
-# from a parameter buffer. The parameter buffer is modeled using a ParamSet 
-# emitter, which roughly captures the concept of a psychological set (e.g., 
-# task set, goal set, perceptual set, etc.). It can be configured by a 
+# implemented by wrapping the base process of the flow with multiplicative gate 
+# which receives gating parameters from a parameter buffer. The parameter 
+# buffer is modeled using a ParamSet process. It can be configured by a 
 # controller to store and emit parameters to input filters, output gates, and 
-# other parametric processes.
+# other parametrized processes.
 
 ### Knowledge Setup ###
 
 # The semantic feature domain used in this simulation is identical to that used 
-# in `free_association.py`, so we do not specify again here. 
+# in `free_association.py`, so we do not specify it again here. 
 
 # To control emitter gating, we need to specify a feature interface. In 
-# general, pyClarion emitters that are subject to control specify constructors 
-# for their control interfaces. These constructors offer a standardization of 
-# control interfaces and automate the process of creating control features 
-# based on provided arguments. In general, feature interfaces define two sets 
-# of features: commands and parameters. It is assumed that the controlled 
-# emitter expects to receive exactly one activated value for each command 
-# feature dimension at each time step. For parameters, it is assumed that each 
-# parameter dimension contains exactly one value, and what is desired is an 
-# activation strength for that value.
+# general, pyClarion processes subject to control specify constructors for their 
+# control interfaces. These constructors offer a standardization of control 
+# interfaces and automate the creation of control features. In general, feature 
+# interfaces define two sets of features: commands and parameters. It is assumed
+# that the controlled process expects to receive exactly one activated value for
+# each command feature dimension at each time step. For parameters, it is 
+# assumed that each parameter dimension contains exactly one value, and what is 
+# desired is an activation strength for that value.
 
 # Below, we specify the control interface for the ParamSet emitter that will 
-# serve to control gating in our simulation. The tag argument will be passed in 
-# as the tag for the command features, whereas vals defines the values of these 
-# features. The value semantics are defined by the order of the elements passed 
-# to vals and is reflected by the chosen value strings. The clients argument 
-# specifies the constructs for which parameters will be emitted. Basically, the 
-# emitter will map activations of its parameter features to the client 
-# constructs and output the result. The func argument specifies how to map 
-# parameter dimensions to clients, taking in a client construct and outputting 
-# the corresponding dimensional tag. Finally, the param_val argument specifies 
-# the expected feature value for parameter features.
+# serve to control gating in our simulation. The tag argument defines the tag 
+# for the command features. The values of the command features are set to their 
+# defaults which are: "clear", "overwrite", "update", "standby". These can be 
+# modified if desired.
+# The clients argument specifies the constructs for which parameters will be 
+# emitted. Basically, the ParamSet process will map activations of its 
+# parameter features to the client constructs. The func argument specifies how 
+# to map parameter dimensions to clients, taking in a client construct and 
+# outputting the corresponding dimensional tag.
 
 gate_interface = ParamSet.Interface(
     tag="gate",
@@ -71,28 +66,29 @@ gate_interface = ParamSet.Interface(
     func=lambda c: ("gate", c.ctype.name, c.cid),
 )
 
-# Feature interfaces often also define default values for commands. For this 
-# simulation, we would like the default values to be selected unless some other 
-# command receives higher activation. To do this, we will setup a constant 
-# buffer to activate default values to a constant level. 
+# Feature interfaces also define default values for commands (one for each 
+# command dimension). For this simulation, we would like the default values to 
+# be selected unless some other command receives higher activation. To do this, 
+# we will setup a constant buffer to activate default values to a constant 
+# level.
 
-# To set up default action activations using numdicts. Numdicts, numerical 
+# We set up default action activations using numdicts. Numdicts, or numerical 
 # dictionaries, are a pyClarion native datatype. Fundamentally, they are fancy 
 # wrappers around dictionaries that allow for mathematical operations. 
 # Operations are carried out elementwise, where elements are matched by keys.
 # Mathematical operations are supported between numdicts and constant numerical 
-# values (ints, floats, etc.). Furthermore, numdicts typically define default 
-# values for missing keys, which are appropriately updated under mathematical 
-# operations.
+# values (ints and floats). Furthermore, numdicts may define default values to 
+# handle missing keys. These defaults are appropriately updated under 
+# mathematical operations.
  
-# In this particular simulation, we set our default action values to have a 
-# constant activation of 0.5
+# In this particular simulation, we set our default actions to have a constant 
+# activation of 0.5.
 
 default_strengths = nd.MutableNumDict(default=0)
 default_strengths.extend(gate_interface.defaults, value=0.5)
 
-# We initialize and populate chunk and rule databases as in 
-# `free_association.py`.
+# Next, we initialize and populate chunk and rule databases as in the original 
+# example. 
 
 cdb = Chunks()
 rule_db = Rules()
@@ -124,8 +120,6 @@ cdb.define(
 # The agent assembly process is very similar to `free_association.py`, but we 
 # define some additional constructs and structures.
 
-# Note that we place a handle to the gate interface at the agent level.
-
 alice = Structure(
     name=agent("Alice"),
     assets=Assets(
@@ -142,18 +136,18 @@ with alice:
 
     # The acs_ctrl construct is an entry point for manually passing in commands 
     # to the action-centered subsystem (ACS). Normally, the ACS would select 
-    # actions based on perceptual stimuli, working memory etc. For simplicity, 
-    # we directly stimulate the action features in the ACS to drive action 
-    # selection.
+    # actions using action-centered knowledge based on perceptual stimuli, 
+    # working memory etc. For simplicity, we directly stimulate the action 
+    # features in the ACS to drive action selection.
 
     acs_ctrl = Construct(
         name=buffer("acs_ctrl"), 
         process=Stimulus()
     )
 
-    # The gate is implemented as a buffer entrusted to a ParamSet emitter, as 
-    # mentioned earlier. To initialize the ParamSet instance, we specify a 
-    # controller and pass in our gate interface.
+    # The gate is implemented as a buffer entrusted to a ParamSet process, as 
+    # mentioned earlier. To initialize the ParamSet instance, we must specify a 
+    # controller and pass in a gate interface.
     
     gate = Construct(
         name=buffer("gate"),
@@ -163,7 +157,7 @@ with alice:
         )
     )
 
-    # The defaults are handled by a buffer entrusted to a Constants emitter, 
+    # The defaults are handled by a buffer entrusted to a Constants process, 
     # which simply outputs the defaults we defined above.
 
     defaults = Construct(
@@ -171,20 +165,18 @@ with alice:
         process=Constants(strengths=default_strengths)
     )
 
-    # In this simulation, we add an entirely new subsystem to the model: the 
-    # action-centered subystem, which handles action selection. This subsystem 
-    # takes inputs from the acs_ctrl and default buffers, and it has its own 
-    # activation sequence as specified by ACSCycle.
+    # This simulation adds an entirely new subsystem to the model: the 
+    # action-centered subystem, which handles action selection. We keep this 
+    # ACS to a bare minimum.
 
     acs = Structure(
         name=subsystem("acs")
     )
 
     with acs:
-
-        # The ACS feature pool listens to both the control and default buffers 
-        # and outputs, for each feature, the maximum activation recommended by 
-        # these sources.
+        
+        # Assembly of the ACS is similar to the NACS, but features are the 
+        # (primary) entry points for activations.
 
         Construct(
             name=features("main"),
@@ -211,8 +203,7 @@ with alice:
             )
         )
 
-    # NACS setup is almost identical to `free_association.py`, only the NACS 
-    # listens to the gate buffer in addition to the stimulus buffer.
+    # Next, we set up the NACS, adding the `Gated` wrapper where necessary.
 
     nacs = Structure(
         name=subsystem("nacs"),
@@ -223,6 +214,13 @@ with alice:
     )
 
     with nacs:
+
+        # The first instance of gating in this example is on the stimulus. We 
+        # do not gate the stimulus buffer. Instead, we create a flow_in 
+        # construct, which repeats the output of the stimulus buffer, and we 
+        # gate that. This allows us to gate the stimulus buffer in the NACS 
+        # independently from other subsystems. To implement the gate, we 
+        # initialize a `Gated` object which wraps the activation repeater.
 
         Construct(
             name=flow_in("stimulus"),
@@ -253,15 +251,6 @@ with alice:
                 sources=[flow_tb("main")]
             )
         )
-
-        # In this simulation we use two chunk pools, `chunks("in")` and 
-        # `chunks("out")`. Since we will be presenting sequences of stimuli and 
-        # including both top-down and bottom-up flows, using only one chunk 
-        # pool, as in `free_association.py`, would result in a feed-back loop 
-        # between chunks and features. In standard Clarion, this is generally 
-        # not desirable. One simple way to solve this issue is to compute 
-        # top-down activations from chunks("in") but write bottom-up 
-        # activations to `chunks("out")`.
 
         Construct(
             name=flow_tt("associations"),
@@ -296,24 +285,6 @@ with alice:
             )
         )
 
-        # Flows
-
-        # The model includes all flows already present in the 
-        # `free_association.py` model: an associative rule flow, a top-down 
-        # flow, and a bottom-up flow. We additionally include some flow_in 
-        # constructs.
-
-        # The first instance of gating in this example is on the stimulus. We 
-        # do not gate the stimulus buffer. Instead, we create a flow_in 
-        # construct which repeats the output of the stimulus buffer and gate 
-        # that. To implement the gate, we initialize a `Gated` object which 
-        # wraps the activation repeater.
-
-        # Termini
-
-        # Aside from adjusting for the new chunk pool setup, the retrieval 
-        # terminus is unchanged from `free_association.py`. 
-
         Construct(
             name=terminus("retrieval"),
             process=Filtered(
@@ -332,12 +303,12 @@ with alice:
 ### Simulation ###
 ##################
 
-# To simplify exposition, we define some convenience functions for the 
-# simulations.
-
 # For this simulation, we will present various control sequences while keeping 
 # the task cue constant. This setup will demonstrate the different behaviours 
 # afforded by controlling the mode of reasoning.
+
+# To simplify exposition, we define some convenience functions for the 
+# simulations.
 
 
 def print_step(agent, step):

@@ -91,7 +91,7 @@ default_strengths.extend(
 
 nacs_cdb = Chunks()
 
-# We then manually populate the database with chunk representing the fruits 
+# We then manually populate the database with chunks representing the fruits 
 # that alice discovered in `chunk_extraction.py`.
 
 nacs_cdb.define(
@@ -157,7 +157,7 @@ with alice:
     )
 
     # We define the working memory, by entrusting the working memory buffer 
-    # construct to the WorkingMemory emitter. 
+    # construct to the RegisterArray process. 
 
     wm = Construct(
         name=buffer("wm"),
@@ -320,8 +320,8 @@ def record_step(agent, step):
 # fruit chunks that we have defined. Once a fruit chunk is forwarded to the 
 # ACS, it can drive the utterance of a word corresponding to that chunk.
 
-# This simulation mocks alice performing such a response process by controlling 
-# the ACS. The whole response procedure takes two steps.
+# This simulation mocks alice performing such a response process through manual 
+# control of the ACS. The whole response procedure takes two steps.
 
 print("Prompt: \"What do you see?\"\n")
 print(

@@ -5,9 +5,9 @@ name: pyClarion test
 
 on:
   push:
-    branches: [ main, re-realizer ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, re-realizer ]
+    branches: [ main ]
 
 jobs:
   build:
