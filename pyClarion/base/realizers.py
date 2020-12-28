@@ -39,9 +39,7 @@ class Realizer(Generic[Ot]):
     Base class for construct realizers.
 
     Provides a standard interface for creating, inspecting, and propagating 
-    information across construct networks. 
-
-    Follows a pull-based message-passing pattern for activation propagation. 
+    information across construct networks.  
     """
 
     _inputs: Dict[Symbol, PullFunc]
@@ -347,7 +345,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         types will be stepped in the order that they were added to self.
         """
 
-        # The stepping order is correct b/c in python 3.7 and above, dictionary 
+        # The stepping order is correct b/c in Python 3.7 and above, dictionary 
         # iteration returns values in insertion order. 
         for realizer in self._dict.values():
             realizer.step()

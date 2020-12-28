@@ -30,7 +30,7 @@ class Rule(object):
         extended to map each of these items to a weight of 1. If weights is 
         None, every cond is assigned a weight of 1. 
 
-        If the weights sum to more than 1.0, weights is renormalized such that 
+        If the weights sum to more than 1.0, they are renormalized such that 
         each weight w is mapped to w / sum(weights.values()).
 
         :param conclusion: A chunk symbol for the rule conclusion.
@@ -105,19 +105,7 @@ class Rule(object):
 
 Rt = TypeVar("Rt", bound="Rule")
 class Rules(MutableMapping[rule, Rt], Generic[Rt]):
-    """
-    A simple rule database.
-
-    Rules are stored in a dict of the form:
-
-    {
-        rule(1): Rule(
-            conc=chunk("conc1"),
-            weights={cond1: w1, ..., condn: wn}
-        ),
-        ... # other rules
-    }            
-    """
+    """A simple rule database."""
 
     @overload
     def __init__(self: "Rules[Rule]") -> None:
@@ -192,9 +180,15 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
     @property
     def add_promises(self):
-        """A view of promised updates."""
+        """A view of promised additions."""
 
         return MappingProxyType(self._add_promises)
+
+    @property
+    def del_promises(self):
+        """A view of promised deletions."""
+
+        return frozenset(self._del_promises)
 
     def define(
         self, 
@@ -226,13 +220,12 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         """
         Inform self of a new rule to be applied at a later time.
         
-        Adds (r, form) to an internal future update dict. Upon call to 
-        self.step(), the update dict will be passed as an 
-        argument to self.update(). 
+        Adds the new rule on call to self.step().
         
-        Will overwrite existing rule if r is already member of self. Does 
-        not check for duplicate forms. Will throw an error if an update is 
-        already registered for rule r.
+        If r is already member of self, will overwrite the existing rule. Does 
+        not check for duplicate forms. 
+        
+        If an update is already registered for rule r, will throw an error.
 
         Does not validate the rule form before registering the request. 
         Validation occurs at update time. 
@@ -248,9 +241,9 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         """
         Inform self of an existing rule to be removed at update time.
 
-        Adds r to a future deletion set. Upon a call to step(), 
-        every member of the deletion set will be removed. If r is not already 
-        a member of self, will raise an error.
+        The rule will be removed on call to step(). 
+         
+        If r is not already a member of self, will raise an error.
         """
 
         if r in self._add_promises or r in self._del_promises:
@@ -262,11 +255,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
             self._del_promises.add(r)
 
     def step(self):
-        """
-        Apply any promised updates (see Rules.request_add()).
-        
-        Clears promised update dict upon completion.
-        """
+        """Apply any promised updates."""
 
         for r in self._del_promises:
             del self[r]
@@ -283,12 +272,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
 
 class RuleDBUpdater(Process):
-    """
-    Applies requested updates to a client Rules instance.
-    
-    Assumes any updates will be issued by constructs subordinate to 
-    self.client.
-    """
+    """Applies requested updates to a client Rules instance."""
 
     _serves = ConstructType.updater
 

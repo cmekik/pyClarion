@@ -59,7 +59,7 @@ class ConstructType(Flag):
     """
     Represents construct types within Clarion theory.
 
-    Signals the role of a construct for controlling processing logic.
+    Signals the role of a construct.
 
     Basic members (and interpretations):
         null_construct: Empty construct type (corresponds to flag null).
@@ -80,7 +80,7 @@ class ConstructType(Flag):
 
     Other members: 
         node: A chunk or (micro)feature.
-        nodes: A pool of chunk or microfeature nodes.
+        nodes: A pool of chunk or (micro)feature nodes.
         flow_bx: Flow originating in bottom level.
         flow_tx: Flow originating in top level.
         flow_xb: Flow ending in bottom level.
@@ -90,6 +90,7 @@ class ConstructType(Flag):
         flow: Links among (micro)feature and/or chunk nodes.
         basic_construct: A feature or chunk or flow or terminus or buffer. 
         container_construct: Subsystem or agent.
+        any_construct: Matches any construct type.
     """
 
     null_construct = 0
@@ -176,7 +177,7 @@ class Token(object):
 
 class Symbol(Token):
     """
-    Symbol for naming Clarion constructs.
+    Symbolic label for Clarion constructs.
 
     Consists of a construct type (see ConstructType) and an identifier.
     """
@@ -228,12 +229,12 @@ class feature(Symbol):
     """
     A feature symbol.
 
-    Each feature is identified by a dimension label, a value, and a lag. By 
-    default, the lag is set to 0.
+    Each feature is identified by a dimensional tag, a value, and a lag. By 
+    default, the value is set to "" and the lag is set to 0.
 
     In pyClarion, the dimension of a feature is considered to be its dimension 
-    label together with its lag value. That is to say, two features initialized 
-    with identical dimension labels but different lag values will be considered 
+    tag together with its lag value. That is to say, two features initialized 
+    with identical dimension tags but different lag values will be considered 
     to be of different dimensions.
     """
 
@@ -245,7 +246,7 @@ class feature(Symbol):
         """
         Initialize a new feature symbol.
 
-        :param tag: Dimension label.
+        :param tag: Dimension tag.
         :param val: Value of feature.
         :param lag: Lag indicator.
         """
@@ -280,7 +281,7 @@ class feature(Symbol):
 
     @property
     def tag(self):
-        """Dimension label."""
+        """Dimension tag."""
         
         return self.cid[0][0]
 
@@ -322,7 +323,7 @@ class rule(Symbol):
 
 
 class features(Symbol):
-    """A pool of feature nodes."""
+    """Symbol for a pool of feature nodes."""
 
     __slots__ = ()
 
@@ -337,7 +338,7 @@ class features(Symbol):
 
 
 class chunks(Symbol):
-    """A pool of chunk nodes."""
+    """Symbol for a pool of chunk nodes."""
 
     __slots__ = ()
 

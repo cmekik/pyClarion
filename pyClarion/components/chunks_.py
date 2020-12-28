@@ -1,4 +1,4 @@
-"""Objects associated with defining, managing, and processing chunks."""
+"""Tools for defining, managing, and processing chunks."""
 
 
 __all__ = [
@@ -78,13 +78,13 @@ class Chunk(object):
 
     @property
     def features(self):
-        """Features associated with chunk defined by self."""
+        """Features associated with chunk."""
         
         return self._features
     
     @property
     def weights(self):
-        """Dimensional weights for chunk defined by self."""
+        """Dimensional weights."""
 
         return self._weights
 
@@ -132,22 +132,8 @@ class Chunks(MutableMapping[chunk, Ct]):
     """
     A simple chunk database.
 
-    Stores chunks in a dict of the form:
-    
-    {
-        chunk(1): Chunk(
-            features={f1, ..., fn},
-            weights={d1: w1, ..., dk: wk}
-        ),
-        ... # other chunks
-    } 
-
-    Provides mapping methods to access and manipulate this dict and defines the 
-    entry type Chunk. 
-
-    Also, this object provides tools for requesting, applying, and examining 
-    deferred updates. These methods are useful for cases where multiple 
-    constructs may want to add chunks to the same database.
+    Maps chunk symbols to chunk forms. Provides tools for requesting, applying, 
+    and examining deferred updates. 
     """
 
     @overload
@@ -218,13 +204,13 @@ class Chunks(MutableMapping[chunk, Ct]):
 
     @property
     def add_promises(self):
-        """A view of promised updates."""
+        """A view of promised additions."""
 
         return MappingProxyType(self._add_promises)
 
     @property
     def del_promises(self):
-        """A view of promised updates."""
+        """A view of promised deletions."""
 
         return frozenset(self._del_promises)
 
@@ -274,13 +260,12 @@ class Chunks(MutableMapping[chunk, Ct]):
         """
         Inform self of a new chunk to be added at update time.
         
-        Adds (ch, form) to an internal future update dict. Upon call to 
-        self.step(), the update dict will be passed as an 
-        argument to self.update(). 
+        The new chunk will be added on call to self.step().
+
+        If ch is already member of self, will overwrite the existing entry. Does 
+        not check for duplicate forms. 
         
-        Will overwrite existing chunks, if ch is already member of self. Does 
-        not check for duplicate forms. Will throw an error if an update is 
-        already registered for chunk ch.
+        If an update is already registered for chunk ch, will throw an error.
         """
 
         if ch in self._add_promises or ch in self._del_promises:
@@ -293,9 +278,9 @@ class Chunks(MutableMapping[chunk, Ct]):
         """
         Inform self of an existing chunk to be removed at update time.
 
-        Adds ch to a future deletion set. Upon a call to step(), 
-        every member of the deletion set will be removed. If ch is not already 
-        a member of self, will raise an error.
+        The chunk will be removed on call to step(). 
+        
+        If ch is not already a member of self, will raise an error.
         """
 
         if ch in self._add_promises or ch in self._del_promises:
@@ -327,7 +312,7 @@ class ChunkDBUpdater(Process):
     _serves = ConstructType.updater
 
     def __init__(self, chunks: "Chunks") -> None:
-        """Initialize a Chunks.Updater instance."""
+        """Initialize a ChunkDBUpdater instance."""
 
         super().__init__()
         self.chunks = chunks
@@ -393,10 +378,10 @@ class ChunkExtractor(Process):
     """
     Extracts chunks from the bottom level.
     
-    Extracted chunks contain all features in the bottom level above a set 
-    threshold. If the corresponding chunk form does not exist in client chunk 
-    database, a request to add the new chunk to the database is placed at call 
-    time. Execution of the request is not enforced by the extractor.
+    Extracted chunks contain all features in the bottom level above threshold. 
+    If the corresponding chunk form does not exist in the client chunk database,
+    a request to add the new chunk to the database is issued. Execution of the 
+    request is not enforced by the extractor.
     """
 
     _serves = ConstructType.terminus

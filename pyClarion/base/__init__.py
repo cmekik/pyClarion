@@ -6,7 +6,7 @@ among their nodes. Each node is named by a single symbolic token and
 connections among nodes are decided based on formal properties of construct 
 symbols.
 
-Activation propagation follows a pull-based message-passing architecture. 
+Activation propagation follows a pull-based architecture. 
 """
 
 

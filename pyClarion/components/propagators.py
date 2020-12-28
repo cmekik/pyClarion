@@ -194,7 +194,8 @@ class ActionSelector(Process):
         self.temperature = temperature
 
     def call(self, inputs):
-        """Select actionable chunks for execution. 
+        """
+        Select actionable chunks for execution. 
         
         Selection probabilities vary with feature strengths according to a 
         Boltzmann distribution. Probabilities for each target dimension are 

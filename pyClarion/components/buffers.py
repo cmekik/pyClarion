@@ -101,10 +101,10 @@ class ParamSet(Process):
         :param tag: Tag for ParamSet control dimension.
             corresponding parameter tags. It is okay to map two clients to the 
             same tag. This will couple their values.
-        :param standby: Value for standby action.
-        :param clear: Value for clear action.
-        :param update: Value for update action.
-        :param overwrite: Value for overwrite action.
+        :param standby_val: Value for standby action.
+        :param clear_val: Value for clear action.
+        :param update_val: Value for update action.
+        :param overwrite_val: Value for overwrite action.
         :param param_val: Singleton value to be used in parameter features.
         """
 
@@ -149,12 +149,7 @@ class ParamSet(Process):
 
 
 class Register(Process):
-    """
-    Dynamically stores and activates nodes.
-    
-    Consists of a node store plus a flag buffer. Stored nodes are persistent, 
-    flags are cleared at update time.
-    """
+    """Dynamically stores and activates nodes."""
 
     _serves = ConstructType.buffer 
 

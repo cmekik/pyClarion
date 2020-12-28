@@ -263,8 +263,7 @@ class BLAStrengths(Process):
     Assigns to each item in a BLA database a strength equal to tanh(bla), where 
     bla is the BLA value associated with the item. The tanh function is used to 
     squash the BLA value to lie in [0, 1]. Optionally, the BLA can be scaled 
-    before being squashed, and thresholding is available, to drop items below a 
-    chosen BLA.
+    before being squashed. Thresholding is also available.
     """
 
     _serves = ConstructType.flow_in
@@ -320,10 +319,9 @@ class BLAMaintainer(Process):
         
         Issues a call to BLAs.register_invocation() with option add_new=True 
         for each element above threshold in monitored outputs. After 
-        registering invocations, calls update routine on the bla database. 
-        Finally, evaluates each BLA entry against its density parameter. Entries 
-        below threshold will be removed both from client db AND the BLA 
-        database.
+        registering invocations, steps the bla database. Finally, evaluates each
+        BLA entry against its density parameter. Entries below threshold will be
+        removed both from client db AND the BLA database.
         """
 
         data = self.extract_inputs(inputs)

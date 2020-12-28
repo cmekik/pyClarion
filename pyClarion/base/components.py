@@ -1,4 +1,4 @@
-"""Basic definitions for constructing components."""
+"""Basic definitions for constructing component processes."""
 
 
 __all__ = [
@@ -29,6 +29,8 @@ Pt = TypeVar("Pt", bound="Process")
 
 class Process(object):
     """
+    A basic component process.
+
     Defines how constructs connect, compute outputs, perform updates etc.
     
     Process instances are responsible for implementing the function or process 
@@ -192,7 +194,7 @@ class Process(object):
 
 
 class CompositeProcess(Process, Generic[Pt]):
-    """A process built on top of an existing process."""
+    """A component process built on top of an existing process."""
     
     base: Pt
 
@@ -218,8 +220,10 @@ class CompositeProcess(Process, Generic[Pt]):
         """
         Expected input constructs.
 
-        Wrapper's own expected constructs are listed first, followed by those of
-        self.base.
+        Any additional constructs expected by the composite are listed first, 
+        followed by those of self.base. 
+        
+        Equal to self.expected_top + self.base.expected.
         """
 
         return super().expected
@@ -237,11 +241,7 @@ class CompositeProcess(Process, Generic[Pt]):
 
 
 class WrappedProcess(CompositeProcess[Pt]):
-    """
-    A Process wrapped by a pre- and/or post- processor.
-
-    The attribute `base` is reserved for the wrapped Processor instance.
-    """
+    """A Process wrapped by a pre- and/or post- processor."""
 
     def call(self, inputs):
         """
