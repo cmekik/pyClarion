@@ -323,7 +323,7 @@ class rule(Symbol):
 
 
 class features(Symbol):
-    """Symbol for a pool of feature nodes."""
+    """A feature pool symbol."""
 
     __slots__ = ()
 
@@ -338,7 +338,7 @@ class features(Symbol):
 
 
 class chunks(Symbol):
-    """Symbol for a pool of chunk nodes."""
+    """A chunk pool symbol."""
 
     __slots__ = ()
 
@@ -443,7 +443,7 @@ class terminus(Symbol):
 
 
 class updater(Symbol):
-    """A terminus symbol."""
+    """An updater symbol."""
 
     __slots__ = ()
 
