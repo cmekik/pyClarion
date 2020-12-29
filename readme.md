@@ -29,7 +29,7 @@ The following snippets illustrate the style and some capabilities of the library
 
 See the Detailed Examples and Design sections below for further details. 
 
-**Snippet 1: Agent Assembly**
+**Agent Assembly**
 
 Agents can be built to any degree of complexity and completeness using a uniform syntax.
 
@@ -42,7 +42,7 @@ from pyClarion import (
 )
 
 my_agent = Structure(
-    name=agent("my_agent")
+    name=agent("my_agent"),
 )
 
 with my_agent: # Automatically adds and links constructs defined in scope
@@ -64,7 +64,7 @@ with my_agent: # Automatically adds and links constructs defined in scope
         chunk_pool = Construct(
             name=chunks("main"),
             process=MaxNodes(
-                sources={buffer("sensory")}
+                sources=[buffer("sensory")]
             )
         )
 
@@ -79,9 +79,9 @@ with my_agent: # Automatically adds and links constructs defined in scope
 assert my_agent[subsystem("nacs"), chunks("main")] == chunk_pool
 ```
 
-**Snippet 2: Rule and Chunk Specification**
+**Rule and Chunk Specification**
 
-Rules and chunks can be specified compactly through the use of construct symbols.
+Explicit knowledge can be specified compactly through the use of construct symbols.
 
 ```python
 from pyClarion import feature, chunk, rule, Chunks, Rules
@@ -103,6 +103,30 @@ rdb.define(
         feature("Z")
     )
 )
+```
+
+**Mathematical Operations with Numerical Dictionaries**
+
+Numerical dictionaries support the implementation of bottom-level neural networks and other components.
+
+```python
+from pyClarion import GradientTape, nd
+
+tape = GradientTape()
+
+with tape:
+    d1 = nd.NumDict({1: 1.0, 2: 2.0})
+    d2 = nd.NumDict({1: 3.0, 2: 4.0})
+    d3 = d1 * d2 # elementwise multiplication by key
+    d4 = nd.sum_by(d4, keyfunc=lambda x: 3) # Sum values mapping to same key
+
+assert d4 == nd.NumDict({3: 11.0})
+
+d4, grads = tape.gradients(d4, (d1, d2))
+d1_grad, d2_grad = grads
+
+assert d1_grad == nd.NumDict({1: 3.0, 2: 4.0})
+assert d2_grad == nd.NumDict({1: 1.0, 2: 2.0})
 ```
 
 # Detailed Examples
