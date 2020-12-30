@@ -449,3 +449,16 @@ class TestStructureMethods(unittest.TestCase):
             ]
             
             self.assertEqual(expected, recorded)
+
+    def test_assembly_limited_to_2_levels_of_nesting(self):
+
+        with self.assertRaises(RuntimeError):
+            agent = clb.Structure(name=clb.agent("A"))
+            with agent:
+                buffer = clb.Construct(name=clb.buffer("B"), process=clb.Process())
+                subsys = clb.Structure(name=clb.subsystem("S1"))
+                with subsys:
+                    subsys2 = clb.Structure(name=clb.subsystem("S2"))
+                    with subsys2:
+                        pool = clb.Construct(name=clb.chunks("C"), process=clb.Process(expected=[clb.buffer("B")]))
+

@@ -296,6 +296,8 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
         logging.debug("Entering context %s.", self.construct)
         parent = BUILD_CTX.get() # default is ()
+        if 1 < len(parent):
+            raise RuntimeError("Maximum structure nesting depth (2) exceeded.") 
         self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
         self._build_list_token = BUILD_LIST.set([])
 
@@ -369,6 +371,10 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def _update_links(self, construct: Symbol) -> None:
         """Add links between member construct and any other member of self."""
+
+        # This may not be correct for deeply nested structures, though it works 
+        # for setting up standard Clarion configurations. Current fix is to 
+        # disallow nesting depth > 2 in __enter__(). - Can
 
         target = self[construct]
         for realizer in self._dict.values():
