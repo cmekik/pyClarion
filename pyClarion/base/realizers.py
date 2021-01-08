@@ -291,12 +291,11 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __enter__(self):
 
-        if 0 < len(self._dict):
-            raise RuntimeError("Structure already populated.")
-
         logging.debug("Entering context %s.", self.construct)
+        if 0 < len(self._dict): # This should probably be relaxed a little.
+            raise RuntimeError("Structure already populated.")
         parent = BUILD_CTX.get() # default is ()
-        if 1 < len(parent):
+        if 1 < len(parent): # See _upate_links() for rationale.
             raise RuntimeError("Maximum structure nesting depth (2) exceeded.") 
         self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
         self._build_list_token = BUILD_LIST.set([])
@@ -305,7 +304,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __exit__(self, exc_type, exc_value, traceback):
 
-        try:
+        try: # Populate structure
             if exc_type is None:
                 context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
                 self._add(*add_list)
@@ -374,7 +373,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
         # This may not be correct for deeply nested structures, though it works 
         # for setting up standard Clarion configurations. Current fix is to 
-        # disallow nesting depth > 2 in __enter__(). - Can
+        # disallow nesting depth > 2 (see __enter__()). - Can
 
         target = self[construct]
         for realizer in self._dict.values():
