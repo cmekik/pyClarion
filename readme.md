@@ -25,7 +25,7 @@ Developer mode is recommended to encourage and facilitate referring to pyClarion
 
 # Snippets
 
-The following snippets illustrate the style and some capabilities of the library. 
+The following snippets illustrate the style and capabilities of the library. 
 
 See the Detailed Examples and Design sections below for further details. 
 
@@ -110,15 +110,15 @@ rdb.define(
 Numerical dictionaries support the implementation of bottom-level neural networks and other components.
 
 ```python
-from pyClarion import GradientTape, nd
+from pyClarion import nd
 
-tape = GradientTape()
+tape = nd.GradientTape()
 
 with tape:
     d1 = nd.NumDict({1: 1.0, 2: 2.0})
     d2 = nd.NumDict({1: 3.0, 2: 4.0})
     d3 = d1 * d2 # elementwise multiplication by key
-    d4 = nd.sum_by(d4, keyfunc=lambda x: 3) # Sum values mapping to same key
+    d4 = nd.sum_by(d3, keyfunc=lambda x: 3) # Sum values mapping to same key
 
 assert d4 == nd.NumDict({3: 11.0})
 
