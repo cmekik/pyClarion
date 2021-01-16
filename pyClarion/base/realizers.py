@@ -55,20 +55,20 @@ class Realizer(Generic[Ot]):
         self._validate_name(name)
         self._log_init(name)
 
-        self._construct = name
+        self._name = name
         self._inputs = {}
         self._inputs_proxy = MappingProxyType(self._inputs)
         self._update_add_queue()
 
     def __repr__(self) -> Text:
 
-        return "<{}: {}>".format(type(self).__name__, str(self.construct))
+        return "<{}: {}>".format(type(self).__name__, str(self.name))
 
     @property
-    def construct(self) -> Symbol:
+    def name(self) -> Symbol:
         """Symbol for client construct."""
 
-        return self._construct
+        return self._name
 
     @property 
     def inputs(self) -> Mapping[Symbol, PullFunc]:
@@ -175,7 +175,7 @@ class Construct(Realizer[nd.NumDict], Generic[Pt]):
     @process.setter
     def process(self, process: Pt) -> None:
 
-        process.entrust(self.construct)
+        process.entrust(self.name)
         self._process = process
 
     def step(self) -> None:
@@ -223,7 +223,7 @@ class Construct(Realizer[nd.NumDict], Generic[Pt]):
     def _log_watch(self, construct: Symbol) -> None:
         # Add context...
 
-        logging.debug("Connecting %s to %s.", construct, self.construct)
+        logging.debug("Connecting %s to %s.", construct, self.name)
 
         
 class Structure(Realizer[SymbolTrie[nd.NumDict]]):
@@ -291,13 +291,13 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
     def __enter__(self):
 
-        logging.debug("Entering context %s.", self.construct)
+        logging.debug("Entering context %s.", self.name)
         if 0 < len(self._dict): # This should probably be relaxed a little.
             raise RuntimeError("Structure already populated.")
         parent = BUILD_CTX.get() # default is ()
         if 1 < len(parent): # See _upate_links() for rationale.
             raise RuntimeError("Maximum structure nesting depth (2) exceeded.") 
-        self._build_ctx_token = BUILD_CTX.set(parent + (self.construct,))
+        self._build_ctx_token = BUILD_CTX.set(parent + (self.name,))
         self._build_list_token = BUILD_LIST.set([])
 
         return self
@@ -313,7 +313,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
                     assert len(context) != 0
                     self._finalize_assembly()
         finally:
-            logging.debug("Exiting context %s.", self.construct)
+            logging.debug("Exiting context %s.", self.name)
             BUILD_CTX.reset(self._build_ctx_token)
             BUILD_LIST.reset(self._build_list_token)
 
@@ -364,9 +364,9 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         """Add realizers to self and any associated links."""
 
         for realizer in realizers:
-            self._log_add(realizer.construct)
-            self._dict[realizer.construct] = realizer
-            self._update_links(construct=realizer.construct)
+            self._log_add(realizer.name)
+            self._dict[realizer.name] = realizer
+            self._update_links(construct=realizer.name)
 
     def _update_links(self, construct: Symbol) -> None:
         """Add links between member construct and any other member of self."""
@@ -377,9 +377,9 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
         target = self[construct]
         for realizer in self._dict.values():
-            if target.construct != realizer.construct:
-                realizer._offer(target.construct, target.view)
-                target._offer(realizer.construct, realizer.view)
+            if target.name != realizer.name:
+                realizer._offer(target.name, target.view)
+                target._offer(realizer.name, realizer.view)
 
     def _offer(self, construct: Symbol, callback: PullFunc) -> None:
         """
@@ -404,7 +404,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         try:
             context = BUILD_CTX.get()
         except LookupError:
-            logging.debug("Adding %s to %s.", construct, self.construct)
+            logging.debug("Adding %s to %s.", construct, self.name)
         else:
             msg = "Adding %s to %s in %s." 
-            logging.debug(msg, construct, self.construct, context)
+            logging.debug(msg, construct, self.name, context)

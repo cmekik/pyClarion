@@ -6,7 +6,7 @@ __all__ = ["BLA", "BLAs", "BLAStrengths", "BLAMaintainer"]
 
 # from .buffers import RegisterArray
 from ..base.symbols import ConstructType, Symbol, SymbolTrie, SymbolicAddress
-from ..base.components import Process, CompositeProcess
+from ..base.components import Process
 from .. import numdicts as nd
 
 from typing import Any, FrozenSet, Sequence, cast
