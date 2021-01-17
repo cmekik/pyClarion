@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [v0.16.0] (2021-01-17)
 
 ### Added
 
@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Constructs now connect directly to each other.
+- Replaced `SymbolTries` in inputs and outputs with flat mappings from symbolic addresses to numdicts.
 - Renamed `BLADrivenStrengths` to `BLAStrengths`
 - Combined `BLAInvocationTracker` and `BLADrivenDeleter` into `BLAMaintainer`
 - Renamed `ReniforcementMap` to `ReinforcementDomain`.
@@ -28,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed 
 
+- `SymbolTrie`
 - `RegisterArrayBLAUpdater`, added BLA support to `Register` and `RegisterArray` instead (see added)
 - `Updater` and all child abstractions.
 - `Cycle` and all child classes and submodule `components.cycles`.
