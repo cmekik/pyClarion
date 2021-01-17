@@ -5,7 +5,7 @@ __all__ = ["Gated", "Filtered", "Pruned"]
 
 
 from ..base.symbols import (
-    ConstructType, Symbol, SymbolTrie, SymbolicAddress, 
+    ConstructType, Symbol, SymbolicAddress, 
     feature, subsystem, terminus
 )
 from ..base.components import WrappedProcess, Pt, FeatureInterface
@@ -33,32 +33,22 @@ class Gated(WrappedProcess[Pt]):
 
     def __init__(self, base: Pt, gate: Symbol, invert: bool = False) -> None:
 
-        super().__init__(base=base, expected=(gate,) + base.expected)
-        self._expected_top = (gate,)
+        super().__init__(base=base, expected=(gate,))
         self.invert = invert
 
     def postprocess(
-        self, inputs: SymbolTrie[nd.NumDict], output: nd.NumDict
+        self, 
+        inputs: Mapping[Tuple[Symbol, ...], nd.NumDict], 
+        output: nd.NumDict
     ) -> nd.NumDict:
 
         data, = self.extract_inputs(inputs)[:len(self.expected_top)]
-        w = data[self.client]
+        # TODO: Weight extraction should be based on full addresses? - Can
+        w = data[self.client[-1]] 
         if self.invert:
             w = 1 - w
 
         return w * output
-
-
-def _freeze_inputs(mutable: SymbolTrie[nd.NumDict]) -> SymbolTrie[nd.NumDict]:
-
-    result: SymbolTrie[nd.NumDict] = MappingProxyType(
-        {
-            k: v if isinstance(v, nd.NumDict) else _freeze_inputs(v) 
-            for k, v in mutable.items()
-        }
-    )
-
-    return result
 
 
 class Filtered(WrappedProcess[Pt]):
@@ -79,8 +69,7 @@ class Filtered(WrappedProcess[Pt]):
         invert: bool = True
     ) -> None:
 
-        super().__init__(base=base, expected=(sieve,) + base.expected)
-        self._expected_top = (sieve,)
+        super().__init__(base=base, expected=(sieve,))
         self.exempt = exempt or set() 
         self.invert = invert
 
@@ -92,24 +81,12 @@ class Filtered(WrappedProcess[Pt]):
 
         preprocessed = {}
         for source in self.base.expected:
-            d = preprocessed
-            _inputs = inputs
-            if isinstance(source, Symbol):
-                _source = (source,)
+            if source in self.exempt:
+                preprocessed[source] = inputs[source]
             else:
-                _source = source
-            for i, key in enumerate(_source):
-                if i < len(_source) - 1:
-                    d = d.setdefault(key, {})
-                    _inputs = inputs[key]
-                else:
-                    assert i == len(_source) - 1
-                    if source in self.exempt:
-                        d[key] = _inputs
-                    else:
-                        d[key] = ws * _inputs[key]
+                preprocessed[source] = ws * inputs[source]
 
-        return _freeze_inputs(preprocessed)
+        return MappingProxyType(preprocessed)
 
 
 class Pruned(WrappedProcess[Pt]):
@@ -127,8 +104,7 @@ class Pruned(WrappedProcess[Pt]):
         exempt: Set[SymbolicAddress] = None
     ) -> None:
 
-        super().__init__(base=base, expected=base.expected)
-        self._expected_top = ()
+        super().__init__(base=base)
         self.accept = accept
         self.exempt = exempt or set() 
 
@@ -136,25 +112,13 @@ class Pruned(WrappedProcess[Pt]):
 
         preprocessed = {}
         for source in self.base.expected:
-            d = preprocessed
-            _inputs = inputs
-            if isinstance(source, Symbol):
-                _source = (source,)
+            if source in self.exempt:
+                preprocessed[source] = inputs[source]
             else:
-                _source = source
-            for i, key in enumerate(_source):
-                if i < len(_source) - 1:
-                    d = d.setdefault(key, {})
-                    _inputs = inputs[key]
-                else:
-                    assert i == len(_source) - 1
-                    if source in self.exempt:
-                        d[key] = _inputs
-                    else:
-                        d[key] = nd.drop(_inputs[key], func=self._match)
+                preprocessed[source] = nd.drop(inputs[source], func=self._match)
 
-        return _freeze_inputs(preprocessed)
+        return MappingProxyType(preprocessed)
 
-    def _match(self, construct):
+    def _match(self, address):
 
-        return construct.ctype in self.accept
+        return address[-1].ctype in self.accept

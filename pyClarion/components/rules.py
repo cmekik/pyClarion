@@ -4,13 +4,13 @@
 __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 
-from ..base.symbols import ConstructType, Symbol, SymbolTrie, rule, chunk
+from ..base.symbols import ConstructType, Symbol, rule, chunk
 from ..base.components import Process
 from .. import numdicts as nd
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
-    overload, cast
+    Tuple, overload, cast
 )
 from types import MappingProxyType
 
@@ -282,7 +282,9 @@ class RuleDBUpdater(Process):
         super().__init__()
         self.rules = rules
 
-    def __call__(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def __call__(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         """Resolve all outstanding rule database update requests."""
 
         self.rules.step()
@@ -308,7 +310,9 @@ class AssociativeRules(Process):
         super().__init__(expected=(source,))
         self.rules = rules
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
 
         strengths, = self.extract_inputs(inputs)
 
@@ -348,7 +352,9 @@ class ActionRules(Process):
         self.rules = rules
         self.temperature = temperature
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
 
         strengths, = self.extract_inputs(inputs)
 

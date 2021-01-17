@@ -5,7 +5,7 @@ __all__ = ["GoalStay"]
 
 
 from ..base.symbols import (
-    ConstructType, Symbol, SymbolTrie, feature, chunk, terminus, buffer, 
+    ConstructType, Symbol, feature, chunk, terminus, buffer, 
     subsystem
 )
 from ..base.components import Process, FeatureInterface, FeatureDomain
@@ -13,7 +13,7 @@ from .blas import BLAs
 from .chunks_ import Chunks
 from .. import numdicts as nd
 
-from typing import FrozenSet, Tuple, Hashable, Optional, cast
+from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast
 from types import MappingProxyType
 from dataclasses import dataclass
 from itertools import product, count
@@ -67,7 +67,9 @@ class GoalStay(Process):
         self.flags = nd.MutableNumDict(default=0)
         self.flags.extend(self.interface.null_flags, value=1.0)
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         
         cmd_data, src_data = self.extract_inputs(inputs)
         cmds = self.interface.parse_commands(cmd_data)

@@ -8,7 +8,8 @@ __all__ = [
 
 
 from .symbols import (
-    ConstructType, Symbol, SymbolTrie, SymbolicAddress, feature, group_by_dims
+    ConstructType, Symbol, SymbolicAddress, feature, group_by_dims, 
+    expand_address
 )
 from .. import numdicts as nd
 
@@ -24,7 +25,6 @@ import logging
 
 
 Pt = TypeVar("Pt", bound="Process")
-
 
 
 class Process(object):
@@ -52,14 +52,17 @@ class Process(object):
 
     _serves: ClassVar[ConstructType] = ConstructType.null_construct
 
-    _client: Symbol
+    _client: Tuple[Symbol, ...]
     _expected: Tuple[SymbolicAddress, ...]
 
     def __init__(self, expected: Sequence[SymbolicAddress] = None):
 
-        self._expected = tuple(expected or ()) 
+        self._expected = tuple(expected or ())
+        self._client = ()
 
-    def __call__(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def __call__(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         """
         Execute construct's forward propagation cycle.
 
@@ -70,7 +73,7 @@ class Process(object):
         return self.emit(self.call(inputs))
 
     @property
-    def client(self) -> Symbol:
+    def client(self) -> Tuple[Symbol, ...]:
         """Client construct entrusted to self."""
 
         return self._client
@@ -79,89 +82,41 @@ class Process(object):
     def expected(self) -> Tuple[SymbolicAddress, ...]:
         """Constructs from which self expects to receive activations."""
 
-        return self._expected
+        return tuple(expand_address(self.client, x) for x in self._expected)
 
-    def expects(self, construct: Symbol) -> bool:
-        """Return True iff self pulls input from construct."""
-
-        return construct in self._expects()
-
-    def _expects(self) -> Set[Symbol]:
-
-        s = set()
-        for x in self.expected:
-            if isinstance(x, Symbol):
-                s.add(x)
-            else:
-                assert isinstance(x, tuple)
-                if len(x) == 0:
-                    msg = "Empty tuple encountered in symbolic address."
-                    raise RuntimeError(msg)
-                else:
-                    s.add(x[0])
-
-        return s
-
-    def check_inputs(self, inputs: SymbolTrie[nd.NumDict]) -> None:
-        """Raise an error iff inputs to self are NOT as expected."""
-
-        # TODO: Make errors more precise & print more informative msgs. - Can
-
-        for source in self.expected:
-            if isinstance(source, Symbol):
-                source = (source,)
-            val = inputs
-            for i, x in enumerate(source):
-                try:
-                    _val = val[x]
-                except KeyError:
-                    msg = "Missing input data: {}."
-                    raise RuntimeError(msg.format(source)) from None
-                if i < len(source) - 1:
-                    if isinstance(_val, nd.NumDict):
-                        msg = "Expected SymbolTrie but got NumDict at: {}."
-                        raise RuntimeError(msg.format(source))
-                    val = _val
-                else:
-                    assert i == len(source) - 1
-                    if not isinstance(_val, nd.NumDict):
-                        msg = "Expected NumDict but got SymbolTrie at: {}"
-                        raise RuntimeError(msg.format(source))
-
-    def extract_inputs(
-        self, inputs: SymbolTrie[nd.NumDict]
-    ) -> Tuple[nd.NumDict, ...]:
-        """
-        Extract expected inputs from given symbol trie.
-
-        Returns inputs in the order set by self.expected.
-        """
-
-        self.check_inputs(inputs) # Make sure inputs have correct structure.
-
-        # NOTE: Casts below should be safe assuming check_inputs is correct.
-        extracted = []
-        for source in self.expected:
-            if isinstance(source, Symbol):
-                source = (source,)
-            _extracted: Any = inputs
-            for x in source:
-                _extracted = _extracted[x]
-            extracted.append(cast(nd.NumDict, _extracted))
-
-        return tuple(extracted)
-
-    def entrust(self, construct: Symbol) -> None:
+    def entrust(self, path: Tuple[Symbol, ...]) -> None:
         """Entrust handling of construct to self."""
 
+        parent, construct = path[:-1], path[-1]
         if construct.ctype in type(self)._serves:
-            self._client = construct
+            self._client = path
         else:
             msg = "{} cannot serve constructs of type {}."
             name, ctype = type(self).__name__, repr(construct.ctype) 
             raise ValueError(msg.format(name, ctype))
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def check_inputs(
+        self, inputs: Mapping[SymbolicAddress, nd.NumDict]
+    ) -> None:
+        """Raise a RuntimeError if not all expected inputs are found."""
+
+        for path in self.expected:
+            if path not in inputs:
+                msg = "Missing expected input from {}."
+                raise RuntimeError(msg.format(path))
+
+    def extract_inputs(
+        self, inputs: Mapping[SymbolicAddress, nd.NumDict]
+    ) -> Tuple[nd.NumDict, ...]:
+
+        self.check_inputs(inputs)
+        extracted = tuple([inputs[path] for path in self.expected])
+
+        return extracted
+
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         """
         Compute construct's output.
 
@@ -183,7 +138,7 @@ class Process(object):
         if data is None:
             return nd.NumDict(default=0.0)
         elif data.default != 0:
-            msg = "Unexpected default in passed to {}."
+            msg = "Unexpected default passed to {}."
             raise ValueError(msg.format(type(self).__name__))
         elif isinstance(data, nd.NumDict):
             d = nd.squeeze(data)
@@ -196,24 +151,28 @@ class Process(object):
 class CompositeProcess(Process, Generic[Pt]):
     """A component process built on top of an existing process."""
     
-    base: Pt
-
     def __init__(
         self, base: Pt, expected: Sequence[SymbolicAddress] = None
     ) -> None:
 
         _expected = tuple(expected or ())
 
-        super().__init__(expected=_expected + base.expected)
+        super().__init__(expected=_expected + base._expected)
 
         self._expected_top = _expected
-        self.base = base
+        self._base = base
 
     @property
-    def client(self) -> Symbol:
+    def client(self) -> Tuple[Symbol, ...]:
         """Client construct entrusted to self."""
 
         return self.base.client
+
+    @property
+    def base(self) -> Pt:
+        """Base construct."""
+
+        return self._base
 
     @property
     def expected(self) -> Tuple[SymbolicAddress, ...]:
@@ -232,12 +191,12 @@ class CompositeProcess(Process, Generic[Pt]):
     def expected_top(self) -> Tuple[SymbolicAddress, ...]:
         """Input constructs expected exclusively by the top of the composite."""
 
-        return self._expected_top
+        return tuple(expand_address(self.client, x) for x in self._expected_top)
 
-    def entrust(self, construct: Symbol) -> None:
+    def entrust(self, path: Tuple[Symbol, ...]) -> None:
         """Entrust handling of construct to self."""
 
-        self.base.entrust(construct)
+        self.base.entrust(path)
 
 
 class WrappedProcess(CompositeProcess[Pt]):
@@ -257,14 +216,16 @@ class WrappedProcess(CompositeProcess[Pt]):
         return postprocessed
 
     def preprocess(
-        self, inputs: SymbolTrie[nd.NumDict]
-    ) -> SymbolTrie[nd.NumDict]:
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> Mapping[Tuple[Symbol, ...], nd.NumDict]:
         """Preprocess inputs to base construct."""
 
         return inputs
 
     def postprocess(
-        self, inputs: SymbolTrie[nd.NumDict], output: nd.NumDict
+        self, 
+        inputs: Mapping[Tuple[Symbol, ...], nd.NumDict], 
+        output: nd.NumDict
     ) -> nd.NumDict:
         """Postprocess output of base construct."""
 

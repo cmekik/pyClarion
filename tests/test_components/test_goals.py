@@ -1,6 +1,6 @@
 from pyClarion import (
-    SimpleDomain, pprint, feature, chunk, buffer, subsystem, terminus, Chunks, 
-    BLAs, ActionSelector, nd
+    SimpleDomain, pprint, feature, chunk, buffer, subsystem, terminus, agent, 
+    Chunks, BLAs, ActionSelector, nd
 )
 from pyClarion.components.goals import GoalStay
 
@@ -26,6 +26,8 @@ class TestGoalStay(unittest.TestCase):
 
     def test_goal_buffer_push(self):
 
+        # TODO: Add assertions...
+
         goal_domain = SimpleDomain([
             feature("goal", "select"),
             feature("goal", "analyze"),
@@ -40,20 +42,6 @@ class TestGoalStay(unittest.TestCase):
         chunks = Chunks()
         blas = BLAs(density=1.0)
 
-        input_ = nd.NumDict({
-            feature(("gb", "set"), "push"): 1.0,
-            feature(("gb", "set", "goal"), "analyze"): 1.0,
-            feature(("gb", "set", "goal_object"), "pattern"): 1.0
-        })
-        inputs = {
-            subsystem("acs"): {
-                terminus("gb_actions"): input_
-            },
-            subsystem("ms"): {
-                terminus("goal_selection"): nd.NumDict(default=0)
-            }
-        }
-
         gb = GoalStay(
             controller=(subsystem("acs"), terminus("gb_actions")),
             source=(subsystem("ms"), terminus("goal_selection")),
@@ -61,7 +49,18 @@ class TestGoalStay(unittest.TestCase):
             chunks=chunks,
             blas=blas
         )
-        gb.entrust(buffer("gb"))
+        
+        gb.entrust((agent("A"), buffer("gb")))
+
+        input_ = nd.NumDict({
+            feature(("gb", "set"), "push"): 1.0,
+            feature(("gb", "set", "goal"), "analyze"): 1.0,
+            feature(("gb", "set", "goal_object"), "pattern"): 1.0
+        })        
+        inputs = {
+            (agent("A"), subsystem("acs"), terminus("gb_actions")): input_,
+            (agent("A"), subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
+        }
 
         output = gb.call(inputs)
         blas.step()
@@ -77,14 +76,10 @@ class TestGoalStay(unittest.TestCase):
             feature(("gb", "set", "goal_object"), "pattern"): 1.0
         })
         inputs = {
-            subsystem("acs"): {
-                terminus("gb_actions"): input_
-            },
-            subsystem("ms"): {
-                terminus("goal_selection"): nd.NumDict({
-                    chunk("goal_1"): 1.0
-                })
-            }
+            (agent("A"), subsystem("acs"), terminus("gb_actions")): input_,
+            (agent("A"), subsystem("ms"), terminus("goal_selection")): nd.NumDict({
+                chunk("goal_1"): 1.0
+            })
         }
 
         output = gb.call(inputs)

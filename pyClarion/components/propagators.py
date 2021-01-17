@@ -48,7 +48,7 @@ class MaxNodes(Process):
 
     def _filter(self, f):
 
-        return f.ctype in self._ctype_map[self.client.ctype]
+        return f.ctype in self._ctype_map[self.client[-1].ctype]
 
 
 ########################

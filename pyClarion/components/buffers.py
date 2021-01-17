@@ -5,7 +5,7 @@ __all__ = ["ParamSet", "Register", "RegisterArray"]
 
 
 from ..base.symbols import (
-    ConstructType, Symbol, SymbolTrie,
+    ConstructType, Symbol,
     feature, subsystem, terminus,
     group_by_dims, lag
 )

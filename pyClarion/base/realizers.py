@@ -4,7 +4,7 @@
 __all__ = ["Realizer", "Construct", "Structure"]
 
 
-from .symbols import ConstructType, Symbol, SymbolicAddress, SymbolTrie, feature
+from .symbols import ConstructType, Symbol, SymbolicAddress, feature
 from .components import Process, Assets
 from .. import numdicts as nd
 
@@ -21,9 +21,9 @@ import logging
 
 
 Pt = TypeVar("Pt", bound="Process")
-Ot = TypeVar("Ot", bound=Union[nd.NumDict, SymbolTrie[nd.NumDict]])
+Ot = TypeVar("Ot", bound=Union[nd.NumDict, Mapping[SymbolicAddress, nd.NumDict]])
 
-PullFunc = Union[Callable[[], nd.NumDict], Callable[[], SymbolTrie[nd.NumDict]]]
+PullFunc = Callable[[], nd.NumDict]
 PullFuncs = Mapping[Symbol, PullFunc]
 StructureItem = Tuple[Symbol, "Realizer"]
 
@@ -42,8 +42,8 @@ class Realizer(Generic[Ot]):
     information across construct networks.  
     """
 
-    _inputs: Dict[Symbol, PullFunc]
-    _output: Ot
+    _parent: Tuple[Symbol, ...]
+    _inputs: Dict[Tuple[Symbol, ...], PullFunc]
 
     def __init__(self, name: Symbol) -> None:
         """
@@ -55,6 +55,10 @@ class Realizer(Generic[Ot]):
         self._validate_name(name)
         self._log_init(name)
 
+        try:
+            self._parent = BUILD_CTX.get()
+        except LookupError:
+            self._parent = ()
         self._name = name
         self._inputs = {}
         self._inputs_proxy = MappingProxyType(self._inputs)
@@ -70,8 +74,20 @@ class Realizer(Generic[Ot]):
 
         return self._name
 
+    @property
+    def parent(self) -> Tuple[Symbol, ...]:
+        """Symbolic path to parent structure."""
+
+        return self._parent
+
+    @property
+    def path(self) -> Tuple[Symbol, ...]:
+        """Symbolic path to self."""
+
+        return (*self._parent, self._name)
+
     @property 
-    def inputs(self) -> Mapping[Symbol, PullFunc]:
+    def inputs(self) -> Mapping[Tuple[Symbol, ...], PullFunc]:
         """Mapping from input constructs to pull funcs."""
 
         return self._inputs_proxy
@@ -91,25 +107,6 @@ class Realizer(Generic[Ot]):
     @abstractmethod
     def step(self) -> None:
         """Advance the simulation by one time step."""
-
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _offer(self, construct: Symbol, callback: PullFunc) -> None:
-        """
-        Add link from construct to self if self accepts construct.
-        
-        :param construct: Symbol for target construct.
-        :param callback: A callable that returns data representing the output 
-            of construct. Typically this will be the `view()` method of a 
-            Realizer instance.
-        """
-
-        raise NotImplementedError()
-
-    @abstractmethod
-    def _finalize_assembly(self):
-        """Execute final initialization and checks prior to simulation."""
 
         raise NotImplementedError()
 
@@ -175,7 +172,7 @@ class Construct(Realizer[nd.NumDict], Generic[Pt]):
     @process.setter
     def process(self, process: Pt) -> None:
 
-        process.entrust(self.name)
+        process.entrust(self.path)
         self._process = process
 
     def step(self) -> None:
@@ -197,36 +194,25 @@ class Construct(Realizer[nd.NumDict], Generic[Pt]):
         
         self._output = self.process.emit() # default/empty output
 
-    def _offer(self, construct: Symbol, callback: PullFunc) -> None:
+    def _link(self, path: Tuple[Symbol, ...], callback: PullFunc) -> None:
         """
-        Add link from construct to self if self accepts construct.
+        Add link from construct at path to self.
         
-        :param construct: Symbol for target construct.
+        :param path: Symbolic path for target construct.
         :param callback: A callable that returns data representing the output 
             of construct. Typically this will be the `view()` method of a 
             Realizer instance.
         """
 
-        if self.process.expects(construct):
-            self._log_watch(construct)            
-            self._inputs[construct] = callback
+        logging.debug("Connecting %s to %s.", path, self.path)
+        self._inputs[path] = callback
 
-    def _pull(self) -> SymbolTrie[nd.NumDict]:
+    def _pull(self) -> Mapping[Tuple[Symbol, ...], nd.NumDict]:
 
         return {src: ask() for src, ask in self.inputs.items()}
 
-    def _finalize_assembly(self):
-        """Execute final initialization and checks prior to simulation."""
-
-        self.process.check_inputs(self._pull())
-
-    def _log_watch(self, construct: Symbol) -> None:
-        # Add context...
-
-        logging.debug("Connecting %s to %s.", construct, self.name)
-
         
-class Structure(Realizer[SymbolTrie[nd.NumDict]]):
+class Structure(Realizer[Mapping[SymbolicAddress, nd.NumDict]]):
     """
     A composite construct.
     
@@ -241,9 +227,10 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
     step()) the order in which they will be stepped.
     """
 
+    # TODO: Deep nesting needs testing. - Can
+
     _dict: Dict[Symbol, Realizer]
     _assets: Any
-    _output_dict: Dict[Symbol, Union[nd.NumDict, SymbolTrie[nd.NumDict]]]
 
     def __init__(self, name: Symbol, assets: Any = None) -> None:
         """
@@ -258,8 +245,6 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         
         self._dict = {}
         self._dict_proxy = MappingProxyType(self._dict)
-        self._output_dict = {}
-        self._output = MappingProxyType(self._output_dict)
         self.assets = assets if assets is not None else Assets()
 
     def __contains__(self, key: SymbolicAddress) -> bool:
@@ -292,7 +277,7 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
     def __enter__(self):
 
         logging.debug("Entering context %s.", self.name)
-        if 0 < len(self._dict): # This should probably be relaxed a little.
+        if 0 < len(self._dict): # This could probably be relaxed.
             raise RuntimeError("Structure already populated.")
         parent = BUILD_CTX.get() # default is ()
         if 1 < len(parent): # See _upate_links() for rationale.
@@ -308,25 +293,28 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
             if exc_type is None:
                 context, add_list = BUILD_CTX.get(), BUILD_LIST.get()
                 self._add(*add_list)
-                self._reset_output()
                 if len(context) <= 1:
                     assert len(context) != 0
-                    self._finalize_assembly()
+                    self._weave()
         finally:
             logging.debug("Exiting context %s.", self.name)
             BUILD_CTX.reset(self._build_ctx_token)
             BUILD_LIST.reset(self._build_list_token)
 
     @property
-    def output(self) -> SymbolTrie[nd.NumDict]:
+    def output(self) -> Mapping[SymbolicAddress, nd.NumDict]:
 
-        return self._output
+        key: SymbolicAddress
+        output, split = {}, len(self.path)
+        for r in self._leaves():
+            tail = r.path[split:]
+            if len(tail) == 1:
+                key, = tail
+            else:
+                key = tail
+            output[key] = r.output
 
-    @output.setter
-    def output(self, output: SymbolTrie[nd.NumDict]) -> None:
-
-        self._output_dict.clear()
-        self._output_dict.update(output.items())
+        return output
 
     @output.deleter
     def output(self) -> None:
@@ -334,7 +322,6 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
 
         for realizer in self._dict.values():
             del realizer.output
-        self._reset_output()
 
     def step(self) -> None:
         """
@@ -350,61 +337,37 @@ class Structure(Realizer[SymbolTrie[nd.NumDict]]):
         # iteration returns values in insertion order. 
         for realizer in self._dict.values():
             realizer.step()
-        self._reset_output()
-
-    def _reset_output(self) -> None:
-        """Set output of self to reflect member outputs."""
-
-        for r in self._dict.values(): 
-            if isinstance(r, Structure): 
-                r._reset_output()
-        self.output = {c: r.output for c, r in self._dict.items()}
 
     def _add(self, *realizers: Realizer) -> None:
         """Add realizers to self and any associated links."""
 
         for realizer in realizers:
-            self._log_add(realizer.name)
-            self._dict[realizer.name] = realizer
-            self._update_links(construct=realizer.name)
+            logging.debug("Adding %s to %s.", realizer.name, self.path)
+            self._dict[realizer.name] = realizer       
 
-    def _update_links(self, construct: Symbol) -> None:
-        """Add links between member construct and any other member of self."""
-
-        # This may not be correct for deeply nested structures, though it works 
-        # for setting up standard Clarion configurations. Current fix is to 
-        # disallow nesting depth > 2 (see __enter__()). - Can
-
-        target = self[construct]
-        for realizer in self._dict.values():
-            if target.name != realizer.name:
-                realizer._offer(target.name, target.view)
-                target._offer(realizer.name, realizer.view)
-
-    def _offer(self, construct: Symbol, callback: PullFunc) -> None:
-        """
-        Add links from construct to self and any accepting members.
-        
-        :param construct: Symbol for target construct.
-        :param callback: A callable that returns data representing the output 
-            of construct. Typically this will be the `view()` method of a 
-            Realizer instance.
-        """
+    def _leaves(self) -> Iterator[Construct]:
+        """Iterate over all Construct instances in self."""
 
         for realizer in self._dict.values():
-            realizer._offer(construct, callback)
+            if isinstance(realizer, Construct):
+                yield realizer
+            else:
+                assert isinstance(realizer, Structure)
+                for element in realizer._leaves():
+                    yield element
 
-    def _finalize_assembly(self) -> None:
+    def _weave(self) -> None:
+        """Link all constructs in self."""
 
-        for realizer in self._dict.values():
-            realizer._finalize_assembly()
-
-    def _log_add(self, construct) -> None:
-
-        try:
-            context = BUILD_CTX.get()
-        except LookupError:
-            logging.debug("Adding %s to %s.", construct, self.name)
-        else:
-            msg = "Adding %s to %s in %s." 
-            logging.debug(msg, construct, self.name, context)
+        split = len(self.path)
+        for realizer in self._leaves():
+            for path in realizer.process.expected:
+                head, tail = path[:split], path[split:] 
+                if head != self.path:
+                    raise ValueError("Unexpected path.")
+                try:
+                    view = self[tail].view
+                except KeyError as e:
+                    raise RuntimeError("Missing construct") from e
+                else:
+                    realizer._link(path, view)

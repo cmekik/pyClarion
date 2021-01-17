@@ -147,7 +147,12 @@ class TestStructureMethods(unittest.TestCase):
                     clb.Construct(
                         name=clb.chunks("in"),
                         process=clb.Process(
-                            expected=[clb.buffer("wm")]
+                            expected=[
+                                (
+                                    clb.agent("agent"),
+                                    clb.buffer("wm")
+                                )
+                            ]
                         )
                     )
         
@@ -175,14 +180,25 @@ class TestStructureMethods(unittest.TestCase):
                 clb.Construct(
                     name=clb.chunks("in"),
                     process=clb.Process(
-                        expected=[clb.buffer("wm")]
+                        expected=[
+                            (
+                                clb.agent("agent"),
+                                clb.buffer("wm")
+                            )
+                        ]
                     )
                 )
 
                 clb.Construct(
                     name=clb.flow_tt("associative_rules"),
                     process=clb.Process(
-                        expected=[clb.chunks("in")]
+                        expected=[
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("nacs"),
+                                clb.chunks("in")
+                            )
+                        ]
                     )
                 )
 
@@ -190,8 +206,16 @@ class TestStructureMethods(unittest.TestCase):
                     name=clb.chunks("out"),
                     process=clb.Process(
                         expected=[
-                            clb.chunks("in"),
-                            clb.flow_tt("associative_rules")
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("nacs"),
+                                clb.chunks("in")
+                            ),
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("nacs"),
+                                clb.flow_tt("associative_rules")
+                            )
                         ]
                     )
                 )
@@ -199,7 +223,13 @@ class TestStructureMethods(unittest.TestCase):
                 clb.Construct(
                     name=clb.terminus("selection"),
                     process=clb.Process(
-                        expected=[clb.chunks("out")]
+                        expected=[
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("nacs"),
+                                clb.chunks("out")
+                            )
+                        ]
                     )
                 )
         
@@ -210,22 +240,47 @@ class TestStructureMethods(unittest.TestCase):
 
         self.assertEqual(
             set(nacs[clb.chunks("in")].inputs),
-            {clb.buffer("wm")}
+            {
+                (clb.agent("agent"), clb.buffer("wm"))
+            }
         )
 
         self.assertEqual(
             set(nacs[clb.flow_tt("associative_rules")].inputs),
-            {clb.chunks("in")}
+            {
+                (
+                    clb.agent("agent"),
+                    clb.subsystem("nacs"),
+                    clb.chunks("in")
+                )
+            }
         )
 
         self.assertEqual(
             set(nacs[clb.chunks("out")].inputs),
-            {clb.chunks("in"), clb.flow_tt("associative_rules")}
+            {
+                (
+                    clb.agent("agent"),
+                    clb.subsystem("nacs"),
+                    clb.chunks("in")
+                ),
+                (
+                    clb.agent("agent"),
+                    clb.subsystem("nacs"),
+                    clb.flow_tt("associative_rules")
+                )
+            }
         )
 
         self.assertEqual(
             set(nacs[clb.terminus("selection")].inputs),
-            {clb.chunks("out")}
+            {
+                (
+                    clb.agent("agent"),
+                    clb.subsystem("nacs"),
+                    clb.chunks("out")
+                )
+            }
         )
 
     def test_structure_output_is_correctly_formed(self):
@@ -283,7 +338,10 @@ class TestStructureMethods(unittest.TestCase):
         agent_expected = {
             clb.buffer("sensory"): nd.NumDict(default=0),
             clb.buffer("wm"): nd.NumDict(default=0),
-            clb.subsystem("nacs"): nacs_expected
+            (clb.subsystem("nacs"), clb.chunks("in")): nd.NumDict(default=0),
+            (clb.subsystem("nacs"), clb.flow_tt("associative_rules")): nd.NumDict(default=0),
+            (clb.subsystem("nacs"), clb.chunks("out")): nd.NumDict(default=0),
+            (clb.subsystem("nacs"), clb.terminus("selection")): nd.NumDict(default=0)
         }
 
         self.assertEqual(nacs.output, nacs_expected, "failed on nacs")
@@ -332,7 +390,11 @@ class TestStructureMethods(unittest.TestCase):
                 name=clb.buffer("wm"),
                 process=clb.Process(
                     expected=[
-                        (clb.subsystem("acs"), clb.terminus("wm"))
+                        (
+                            clb.agent("agent"),
+                            clb.subsystem("acs"), 
+                            clb.terminus("wm")
+                        )
                     ]
                 )
             )
@@ -364,7 +426,11 @@ class TestStructureMethods(unittest.TestCase):
                     name=clb.buffer("wm"),
                     process=clb.Process(
                         expected=[
-                            (clb.subsystem("acs"), clb.terminus("wm"))
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("acs"), 
+                                clb.terminus("wm")
+                            )
                         ]
                     )
                 )
@@ -404,8 +470,16 @@ class TestStructureMethods(unittest.TestCase):
                     name=clb.buffer("wm"),
                     process=clb.Process(
                         expected=[
-                            (clb.subsystem("acs"), clb.terminus("wm")),
-                            (clb.subsystem("nacs"), clb.terminus("out"))
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("acs"), 
+                                clb.terminus("wm")
+                            ),
+                            (
+                                clb.agent("agent"),
+                                clb.subsystem("nacs"), 
+                                clb.terminus("out")
+                            )
                         ]
                     )
                 )
@@ -431,21 +505,33 @@ class TestStructureMethods(unittest.TestCase):
 
                     clb.Construct(
                         name=clb.chunks("out"),
-                        process=clb.Process(expected=[clb.buffer("wm")])
+                        process=clb.Process(
+                            expected=[
+                                (clb.agent("agent"), clb.buffer("wm"))
+                            ]
+                        )
                     )
 
                     clb.Construct(
                         name=clb.terminus("out"),
-                        process=clb.Process(expected=[clb.chunks("out")])
+                        process=clb.Process(
+                            expected=[
+                                (
+                                    clb.agent("agent"),
+                                    clb.subsystem("nacs"),
+                                    clb.chunks("out")
+                                )
+                            ]
+                        )
                     )
 
             agent.step()
 
             expected = [
-                clb.buffer("wm"),
-                clb.terminus("wm"),
-                clb.chunks("out"),
-                clb.terminus("out")
+                (clb.agent("agent"), clb.buffer("wm")),
+                (clb.agent("agent"), clb.subsystem("acs"), clb.terminus("wm")),
+                (clb.agent("agent"), clb.subsystem("nacs"), clb.chunks("out")),
+                (clb.agent("agent"), clb.subsystem("nacs"), clb.terminus("out"))
             ]
             
             self.assertEqual(expected, recorded)
@@ -460,5 +546,5 @@ class TestStructureMethods(unittest.TestCase):
                 with subsys:
                     subsys2 = clb.Structure(name=clb.subsystem("S2"))
                     with subsys2:
-                        pool = clb.Construct(name=clb.chunks("C"), process=clb.Process(expected=[clb.buffer("B")]))
+                        pool = clb.Construct(name=clb.chunks("C"), process=clb.Process())
 

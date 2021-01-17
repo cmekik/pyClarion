@@ -5,13 +5,12 @@ __all__ = ["BLA", "BLAs", "BLAStrengths", "BLAMaintainer"]
 
 
 # from .buffers import RegisterArray
-from ..base.symbols import ConstructType, Symbol, SymbolTrie, SymbolicAddress
+from ..base.symbols import ConstructType, Symbol, SymbolicAddress
 from ..base.components import Process
 from .. import numdicts as nd
 
-from typing import Any, FrozenSet, Sequence, cast
+from typing import Any, FrozenSet, Sequence, Tuple, Mapping, MutableMapping, cast
 from collections import deque
-from collections.abc import Mapping, MutableMapping
 
 
 class BLA(object):
@@ -313,7 +312,9 @@ class BLAMaintainer(Process):
         self.client_db = client_db
         self.threshold = threshold
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         """
         Update BLA database and client DB.
         

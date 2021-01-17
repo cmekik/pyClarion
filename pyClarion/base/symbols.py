@@ -2,57 +2,26 @@
 
 
 __all__ = [
-    "ConstructType", "Token", "Symbol", "SymbolicAddress", "SymbolTrie", 
+    "ConstructType", "Token", "Symbol", "SymbolicAddress", "SymbolTrie",
     "feature", "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", 
     "flow_tb", "flow_tt", "flow_bb", "terminus", "updater", "buffer", 
     "subsystem", "agent", "group_by", "group_by_ctype", "group_by_dims", 
-    "group_by_tags", "group_by_vals", "group_by_lags", "lag"
+    "group_by_tags", "group_by_vals", "group_by_lags", "lag", 
+    "validate_address", "expand_address"
 ]
 
 
-from enum import Flag, auto
 from typing import (
     Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar, Iterator, 
     AbstractSet, ValuesView, Optional, Any, cast
 )
-from typing_extensions import Protocol, runtime_checkable
+from enum import Flag, auto
+from itertools import zip_longest
 
 
 # Address for a construct w/in a simulated agent or component.
 SymbolicAddress = Union["Symbol", Tuple["Symbol", ...]]
-
-
-L = TypeVar("L", covariant=True)
-@runtime_checkable
-class SymbolTrie(Protocol[L]):
-    """
-    A recursive type for relaying structured construct data.
-
-    Assumed immutable.
-    """
-
-    # Based on a suggestion by Sg495 in mypy issue #731 - Can
-
-    def __getitem__(self, key: "Symbol") -> Union[L, "SymbolTrie[L]"]:
-        ...
-
-    def __contains__(self, key: object) -> bool:
-        ...
-
-    def __len__(self) -> int:
-        ...
-
-    def __iter__(self) -> Iterator["Symbol"]:
-        ...
-
-    def keys(self) -> AbstractSet["Symbol"]:
-        ...
-
-    def values(self) -> ValuesView[Union[L, "SymbolTrie[L]"]]:
-        ...
-
-    def items(self) -> AbstractSet[Tuple["Symbol", Union[L, "SymbolTrie[L]"]]]:
-        ...
+SymbolTrie = Any
 
 
 class ConstructType(Flag):
@@ -502,9 +471,98 @@ class agent(Symbol):
         super().__init__("agent", cid)
 
 
-################
-### FUNCTIONS ##
-################
+######################
+### SYMBOLIC PATHS ###
+######################
+
+
+# These tuples represent allowable construct locators.
+# TODO: Need to handle lone subsystems.
+PATTERNS = [
+    ("agent",),
+    ("agent", "buffer"),
+    ("agent", "updater"),
+    ("agent", "subsystem"),
+    ("agent", "subsystem", "features"),
+    ("agent", "subsystem", "chunks"),
+    ("agent", "subsystem", "flow"),
+    ("agent", "subsystem", "terminus"),
+    ("agent", "subsystem", "updater")
+]
+
+
+def validate_address(address: SymbolicAddress, strict: bool = False) -> None:
+    """
+    Check if address is a valid construct address.
+
+    Throws ValueError if address is invalid.
+    
+    :param address: Target address.
+    :param strict: If True, will throw for valid partial addresses, otherwise 
+        will accept valid partial addresses. Default False. 
+    """
+
+    if isinstance(address, Symbol):
+        address = (address,)
+
+    seq = [symbol.ctype for symbol in address]
+    cutoff = 0 if strict else -len(seq)
+    stubs = [
+        tuple([ConstructType[name] for name in path[cutoff:]])
+        for path in PATTERNS
+    ]
+    
+    for i, stub in enumerate(stubs):
+        pairs = zip_longest(seq, stub, fillvalue=ConstructType.null_construct)
+        if all(x in ref for x, ref in pairs):
+            break
+    else:
+        raise ValueError("Address does not match any pattern.")
+
+
+def expand_address(
+    base: Tuple[Symbol, ...], partial: SymbolicAddress
+) -> SymbolicAddress:
+    """
+    Return the nearest full address relative to base given a partial address.
+
+    The nearest full address is taken to be...
+    """
+
+    validate_address(address=base, strict=True)
+
+    if len(base) == 0:
+        return partial
+
+    if isinstance(partial, Symbol):
+        partial = (partial,)
+
+    seq = [symbol.ctype for symbol in partial]
+
+    stubs = [
+        tuple([ConstructType[name] for name in path[-len(seq):]])
+        for path in PATTERNS
+    ]
+
+    candidates = []
+    for i, stub in enumerate(stubs):
+        split = len(PATTERNS[i]) - len(seq)
+        pairs = zip_longest(seq, stub, fillvalue=ConstructType.null_construct)
+        if split < len(base) and all(x in ref for x, ref in pairs):
+            candidates.append((i, split))
+
+    if len(candidates) == 0:
+        msg = "Address {} does not match any pattern."
+        raise ValueError(msg.format(partial))
+    else:
+        assert len(candidates) == 1, "Multiple patterns matched."
+        (i, split), = candidates
+        return base[:split] + partial
+
+
+#########################
+### GROUPING FUNCTIONS ##
+#########################
 
 
 T = TypeVar("T")

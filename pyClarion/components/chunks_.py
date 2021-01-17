@@ -317,7 +317,9 @@ class ChunkDBUpdater(Process):
         super().__init__()
         self.chunks = chunks
 
-    def call(self, inputs: SymbolTrie[nd.NumDict]) -> nd.NumDict:
+    def call(
+        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
+    ) -> nd.NumDict:
         """Resolve all outstanding chunk database update requests."""
 
         self.chunks.step()
