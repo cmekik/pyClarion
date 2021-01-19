@@ -26,8 +26,8 @@ class ParamSet(Process):
     _serves = ConstructType.buffer
 
     def __init__(
-        self, 
-        controller: Tuple[subsystem, terminus], 
+        self,
+        controller: Tuple[subsystem, terminus],
         interface: "ParamSet.Interface",
     ) -> None:
 
@@ -51,7 +51,7 @@ class ParamSet(Process):
 
         # Should extract cmd by dim, to allow for compositionality...
         try:
-            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
+            (dim, val), = cmds.items()  # Extract unique cmd (dim, val) pair.
         except ValueError:
             msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
@@ -80,7 +80,7 @@ class ParamSet(Process):
     def update_store(self, strengths):
         """
         Update strengths in self.store.
-        
+
         Write op is implemented using the max operation. 
         """
 
@@ -121,7 +121,7 @@ class ParamSet(Process):
 
             _func, _pval = self.func, self.param_val
             _cmd_vals = (
-                self.standby_val, self.clear_val, self.update_val, 
+                self.standby_val, self.clear_val, self.update_val,
                 self.overwrite_val
             )
             _cmds = (feature(self.tag, val) for val in _cmd_vals)
@@ -137,7 +137,7 @@ class ParamSet(Process):
 
             _param_tags = set(self.func(s) for s in self.clients)
             cmd_vals = set([
-                self.standby_val, self.clear_val, self.update_val, 
+                self.standby_val, self.clear_val, self.update_val,
                 self.overwrite_val
             ])
 
@@ -151,14 +151,15 @@ class ParamSet(Process):
 class Register(Process):
     """Dynamically stores and activates nodes."""
 
-    _serves = ConstructType.buffer 
+    _serves = ConstructType.buffer
 
     def __init__(
-        self, 
-        controller: Tuple[subsystem, terminus], 
+        self,
+        controller: Tuple[subsystem, terminus],
         source: subsystem,
         interface: "Register.Interface",
-        blas: BLAs = None
+        blas: BLAs = None,
+        update_blas: bool = True
     ) -> None:
         """
         Initialize a Register instance.
@@ -168,16 +169,18 @@ class Register(Process):
         :param interface: Defines features for controlling updates to self.
         :param blas: Optional BLA database. When items in store are found to 
             have BLA values below the set density threshold, they are dropped.
+        :param update_blas: Optinally disable stepping blas
         """
 
         # This depends on dict guarantee to preserve insertion order.
         sources = tuple((source, t) for t in interface.mapping.values())
         super().__init__(expected=(controller,) + sources)
 
-        self.interface = interface # This should be unchangeable... - Can
-        self.store = nd.MutableNumDict(default=0.0) 
+        self.interface = interface  # This should be unchangeable... - Can
+        self.store = nd.MutableNumDict(default=0.0)
         self.flags = nd.MutableNumDict(default=0.0)
         self.blas = blas
+        self.update_blas = update_blas
 
     @property
     def is_empty(self):
@@ -202,7 +205,7 @@ class Register(Process):
         channel_map = dict(zip(self.interface.mapping.values(), src_data))
 
         try:
-            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
+            (dim, val), = cmds.items()  # Extract unique cmd (dim, val) pair.
         except ValueError:
             msg = "{} expected exactly one command, received {}"
             raise ValueError(msg.format(type(self).__name__, len(cmds)))
@@ -211,7 +214,7 @@ class Register(Process):
             pass
         elif val == self.interface.clear_val:
             self.store.clear()
-        elif val in self.interface.mapping: 
+        elif val in self.interface.mapping:
             channel = self.interface.mapping[val]
             data = channel_map[channel]
             self.store.clearupdate(data)
@@ -227,13 +230,13 @@ class Register(Process):
         d.max(self.flags)
         d.squeeze()
 
-        if self.blas is not None:
+        if self.blas is not None and self.update_blas:
             self.blas.step()
             # Remove items below threshold.
             drop = [x for x in self.store if self.blas[x].below_threshold]
             self.store.drop(keys=drop)
             for x in drop:
-                del self.blas[item]
+                del self.blas[x]
 
         return d
 
@@ -241,7 +244,7 @@ class Register(Process):
     class Interface(FeatureInterface):
         """
         Control interface for Register instances.
-        
+
         :param mapping: Tuple pairing values to termini for write 
             operation.
         :param tag: Tag for controlling write ops to register.
@@ -251,7 +254,7 @@ class Register(Process):
         :param flag_val: Null flag value.
         """
 
-        # TODO: Make this immutable/hard to mutate. Mutation can break client 
+        # TODO: Make this immutable/hard to mutate. Mutation can break client
         # Register instances. - Can
 
         mapping: Mapping[Hashable, Symbol]
@@ -267,7 +270,7 @@ class Register(Process):
             return self._null_flag
 
         def _set_interface_properties(self) -> None:
-            
+
             vals = chain((self.standby_val, self.clear_val), self.mapping)
             default = feature(self.tag, self.standby_val)
             flag = feature(self.flag_tag, self.flag_val)
@@ -280,8 +283,9 @@ class Register(Process):
             self._params = frozenset()
 
         def _validate_data(self):
-            
-            values = set(chain((self.standby_val, self.clear_val), self.mapping))
+
+            values = set(
+                chain((self.standby_val, self.clear_val), self.mapping))
             if len(values) < len(self.mapping) + 2:
                 raise ValueError("Value set may not contain duplicates.")
 
@@ -358,7 +362,7 @@ class RegisterArray(Process):
         self.controller to those defined in self.interface. If no commands are 
         encountered, default/standby behavior will be executed. The default 
         behavior is to maintain the current memory state.
-        
+
         The update cycle processes global resets first, slot contents are 
         updated next. As a result, it is possible to clear the memory globally 
         and populate it with new information (e.g., in the service of a new 
@@ -381,13 +385,21 @@ class RegisterArray(Process):
                 d.max(cell_strengths)
 
         d.max(self.flags)
-        
+        if self.blas is not None:
+            self.blas.step()
+            for cell in self.cells:
+                # Remove items below threshold.
+                drop = [x for x in cell.store if self.blas[x].below_threshold]
+                cell.store.drop(keys=drop)
+            for x in drop:
+                del self.blas[x]
+
         return d
 
     def reset_cells(self):
         """
         Reset memory state.
-        
+
         Clears all memory slots and closes all switches.
         """
 
@@ -423,7 +435,7 @@ class RegisterArray(Process):
         :param flag_val: Value for null flag. 
         """
 
-        # TODO: Make this immutable/hard to mutate. Mutation can break client 
+        # TODO: Make this immutable/hard to mutate. Mutation can break client
         # RegisterArray instances. - Can
 
         slots: int
@@ -475,7 +487,7 @@ class RegisterArray(Process):
             return self._reset_dim
 
         def _set_interface_properties(self) -> None:
-            
+
             slots, pre = self.slots, self.prefix
             w, r, re = self.write_marker, self.read_marker, self.reset_marker
             na = self.null_marker
@@ -507,7 +519,8 @@ class RegisterArray(Process):
             _w_cmds = frozenset(feature(tag, val) for tag, val in _w_gen)
             _r_cmds = frozenset(feature(tag, val) for tag, val in _r_gen)
             _re_cmds = frozenset(feature(tag, val) for tag, val in _re_gen)
-            _null_flags = frozenset(feature(tag, val) for tag, val in _null_gen)
+            _null_flags = frozenset(feature(tag, val)
+                                    for tag, val in _null_gen)
 
             _w_defaults = frozenset(feature(tag, _w_d_val) for tag in _w_tags)
             _r_defaults = frozenset(feature(tag, _r_d_val) for tag in _r_tags)
@@ -529,12 +542,13 @@ class RegisterArray(Process):
             self._params = frozenset()
 
         def _validate_data(self):
-            
+
             markers = (self.write_marker, self.read_marker, self.reset_marker)
-            w_vals = set((self.standby_val, self.clear_val)) | set(self.mapping)
+            w_vals = set((self.standby_val, self.clear_val)
+                         ) | set(self.mapping)
             r_vals = set((self.standby_val, self.read_val))
             re_vals = set((self.standby_val, self.reset_val))
-            
+
             if len(set(markers)) < 3:
                 raise ValueError("Marker arguments must be mutually distinct.")
             if len(set(w_vals)) < len(self.mapping) + 2:
