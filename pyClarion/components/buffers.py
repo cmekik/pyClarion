@@ -391,8 +391,9 @@ class RegisterArray(Process):
                 # Remove items below threshold.
                 drop = [x for x in cell.store if self.blas[x].below_threshold]
                 cell.store.drop(keys=drop)
-            for x in drop:
-                del self.blas[x]
+            for x, bla in self.blas.items():
+                if bla.below_threshold:
+                    del self.blas[x]
 
         return d
 
