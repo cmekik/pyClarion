@@ -389,7 +389,7 @@ with alice:
                     source=chunks("out"),
                     temperature=.1
                 ),
-                sieve=buffer("stimulus")
+                controller=buffer("stimulus")
             )
         )
 

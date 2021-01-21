@@ -4,7 +4,7 @@
 from pyClarion import (
     feature, chunk, terminus, features, chunks, buffer, subsystem, agent, 
     flow_in, flow_tb, flow_bt,
-    SimpleDomain, SimpleInterface,
+    Domain, Interface,
     Construct, Structure,
     RegisterArray, Stimulus, Constants, TopDown, BottomUp, MaxNodes,
     Filtered, ActionSelector, BoltzmannSelector,
@@ -32,8 +32,8 @@ from itertools import count
 # For this simulation, we continue using the fruit-related visual feature 
 # domain from `chunk_extraction.py`. 
 
-visual_domain = SimpleDomain(
-    features=[
+visual_domain = Domain(
+    features=(
         feature("color", "red"),
         feature("color", "green"),
         feature("color", "yellow"),
@@ -46,7 +46,7 @@ visual_domain = SimpleDomain(
         feature("texture", "smooth"),
         feature("texture", "grainy"),
         feature("texture", "spotty")
-    ]
+    )
 )
 
 # We will have word features do double duty as perceptual representations and 
@@ -54,16 +54,14 @@ visual_domain = SimpleDomain(
 # action, the agent is assumed to have uttered that word (e.g., in response to 
 # the question "What is the fruit that you see?").
 
-speech_interface = SimpleInterface(
-    cmds=[
+speech_interface = Interface(
+    cmds=(
         feature("word", ""), # Silence
         feature("word", "/banana/"),
         feature("word", "/apple/"),
         feature("word", "/orange/"),
         feature("word", "/plum/"),
-    ],
-    defaults=[feature("word", "")],
-    params=[]
+    )
 )
 
 # The working memory interface serves several purposes. It sets the number of 
@@ -72,10 +70,9 @@ speech_interface = SimpleInterface(
 # memory state.
 
 wm_interface = RegisterArray.Interface(
+    name="wm",
     slots=3,
-    mapping={
-        "retrieve": terminus("retrieval")
-    },
+    vops=("retrieve",)
 )
 
 # We set up default action activations, as in `flow_control.py`.
@@ -163,8 +160,8 @@ with alice:
         name=buffer("wm"),
         process=RegisterArray(
             controller=(subsystem("acs"), terminus("wm")),
-            source=subsystem("nacs"),
-            interface=alice.assets.wm_interface
+            sources=((subsystem("nacs"), terminus("retrieval")),),
+            interface=wm_interface
         )
     )
 
@@ -208,7 +205,7 @@ with alice:
             process=ActionSelector(
                 source=features("main"),
                 temperature=.01,
-                client_interface=alice.assets.wm_interface
+                interface=alice.assets.wm_interface
             )
         )
 
@@ -219,7 +216,7 @@ with alice:
             process=ActionSelector(
                 source=features("main"),
                 temperature=.01,
-                client_interface=alice.assets.speech_interface
+                interface=alice.assets.speech_interface
             )
         )
 
@@ -286,7 +283,7 @@ with alice:
                     source=chunks("out"),
                     temperature=.1
                 ),
-                sieve=buffer("wm")
+                controller=buffer("wm")
             )
         )
 
@@ -347,8 +344,8 @@ stimulus.process.input({
     feature("texture", "smooth"): 1.0
 })
 acs_ctrl.process.input({
-    feature(("wm", "w", 0), "retrieve"): 1.0,
-    feature(("wm", "r", 0), "read"): 1.0
+    feature(("wm", (".w", 0)), "retrieve"): 1.0,
+    feature(("wm", (".r", 0)), "read"): 1.0
 })
 alice.step()
 record_step(alice, next(step))

@@ -11,7 +11,7 @@ from ..base.symbols import (
     feature, chunk, terminus, subsystem
 )
 from .. import numdicts as nd
-from ..base.components import Process, CompositeProcess, FeatureInterface 
+from ..base.components import Process
 from ..base.realizers import Construct
 
 from .propagators import ThresholdSelector
@@ -424,68 +424,3 @@ class ChunkExtractor(Process):
                 d.extend(found, value=1.0)
 
         return d
-
-
-class ControlledExtractor(CompositeProcess[ChunkExtractor]):
-    """Extract chunks from the bottom level conditional on a command."""
-
-    interface: "ControlledExtractor.Interface"
-
-    def __init__(
-        self, 
-        source: Symbol, 
-        controller: SymbolicAddress,
-        interface: "ControlledExtractor.Interface",
-        chunks: Chunks, 
-        prefix: str,
-        threshold: float = 0.85
-    ) -> None:
-
-        super().__init__(
-            base=ChunkExtractor(
-                source=source, 
-                chunks=chunks, 
-                prefix=prefix, 
-                threshold=threshold
-            ),
-            expected=(controller,)
-        )
-
-        self.interface = interface
-
-    def call(self, inputs):
-
-        cmd_data, = self.extract_inputs(inputs)[:len(self.expected_top)]
-        cmds = self.interface.parse_commands(cmd_data)
-
-        dim, = self.interface.cmd_dims # unpack the single control dimension
-        if cmds[dim] == self.interface.vals[1]:
-            d = self.base.call(inputs)
-        else:
-            d = nd.NumDict(default=0)
-
-        return d
-
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Control interface for ControlledExtractor.
-
-        :param tag: Dimensional tag for control features.
-        :param vals: Values for control features. The first entry represents 
-            a standby command, the second value represents a firing command.
-        """
-
-        tag: Hashable
-        vals: Tuple[Hashable, Hashable]
-
-        def _validate_data(self):
-
-            if len(set(vals)) != len(vals):
-                raise ValueError("Values must be distinct.")
-        
-        def _set_interface_properties(self):
-
-            self._cmds = frozenset(feature(self.tag, val) for val in self.vals)
-            self._defaults = frozenset({feature(self.tag, self.vals[0])})
-            self._params = frozenset()

@@ -57,13 +57,8 @@ from itertools import count
 # outputting the corresponding dimensional tag.
 
 gate_interface = ParamSet.Interface(
-    tag="gate",
-    clients={
-        flow_in("stimulus"),
-        flow_tt("associations"),
-        flow_bt("main")
-    },
-    func=lambda c: ("gate", c.ctype.name, c.cid),
+    name="gate",
+    pmkrs=("stimulus", "associations", "bottom-up")
 )
 
 # Feature interfaces also define default values for commands (one for each 
@@ -198,7 +193,7 @@ with alice:
             name=terminus("nacs"),
             process=ActionSelector(
                 source=features("main"),
-                client_interface=alice.assets.gate_interface,
+                interface=alice.assets.gate_interface,
                 temperature=0.01
             )
         )
@@ -226,7 +221,9 @@ with alice:
             name=flow_in("stimulus"),
             process=Gated(
                 base=Repeater(source=buffer("stimulus")),
-                gate=buffer("gate")
+                controller=buffer("gate"),
+                interface=gate_interface,
+                pidx=0
             )
         )
 
@@ -259,7 +256,9 @@ with alice:
                     source=chunks("in"),
                     rules=nacs.assets.rule_db
                 ),
-                gate=buffer("gate")
+                controller=buffer("gate"),
+                interface=gate_interface,
+                pidx=1
             ) 
         )
 
@@ -270,7 +269,9 @@ with alice:
                     source=features("main"),
                     chunks=nacs.assets.cdb
                 ),
-                gate=buffer("gate") 
+                controller=buffer("gate"),
+                interface=gate_interface,
+                pidx=2 
             )
         )
 
@@ -292,7 +293,7 @@ with alice:
                     source=chunks("out"),
                     temperature=.1
                 ),
-                sieve=flow_in("stimulus")
+                controller=flow_in("stimulus")
             )
         )
 
@@ -346,8 +347,8 @@ print("NACS should output nothing on sequence end b/c flows not enabled...\n")
 
 control_sequence = [
     {
-        feature("gate", "update"): 1.0,
-        feature(("gate", "flow_in", "stimulus")): 1.0
+        feature(("gate", ".w"), ".upd"): 1.0,
+        feature(("gate", "stimulus")): 1.0
     },
     {}
 ]
@@ -360,8 +361,8 @@ print("NACS should output 'FRUIT' on sequence end due to assoc. rules...\n")
 
 control_sequence = [
     {
-        feature("gate", "update"): 1.0,
-        feature(("gate", "flow_tt", "associations")): 1.0
+        feature(("gate", ".w"), ".upd"): 1.0,
+        feature(("gate", "associations")): 1.0
     },
     {}
 ]
@@ -377,9 +378,9 @@ print(
 
 control_sequence = [
     {
-        feature("gate", "overwrite"): 1.0,
-        feature(("gate", "flow_in", "stimulus")): 1.0,
-        feature(("gate", "flow_bt", "main")): 1.0
+        feature(("gate", ".w"), ".clrupd"): 1.0,
+        feature(("gate", "stimulus")): 1.0,
+        feature(("gate", "bottom-up")): 1.0
     },
     {}
 ]

@@ -2,14 +2,12 @@
 
 
 __all__ = [
-    "Process", "CompositeProcess", "WrappedProcess", "Assets", "FeatureDomain", 
-    "FeatureInterface", "SimpleDomain", "SimpleInterface"
+    "Process", "Composite", "Wrapped", "Assets", "Domain", "Interface"
 ]
 
 
 from .symbols import (
-    ConstructType, Symbol, SymbolicAddress, feature, group_by_dims, 
-    expand_address
+    ConstructType, Symbol, SymbolicAddress, feature, expand_address, dims
 )
 from .. import numdicts as nd
 
@@ -20,35 +18,15 @@ from typing import (
 )
 from abc import abstractmethod
 from types import SimpleNamespace, MappingProxyType
-from dataclasses import dataclass
-import logging
+from contextlib import contextmanager
+from itertools import groupby
 
 
 Pt = TypeVar("Pt", bound="Process")
 
 
 class Process(object):
-    """
-    A basic component process.
-
-    Defines how constructs connect, compute outputs, perform updates etc.
-    
-    Process instances are responsible for implementing the function or process 
-    associated with some client construct.
-
-    The attributes `interface` and `domain` are reserved for FeatureDomain and
-    FeatureInterface instances, respectively, each defining the domain or 
-    interface of a Process instance. These may be left undefined.
-    
-    If a domain is defined, it should be assumed that the Process instance will 
-    only operate on features of that domain. If an interface is defined, it 
-    should be assumed that the interface exposes features that can be used to 
-    control the behavior of the Process. 
-    
-    In some cases, Processes may serve various domains or interfaces that are 
-    not their own in the sense defined above. In such cases, the client domains 
-    or interfaces should NOT be stored in the `domain` or `interface` attribute.
-    """
+    """A basic component process."""
 
     _serves: ClassVar[ConstructType] = ConstructType.null_construct
 
@@ -60,9 +38,7 @@ class Process(object):
         self._expected = tuple(expected or ())
         self._client = ()
 
-    def __call__(
-        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
-    ) -> nd.NumDict:
+    def __call__(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Execute construct's forward propagation cycle.
 
@@ -95,9 +71,7 @@ class Process(object):
             name, ctype = type(self).__name__, repr(construct.ctype) 
             raise ValueError(msg.format(name, ctype))
 
-    def check_inputs(
-        self, inputs: Mapping[SymbolicAddress, nd.NumDict]
-    ) -> None:
+    def check_inputs(self, inputs: Mapping[Any, nd.NumDict]) -> None:
         """Raise a RuntimeError if not all expected inputs are found."""
 
         for path in self.expected:
@@ -106,17 +80,15 @@ class Process(object):
                 raise RuntimeError(msg.format(path))
 
     def extract_inputs(
-        self, inputs: Mapping[SymbolicAddress, nd.NumDict]
+        self, inputs: Mapping[Any, nd.NumDict]
     ) -> Tuple[nd.NumDict, ...]:
 
         self.check_inputs(inputs)
-        extracted = tuple([inputs[path] for path in self.expected])
+        extracted = tuple(inputs[path] for path in self.expected)
 
         return extracted
 
-    def call(
-        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
-    ) -> nd.NumDict:
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Compute construct's output.
 
@@ -148,7 +120,7 @@ class Process(object):
             raise TypeError(msg.format(type(data).__name__))
 
 
-class CompositeProcess(Process, Generic[Pt]):
+class Composite(Process, Generic[Pt]):
     """A component process built on top of an existing process."""
     
     def __init__(
@@ -199,7 +171,7 @@ class CompositeProcess(Process, Generic[Pt]):
         self.base.entrust(path)
 
 
-class WrappedProcess(CompositeProcess[Pt]):
+class Wrapped(Composite[Pt]):
     """A Process wrapped by a pre- and/or post- processor."""
 
     def call(self, inputs):
@@ -216,16 +188,14 @@ class WrappedProcess(CompositeProcess[Pt]):
         return postprocessed
 
     def preprocess(
-        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
-    ) -> Mapping[Tuple[Symbol, ...], nd.NumDict]:
+        self, inputs: Mapping[Any, nd.NumDict]
+    ) -> Mapping[Any, nd.NumDict]:
         """Preprocess inputs to base construct."""
 
         return inputs
 
     def postprocess(
-        self, 
-        inputs: Mapping[Tuple[Symbol, ...], nd.NumDict], 
-        output: nd.NumDict
+        self, inputs: Mapping[Any, nd.NumDict], output: nd.NumDict
     ) -> nd.NumDict:
         """Postprocess output of base construct."""
 
@@ -248,320 +218,156 @@ class Assets(SimpleNamespace): # type: ignore
     pass
 
 
-class FeatureDomain(object):
-    """
-    Formally defines a feature domain.
+class Domain(object):
+    """A feature domain."""
 
-    Represents a collection of features defined for the purposes of a 
-    simulation with methods for parsing out dimensions, tags, etc.
+    _config: ClassVar[Tuple[str, ...]] = ()
     
-    Intended to be used as a dataclass.
-    """
+    _blocked: bool = False
+    _locked: bool = False
 
-    _features: FrozenSet[feature]
-    _tags: FrozenSet[Hashable]
-    _dims: FrozenSet[Tuple[Hashable, int]]
+    _features: Tuple[feature, ...]
 
-    def __post_init__(self) -> None:
+    def __init__(self, features: Tuple[feature, ...]) -> None:
+        """
+        Initialize a new feature domain.
 
-        self.compute_properties()
+        :param features: Features belongning to the domain.
+        """
+
+        fset = set(features)
+        if len(fset) < len(features):
+            raise ValueError("Features may not contain duplicates.")
+        if len(dims(fset)) != len(list(k for k, g in groupby(dims(features)))):
+            raise ValueError("Features must be grouped by dimension.")
+
+        self._features = features
+
+    def __setattr__(self, name, value):
+
+        if name in type(self)._config and self._locked:
+            raise RuntimeError("Cannot mutate locked domain.")
+        super().__setattr__(name, value)
+        if not self._blocked and name in type(self)._config:
+            self.update()
 
     @property
-    def features(self) -> FrozenSet[feature]:
-        """The set of features defined by self."""
-        
+    def features(self) -> Tuple[feature, ...]:
+        """Domain features."""
+
         return self._features
 
-    @property
-    def tags(self) -> FrozenSet[Hashable]:
-        """The set of dimensional labels defined by self."""
-        
-        return self._tags
+    def update(self) -> None:
+        """Set domain properties."""
 
-    @property
-    def dims(self) -> FrozenSet[Tuple[Hashable, int]]:
-        """The set of feature dimensions (w/ lags) defined by self."""
-        
-        return self._dims
+        pass
 
-    @property
-    def features_by_dims(
-        self
-    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
-        """Features grouped by dims."""
+    @contextmanager
+    def config(self):
+        """Update self after adjustments to config."""
 
-        # type should be more precise, but cannot b/c group_by does not support 
-        # it.
+        self._blocked = True
+        yield
+        self._blocked = False
+        self.update()
 
-        return self._features_by_dims
+    def lock(self):
+        """Disallow mutation of domain."""
 
-    def compute_properties(self) -> None:
+        self._locked = True
+
+
+class Interface(Domain):
+    """A feature domain defining a control interface."""
+
+    _cmds: Tuple[feature, ...]
+    _dflt: Tuple[feature, ...]
+    _params: Tuple[feature, ...]
+    _flags: Tuple[feature, ...]
+
+    def __init__(
+        self, 
+        cmds: Tuple[feature, ...] = (), 
+        params: Tuple[feature, ...] = (), 
+        flags: Tuple[feature, ...] = (),
+        extras: Tuple[feature, ...] = ()
+    ) -> None:
         """
-        Compute domain properties.
-        
-        When domains are deployed as dataclasses, this method is called 
-        after initialization to populate domain properties. 
-        
-        Must be called again after modifications to domain configuration to 
-        ensure that domain properties reflect desired changes.
-        """
+        Initialize a new interface.
 
-        self._validate_data()
-        self._set_interface_properties()
-        self._set_derivative_properties()
-        self._validate_interface_properties()
-
-    def _validate_data(self) -> None:
-
-        # Should throw errors if dataclass members violate assumptions or 
-        # requirements
-
-        raise NotImplementedError()
-
-    def _set_interface_properties(self) -> None:
-        """
-        Set basic interface properties.
-        
-        Should minimally set self._features. Other data may be set as necessary.
+        :param cmds: Command features.
+        :param params: Command parameters.
+        :param flags: Command flags.
+        :param extras: Any additional features.
         """
 
-        # Should minimally set self._features. Other properties may be set as 
-        # necessary.
+        # TODO: Enforce fuzzy datatype for cmds when datatype markers are added.
 
-        raise NotImplementedError()
+        if dims(set(cmds)) & dims(set(params)):
+            raise ValueError("Cmds and params may not share dims.")
+        if dims(set(cmds)) & dims(set(flags)):
+            raise ValueError("Cmds and flags may not share dims.")
+        if dims(set(cmds)) & dims(set(extras)):
+            raise ValueError("Cmds and extras may not share dims.")
+        if dims(set(params)) & dims(set(flags)):
+            raise ValueError("Params and flags may not share dims.")
+        if dims(set(params)) & dims(set(extras)):
+            raise ValueError("Params and extras may not share dims.")
+        if dims(set(flags)) & dims(set(extras)):
+            raise ValueError("Flags and extras may not share dims.")
 
-    def _set_derivative_properties(self) -> None:
+        super().__init__(features=(cmds + params + flags + extras))
 
-        self._tags = frozenset(f.tag for f in self.features)
-        self._dims = frozenset(f.dim for f in self.features)
-        self._features_by_dims = MappingProxyType(group_by_dims(self.features))
+        self._cmds = cmds
+        self._params = params
+        self._flags = flags
+        self._extras = extras
 
-    def _validate_interface_properties(self) -> None:
-
-        _features_dims = set(f.dim for f in self.features)
-        _features_tags = set(f.tag for f in self.features)
-
-        # TODO: Use a more suitable exception class. - Can
-
-        if not (self.tags == _features_tags):
-            raise ValueError("self.tag conflicts with self.features.")
-        if not (self.dims == _features_dims):
-            raise ValueError("self.dims conflicts with self.features.")
-
-
-class FeatureInterface(FeatureDomain):
-    """
-    Control interface for a component.
-    
-    Defines control features and default values. Provides parsing utilities.
-    Each defined feature dimension is interpreted as defining a specific set of 
-    alternate actions. A default value must be defined for each dimension, 
-    representing the 'do nothing' action.
-
-    Intended to be used as a dataclass.
-    """
-
-    _cmds: FrozenSet[feature]
-    _defaults: FrozenSet[feature]
-    _flags: FrozenSet[feature]
-    _params: FrozenSet[feature]
+        key = feature.dim.fget # type: ignore
+        self._dflt = tuple(next(g) for k, g in groupby(self.cmds, key))
 
     @property
-    def cmds(self) -> FrozenSet[feature]:
-        """Features representing (discrete) actions."""
+    def cmds(self) -> Tuple[feature, ...]:
+        """Interface commands."""
 
         return self._cmds
 
     @property
-    def defaults(self) -> FrozenSet[feature]:
-        """Features representing default actions."""
-        
-        return self._defaults
-
-    @property
-    def flags(self) -> FrozenSet[feature]:
-        """Features representing the state of the client process."""
-
-        return self._flags
-
-    @property
-    def params(self) -> FrozenSet[feature]:
-        """Features representing action parameters."""
+    def params(self) -> Tuple[feature, ...]:
+        """Interface params."""
 
         return self._params
 
     @property
-    def cmd_tags(self) -> FrozenSet[Hashable]:
-        """The set of command dimensional labels defined by self."""
+    def flags(self) -> Tuple[feature, ...]:
+        """Interface flags."""
+
+        return self._flags
+
+    @property
+    def defaults(self) -> Tuple[feature, ...]:
+        """
+        Default commands.
         
-        return self._cmd_tags
+        The default command is the first listed value in each dimension.
+        """
 
-    @property
-    def cmd_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
-        """The set of command feature dimensions (w/ lags) defined by self."""
-        
-        return self._cmd_dims
-
-    @property
-    def flag_tags(self) -> FrozenSet[Hashable]:
-        """The set of flag dimensional labels defined by self."""
-        
-        return self._flag_tags
-
-    @property
-    def flag_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
-        """The set of flag feature dimensions (w/ lags) defined by self."""
-        
-        return self._flag_dims
-
-    @property
-    def param_tags(self) -> FrozenSet[Hashable]:
-        """The set of param dimensional labels defined by self."""
-        
-        return self._param_tags
-
-    @property
-    def param_dims(self) -> FrozenSet[Tuple[Hashable, int]]:
-        """The set of param feature dimensions (w/ lags) defined by self."""
-        
-        return self._param_dims
-
-    @property
-    def cmds_by_dims(
-        self
-    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
-        """Command features grouped by dims."""
-
-        return self._cmds_by_dims
-
-    @property
-    def flags_by_dims(
-        self
-    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
-        """Flag features grouped by dims."""
-
-        return self._flags_by_dims
-
-    @property
-    def params_by_dims(
-        self
-    ) -> Mapping[Tuple[Hashable, int], Tuple[feature, ...]]:
-        """Param features grouped by dims."""
-
-        return self._params_by_dims
+        return self._dflt
 
     def parse_commands(
         self, data: nd.NumDict
-    ) -> Dict[Tuple[Hashable, int], Hashable]:
+    ) -> Tuple[feature, ...]:
         """
         Determine the value associated with each control dimension.
         
         :param data: A set of features.
         """
 
-        _cmds = set(f for f in self.cmds if f in data)
+        cmds = tuple(f for f in self.cmds if f in data)
+        parse = list(self.defaults)
+        cmd_dims = dims(parse)
+        for cmd in cmds:
+            i = cmd_dims.index(cmd.dim)
+            parse[i] = cmd
 
-        cmds, groups = {}, group_by_dims(features=_cmds)
-        for k, g in groups.items():
-            if len(g) > 1:
-                msg = "Received multiple commands for dim '{}'."
-                raise ValueError(msg.format(k))
-            cmds[k] = g[0].val
-        
-        for f in self.defaults:
-            if f.dim not in cmds:
-                cmds[f.dim] = f.val
-
-        return cmds
-
-    def _set_interface_properties(self) -> None:
-        """
-        Set basic interface properties.
-        
-        Should minimally set self._cmds, self._defaults, self.flags, and 
-        self._params. Other data may be set as necessary.
-        """
-
-        raise NotImplementedError()
-
-    def _set_derivative_properties(self) -> None:
-
-        self._cmd_tags = frozenset(f.tag for f in self.cmds)
-        self._cmd_dims = frozenset(f.dim for f in self.cmds)
-
-        self._flag_tags = frozenset(f.tag for f in self.flags)
-        self._flag_dims = frozenset(f.dim for f in self.flags)
-
-        self._param_tags = frozenset(f.tag for f in self.params)
-        self._param_dims = frozenset(f.dim for f in self.params)
-       
-        self._features = self.cmds | self.params | self.flags
-
-        self._cmds_by_dims = MappingProxyType(group_by_dims(self.cmds))
-        self._params_by_dims = MappingProxyType(group_by_dims(self.params))
-        self._flags_by_dims = MappingProxyType(group_by_dims(self.flags))
-
-        super()._set_derivative_properties()
-
-    def _validate_interface_properties(self) -> None:
-
-        super()._validate_interface_properties()
-
-        # TODO: Use a more suitable exception class. - Can
-
-        if not self.defaults.issubset(self.cmds):
-            raise ValueError("self.defaults not a subset of self.features.")
-        
-        _defaults_dims = set(f.dim for f in self.defaults)
-        
-        if not self.cmd_dims.issubset(_defaults_dims):
-            raise ValueError("self.defaults conflicts with self.dims.")
-        if len(self.cmd_dims) != len(_defaults_dims):
-            raise ValueError("multiple defaults assigned to a single dim.")
-
-
-@dataclass(init=False)
-class SimpleDomain(FeatureDomain):
-    """
-    A simple feature domain, specified through enumeration.
-    
-    :param features: A collection of features defining the domain.
-    """
-
-    def __init__(self, features: Collection[feature]) -> None:
-
-        self._features = frozenset(features)
-
-        self.__post_init__()
-
-    def _validate_data(self) -> None:
-        pass
-
-    def _set_interface_properties(self) ->None:
-        pass
-
-
-@dataclass(init=False)
-class SimpleInterface(FeatureInterface):
-    """A simple feature interface, specified through enumeration."""
-
-    def __init__(
-        self, 
-        cmds: Collection[feature], 
-        defaults: Collection[feature], 
-        flags: Collection[feature] = None, 
-        params: Collection[feature] = None
-    ) -> None:
-
-        self._cmds = frozenset(cmds)
-        self._defaults = frozenset(defaults)
-        self._flags = frozenset(flags or set())
-        self._params = frozenset(params or set())
-
-        self.__post_init__()
-
-    def _validate_data(self) -> None:
-        pass
-
-    def _set_interface_properties(self) -> None:
-        pass
+        return tuple(parse)

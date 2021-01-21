@@ -9,6 +9,7 @@ __all__ = [
 
 from ..base import ConstructType, Symbol, Process, chunk, feature, lag
 from .. import numdicts as nd
+from .utils import group_by_dims
 
 from typing import (
     Tuple, Mapping, Set, NamedTuple, FrozenSet, Optional, Union, Dict, 
@@ -36,19 +37,21 @@ class MaxNodes(Process):
     def __init__(self, sources: Sequence[Symbol]):
 
         super().__init__(expected=sources)
+        self.accept = ConstructType.node
+
+    def entrust(self, path):
+
+        super().entrust(path)
+        self.accept = self._ctype_map[self.client[-1].ctype]
 
     def call(self, inputs):
 
         data = self.extract_inputs(inputs)
         d = nd.ew_max(*data)
-        d = nd.keep(d, func=self._filter)
+        d = nd.keep(d, func=lambda f: f.ctype in self.accept)
         d = nd.squeeze(d)
 
         return d
-
-    def _filter(self, f):
-
-        return f.ctype in self._ctype_map[self.client[-1].ctype]
 
 
 ########################
@@ -178,7 +181,7 @@ class ActionSelector(Process):
 
     _serves = ConstructType.terminus
 
-    def __init__(self, source, client_interface, temperature):
+    def __init__(self, source, interface, temperature):
         """
         Initialize an ``ActionSelector`` instance.
 
@@ -190,7 +193,7 @@ class ActionSelector(Process):
             raise ValueError("Expected source to be of ctype 'features'.")
 
         super().__init__(expected=(source,))
-        self.client_interface = client_interface
+        self.interface = interface
         self.temperature = temperature
 
     def call(self, inputs):
@@ -203,19 +206,18 @@ class ActionSelector(Process):
         """
 
         strengths, = self.extract_inputs(inputs)
-        params = self.client_interface.params
-        cmds_by_dims = self.client_interface.cmds_by_dims
-        params_by_dims = self.client_interface.params_by_dims
+        cmds_by_dims = group_by_dims(self.interface.cmds)
+        params_by_dims = group_by_dims(self.interface.params)
         items_by_dims = chain(cmds_by_dims.items(), params_by_dims.items())
 
         d = nd.MutableNumDict(default=0)
         for dim, fs in items_by_dims:
-            if len(fs) == 1: # assume singleton param dim is continuous
+            if len(fs) == 1: # output strength of singleton param dim
                 assert dim in params_by_dims
                 f, = fs
                 d[f] = strengths[f]
-            else: # assume cmd dim or multivalue param dim is discrete
-                assert 1 < len(fs), "Singleton cmd or param dimension found."
+            else: # select value for cmd dim or multivalue param dim
+                assert 1 < len(fs)
                 ipt = nd.NumDict({f: strengths[f] for f in fs})
                 prs = nd.boltzmann(ipt, self.temperature)
                 selection = nd.draw(prs, n=1)
