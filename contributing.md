@@ -17,6 +17,6 @@ When submitting a pull request, please make sure the following criteria are fulf
 - Follow PEP 8 coding style
 - Include type annotations
 - Use reStructuredText for markup in docstrings (keep it light)
-- Express preconditions, postconditions, invariants etc. using exceptions and assertions
+- When practical, explicitly express preconditions, postconditions, invariants etc. using exceptions and assertions
 - Avoid dependencies outside of Python stdlib
 - Focus testing on functional requirements
