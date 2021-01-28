@@ -12,7 +12,7 @@ The primary resource for the implementation is Ron Sun's [*Anatomy of the Mind*]
 
 # Installation
 
-After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate to the pyClarion folder then:
+In a terminal, navigate to the pyClarion folder then:
 
 - To install in developer mode (recommended), run
 ```pip install -e .```

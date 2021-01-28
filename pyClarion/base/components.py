@@ -281,7 +281,7 @@ class Interface(Domain):
     """A feature domain defining a control interface."""
 
     _cmds: Tuple[feature, ...]
-    _dflt: Tuple[feature, ...]
+    _defaults: Tuple[feature, ...]
     _params: Tuple[feature, ...]
     _flags: Tuple[feature, ...]
 
@@ -324,7 +324,7 @@ class Interface(Domain):
         self._extras = extras
 
         key = feature.dim.fget # type: ignore
-        self._dflt = tuple(next(g) for k, g in groupby(self.cmds, key))
+        self._defaults = tuple(next(g) for k, g in groupby(self.cmds, key))
 
     @property
     def cmds(self) -> Tuple[feature, ...]:
@@ -352,18 +352,27 @@ class Interface(Domain):
         The default command is the first listed value in each dimension.
         """
 
-        return self._dflt
+        return self._defaults
 
-    def parse_commands(
-        self, data: nd.NumDict
-    ) -> Tuple[feature, ...]:
+    def parse_commands(self, data: nd.NumDict) -> Tuple[feature, ...]:
         """
         Determine the value associated with each control dimension.
         
         :param data: A set of features.
         """
 
+        if data.default != 0.0:
+            raise ValueError("Unexpected default strength.")
+
+        data = nd.squeeze(data)
+        data = nd.keep(data, keys=self.cmds)
+        if any(v != 1.0 for v in data.values()):
+            raise ValueError("Encountered non-integral cmd strength.")
+
         cmds = tuple(f for f in self.cmds if f in data)
+        if len(cmds) > len(set(dims(self.cmds))):
+            raise ValueError("Encountered multiple values from a single dim.")
+
         parse = list(self.defaults)
         cmd_dims = dims(parse)
         for cmd in cmds:

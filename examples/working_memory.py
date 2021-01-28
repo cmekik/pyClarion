@@ -56,7 +56,7 @@ visual_domain = Domain(
 
 speech_interface = Interface(
     cmds=(
-        feature("word", ""), # Silence
+        feature("word", "//"), # Silence
         feature("word", "/banana/"),
         feature("word", "/apple/"),
         feature("word", "/orange/"),
@@ -345,7 +345,7 @@ stimulus.process.input({
 })
 acs_ctrl.process.input({
     feature(("wm", (".w", 0)), "retrieve"): 1.0,
-    feature(("wm", (".r", 0)), "read"): 1.0
+    feature(("wm", (".r", 0)), ".read"): 1.0
 })
 alice.step()
 record_step(alice, next(step))

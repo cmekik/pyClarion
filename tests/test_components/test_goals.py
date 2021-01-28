@@ -56,7 +56,7 @@ class TestGoalStay(unittest.TestCase):
             feature(("gctl", ".cmd"), ".w"): 1.0,
             feature(("gctl", "goal"), "analyze"): 1.0,
             feature(("gctl", "gobj"), "pattern"): 1.0
-        })        
+        }, default=0)        
         inputs = {
             (subsystem("acs"), terminus("gb_actions")): input_,
             (subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
@@ -73,7 +73,7 @@ class TestGoalStay(unittest.TestCase):
             feature(("gctl", ".cmd"), ".w"): 1.0,
             feature(("gctl", "goal"), "evaluate"): 1.0,
             feature(("gctl", "gobj"), "attribute"): 1.0
-        })        
+        }, default=0)        
         inputs = {
             (subsystem("acs"), terminus("gb_actions")): input_,
             (subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
@@ -90,7 +90,7 @@ class TestGoalStay(unittest.TestCase):
             feature(("gctl", ".cmd"), ".f"): 1.0,
             feature(("gctl", "goal"), "analyze"): 1.0,
             feature(("gctl", "gobj"), "pattern"): 1.0
-        })
+        }, default=0)
         inputs = {
             (subsystem("acs"), terminus("gb_actions")): input_,
             (subsystem("ms"), terminus("goal_selection")): nd.NumDict({

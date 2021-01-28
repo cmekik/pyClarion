@@ -142,8 +142,7 @@ rdb = Rules()
 # its conclusion chunk and then by one or more condition chunks. Thus, below, 
 # `chunk("FRUIT")` is the conclusion and `chunk("APPLE")` is the only condition. 
 # In other words, this rule establishes an association from the concept APPLE 
-# to the concept FRUIT. This association is meant to capture the knowledge that 
-# "apples are fruits". In truth, we may also designate condition weights, but 
+# to the concept FRUIT. In truth, we may also designate condition weights, but 
 # this feature is not explored here.
 
 rdb.define(rule(1), chunk("FRUIT"), chunk("APPLE"))
