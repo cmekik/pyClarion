@@ -6,21 +6,22 @@ __all__ = ["Gated", "Filtered", "Pruned"]
 
 from ..base.symbols import (
     ConstructType, Symbol, SymbolicAddress, 
-    feature, subsystem, terminus
+    feature, buffer, flow_in, subsystem, terminus
 )
-from ..base.components import WrappedProcess, Pt, FeatureInterface
+from ..base.components import Wrapped, Pt
 from .. import numdicts as nd
+from .buffers import ParamSet
 
 from itertools import product
 from dataclasses import dataclass
 from typing import (
-    NamedTuple, Tuple, Hashable, Union, Mapping, Set, Iterable, Generic, TypeVar
+    NamedTuple, Tuple, Hashable, Union, Mapping, List, Iterable
 )
 from types import MappingProxyType
 import pprint
 
 
-class Gated(WrappedProcess[Pt]):
+class Gated(Wrapped[Pt]):
     """
     Gates output of an activation propagator.
     
@@ -31,27 +32,47 @@ class Gated(WrappedProcess[Pt]):
     The gating signal is assumed to be in the interval [0, 1],
     """
 
-    def __init__(self, base: Pt, gate: Symbol, invert: bool = False) -> None:
+    def __init__(
+        self, 
+        base: Pt, 
+        controller: Union[buffer, flow_in],
+        interface: ParamSet.Interface, 
+        pidx: int,
+        invert: bool = False
+    ) -> None:
+        """
+        Initialize a Gated instance.
 
-        super().__init__(base=base, expected=(gate,))
+        :param base: The base Process instance.
+        :param controller: The gate controller.
+        :param interface: Controller's feature interface.
+        :param pidx: Lookup index of gating parameter in interface.
+        :param invert: Option to invert the gating signal.
+        """
+
+        super().__init__(base=base, expected=(controller,))
+
+        self.pidx = pidx
+        self.interface = interface
         self.invert = invert
 
-    def postprocess(
-        self, 
-        inputs: Mapping[Tuple[Symbol, ...], nd.NumDict], 
-        output: nd.NumDict
-    ) -> nd.NumDict:
+    def postprocess(self, inputs, output):
+        """
+        Gate output of base process.
+
+        Multiplies output of base process by gating parameter. If the invert 
+        option is selected, will first invert the gating parameter.
+        """
 
         data, = self.extract_inputs(inputs)[:len(self.expected_top)]
-        # TODO: Weight extraction should be based on full addresses? - Can
-        w = data[self.client[-1]] 
+        w = data[self.interface.params[self.pidx]]
         if self.invert:
             w = 1 - w
 
         return w * output
 
 
-class Filtered(WrappedProcess[Pt]):
+class Filtered(Wrapped[Pt]):
     """
     Filters the input to a propagator.
     
@@ -64,13 +85,14 @@ class Filtered(WrappedProcess[Pt]):
     def __init__(
         self, 
         base: Pt, 
-        sieve: Symbol,
-        exempt: Set[SymbolicAddress] = None, 
+        controller: Union[buffer, flow_in],
+        exempt: List[SymbolicAddress] = None, 
         invert: bool = True
     ) -> None:
 
-        super().__init__(base=base, expected=(sieve,))
-        self.exempt = exempt or set() 
+        super().__init__(base=base, expected=(controller,))
+
+        self.exempt = exempt or [] 
         self.invert = invert
 
     def preprocess(self, inputs):
@@ -89,7 +111,7 @@ class Filtered(WrappedProcess[Pt]):
         return MappingProxyType(preprocessed)
 
 
-class Pruned(WrappedProcess[Pt]):
+class Pruned(Wrapped[Pt]):
     """
     Prunes the input to an activation propagator.
     
@@ -101,12 +123,12 @@ class Pruned(WrappedProcess[Pt]):
         self, 
         base: Pt, 
         accept: ConstructType,
-        exempt: Set[SymbolicAddress] = None
+        exempt: List[SymbolicAddress] = None
     ) -> None:
 
         super().__init__(base=base)
         self.accept = accept
-        self.exempt = exempt or set() 
+        self.exempt = exempt or []
 
     def preprocess(self, inputs):
 
@@ -115,10 +137,10 @@ class Pruned(WrappedProcess[Pt]):
             if source in self.exempt:
                 preprocessed[source] = inputs[source]
             else:
-                preprocessed[source] = nd.drop(inputs[source], func=self._match)
+                preprocessed[source] = nd.drop(
+                    d=inputs[source], 
+                    # TODO: Fix func: will break if address not tuple. - Can
+                    func=lambda address: address[-1].ctype in self.accept 
+                )
 
         return MappingProxyType(preprocessed)
-
-    def _match(self, address):
-
-        return address[-1].ctype in self.accept

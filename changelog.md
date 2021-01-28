@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `BLAs.prune()`, which removes BLA records below threshold.
+- Automatic symbolic address expansion.
+
+### Changed
+
+- `CompositeProcess` renamed to `Composite`
+- `WrappedProcess` renamed to `Wrapped`
+- `FeatureDomain` and `SimpleDomain` replaced with `Domain`
+- `FeatureInterface` and `SimpleInterface` replaced with `Interface`
+- `ReinforcementDomain` renamed to `Reinforcements`
+- Simplified implementation and control interfaces for `ParamSet`, `Register`, `RegisterArray`, `GoalStay`
+- `Process` input types now `Mapping[Any, NumDict]`. This is a compromise. The ideal would be to set keys to be of type `SymbolicAddress`. However, `SymbolicAddress` is a union type and `Mapping` is invariant in its key type, therefore being explicit about the key type is prone to false alarms.
+
+### Removed
+
+- `ControlledExtractor`
+
+### Fixed
+
+- BLA stepping bug in `RegisterArray`
+
+## [v0.16.0] (2021-01-17)
+
+### Added
+
 - Optional `blas` argument to `Register` and `RegisterArray`, supporting BLA based deletion of stored entries.
 - New construct type `updater` for constructs solely dedicated to update processes (e.g., for databases, or due to sequencing requirements). 
 - Automatic activation sequence generation at assembly time: `Structure` instances now step member constructs in roughly the order they were added to the structure. 

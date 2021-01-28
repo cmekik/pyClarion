@@ -5,20 +5,20 @@ __all__ = [
     "ConstructType", "Token", "Symbol", "SymbolicAddress", "SymbolTrie",
     "feature", "chunk", "rule", "chunks", "features", "flow_in", "flow_bt", 
     "flow_tb", "flow_tt", "flow_bb", "terminus", "updater", "buffer", 
-    "subsystem", "agent", "group_by", "group_by_ctype", "group_by_dims", 
-    "group_by_tags", "group_by_vals", "group_by_lags", "lag", 
-    "validate_address", "expand_address"
+    "subsystem", "agent", "lag", "validate_address", "expand_address", "dims", 
+    "tags", "lags"
 ]
 
 
 from typing import (
     Hashable, Tuple, Union, Iterable, Callable, Dict, TypeVar, Iterator, 
-    AbstractSet, ValuesView, Optional, Any, cast
+    List, Set, FrozenSet, Optional, Any, cast, overload
 )
 from enum import Flag, auto
 from itertools import zip_longest
 
 
+dim = Tuple[Hashable, int]
 # Address for a construct w/in a simulated agent or component.
 SymbolicAddress = Union["Symbol", Tuple["Symbol", ...]]
 SymbolTrie = Any
@@ -493,13 +493,12 @@ PATTERNS = [
 
 def validate_address(address: SymbolicAddress, strict: bool = False) -> None:
     """
-    Check if address is a valid construct address.
+    Check if construct address matches a valid pattern.
 
     Throws ValueError if address is invalid.
     
     :param address: Target address.
-    :param strict: If True, will throw for valid partial addresses, otherwise 
-        will accept valid partial addresses. Default False. 
+    :param strict: Option to reject partial addresses.
     """
 
     if isinstance(address, Symbol):
@@ -526,7 +525,7 @@ def expand_address(
     """
     Return the nearest full address relative to base given a partial address.
 
-    The nearest full address is taken to be...
+    The nearest full address is...
     """
 
     validate_address(address=base, strict=True)
@@ -561,114 +560,77 @@ def expand_address(
 
 
 #########################
-### GROUPING FUNCTIONS ##
+### UTILITY FUNCTIONS ###
 #########################
-
-
-T = TypeVar("T")
-K = TypeVar("K")
-def group_by(
-    iterable: Iterable[T], key: Callable[[T], K]
-) -> Dict[K, Tuple[T, ...]]:
-    """Return a dict grouping items in iterable by values of the key func."""
-
-    groups: dict = {}
-    for item in iterable:
-        k = key(item)
-        groups.setdefault(k, []).append(item)
-    
-    return {k: tuple(v) for k, v in groups.items()}
-
-
-def group_by_ctype(
-    symbols: Iterable[Symbol]
-) -> Dict[ConstructType, Tuple[Symbol, ...]]:
-    """
-    Construct a dict grouping symbols by their construct types.
-    
-    Returns a dict where each construct type is mapped to a tuple of symbols of 
-    that type. Does not check for duplicates.
-    """
-
-    # Ignore type of key due to mypy false alarm. - Can
-    key = Symbol.ctype.fget # type: ignore 
-    
-    return group_by(iterable=symbols, key=key)
-
-
-def group_by_dims(
-    features: Iterable[feature]
-) -> Dict[Tuple[Hashable, int], Tuple[feature, ...]]:
-    """
-    Construct a dict grouping features by their dimensions.
-    
-    Returns a dict where each dim is mapped to a tuple of features of that dim.
-    Does not check for duplicate features.
-
-    :param features: An iterable of features to be grouped by dimension.
-    """
-
-    # Ignore type of key due to mypy false alarm. - Can
-    key = feature.dim.fget # type: ignore 
-    
-    return group_by(iterable=features, key=key)
-
-
-def group_by_tags(
-    features: Iterable[feature]
-) -> Dict[Hashable, Tuple[feature, ...]]:
-    """
-    Construct a dict grouping features by their dimensions.
-    
-    Returns a dict where each dim is mapped to a tuple of features of that dim.
-    Does not check for duplicate features.
-
-    :param features: An iterable of features to be grouped by dimension.
-    """
-
-    # Ignore type of key due to mypy false alarm. - Can
-    key = feature.tag.fget # type: ignore 
-    
-    return group_by(iterable=features, key=key)
-
-
-def group_by_vals(
-    features: Iterable[feature]
-) -> Dict[Hashable, Tuple[feature, ...]]:
-    """
-    Construct a dict grouping features by their values.
-    
-    Returns a dict where each value is mapped to a tuple of features that have 
-    that value. Does not check for duplicate features.
-
-    :param features: An iterable of features to be grouped by value.
-    """
-
-    # Ignore type of key due to mypy false alarm. - Can
-    key = feature.val.fget # type: ignore 
-    
-    return group_by(iterable=features, key=key)
-
-
-def group_by_lags(
-    features: Iterable[feature]
-) -> Dict[Hashable, Tuple[feature, ...]]:
-    """
-    Construct a dict grouping features by their lags.
-    
-    Returns a dict where each lag value is mapped to a tuple of features of 
-    that lag value. Does not check for duplicate features.
-
-    :param features: An iterable of features to be grouped by lag.
-    """
-
-    # Ignore type of key due to mypy false alarm. - Can
-    key = feature.lag.fget # type: ignore 
-    
-    return group_by(iterable=features, key=key)
 
 
 def lag(f: feature, val: int = 1) -> feature:
     """Return a copy of feature with lag incremented by val."""
     
     return feature(f.tag, f.val, f.lag + val)
+
+
+@overload
+def dims(fs: Tuple[feature, ...]) -> Tuple[dim, ...]:
+    ...
+
+@overload
+def dims(fs: List[feature]) -> List[dim]:
+    ...
+
+@overload
+def dims(fs: Set[feature]) -> Set[dim]:
+    ...
+
+@overload
+def dims(fs: FrozenSet[feature]) -> FrozenSet[dim]:
+    ...
+
+def dims(fs):
+    """Extract dims from a collection of features."""
+
+    return type(fs)(f.dim for f in fs)
+
+
+@overload
+def tags(fs: Tuple[feature, ...]) -> Tuple[Hashable, ...]:
+    ...
+
+@overload
+def tags(fs: List[feature]) -> List[Hashable]:
+    ...
+
+@overload
+def tags(fs: Set[feature]) -> Set[Hashable]:
+    ...
+
+@overload
+def tags(fs: FrozenSet[feature]) -> FrozenSet[Hashable]:
+    ...
+
+def tags(fs):
+    """Extract tags from a collection of features."""
+
+    return type(fs)(f.tag for f in fs)
+
+
+@overload
+def lags(fs: Tuple[feature, ...]) -> Tuple[int, ...]:
+    ...
+
+@overload
+def lags(fs: List[feature]) -> List[int]:
+    ...
+
+@overload
+def lags(fs: Set[feature]) -> Set[int]:
+    ...
+
+@overload
+def lags(fs: FrozenSet[feature]) -> FrozenSet[int]:
+    ...
+
+def lags(fs):
+    """Extract lags from a collection of features."""
+
+    return type(fs)(f.lag for f in fs)

@@ -11,17 +11,17 @@ from .. import numdicts as nd
 from itertools import combinations, chain
 from abc import abstractmethod
 from types import MappingProxyType
+from contextlib import nullcontext
+from contextvars import ContextVar
 from typing import (
     TypeVar, Union, Tuple, Dict, Callable, Hashable, Generic, Any, Optional, 
     Text, Iterator, Iterable, Mapping, ClassVar, List, ContextManager, cast
 )
-from contextlib import nullcontext
-from contextvars import ContextVar
 import logging
 
 
 Pt = TypeVar("Pt", bound="Process")
-Ot = TypeVar("Ot", bound=Union[nd.NumDict, Mapping[SymbolicAddress, nd.NumDict]])
+Ot = TypeVar("Ot", bound=Union[nd.NumDict, Mapping[Any, nd.NumDict]])
 
 PullFunc = Callable[[], nd.NumDict]
 PullFuncs = Mapping[Symbol, PullFunc]
@@ -212,7 +212,7 @@ class Construct(Realizer[nd.NumDict], Generic[Pt]):
         return {src: ask() for src, ask in self.inputs.items()}
 
         
-class Structure(Realizer[Mapping[SymbolicAddress, nd.NumDict]]):
+class Structure(Realizer[Mapping[Any, nd.NumDict]]):
     """
     A composite construct.
     
@@ -302,7 +302,7 @@ class Structure(Realizer[Mapping[SymbolicAddress, nd.NumDict]]):
             BUILD_LIST.reset(self._build_list_token)
 
     @property
-    def output(self) -> Mapping[SymbolicAddress, nd.NumDict]:
+    def output(self) -> Mapping[Any, nd.NumDict]:
 
         key: SymbolicAddress
         output, split = {}, len(self.path)

@@ -9,7 +9,11 @@ description = (
 
 setuptools.setup(
     name="pyClarion",
+<<<<<<< HEAD
     version="0.16.0",
+=======
+    version="0.17.0",
+>>>>>>> dev
     author="Can Serif Mekik",
     author_email="can.mekik@gmail.com",
     description=description,
@@ -23,5 +27,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ),
     python_requires='>=3.7',
-    install_requires=["typing-extensions"]
+    install_requires=[]
 )

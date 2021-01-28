@@ -3,14 +3,14 @@
 
 from pyClarion import (
     feature, features, buffer, flow_in, flow_bb, terminus, subsystem, agent,
-    SimpleDomain, SimpleInterface, 
+    Domain, Interface, 
     Construct, Structure,
     Stimulus, MaxNodes, Lag, Repeater, ActionSelector,
     Assets, 
     nd, pprint
 )
 
-from pyClarion.components.networks import SimpleQNet, ReinforcementDomain
+from pyClarion.components.networks import SimpleQNet, Reinforcements
 
 import random
 
@@ -88,20 +88,17 @@ class ABTask(object):
 
 # To specify all this we use pyClarion feature domains and feature interfaces.
 
-domain = SimpleDomain({
+domain = Domain((
     feature("A"), 
     feature("B"), 
-})
+))
 
-interface = SimpleInterface(
-    cmds={
+interface = Interface(
+    cmds=(
         feature("respond", "A"),
         feature("respond", "B"),
         feature("respond", "standby")
-    },
-    defaults={
-        feature("respond", "standby")
-    }
+    )
 )
 
 # To specify reinforcement signals, we use ReinforcementDomain, which expects a 
@@ -109,7 +106,7 @@ interface = SimpleInterface(
 # that they reinforce (recall, dimensions include the lag value). The mapping 
 # must be one-to-one.
 
-r_map = ReinforcementDomain(
+r_map = Reinforcements(
     mapping={
         feature(("r", "respond")): ("respond", 0),
     }
@@ -201,7 +198,7 @@ with learner:
             name=terminus("ext_actions"),
             process=ActionSelector(
                 source=features("out"),
-                client_interface=learner.assets.interface,
+                interface=learner.assets.interface,
                 temperature=0.05
             )
         )

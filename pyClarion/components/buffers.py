@@ -4,23 +4,15 @@
 __all__ = ["ParamSet", "Register", "RegisterArray"]
 
 
-from ..base.symbols import (
-    ConstructType, Symbol,
-    feature, subsystem, terminus,
-    group_by_dims, lag
-)
+from ..base.symbols import ConstructType, Symbol, feature, subsystem, terminus
 from .. import numdicts as nd
-from ..base.components import Process, FeatureInterface, FeatureDomain
+from .. import base 
 from .blas import BLAs
 
-from typing import Callable, Hashable, Tuple, List, Mapping, Collection, cast
-from dataclasses import dataclass
-from itertools import chain, product
-from types import MappingProxyType
-import logging
+from typing import Callable, Hashable, Tuple, List, Collection, cast
 
 
-class ParamSet(Process):
+class ParamSet(base.Process):
     """A controlled store of parameters."""
 
     _serves = ConstructType.buffer
@@ -47,116 +39,82 @@ class ParamSet(Process):
         """
 
         data, = self.extract_inputs(inputs)
-        cmds = self.interface.parse_commands(data)
+        cmd, = self.interface.parse_commands(data)
 
-        # Should extract cmd by dim, to allow for compositionality...
-        try:
-            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
-        except ValueError:
-            msg = "{} expected exactly one command, received {}"
-            raise ValueError(msg.format(type(self).__name__, len(cmds)))
-
-        if val == self.interface.standby_val:
+        cmd_index = self.interface.cmds.index(cmd) 
+        if cmd_index == 0: 
             pass
-        elif val == self.interface.clear_val:
-            self.clear_store()
-        elif val == self.interface.update_val:
+        elif cmd_index == 1: 
+            self.store.clear()
+        elif cmd_index == 2: 
             param_strengths = nd.keep(data, keys=self.interface.params)
-            self.update_store(param_strengths)
-        elif val == self.interface.overwrite_val:
-            self.clear_store()
+            self.store.max(param_strengths)
+        else: 
+            assert cmd_index == 3
+            self.store.clear()
             param_strengths = nd.keep(data, keys=self.interface.params)
-            self.update_store(param_strengths)
-        else:
-            raise ValueError("Unexpected command value: {}.".format(repr(val)))
+            self.store.max(param_strengths)
 
-        d = nd.MutableNumDict(default=0)
-        strengths = nd.transform_keys(self.store, func=feature.tag.fget)
-        for construct in self.interface.clients:
-            d[construct] = strengths[self.interface.func(construct)]
+        return self.store
 
-        return d
+    class Interface(base.Interface):
+        """Control interface for ParamSet instances."""
 
-    def update_store(self, strengths):
-        """
-        Update strengths in self.store.
-        
-        Write op is implemented using the max operation. 
-        """
+        _config = ("name", "pmkrs", "wmkr", "vsby", "vclr", "vupd", "vclrupd")
 
-        self.store.max(strengths)
+        def __init__(
+            self,
+            name: Hashable,
+            pmkrs: Tuple[Hashable, ...],
+            wmkr: Hashable = ".w", 
+            vsby: Hashable = ".sby",
+            vclr: Hashable = ".clr",
+            vupd: Hashable = ".upd",
+            vclrupd: Hashable = ".clrupd"
+        ):
+            """
+            Initialize ParamSet.Interface instance.
 
-    def clear_store(self):
-        """Clear any nodes stored in self."""
+            :param name: Name of interface client.
+            :param pmkrs: Marker values for identifying parameters.
+            :param wmkr: Marker for write ops.
+            :param vsby: Value for standby action.
+            :param vclr: Value for clear action.
+            :param vupd: Value for update action.
+            :param vclrupd: Value for clear+update action.
+            """
 
-        self.store.clear()
+            with self.config():
+                self.name = name
+                self.pmkrs = pmkrs
+                self.wmkr = wmkr
+                self.vsby = vsby
+                self.vclr = vclr
+                self.vupd = vupd
+                self.vclrupd = vclrupd
 
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Control interface for ParamSet instances.
+        def update(self):
 
-        :param clients: Symbols to which parameters are mapped.
-        :param func: Function consuming client symbols and outputting 
-        :param tag: Tag for ParamSet control dimension.
-            corresponding parameter tags. It is okay to map two clients to the 
-            same tag. This will couple their values.
-        :param standby_val: Value for standby action.
-        :param clear_val: Value for clear action.
-        :param update_val: Value for update action.
-        :param overwrite_val: Value for overwrite action.
-        :param param_val: Singleton value to be used in parameter features.
-        """
+            wtag = (self.name, self.wmkr)
+            wvals = (self.vsby, self.vclr, self.vupd, self.vclrupd)
+            ptags = [(self.name, pmkr) for pmkr in self.pmkrs]
 
-        clients: Collection[Symbol]
-        func: Callable[..., Hashable]
-        tag: Hashable
-        standby_val: Hashable = "standby"
-        clear_val: Hashable = "clear"
-        update_val: Hashable = "update"
-        overwrite_val: Hashable = "overwrite"
-        param_val: Hashable = ""
-
-        def _set_interface_properties(self):
-
-            _func, _pval = self.func, self.param_val
-            _cmd_vals = (
-                self.standby_val, self.clear_val, self.update_val, 
-                self.overwrite_val
+            super().__init__(
+                cmds=tuple(feature(wtag, wval) for wval in wvals),
+                params=tuple(feature(ptag) for ptag in ptags)
             )
-            _cmds = (feature(self.tag, val) for val in _cmd_vals)
-            _defaults = {feature(self.tag, self.standby_val)}
-            _params = (feature(_func(s), _pval) for s in self.clients)
-
-            self._cmds = frozenset(_cmds)
-            self._defaults = frozenset(_defaults)
-            self._flags = frozenset()
-            self._params = frozenset(_params)
-
-        def _validate_data(self):
-
-            _param_tags = set(self.func(s) for s in self.clients)
-            cmd_vals = set([
-                self.standby_val, self.clear_val, self.update_val, 
-                self.overwrite_val
-            ])
-
-            if len(cmd_vals) < 4:
-                raise ValueError("Vals must contain unique values.")
-            if self.tag in _param_tags:
-                msg = "Tag cannot be equal to an output of func over clients."
-                raise ValueError(msg)
 
 
-class Register(Process):
-    """Dynamically stores and activates nodes."""
+class Register(base.Process):
+    """A dynamic store of nodes."""
 
     _serves = ConstructType.buffer 
+    _interface: "Register.Interface"
 
     def __init__(
         self, 
         controller: Tuple[subsystem, terminus], 
-        source: subsystem,
+        sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "Register.Interface",
         blas: BLAs = None
     ) -> None:
@@ -168,16 +126,34 @@ class Register(Process):
         :param interface: Defines features for controlling updates to self.
         :param blas: Optional BLA database. When items in store are found to 
             have BLA values below the set density threshold, they are dropped.
+        :param blas: Option to update BLAs at call time.
         """
 
-        # This depends on dict guarantee to preserve insertion order.
-        sources = tuple((source, t) for t in interface.mapping.values())
         super().__init__(expected=(controller,) + sources)
 
-        self.interface = interface # This should be unchangeable... - Can
+        self._controller = controller
+        self._sources = sources
+
         self.store = nd.MutableNumDict(default=0.0) 
         self.flags = nd.MutableNumDict(default=0.0)
+        
         self.blas = blas
+        self.interface = interface
+
+    @property
+    def interface(self) -> "Register.Interface":
+        """Interface domain associated with self."""
+
+        return self._interface
+
+    @interface.setter
+    def interface(self, obj: "Register.Interface"):
+
+        if len(self._sources) != len(obj.vops):
+            msg = "Incompatible interface: len(vops) != len(sources)."
+            raise ValueError(msg)
+        self._interface = obj
+        obj.lock()
 
     @property
     def is_empty(self):
@@ -192,36 +168,32 @@ class Register(Process):
         Updates are controlled by matching features emitted in the output of 
         self.controller to those defined in self.interface. If no commands are 
         encountered, default/standby behavior will be executed. The default 
-        behavior is to maintain the current memory state.
+        behavior is to maintain the current memory state (subject to deletions 
+        due to BLAs being below threshold, if these are defined).
+
+        If the register is empty, will output an empty flag.
         """
 
         datas = self.extract_inputs(inputs)
         cmd_data, src_data = datas[0], datas[1:]
 
-        cmds = self.interface.parse_commands(cmd_data)
-        channel_map = dict(zip(self.interface.mapping.values(), src_data))
-
-        try:
-            (dim, val), = cmds.items() # Extract unique cmd (dim, val) pair.
-        except ValueError:
-            msg = "{} expected exactly one command, received {}"
-            raise ValueError(msg.format(type(self).__name__, len(cmds)))
-
-        if val == self.interface.standby_val:
+        cmd, = self.interface.parse_commands(cmd_data)
+        cmd_index = self.interface.cmds.index(cmd) 
+        if cmd_index == 0:
             pass
-        elif val == self.interface.clear_val:
+        elif cmd_index == 1:
             self.store.clear()
-        elif val in self.interface.mapping: 
-            channel = self.interface.mapping[val]
-            data = channel_map[channel]
+        else: 
+            data = src_data[cmd_index - 2]
             self.store.clearupdate(data)
             if self.blas is not None:
-                for key in data:
+                for key in data: 
                     self.blas.register_invocation(key, add_new=True)
-        if len(self.store) == 0:
-            self.flags[self.interface.null_flag] = 1.0
+
+        if self.is_empty:
+            self.flags.extend(self.interface.flags, value=1.0)
         else:
-            self.flags.drop(keys=(self.interface.null_flag,))
+            self.flags.clear()
 
         d = nd.MutableNumDict(self.store, default=0)
         d.max(self.flags)
@@ -237,111 +209,114 @@ class Register(Process):
 
         return d
 
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Control interface for Register instances.
-        
-        :param mapping: Tuple pairing values to termini for write 
-            operation.
-        :param tag: Tag for controlling write ops to register.
-        :param flag_tag: Tag for defining null flag.
-        :param standby_val: Value for standby action.
-        :param clear_val: Value for to clear action.
-        :param flag_val: Null flag value.
-        """
+    class Interface(base.Interface):
+        """Control interface for Register instances."""
 
-        # TODO: Make this immutable/hard to mutate. Mutation can break client 
-        # Register instances. - Can
+        _config = ("name", "cmkr", "fmkr", "vops", "vsby", "vclr")
 
-        mapping: Mapping[Hashable, Symbol]
-        tag: Hashable
-        flag_tag: Hashable
-        standby_val: Hashable = "standby"
-        clear_val: Hashable = "clear"
-        flag_val: Hashable = ""
+        def __init__(
+            self,
+            name: Hashable,
+            vops: Tuple[Hashable, ...],
+            wmkr: Hashable = ".w", 
+            fmkr: Hashable = ".empty",
+            vsby: Hashable = ".sby",
+            vclr: Hashable = ".clr"
+        ) -> None:
+            """
+            Initialize Register.Interface instance.
 
-        @property
-        def null_flag(self):
+            :param name: Name of interface client.
+            :param vops: Values for selecting write op sources.
+            :param wmkr: Marker for write ops.
+            :param fmkr: Marker for null flag.
+            :param vsby: Value for standby action.
+            :param vclr: Value for clear action.
+            """
 
-            return self._null_flag
+            with self.config():
+                self.name = name
+                self.wmkr = wmkr
+                self.fmkr = fmkr
+                self.vops = vops
+                self.vsby = vsby
+                self.vclr = vclr
 
-        def _set_interface_properties(self) -> None:
-            
-            vals = chain((self.standby_val, self.clear_val), self.mapping)
-            default = feature(self.tag, self.standby_val)
-            flag = feature(self.flag_tag, self.flag_val)
+        def update(self) -> None:
 
-            self._null_flag = flag
+            vals = (self.vsby, self.vclr, *self.vops)
+            wtag = (self.name, self.wmkr)
+            ftag = (self.name, self.fmkr)
 
-            self._cmds = frozenset(feature(self.tag, val) for val in vals)
-            self._defaults = frozenset({default})
-            self._flags = frozenset({flag})
-            self._params = frozenset()
-
-        def _validate_data(self):
-            
-            values = set(chain((self.standby_val, self.clear_val), self.mapping))
-            if len(values) < len(self.mapping) + 2:
-                raise ValueError("Value set may not contain duplicates.")
+            super().__init__(
+                cmds=tuple(feature(wtag, val) for val in vals),
+                flags=(feature(ftag),)
+            )
 
 
-class RegisterArray(Process):
+class RegisterArray(base.Process):
     """
-    An array of pyClarion memory registers.
+    An array of registers.
 
-    The mechanism follows a slot-based storage and control architecture. It 
-    supports writing data to slots, clearing slots, excluding slots from the 
-    output and resetting the memory state. 
-
-    This class defines the basic datastructure and memory update method. For 
-    minimality, it does not report mechanism states (e.g., which slots are 
-    filled).
+    Exposes a slot-based storage and control architecture. Supports writing data
+    to slots, clearing slots, excluding slots from the output and clearing all 
+    slots. 
     """
 
     _serves = ConstructType.buffer
+    _interface: "RegisterArray.Interface"
+    cells: Tuple[Register, ...]
 
     def __init__(
         self,
         controller: Tuple[subsystem, terminus],
-        source: subsystem,
+        sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "RegisterArray.Interface",
         blas: BLAs = None
     ) -> None:
         """
-        Initialize a new WorkingMemory instance.
+        Initialize RegisterArray instance.
 
         :param controller: Reference for construct issuing commands to self.
-        :param source: Reference for construct from which to pull data.
+        :param sources: References for constructs from which to pull data.
         :param interface: Defines features for controlling updates to self.
         :param blas: Optional BLA database. When items in a cell store are found
             to have BLA values below the set density threshold, they are 
             dropped. The database is shared among all register array cells.
+        :param update_blas: Option to update BLAs at call time.
         """
 
-        # This depends on dict guarantee to preserve insertion order.
-        sources = tuple((source, t) for t in interface.mapping.values())
         super().__init__(expected=(controller,) + sources)
-        self.interface = interface
+        
+        self._controller = controller
+        self._sources = sources
 
-        self.flags = nd.MutableNumDict(default=0.0)
-        self.gate = nd.MutableNumDict(default=0.0)
         self.blas = blas
+        self.interface = interface # automatically spawns memory cells
+
+    @property
+    def interface(self) -> "RegisterArray.Interface":
+        """Interface domain associated with self."""
+
+        return self._interface
+
+    @interface.setter
+    def interface(self, obj: "RegisterArray.Interface") -> None:
+
+        if len(self._sources) != len(obj.vops):
+            msg = "Incompatible interface: len(vops) != len(sources)."
+            raise ValueError(msg)
+        self._interface = obj
+        obj.lock()
+
         self.cells = tuple(
             Register(
-                controller=controller,
-                source=source,
-                interface=Register.Interface(
-                    mapping=interface.mapping,
-                    tag=self.interface.write_tags[i],
-                    flag_tag=interface.null_tags[i],
-                    standby_val=interface.standby_val,
-                    clear_val=interface.clear_val,
-                    flag_val=interface.flag_val
-                ),
-                blas=blas
+                controller=self._controller,
+                sources=self._sources,
+                interface=self._interface._sub_interfaces[i],
+                blas=self.blas
             )
-            for i in range(self.interface.slots)
+            for i in range(self._interface.slots)
         )
 
     def entrust(self, construct):
@@ -366,180 +341,108 @@ class RegisterArray(Process):
         the loss of its previous contents.
         """
 
-        datas = self.extract_inputs(inputs)
-        cmd_data = datas[0]
-        cmds = self.interface.parse_commands(cmd_data)
+        data = self.extract_inputs(inputs)
+        cmds = self.interface.parse_commands(data[0])
 
-        # global wm reset
-        if cmds[self.interface.reset_dim] == self.interface.reset_val:
-            self.reset_cells()
+        clr_cmd = self.interface.cmds.index(cmds[0])
+        if clr_cmd == 1: # Global clear
+            for cell in self.cells:
+                cell.store.clear()
 
         d = nd.MutableNumDict(default=0.0)
-        for cell, dim in zip(self.cells, self.interface.read_dims):
+        for i, cell in enumerate(self.cells):
             cell_strengths = cell.call(inputs)
-            if cmds[dim] == self.interface.read_val:
+            read_cmd = self.interface.cmds.index(cmds[i + 1])
+            if read_cmd == 2 * (i + 1) + 1: # Read cell
                 d.max(cell_strengths)
 
-        d.max(self.flags)
-        
         return d
 
-    def reset_cells(self):
-        """
-        Reset memory state.
-        
-        Clears all memory slots and closes all switches.
-        """
+    class Interface(base.Interface):
+        """Control interface for RegisterArray instances."""
 
-        for cell in self.cells:
-            cell.clear_store()
+        _config = (
+            "name", "slots", "vops", "wmkr", "rmkr", "cmkr", "fmkr", 
+            "vsby", "vclr", "vread"
+        )
 
-    def update_flags(self, strengths):
+        def __init__(
+            self,
+            name: Hashable,
+            slots: int,
+            vops: Tuple[Hashable, ...],
+            wmkr: Hashable = ".w",
+            rmkr: Hashable = ".r",
+            cmkr: Hashable = ".clr",
+            fmkr: Hashable = ".empty",
+            vsby: Hashable = ".sby",
+            vclr: Hashable = ".clr",
+            vread: Hashable = ".read"
+        ) -> None:
+            """
+            Initialize RegisterArray.Interface instance.
 
-        self.flags.max(strengths)
+            :param name: Name of interface client.
+            :param slots: Number of slots.
+            :param vops: Values for selecting write op sources.
+            :param wmkr: Marker for write ops.
+            :param rmkr: Marker for read ops.
+            :param cmkr: Marker for clear ops.
+            :param fmkr: Marker for null flag.
+            :param vsby: Value for standby action.
+            :param vclr: Value for clear action.
+            :param vread: Value for read action. 
+            """
 
-    def clear_flags(self):
+            with self.config():
+                self.name = name
+                self.slots = slots
+                self.vops = vops
+                self.wmkr = wmkr
+                self.rmkr = rmkr
+                self.cmkr = cmkr
+                self.fmkr = fmkr
+                self.vsby = vsby
+                self.vclr = vclr
+                self.vread = vread
 
-        self.flags.clear()
+        def update(self) -> None:
 
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Control interface for WorkingMemory propagator.
+            clr_cmds = (
+                feature((self.name, self.cmkr), self.vsby),
+                feature((self.name, self.cmkr), self.vclr)
+            )
 
-        :param slots: Number of working memory slots.
-        :param mapping: Mapping pairing a write operation value with a 
-            terminus from the source subsystem. Signals register array to write 
-            contents of terminus to a chosen slot.
-        :param prefix: Tag prefix for identifying this particular set of 
-            control features.
-        :param write_marker: Marker for controlling WM slot write operations.
-        :param read_marker: Marker for controlling WM slot read operations.
-        :param reset_marker: Marker for controlling global WM state resets.
-        :param null_marker: Marker for null flag.
-        :param standby_val: Value for standby action (default).
-        :param clear_val: Value for clear action.
-        :param read_val: Value for read action. 
-        :param flag_val: Value for null flag. 
-        """
+            read_cmds = [
+                (feature((self.name, (self.rmkr, i)), self.vsby),
+                 feature((self.name, (self.rmkr, i)), self.vread))
+                for i in range(self.slots)
+            ]
 
-        # TODO: Make this immutable/hard to mutate. Mutation can break client 
-        # RegisterArray instances. - Can
+            sub_interfaces = [
+                Register.Interface(
+                    name=self.name,
+                    vops=self.vops,
+                    wmkr=(self.wmkr, i),
+                    fmkr=(self.fmkr, i),
+                    vsby=self.vsby,
+                    vclr=self.vclr
+                )
+                for i in range(self.slots)
+            ]
 
-        slots: int
-        mapping: Mapping[Hashable, Symbol]
-        prefix: Hashable = "wm"
-        write_marker: Hashable = "w"
-        read_marker: Hashable = "r"
-        reset_marker: Hashable = "re"
-        null_marker: Hashable = "null"
-        standby_val: Hashable = "standby"
-        clear_val: Hashable = "clear"
-        reset_val: Hashable = "reset"
-        read_val: Hashable = "read"
-        flag_val: Hashable = ""
+            cmds: Tuple[feature, ...] = clr_cmds
+            for rcmds in read_cmds:
+                cmds += rcmds
+            for sub_interface in sub_interfaces:
+                cmds += sub_interface.cmds
 
-        @property
-        def write_tags(self):
+            flags: Tuple[feature, ...] = ()
+            for sub_interface in sub_interfaces:
+                flags += sub_interface.flags
 
-            return self._write_tags
+            for sub_interface in sub_interfaces:
+                sub_interface.lock()
+            self._sub_interfaces = tuple(sub_interfaces)
 
-        @property
-        def read_tags(self):
-
-            return self._read_tags
-
-        @property
-        def reset_tag(self):
-
-            return self._reset_tag
-
-        @property
-        def null_tags(self):
-
-            return self._null_tags
-
-        @property
-        def write_dims(self):
-
-            return self._write_dims
-
-        @property
-        def read_dims(self):
-
-            return self._read_dims
-
-        @property
-        def reset_dim(self):
-
-            return self._reset_dim
-
-        def _set_interface_properties(self) -> None:
-            
-            slots, pre = self.slots, self.prefix
-            w, r, re = self.write_marker, self.read_marker, self.reset_marker
-            na = self.null_marker
-
-            _w_tags = tuple((pre, w, i) for i in range(slots))
-            _r_tags = tuple((pre, r, i) for i in range(slots))
-            _re_tag = (pre, re)
-            _null_tags = tuple((pre, na, i) for i in range(slots))
-
-            _w_chain = chain((self.standby_val, self.clear_val), self.mapping)
-            _w_vals = set(_w_chain)
-            _r_vals = (self.standby_val, self.read_val)
-            _re_vals = (self.standby_val, self.reset_val)
-            _null_val = self.flag_val
-
-            _w_d_val = self.standby_val
-            _r_d_val = self.standby_val
-            _re_d_val = self.standby_val
-
-            _w_gen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
-            _r_gen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
-            _re_gen = ((_re_tag, val) for val in _re_vals)
-            _null_gen = ((tag, _null_val) for tag in _null_tags)
-
-            _w_dgen = ((tag, val) for tag, val in product(_w_tags, _w_vals))
-            _r_dgen = ((tag, val) for tag, val in product(_r_tags, _r_vals))
-            _re_dgen = ((_re_tag, val) for val in _re_vals)
-
-            _w_cmds = frozenset(feature(tag, val) for tag, val in _w_gen)
-            _r_cmds = frozenset(feature(tag, val) for tag, val in _r_gen)
-            _re_cmds = frozenset(feature(tag, val) for tag, val in _re_gen)
-            _null_flags = frozenset(feature(tag, val) for tag, val in _null_gen)
-
-            _w_defaults = frozenset(feature(tag, _w_d_val) for tag in _w_tags)
-            _r_defaults = frozenset(feature(tag, _r_d_val) for tag in _r_tags)
-            _re_defaults = frozenset({feature(_re_tag, _re_d_val)})
-            _defaults = _w_defaults | _r_defaults | _re_defaults
-
-            self._write_tags = _w_tags
-            self._read_tags = _r_tags
-            self._reset_tag = _re_tag
-            self._null_tags = _null_tags
-
-            self._write_dims = tuple(sorted(set(f.dim for f in _w_cmds)))
-            self._read_dims = tuple(sorted(set(f.dim for f in _r_cmds)))
-            self._reset_dim = (_re_tag, 0)
-
-            self._cmds = _w_cmds | _r_cmds | _re_cmds
-            self._defaults = _defaults
-            self._flags = frozenset(_null_flags)
-            self._params = frozenset()
-
-        def _validate_data(self):
-            
-            markers = (self.write_marker, self.read_marker, self.reset_marker)
-            w_vals = set((self.standby_val, self.clear_val)) | set(self.mapping)
-            r_vals = set((self.standby_val, self.read_val))
-            re_vals = set((self.standby_val, self.reset_val))
-            
-            if len(set(markers)) < 3:
-                raise ValueError("Marker arguments must be mutually distinct.")
-            if len(set(w_vals)) < len(self.mapping) + 2:
-                raise ValueError("Write vals may not contain duplicates.")
-            if len(r_vals) < 2:
-                raise ValueError("Read vals may not contain duplicates.")
-            if len(re_vals) < 2:
-                raise ValueError("Reset vals may not contain duplicates.")
+            super().__init__(cmds=cmds, flags=flags)
