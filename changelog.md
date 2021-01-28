@@ -25,10 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ControlledExtractor`
 
-### Fixed
-
-- BLA stepping bug in `RegisterArray`
-
 ## [v0.16.0] (2021-01-17)
 
 ### Added
