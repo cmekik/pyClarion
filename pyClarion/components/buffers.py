@@ -6,7 +6,7 @@ __all__ = ["ParamSet", "Register", "RegisterArray"]
 
 from ..base.symbols import ConstructType, Symbol, feature, subsystem, terminus
 from .. import numdicts as nd
-from .. import base 
+from .. import base
 from .blas import BLAs
 
 from typing import Callable, Hashable, Tuple, List, Collection, cast
@@ -41,15 +41,15 @@ class ParamSet(base.Process):
         data, = self.extract_inputs(inputs)
         cmd, = self.interface.parse_commands(data)
 
-        cmd_index = self.interface.cmds.index(cmd) 
-        if cmd_index == 0: 
+        cmd_index = self.interface.cmds.index(cmd)
+        if cmd_index == 0:
             pass
-        elif cmd_index == 1: 
+        elif cmd_index == 1:
             self.store.clear()
-        elif cmd_index == 2: 
+        elif cmd_index == 2:
             param_strengths = nd.keep(data, keys=self.interface.params)
             self.store.max(param_strengths)
-        else: 
+        else:
             assert cmd_index == 3
             self.store.clear()
             param_strengths = nd.keep(data, keys=self.interface.params)
@@ -66,7 +66,7 @@ class ParamSet(base.Process):
             self,
             name: Hashable,
             pmkrs: Tuple[Hashable, ...],
-            wmkr: Hashable = ".w", 
+            wmkr: Hashable = ".w",
             vsby: Hashable = ".sby",
             vclr: Hashable = ".clr",
             vupd: Hashable = ".upd",
@@ -108,12 +108,12 @@ class ParamSet(base.Process):
 class Register(base.Process):
     """A dynamic store of nodes."""
 
-    _serves = ConstructType.buffer 
+    _serves = ConstructType.buffer
     _interface: "Register.Interface"
 
     def __init__(
-        self, 
-        controller: Tuple[subsystem, terminus], 
+        self,
+        controller: Tuple[subsystem, terminus],
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "Register.Interface",
         blas: BLAs = None,
@@ -135,10 +135,11 @@ class Register(base.Process):
         self._controller = controller
         self._sources = sources
 
-        self.store = nd.MutableNumDict(default=0.0) 
+        self.store = nd.MutableNumDict(default=0.0)
         self.flags = nd.MutableNumDict(default=0.0)
-        
+
         self.blas = blas
+        self.update_blas = upate_blas
         self.interface = interface
 
     @property
@@ -179,16 +180,16 @@ class Register(base.Process):
         cmd_data, src_data = datas[0], datas[1:]
 
         cmd, = self.interface.parse_commands(cmd_data)
-        cmd_index = self.interface.cmds.index(cmd) 
+        cmd_index = self.interface.cmds.index(cmd)
         if cmd_index == 0:
             pass
         elif cmd_index == 1:
             self.store.clear()
-        else: 
+        else:
             data = src_data[cmd_index - 2]
             self.store.clearupdate(data)
             if self.blas is not None:
-                for key in data: 
+                for key in data:
                     self.blas.register_invocation(key, add_new=True)
 
         if self.is_empty:
@@ -200,13 +201,13 @@ class Register(base.Process):
         d.max(self.flags)
         d.squeeze()
 
-        if self.blas is not None and self.update_blas:
-            self.blas.step()
+        if self.blas is not None:
             # Remove items below threshold.
-            drop = [x for x in self.store if self.blas[x].below_threshold]
-            self.store.drop(keys=drop)
-            for x in drop:
-                del self.blas[x]
+            keys = self.blas.keys_below_threshold(self.store)
+            self.store.drop(keys=keys)
+            if self.update_blas:
+                self.blas.step()
+                self.blas.prune()
 
         return d
 
@@ -219,7 +220,7 @@ class Register(base.Process):
             self,
             name: Hashable,
             vops: Tuple[Hashable, ...],
-            wmkr: Hashable = ".w", 
+            wmkr: Hashable = ".w",
             fmkr: Hashable = ".empty",
             vsby: Hashable = ".sby",
             vclr: Hashable = ".clr"
@@ -273,7 +274,8 @@ class RegisterArray(base.Process):
         controller: Tuple[subsystem, terminus],
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "RegisterArray.Interface",
-        blas: BLAs = None
+        blas: BLAs = None,
+        update_blas: bool = True
     ) -> None:
         """
         Initialize RegisterArray instance.
@@ -288,12 +290,13 @@ class RegisterArray(base.Process):
         """
 
         super().__init__(expected=(controller,) + sources)
-        
+
         self._controller = controller
         self._sources = sources
 
         self.blas = blas
-        self.interface = interface # automatically spawns memory cells
+        self.update_blas = update_blas
+        self.interface = interface  # automatically spawns memory cells
 
     @property
     def interface(self) -> "RegisterArray.Interface":
@@ -315,7 +318,8 @@ class RegisterArray(base.Process):
                 controller=self._controller,
                 sources=self._sources,
                 interface=self._interface._sub_interfaces[i],
-                blas=self.blas
+                blas=self.blas,
+                update_blas=False
             )
             for i in range(self._interface.slots)
         )
@@ -346,7 +350,7 @@ class RegisterArray(base.Process):
         cmds = self.interface.parse_commands(data[0])
 
         clr_cmd = self.interface.cmds.index(cmds[0])
-        if clr_cmd == 1: # Global clear
+        if clr_cmd == 1:  # Global clear
             for cell in self.cells:
                 cell.store.clear()
 
@@ -354,8 +358,12 @@ class RegisterArray(base.Process):
         for i, cell in enumerate(self.cells):
             cell_strengths = cell.call(inputs)
             read_cmd = self.interface.cmds.index(cmds[i + 1])
-            if read_cmd == 2 * (i + 1) + 1: # Read cell
+            if read_cmd == 2 * (i + 1) + 1:  # Read cell
                 d.max(cell_strengths)
+
+        if self.blas is not None and self.update_blas:
+            self.blas.step()
+            self.blas.prune()
 
         return d
 
@@ -363,7 +371,7 @@ class RegisterArray(base.Process):
         """Control interface for RegisterArray instances."""
 
         _config = (
-            "name", "slots", "vops", "wmkr", "rmkr", "cmkr", "fmkr", 
+            "name", "slots", "vops", "wmkr", "rmkr", "cmkr", "fmkr",
             "vsby", "vclr", "vread"
         )
 
