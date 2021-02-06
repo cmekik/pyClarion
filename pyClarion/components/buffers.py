@@ -139,7 +139,7 @@ class Register(base.Process):
         self.flags = nd.MutableNumDict(default=0.0)
 
         self.blas = blas
-        self.update_blas = upate_blas
+        self.update_blas = update_blas
         self.interface = interface
 
     @property
