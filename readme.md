@@ -12,7 +12,7 @@ The primary resource for the implementation is Ron Sun's [*Anatomy of the Mind*]
 
 # Installation
 
-After downloading the repo, use `pip` with `setup.py`. In a terminal, navigate to the pyClarion folder then:
+In a terminal, navigate to the pyClarion folder then:
 
 - To install in developer mode (recommended), run
 ```pip install -e .```
@@ -31,8 +31,6 @@ See the Detailed Examples and Design sections below for further details.
 
 **Agent Assembly**
 
-Agents can be built to any degree of complexity and completeness using a uniform syntax.
-
 ```python
 from pyClarion import (
     chunks, terminus, buffer, subsystem, agent,
@@ -46,6 +44,8 @@ my_agent = Structure(
 )
 
 with my_agent: # Automatically adds and links constructs defined in scope
+
+    # Order of definition == Order of execution
 
     sensory = Construct(
         name=buffer("sensory"),
@@ -81,8 +81,6 @@ assert my_agent[subsystem("nacs"), chunks("main")] == chunk_pool
 
 **Rule and Chunk Specification**
 
-Explicit knowledge can be specified compactly through the use of construct symbols.
-
 ```python
 from pyClarion import feature, chunk, rule, Chunks, Rules
 
@@ -106,8 +104,6 @@ rdb.define(
 ```
 
 **Mathematical Operations with Numerical Dictionaries**
-
-Numerical dictionaries support the implementation of bottom-level neural networks and other components.
 
 ```python
 from pyClarion import nd
@@ -156,7 +152,7 @@ Construct symbols allow consistent and efficient communication of construct info
 
 There are two realizer types: `Construct` and `Structure`. The `Construct` type is for basic constructs, which are the leaves of the construct hierarchy (e.g., buffers, feature pools, implicit decision networks, etc.). The `Structure` type is for constructs higher up in the hierarchy (e.g., subsystems and agents). 
 
-Minimally, a basic construct realizer pairs a construct symbol, which names the construct represented by the realizer, with a `Process` object. The process object is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other pyClarion components. To implement customized behaviors and/or components, it is sufficient to write a new `Process` class.
+A `Construct` instance pairs a construct symbol, a `Symbol` instance which names the construct represented by the realizer, with a `Process` instance. The process object is responsible for implementing the input/output and basic learning behavior associated with the simulated construct, while the realizer handles networking with other pyClarion components. Customized behaviors and/or components may be implemented by subclassing the `Process` class.
 
 
 # Reading Guide
@@ -168,7 +164,7 @@ The pyClarion source code is organized as follows:
     This folder contains the following files:
 
     - `symbols.py` - Defines construct symbols.
-    - `components.py` - Defines abstractions for emitters and updaters as well as feature domains and feature interfaces.
+    - `components.py` - Defines abstractions for processes as well as process domains and interfaces.
     - `realizers.py` - Defines realizers.
 
     The recommended reading order for `base/` is to start with `symbols.py`, then to move on to `realizers.py`. While reading `realizers.py`, refer to `components.py` as necessary. It may be useful to skim `components.py` prior to reading `realizers.py`, but reading it on its own may be confusing. 

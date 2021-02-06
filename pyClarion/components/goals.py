@@ -5,18 +5,17 @@ __all__ = ["GoalStay"]
 
 
 from ..base.symbols import (
-    ConstructType, Symbol, feature, chunk, terminus, buffer, 
-    subsystem
+    ConstructType, Symbol, feature, chunk, terminus, buffer, subsystem
 )
-from ..base.components import Process, FeatureInterface, FeatureDomain
+from ..base.components import Process, Domain
+from .. import base
 from .blas import BLAs
 from .chunks_ import Chunks
 from .. import numdicts as nd
 
 from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast
 from types import MappingProxyType
-from dataclasses import dataclass
-from itertools import product, count
+from itertools import count, groupby
 
 
 class GoalStay(Process):
@@ -30,8 +29,8 @@ class GoalStay(Process):
     goal chunks from a source, as directed. 
 
     Maintains two flags: the goal state flag and the goal eval flag. The goal 
-    state flag serves to inform client processes whether a goal has been 
-    newly initialized, resumed after an interruption, or is currently active.
+    state flag serves to inform client processes if a goal has been newly 
+    initialized, resumed after an interruption, or is currently active.
     The goal eval flag serves to inform superordinate goals about the outcome 
     of subordinate goals and may also be used to caluculate reinforcement 
     signals.
@@ -52,7 +51,8 @@ class GoalStay(Process):
         interface: "GoalStay.Interface",
         chunks: Chunks,
         blas: BLAs,
-        prefix: str = "goal"
+        update_blas: bool = True, 
+        prefix: str = ".goal"
     ) -> None:
 
         super().__init__(expected=(controller, source))
@@ -60,237 +60,156 @@ class GoalStay(Process):
         self.interface = interface
         self.chunks = chunks
         self.blas = blas
+        self.update_blas = True
         self.prefix = prefix
         self._counter = count(1)
 
         self.store = nd.MutableNumDict(default=0)
         self.flags = nd.MutableNumDict(default=0)
-        self.flags.extend(self.interface.null_flags, value=1.0)
+        self.flags.extend((self.interface.flags[i] for i in (0, 3)), value=1.0)
 
-    def call(
-        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
-    ) -> nd.NumDict:
+    def call(self, inputs) -> nd.NumDict:
         
         cmd_data, src_data = self.extract_inputs(inputs)
         cmds = self.interface.parse_commands(cmd_data)
 
-        assert len(self.store) <= 1
-        assert len({cast(feature, f).dim for f in self.flags}) == 2
-        assert all(v == 1 for v in self.store.values())
-        assert all(v == 1 for v in self.flags.values())
-
-        set_dim = self.interface.set_dim
-        standby_cmd = self.interface.set_vals[0]
-        push_cmd = self.interface.set_vals[1]
-        eval_cmds = self.interface.set_vals[2:5]
-        active_cmd = self.interface.set_vals[5]
-        goal_setting_cmds = self.interface.goals
-        state_flags = self.interface.state_flags
-        eval_flags = self.interface.eval_flags
-        null_flags = self.interface.null_flags
-        goal_params = self.interface.params
-        goal_map = self.interface.goal_feature_map
-
-        cmd = cmds[set_dim]
-        if cmd == standby_cmd:
+        cmd, = cmds
+        cmd_index = self.interface.cmds.index(cmd)
+        if cmd_index == 0:
             pass
-        if cmd == active_cmd:
-            init_flags = state_flags[1:3] 
-            active_flag = state_flags[-1]
-            null_eval_flag = eval_flags[0]
-            existing_state_flag = set(self.flags) & set(state_flags)
-            flags_to_drop = existing_state_flag & set(init_flags)
-            new_flags = {null_eval_flag} 
-            if 0 < len(flags_to_drop): 
-                new_flags.add(active_flag)
+        elif cmd_index == 1:
+            ch = chunk("{}_{}".format(self.prefix, next(self._counter)))
+            goal_fs = self.interface.parse_goal_params(cmd_data)
+            flags = (self.interface.flags[i] for i in (1, 3))
+            self.chunks[ch] = self.chunks.Chunk(features=goal_fs) 
+            self.blas.register_invocation(ch, add_new=True)
+            self.store.clearupdate(nd.NumDict({ch: 1.0}))
+            self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
+        elif cmd_index in [2, 3, 4]:
+            if len(self.store) == 0:
+                pass
             else:
-                new_flags.union(existing_state_flag)
-            self.flags.clear()
-            self.flags.extend(new_flags, value=1)
-        elif cmd in eval_cmds:
-            existing_goal, = self.store 
-            new_goal = src_data
-            self.store.clearupdate(new_goal)
-            ch, = new_goal
-            self.blas.register_invocation(ch)
-            self.chunks.request_del(existing_goal)
-            self.blas.request_del(existing_goal)
-            if len(new_goal) == 0:
-                self.flags.clear()
-                self.flags.extend(null_flags, value=1)
-            elif len(new_goal) == 1:
-                i = list(eval_cmds).index(cmd)
-                self.flags.clear()
-                self.flags.extend((eval_flags[i], state_flags[2]), value=1)
-            else:
-                msg = "Expected only one new goal from goal structure."
-                raise ValueError(msg)
-        else:
-            assert cmd == push_cmd
-            _goal_fs = nd.keep(cmd_data, keys=goal_params)
-            assert all(v == 1 for v in _goal_fs.values())
-            assert len(_goal_fs) == len(self.interface.goals.features_by_dims)
-            # Create a new chunk with the current goal features. Note: it is 
-            # possible to have multiple goal chunks w/ identical goal 
-            # parameters.
-            # The update to chunk & bla database is immediate; adding this new 
-            # chunk should ideally happen at update time. But this is seems 
-            # like a less repetitive solution (though it is strongly dependent 
-            # on the agent cycle).
-            name = "{}_{}".format(self.prefix, next(self._counter))
-            ch = chunk(name)
-            goal_fs = {goal_map[f] for f in _goal_fs}
-            form = self.chunks.Chunk(features=goal_fs)     
-            self.chunks[ch] = form 
-            self.blas.add(ch)
-            self.store.clear()
-            self.store[ch] = 1.0
-            # Update flags
-            start_flag = state_flags[1]
-            null_eval_flag = eval_flags[0]
-            self.flags.clear()
-            self.flags.extend((start_flag, null_eval_flag), value=1)
+                old_goal, = self.store 
+                self.chunks.request_del(old_goal)
+                self.blas.request_del(old_goal)
+                if len(src_data) == 0:
+                    flags = (self.interface.flags[i] for i in (0, 3))
+                    self.store.clear()
+                    self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
+                else:
+                    new_goal, = src_data
+                    eidx = 1 + cmd_index
+                    flags = (self.interface.flags[i] for i in (2, eidx))
+                    self.store.clearupdate(src_data)
+                    self.blas.register_invocation(new_goal)
+                    self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
+        else: 
+            assert cmd_index == 5
+            flags = (self.interface.flags[i] for i in (0, 3))
+            self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
 
-        d = self.store + self.flags
+        d = nd.MutableNumDict(default=0.0)
+        d.max(self.store)
+        d.max(self.flags)
+
+        if self.update_blas:
+            self.blas.step()
 
         return d
 
-    @dataclass
-    class Interface(FeatureInterface):
-        """
-        Goal buffer control interface.
+    class Interface(base.Interface):
+        """Goal buffer control interface."""
 
-        :param goals: Feature domain specifying goals.
-        :param prefix: Prefix for goal buffer interface features.
-        :param set_postfix: Postfix for goal buffer commands and parameters. 
-        :param state_postfix: Postfix for goal buffer state flag features.
-        :param eval_postfix: Postfix for goal buffer eval flag features.
-        :param set_vals: Values for goal buffer commands.
-        :param state_vals: Values for goal buffer state flags.
-        :param eval_vals: Values for goal buffer eval flags.
-        """
+        _config = (
+            "name", "goals", "cmkr", "smkr", "emkr", "vsby", "vna", "vwrite", 
+            "vstart", "vresume", "vacton", "vquit", "vpass", "vfail"
+        )
         
-        goals: FeatureDomain
-        prefix: Hashable = "gb"
-        set_postfix: Hashable = "set"
-        state_postfix: Hashable = "state"
-        eval_postfix: Hashable = "eval"
-        set_vals: Tuple[Hashable, ...] = (
-            "standby", "push", "exit", "pass", "fail", "activate"
-        ) 
-        state_vals: Tuple[Hashable, Hashable, Hashable, Hashable] = (
-            "null", "start", "resume", "active"
-        )
-        eval_vals: Tuple[Hashable, Hashable, Hashable] = (
-            "null", "passed", "failed"
-        )
+        def __init__(
+            self,
+            name: Hashable,
+            goals: Tuple[feature, ...],
+            cmkr: Hashable = ".cmd",
+            smkr: Hashable = ".state",
+            emkr: Hashable = ".eval",
+            vsby: Hashable = ".sby",
+            vna: Hashable = ".na",
+            vwrite: Hashable = ".w",
+            vstart: Hashable = ".st",
+            vresume: Hashable = ".re",
+            vengage: Hashable = ".en",
+            vquit: Hashable = ".qt",
+            vpass: Hashable = ".p",
+            vfail: Hashable = ".f",
+        ) -> None:
+            """
+            Initialize GoalStay.Interface instance.
 
-        @property
-        def set_dim(self):
+            :param name: Name for goal stay interface features.
+            :param goals: Goal features.
+            :param cmkr: Command marker. 
+            :param smkr: Goal state marker.
+            :param emkr: Goal eval marker.
+            :param vsby: Standby value.
+            :param vna: N/A value.
+            :param vwrite: Write value.
+            :param vstart: Start value.
+            :param vresume: Resume value.
+            :param vengage: Engage value.
+            :param vquit: Quit value.
+            :param vpass: Pass value.
+            :param vfail: Fail value.
+            """
+            
+            with self.config():
+                self.name = name
+                self.goals = goals
+                self.cmkr = cmkr
+                self.smkr = smkr
+                self.emkr = emkr
+                self.vsby = vsby
+                self.vna = vna
+                self.vwrite = vwrite
+                self.vstart = vstart
+                self.vresume = vresume
+                self.vengage = vengage
+                self.vquit = vquit
+                self.vpass = vpass
+                self.vfail = vfail
 
-            return self._set_dim
+        def update(self):
 
-        @property
-        def state_dim(self):
+            ctag = (self.name, self.cmkr)
+            stag = (self.name, self.smkr)
+            etag = (self.name, self.emkr)
 
-            return self._state_dim
+            cvals = (
+                self.vsby, self.vwrite, self.vquit, self.vpass, self.vfail, 
+                self.vengage
+            )
+            svals = (self.vna, self.vstart, self.vresume)
+            evals = (self.vna, self.vpass, self.vfail)
 
-        @property
-        def eval_dim(self):
+            fspecs = ((stag, svals), (etag, evals))
 
-            return self._eval_dim
+            gdvs = tuple((f.tag, f.val) for f in self.goals)
+            gsets = (set(g) for _, g in groupby(gdvs, lambda x: x[0]))
 
-        @property
-        def set_cmds(self):
+            if any(len(s) < 2 for s in gsets):
+                raise ValueError("Singleton goal dimensions not allowed.")
+            if any(f.lag != 0 for f in self.goals):
+                raise ValueError("Goals may not have nonzero lag.")
 
-            return self._set_cmds
+            super().__init__(
+                cmds=tuple(feature(ctag, v) for v in cvals),
+                params=tuple(feature((self.name, g), v) for g, v in gdvs),
+                flags=tuple(feature(t, v) for t, vs in fspecs for v in vs),
+                extras=self.goals
+            )
+        
+        def parse_goal_params(self, data):
 
-        @property
-        def state_flags(self):
+            params = tuple(f for f in self.params if f in data)
+            goals = tuple(feature(f.tag[1], f.val) for f in params)
 
-            return self._state_flags
-
-        @property
-        def eval_flags(self):
-
-            return self._eval_flags
-
-        @property
-        def null_flags(self):
-
-            return self._null_flags
-
-        @property
-        def goal_feature_map(self):
-
-            return self._goal_feature_map
-
-        def _validate_data(self):
-
-            # need to check if goal params are distinct from other features, 
-            # not possible without redundancy. Maybe _validate_data should in 
-            # general be called after all features have been generated... -Can
-
-            postfixes = self.set_postfix, self.state_postfix, self.eval_postfix
-            set_vals = self.set_vals
-            state_vals = self.state_vals
-            eval_vals = self.eval_vals
-            goals_by_dims = self.goals.features_by_dims
-
-            if len(set_vals) != 6:
-                raise ValueError("Must specify exactly 6 set vals.") 
-            if len(set(set_vals)) < len(set_vals):
-                raise ValueError("Goals and set vals must be unique.")
-            if len(set(postfixes)) < len(postfixes):
-                raise ValueError("Postfixes must be distinct")
-            if len(set(state_vals)) < len(state_vals):
-                raise ValueError("State vals must be unique.")
-            if len(set(eval_vals)) < len(eval_vals):
-                raise ValueError("Eval vals must be unique.")
-            if any(len(fs) <= 1 for fs in goals_by_dims.values()):
-                msg = "Singleton goal parameter dimensions not supported."
-                raise ValueError(msg)
-
-        def _set_interface_properties(self):
-
-            set_tag = (self.prefix, self.set_postfix)
-            state_tag = (self.prefix, self.state_postfix)
-            eval_tag = (self.prefix, self.eval_postfix)
-
-            set_vals = self.set_vals
-            state_vals = self.state_vals
-            eval_vals = self.eval_vals
-
-            goals = self.goals
-            goal_feature_map = {
-                feature(set_tag + (f.tag,), f.val): f 
-                for f in goals.features
-            }
-
-            f_set = tuple(feature(set_tag, v) for v in set_vals)
-            f_state = tuple(feature(state_tag, v) for v in state_vals)
-            f_eval = tuple(feature(eval_tag, v) for v in eval_vals)
-
-            f_init = frozenset(feature(state_tag, v) for v in state_vals[1:3])
-
-            null_eval = eval_vals[0]
-            null_state = state_vals[0]
-            null_flags = frozenset({
-                feature(eval_tag, null_eval), feature(state_tag, null_state)
-            })
-
-            defaults = frozenset((feature(set_tag, set_vals[0]),))
-
-            self._set_dim = (set_tag, 0)
-            self._state_dim = (state_tag, 0)
-            self._eval_dim = (eval_tag, 0)
-            self._set_cmds = f_set
-            self._state_flags = f_state
-            self._eval_flags = f_eval
-            self._null_flags = null_flags
-            self._goal_feature_map = MappingProxyType(goal_feature_map)
-
-            self._cmds = frozenset(f_set)
-            self._defaults = defaults
-            self._params = frozenset(goal_feature_map.keys())
-            self._flags = frozenset(f_state) | frozenset(f_eval)
+            return goals

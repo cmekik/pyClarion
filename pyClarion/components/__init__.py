@@ -9,3 +9,4 @@ from .goals import *
 from .propagators import *
 from .networks import *
 from .rules import *
+from .utils import *

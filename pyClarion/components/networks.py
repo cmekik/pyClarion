@@ -1,16 +1,16 @@
 """Definitions for setting up Q-Nets."""
 
 
-__all__ = ["SimpleQNet", "ReinforcementDomain"]
+__all__ = ["SimpleQNet", "Reinforcements"]
 
 
 from .. import numdicts as nd
 from ..base.symbols import ConstructType, Symbol, feature, features, buffer  
-from ..base.components import FeatureDomain, FeatureInterface, Process
+from ..base.components import Domain, Interface, Process
 
 from itertools import product
-from typing import List, Mapping, Tuple, Hashable
-from dataclasses import dataclass
+from typing import List, Dict, Tuple, Hashable
+from types import MappingProxyType
 import random
 import math
 import warnings
@@ -30,27 +30,35 @@ class NetConfigWarning(UserWarning):
     pass
 
 
-@dataclass
-class ReinforcementDomain(FeatureDomain):
-    """
-    A feature domain for specifying reinforcement signals.
+class Reinforcements(Domain):
+    """A feature domain for specifying reinforcement signals."""
 
-    :param mapping: A one-to-one mapping from features to dimensions. Each 
-        feature is assumed to represent a reinforcement signal for the 
-        corresponding dimension. Will raise a ValueError if the mapping is 
-        found not to be one-to-one.
-    """
+    # TODO: Can probably do away with the mapping... But will need to make 
+    # changes to SimpleQNet. - Can
 
-    mapping: Mapping[feature, Tuple[Hashable, int]]
+    _config = ("mapping",)
 
-    def _validate_data(self):
+    def __init__(
+        self, mapping: Dict[feature, Tuple[Hashable, int]]
+    ) -> None:
+        """
+        Initialize Reinforcements instance.
+
+        :param mapping: A one-to-one mapping from features to dimensions. Each 
+            feature is assumed to represent a reinforcement signal for the 
+            corresponding dimension. Will raise a ValueError if the mapping is 
+            found not to be one-to-one.
+        """
+
+        with self.config():
+            self.mapping = MappingProxyType(mapping)
+
+    def update(self) -> None:
 
         if len(set(self.mapping.keys())) != len(set(self.mapping.values())):
             raise ValueError("Mapping must be one-to-one.")
 
-    def _set_interface_properties(self):
-
-        self._features = set(self.mapping)
+        super().__init__(features=tuple(self.mapping)) 
 
 
 class SimpleQNet(Process):
@@ -74,9 +82,9 @@ class SimpleQNet(Process):
         x_source: Symbol,
         r_source: Symbol, 
         a_source: Symbol,
-        domain: FeatureDomain,
-        interface: FeatureInterface,
-        r_domain: ReinforcementDomain,
+        domain: Domain,
+        interface: Interface,
+        r_domain: Reinforcements,
         layers: List[int], 
         gamma: float,
         lr: float

@@ -4,7 +4,6 @@
 __all__ = ["BLA", "BLAs", "BLAStrengths", "BLAMaintainer"]
 
 
-# from .buffers import RegisterArray
 from ..base.symbols import ConstructType, Symbol, SymbolicAddress
 from ..base.components import Process
 from .. import numdicts as nd
@@ -217,6 +216,13 @@ class BLAs(Mapping):
             self.add(key)
         self._add.clear()
 
+    def prune(self):
+        """Drop all entries that are below threshold."""
+
+        below = [key for key, bla in self.items() if bla.below_threshold]
+        for key in below:
+            del self[key]
+
     def register_invocation(self, key, add_new=False):
         """
         Promise key will be treated as invoked on next update.
@@ -312,9 +318,7 @@ class BLAMaintainer(Process):
         self.client_db = client_db
         self.threshold = threshold
 
-    def call(
-        self, inputs: Mapping[Tuple[Symbol, ...], nd.NumDict]
-    ) -> nd.NumDict:
+    def call(self, inputs) -> nd.NumDict:
         """
         Update BLA database and client DB.
         

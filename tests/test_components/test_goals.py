@@ -1,5 +1,5 @@
 from pyClarion import (
-    SimpleDomain, pprint, feature, chunk, buffer, subsystem, terminus, agent, 
+    pprint, feature, chunk, buffer, subsystem, terminus, agent, 
     Chunks, BLAs, ActionSelector, nd
 )
 from pyClarion.components.goals import GoalStay
@@ -12,32 +12,34 @@ class TestGoalStay(unittest.TestCase):
 
     def test_goal_stay_interface_init_succeeds_under_normal_input(self):
 
-        goal_domain = SimpleDomain([
-            feature("goal", "select"),
-            feature("goal", "analyze"),
-            feature("goal", "evaluate"),
-            feature("goal_object", "attribute"),
-            feature("goal_object", "response"),
-            feature("goal_object", "pattern")
-        ])
-
         # baseline; make sure it works then test w/ pathological inputs
-        interface = GoalStay.Interface(goals=goal_domain)
+        interface = GoalStay.Interface(
+            name="gctl",
+            goals=(
+                feature("goal", "select"),
+                feature("goal", "analyze"),
+                feature("goal", "evaluate"),
+                feature("goal_object", "attribute"),
+                feature("goal_object", "response"),
+                feature("goal_object", "pattern")
+            )
+        )
 
     def test_goal_buffer_push(self):
 
         # TODO: Add assertions...
 
-        goal_domain = SimpleDomain([
-            feature("goal", "select"),
-            feature("goal", "analyze"),
-            feature("goal", "evaluate"),
-            feature("goal_object", "attribute"),
-            feature("goal_object", "response"),
-            feature("goal_object", "pattern")
-        ])
-
-        interface = GoalStay.Interface(goals=goal_domain)
+        interface = GoalStay.Interface(
+            name="gctl",
+            goals=(
+                feature("goal", "select"),
+                feature("goal", "analyze"),
+                feature("goal", "evaluate"),
+                feature("gobj", "attribute"),
+                feature("gobj", "response"),
+                feature("gobj", "pattern")
+            )
+        )
 
         chunks = Chunks()
         blas = BLAs(density=1.0)
@@ -50,40 +52,53 @@ class TestGoalStay(unittest.TestCase):
             blas=blas
         )
         
-        gb.entrust((agent("A"), buffer("gb")))
-
         input_ = nd.NumDict({
-            feature(("gb", "set"), "push"): 1.0,
-            feature(("gb", "set", "goal"), "analyze"): 1.0,
-            feature(("gb", "set", "goal_object"), "pattern"): 1.0
-        })        
+            feature(("gctl", ".cmd"), ".w"): 1.0,
+            feature(("gctl", "goal"), "analyze"): 1.0,
+            feature(("gctl", "gobj"), "pattern"): 1.0
+        }, default=0)        
         inputs = {
-            (agent("A"), subsystem("acs"), terminus("gb_actions")): input_,
-            (agent("A"), subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
+            (subsystem("acs"), terminus("gb_actions")): input_,
+            (subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
         }
 
         output = gb.call(inputs)
-        blas.step()
         chunks.step()
 
-        output = gb.call(inputs)
-        blas.step()
-        chunks.step()
+        # pprint(output)
+        # pprint(chunks)
+        # pprint(blas)
 
         input_ = nd.NumDict({
-            feature(("gb", "set"), "fail"): 1.0,
-            feature(("gb", "set", "goal"), "analyze"): 1.0,
-            feature(("gb", "set", "goal_object"), "pattern"): 1.0
-        })
+            feature(("gctl", ".cmd"), ".w"): 1.0,
+            feature(("gctl", "goal"), "evaluate"): 1.0,
+            feature(("gctl", "gobj"), "attribute"): 1.0
+        }, default=0)        
         inputs = {
-            (agent("A"), subsystem("acs"), terminus("gb_actions")): input_,
-            (agent("A"), subsystem("ms"), terminus("goal_selection")): nd.NumDict({
-                chunk("goal_1"): 1.0
+            (subsystem("acs"), terminus("gb_actions")): input_,
+            (subsystem("ms"), terminus("goal_selection")): nd.NumDict(default=0)
+        }
+
+        output = gb.call(inputs)
+        chunks.step()
+
+        # pprint(output)
+        # pprint(chunks)
+        # pprint(blas)
+
+        input_ = nd.NumDict({
+            feature(("gctl", ".cmd"), ".f"): 1.0,
+            feature(("gctl", "goal"), "analyze"): 1.0,
+            feature(("gctl", "gobj"), "pattern"): 1.0
+        }, default=0)
+        inputs = {
+            (subsystem("acs"), terminus("gb_actions")): input_,
+            (subsystem("ms"), terminus("goal_selection")): nd.NumDict({
+                chunk(".goal_1"): 1.0
             })
         }
 
         output = gb.call(inputs)
-        blas.step()
         chunks.step()
 
         # pprint(output)
