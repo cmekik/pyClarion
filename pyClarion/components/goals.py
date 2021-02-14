@@ -52,7 +52,7 @@ class GoalStay(Process):
         chunks: Chunks,
         blas: BLAs,
         update_blas: bool = True, 
-        prefix: str = ".goal"
+        prefix: str = "goal"
     ) -> None:
 
         super().__init__(expected=(controller, source))
@@ -75,9 +75,9 @@ class GoalStay(Process):
 
         cmd, = cmds
         cmd_index = self.interface.cmds.index(cmd)
-        if cmd_index == 0:
+        if cmd_index == 0: # standby
             pass
-        elif cmd_index == 1:
+        elif cmd_index == 1: # write new goal
             ch = chunk("{}_{}".format(self.prefix, next(self._counter)))
             goal_fs = self.interface.parse_goal_params(cmd_data)
             flags = (self.interface.flags[i] for i in (1, 3))
@@ -85,7 +85,7 @@ class GoalStay(Process):
             self.blas.register_invocation(ch, add_new=True)
             self.store.clearupdate(nd.NumDict({ch: 1.0}))
             self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
-        elif cmd_index in [2, 3, 4]:
+        elif cmd_index in [2, 3, 4]: # quit, pass, or fail current goal
             if len(self.store) == 0:
                 pass
             else:
@@ -103,7 +103,7 @@ class GoalStay(Process):
                     self.store.clearupdate(src_data)
                     self.blas.register_invocation(new_goal)
                     self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
-        else: 
+        else: # engage current goal (set as active)
             assert cmd_index == 5
             flags = (self.interface.flags[i] for i in (0, 3))
             self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
@@ -129,18 +129,18 @@ class GoalStay(Process):
             self,
             name: Hashable,
             goals: Tuple[feature, ...],
-            cmkr: Hashable = ".cmd",
-            smkr: Hashable = ".state",
-            emkr: Hashable = ".eval",
-            vsby: Hashable = ".sby",
-            vna: Hashable = ".na",
-            vwrite: Hashable = ".w",
-            vstart: Hashable = ".st",
-            vresume: Hashable = ".re",
-            vengage: Hashable = ".en",
-            vquit: Hashable = ".qt",
-            vpass: Hashable = ".p",
-            vfail: Hashable = ".f",
+            cmkr: Hashable = "cmd",
+            smkr: Hashable = "state",
+            emkr: Hashable = "eval",
+            vsby: Hashable = "sby",
+            vna: Hashable = "na",
+            vwrite: Hashable = "write",
+            vstart: Hashable = "start",
+            vresume: Hashable = "resume",
+            vengage: Hashable = "engage",
+            vquit: Hashable = "quit",
+            vpass: Hashable = "pass",
+            vfail: Hashable = "fail",
         ) -> None:
             """
             Initialize GoalStay.Interface instance.
