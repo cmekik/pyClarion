@@ -6,6 +6,7 @@ __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 from ..base.symbols import ConstructType, Symbol, rule, chunk
 from ..base.components import Process
+from .chunks_ import Chunks
 from .. import numdicts as nd
 
 from typing import (
@@ -215,6 +216,19 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         """
 
         return any(form == entry for entry in self.values())
+
+    def support(self, *cdbs: Chunks) -> bool:
+        """
+        Return True iff cdbs support all rules in self.
+        
+        A set of cdbs is considered to support a rule if every condition and 
+        conclusion of the rule is in at least one of the cdbs.
+        """
+
+        s = {c for cdb in cdbs for c in cdb}
+        value = all(c in s for r in self.values() for c in (r.conc, *r.weights))
+        
+        return value
 
     def request_add(self, r, form):
         """

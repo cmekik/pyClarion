@@ -11,7 +11,7 @@ from ..base.symbols import (
     feature, chunk, terminus, subsystem
 )
 from .. import numdicts as nd
-from ..base.components import Process
+from ..base.components import Process, Domain
 from ..base.realizers import Construct
 
 from .propagators import ThresholdSelector
@@ -255,6 +255,19 @@ class Chunks(MutableMapping[chunk, Ct]):
         found = self.find_form(form, check_promises)
 
         return 0 < len(found) 
+
+    def support(self, *domains: Domain) -> bool:
+        """
+        Return True iff domains support all chunks in self.
+        
+        A set of domains is considered to support a chunk if every feature of 
+        the chunk is in at least one of the domains.
+        """
+
+        s = {f for dom in domains for f in dom.features}
+        value = all(f in s for c in self.values() for f in c.features)
+
+        return value
 
     def request_add(self, ch, form):
         """

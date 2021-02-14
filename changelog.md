@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `Domain.disjoint(*domains)` for checking if domains are mutually disjoint.
+- `Chunks.support(self, *domains)` to check if domains support cdb instance self.
+- `Rules.support(self, *cdbs)` to check if cdbs support rdb instance self.
+
+### Changed
+
+- Adjusted defaults for buffer and goal stay interfaces.
+
 ## [v0.17.0] (2021-01-28)
 
 ### Added
