@@ -276,7 +276,7 @@ class Domain(object):
 
         self._locked = True
 
-    def disjoint(*domains: Domain) -> bool:
+    def disjoint(*domains: "Domain") -> bool:
         """Return True iff domains have no overlap."""
 
         # NOTE: This method does not have a self argument, but works both as an 
