@@ -9,8 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `Domain.disjoint(*domains)` for checking if domains are mutually disjoint.
-- `Chunks.support(self, *domains)` to check if domains support cdb instance self.
-- `Rules.support(self, *cdbs)` to check if cdbs support rdb instance self.
+- `Chunk.support(self, *domains)` to check if domains support self.
+- `Rule.support(self, *cdbs)` to check if cdbs support self.
+- `Chunks.enforce_support(self, *domains)` context manager to ensure that chunks 
+are built out of domain features.
+- `Rules.enforce_support(self, *cdbs)` context manager to ensure that rules are 
+built out of predefined chunks.
 
 ### Changed
 
