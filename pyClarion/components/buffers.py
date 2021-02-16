@@ -66,11 +66,11 @@ class ParamSet(base.Process):
             self,
             name: Hashable,
             pmkrs: Tuple[Hashable, ...],
-            wmkr: Hashable = ".w",
-            vsby: Hashable = ".sby",
-            vclr: Hashable = ".clr",
-            vupd: Hashable = ".upd",
-            vclrupd: Hashable = ".clrupd"
+            wmkr: Hashable = "w", 
+            vsby: Hashable = "sby",
+            vclr: Hashable = "clr",
+            vupd: Hashable = "upd",
+            vclrupd: Hashable = "clrupd"
         ):
             """
             Initialize ParamSet.Interface instance.
@@ -220,10 +220,10 @@ class Register(base.Process):
             self,
             name: Hashable,
             vops: Tuple[Hashable, ...],
-            wmkr: Hashable = ".w",
-            fmkr: Hashable = ".empty",
-            vsby: Hashable = ".sby",
-            vclr: Hashable = ".clr"
+            wmkr: Hashable = "w", 
+            fmkr: Hashable = "empty",
+            vsby: Hashable = "sby",
+            vclr: Hashable = "clr"
         ) -> None:
             """
             Initialize Register.Interface instance.
@@ -380,13 +380,13 @@ class RegisterArray(base.Process):
             name: Hashable,
             slots: int,
             vops: Tuple[Hashable, ...],
-            wmkr: Hashable = ".w",
-            rmkr: Hashable = ".r",
-            cmkr: Hashable = ".clr",
-            fmkr: Hashable = ".empty",
-            vsby: Hashable = ".sby",
-            vclr: Hashable = ".clr",
-            vread: Hashable = ".read"
+            wmkr: Hashable = "w",
+            rmkr: Hashable = "r",
+            cmkr: Hashable = "clr",
+            fmkr: Hashable = "empty",
+            vsby: Hashable = "sby",
+            vclr: Hashable = "clr",
+            vread: Hashable = "read"
         ) -> None:
             """
             Initialize RegisterArray.Interface instance.

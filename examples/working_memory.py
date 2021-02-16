@@ -344,8 +344,8 @@ stimulus.process.input({
     feature("texture", "smooth"): 1.0
 })
 acs_ctrl.process.input({
-    feature(("wm", (".w", 0)), "retrieve"): 1.0,
-    feature(("wm", (".r", 0)), ".read"): 1.0
+    feature(("wm", ("w", 0)), "retrieve"): 1.0,
+    feature(("wm", ("r", 0)), "read"): 1.0
 })
 alice.step()
 record_step(alice, next(step))

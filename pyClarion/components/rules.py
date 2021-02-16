@@ -6,12 +6,14 @@ __all__ = ["Rule", "Rules", "AssociativeRules", "ActionRules"]
 
 from ..base.symbols import ConstructType, Symbol, rule, chunk
 from ..base.components import Process
+from .chunks_ import Chunks
 from .. import numdicts as nd
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
     Tuple, overload, cast
 )
+from contextlib import contextmanager
 from types import MappingProxyType
 
 
@@ -102,6 +104,18 @@ class Rule(object):
         
         return nd.val_sum(weighted)
 
+    def support(self, *cdbs: Chunks) -> bool:
+        """
+        Return True iff cdbs support all rules in self.
+        
+        A set of cdbs is considered to support a rule if every condition and 
+        conclusion of the rule is in at least one of the cdbs.
+        """
+
+        val = all(any(c in d for d in cdbs) for c in (self.conc, *self.weights))
+        
+        return val
+
 
 Rt = TypeVar("Rt", bound="Rule")
 class Rules(MutableMapping[rule, Rt], Generic[Rt]):
@@ -142,6 +156,9 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
             data = dict(data)
 
         self._data = data
+        self._cdbs: Tuple[Chunks, ...] = ()
+        self._enforce_support = False
+
         self.max_conds = max_conds
         self.Rule = rule_type if rule_type is not None else Rule
 
@@ -169,6 +186,9 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         self._validate_rule_form(val)
         if isinstance(val, self.Rule):
+            if self._enforce_support and not val.support(*self._cdbs):
+                msg = "Rule {} contains unexpected chunks."
+                raise ValueError(msg.format(key.cid))
             self._data[key] = val
         else:
             msg = "This rule database expects rules of type '{}'." 
@@ -215,6 +235,21 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         """
 
         return any(form == entry for entry in self.values())
+
+    @contextmanager
+    def enforce_support(self, *cdbs: Chunks):
+        """
+        Reject new rules that are not supported by cdbs.
+        
+        Use this method as a context manager when initializing complex 
+        knowledge to automatically check for coding errors.
+        """
+
+        self._cdbs = cdbs
+        self._enforce_support = True
+        yield
+        self._enforce_support = False
+        self._cdbs = ()
 
     def request_add(self, r, form):
         """

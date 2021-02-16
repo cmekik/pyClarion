@@ -137,10 +137,10 @@ class Pruned(Wrapped[Pt]):
             if source in self.exempt:
                 preprocessed[source] = inputs[source]
             else:
-                preprocessed[source] = nd.drop(
+                preprocessed[source] = nd.keep(
                     d=inputs[source], 
                     # TODO: Fix func: will break if address not tuple. - Can
-                    func=lambda address: address[-1].ctype in self.accept 
+                    func=lambda symbol: symbol.ctype in self.accept 
                 )
 
         return MappingProxyType(preprocessed)

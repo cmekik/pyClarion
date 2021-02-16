@@ -276,6 +276,17 @@ class Domain(object):
 
         self._locked = True
 
+    def disjoint(*domains: "Domain") -> bool:
+        """Return True iff domains have no overlap."""
+
+        # NOTE: This method does not have a self argument, but works both as an 
+        # instance and class method. This is similar to set.union and 
+        # set.intersection.
+
+        s = set.intersection(*(set(dom.features) for dom in domains))
+
+        return s == set()
+
 
 class Interface(Domain):
     """A feature domain defining a control interface."""
