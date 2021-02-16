@@ -101,7 +101,6 @@ class GoalStay(Process):
                     eidx = 1 + cmd_index
                     flags = (self.interface.flags[i] for i in (2, eidx))
                     self.store.clearupdate(src_data)
-                    self.blas.register_invocation(new_goal)
                     self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
         else: # engage current goal (set as active)
             assert cmd_index == 5

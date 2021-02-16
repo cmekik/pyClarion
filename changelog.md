@@ -20,6 +20,14 @@ built out of predefined chunks.
 
 - Adjusted defaults for buffer and goal stay interfaces.
 
+### Fixed
+
+- Goal chunk invocation on resumption `GoalStay` would change the order in 
+which goals are executed (away from FILO order). Removed for more consistent 
+behavior.
+- A bug in `Pruned` caused it to excluded expected construct type instead of 
+including it.
+
 ## [v0.17.0] (2021-01-28)
 
 ### Added
