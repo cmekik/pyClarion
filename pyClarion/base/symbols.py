@@ -129,14 +129,14 @@ class Token(object):
         
         raise AttributeError(msg)
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other) -> bool:
 
         if isinstance(other, Token):
             return self._args == other._args
         else:
             return NotImplemented
 
-    def __lt__(self, other: object) -> bool:
+    def __lt__(self, other) -> bool:
 
         if isinstance(other, Token):
             return self._args < other._args
