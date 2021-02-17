@@ -179,6 +179,9 @@ class Register(base.Process):
         datas = self.extract_inputs(inputs)
         cmd_data, src_data = datas[0], datas[1:]
 
+        if self.blas is not None and self.update_blas:
+                self.blas.step()
+
         cmd, = self.interface.parse_commands(cmd_data)
         cmd_index = self.interface.cmds.index(cmd)
         if cmd_index == 0:
@@ -206,9 +209,9 @@ class Register(base.Process):
             keys = self.blas.keys_below_threshold(self.store)
             self.store.drop(keys=keys)
             if self.update_blas:
-                self.blas.step()
                 self.blas.prune()
-
+                
+                
         return d
 
     class Interface(base.Interface):
@@ -349,6 +352,9 @@ class RegisterArray(base.Process):
         data = self.extract_inputs(inputs)
         cmds = self.interface.parse_commands(data[0])
 
+        if self.blas is not None and self.update_blas:
+            self.blas.step()
+
         clr_cmd = self.interface.cmds.index(cmds[0])
         if clr_cmd == 1:  # Global clear
             for cell in self.cells:
@@ -362,8 +368,9 @@ class RegisterArray(base.Process):
                 d.max(cell_strengths)
 
         if self.blas is not None and self.update_blas:
-            self.blas.step()
             self.blas.prune()
+            
+
 
         return d
 
