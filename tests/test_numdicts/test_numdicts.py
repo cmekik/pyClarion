@@ -22,6 +22,13 @@ class TestNumdicts(unittest.TestCase):
                     d3 = nd.NumDict(default=3.0)
                     self.assertEqual((d2*d1*d3).default, (d3*d1*d2).default)
                     self.assertEqual((d1*d2*d3).default, (d1*d2*d3).default)
+                tape = nd.GradientTape()
+                with tape:
+                    d1 = nd.NumDict({1: i/4, 2: (i+j)/4})
+                    d2 = nd.NumDict({1: j/4, 2: (i-j)/4})
+                    d3 = d1*d2
+                    self.assertEqual(d3[1], d1[1]*d2[1])
+                    self.assertEqual(d3[2], d1[2]*d2[2])
         # testing differentiation
         for i in range(-40, 40):
             for j in range(-40, 40):
@@ -50,6 +57,16 @@ class TestNumdicts(unittest.TestCase):
                 d3, grads = tape.gradients(d4, (d1, d2))
                 self.assertEqual(grads[0].default, i*d2.default)
                 self.assertEqual(grads[1].default, i*d1.default)
+                tape = nd.GradientTape()
+                with tape:
+                    d1 = nd.NumDict({1: i/4, 2: (i+j)/4})
+                    d2 = nd.NumDict({1: j/4, 2: (i-j)/4})
+                    d3 = d1*d2
+                d3, grads = tape.gradients(d3,(d1,d2))
+                self.assertEqual(grads[0][1],d2[1])
+                self.assertEqual(grads[0][2],d2[2])
+                self.assertEqual(grads[1][1],d1[1])
+                self.assertEqual(grads[1][2],d1[2])
 
     def test_addition(self):
         for i in range(-40, 40):
@@ -68,3 +85,15 @@ class TestNumdicts(unittest.TestCase):
                 d4, grads = tape.gradients(d4, (d1, d2))
                 self.assertEqual(grads[0].default, 1.0)
                 self.assertEqual(grads[1].default, 1.0)
+                tape = nd.GradientTape()
+                with tape:
+                    d1 = nd.NumDict({1: i/4, 2: (i+j)/4})
+                    d2 = nd.NumDict({1: j/4, 2: (i-j)/4})
+                    d3 = d1+d2
+                    self.assertEqual(d3[1], d1[1]+d2[1])
+                    self.assertEqual(d3[2], d1[2]+d2[2])
+                d3, grads = tape.gradients(d3,(d1,d2))
+                self.assertEqual(grads[0][1],1.0)
+                self.assertEqual(grads[0][2],1.0)
+                self.assertEqual(grads[1][1],1.0)
+                self.assertEqual(grads[1][2],1.0)
