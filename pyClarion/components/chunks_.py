@@ -445,15 +445,9 @@ class ChunkExtractor(Process):
         fs = nd.threshold(strengths, th=self.threshold)
         if len(fs) > 0:
             form = self.chunks.Chunk(fs)
-            found = self.chunks.find_form(form)
-            if len(found) == 0:
-                name = "{}_{}".format(self.prefix, next(self._counter))
-                ch = chunk(name)
-                d[ch] = 1.0
-                self.chunks.request_add(ch, form)
-            else: 
-                if len(found) != 1:
-                    raise ValueError("Chunk database contains duplicate forms.")
-                d.extend(found, value=1.0)
+            name = "{}_{}".format(self.prefix, next(self._counter))
+            ch = chunk(name)
+            d[ch] = 1.0
+            self.chunks.request_add(ch, form)
 
         return d

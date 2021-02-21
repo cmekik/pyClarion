@@ -15,9 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 are built out of domain features.
 - `Rules.enforce_support(self, *cdbs)` context manager to ensure that rules are 
 built out of predefined chunks.
+- `ActionRules` now has a threshold parameter.
+- `GoalStay` communicates previous goal information in dedicated features.
 
 ### Changed
 
+- `ChunkExtractor` no longer ensures chunk form uniqueness.
 - Adjusted defaults for buffer and goal stay interfaces.
 
 ### Fixed

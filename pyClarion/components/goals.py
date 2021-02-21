@@ -66,6 +66,7 @@ class GoalStay(Process):
 
         self.store = nd.MutableNumDict(default=0)
         self.flags = nd.MutableNumDict(default=0)
+        self.prevs = nd.MutableNumDict(default=0)
         self.flags.extend((self.interface.flags[i] for i in (0, 3)), value=1.0)
 
     def call(self, inputs) -> nd.NumDict:
@@ -78,6 +79,11 @@ class GoalStay(Process):
         if cmd_index == 0: # standby
             pass
         elif cmd_index == 1: # write new goal
+            if len(self.store) == 0:
+                self.prevs.clear()
+            else:
+                old_goal, = self.store
+                self._update_prevs(old_goal)
             ch = chunk("{}_{}".format(self.prefix, next(self._counter)))
             goal_fs = self.interface.parse_goal_params(cmd_data)
             flags = (self.interface.flags[i] for i in (1, 3))
@@ -92,6 +98,7 @@ class GoalStay(Process):
                 old_goal, = self.store 
                 self.chunks.request_del(old_goal)
                 self.blas.request_del(old_goal)
+                self._update_prevs(old_goal)
                 if len(src_data) == 0:
                     flags = (self.interface.flags[i] for i in (0, 3))
                     self.store.clear()
@@ -106,15 +113,26 @@ class GoalStay(Process):
             assert cmd_index == 5
             flags = (self.interface.flags[i] for i in (0, 3))
             self.flags.clearupdate(nd.NumDict({f: 1.0 for f in flags}))
+            self.prevs.clear()
 
         d = nd.MutableNumDict(default=0.0)
         d.max(self.store)
         d.max(self.flags)
+        d.max(self.prevs)
 
         if self.update_blas:
             self.blas.step()
 
         return d
+
+    def _update_prevs(self, old):
+
+        old_fs = self.chunks[old].features
+        old_idxs = (self.interface.extras.index(f) for f in old_fs)
+        prev_idxs = (i + len(self.interface.goals) for i in old_idxs)
+        prevs = (self.interface.extras[i] for i in prev_idxs)
+        self.prevs.clear()
+        self.prevs.extend(prevs, value=1.0)
 
     class Interface(base.Interface):
         """Goal buffer control interface."""
@@ -131,6 +149,7 @@ class GoalStay(Process):
             cmkr: Hashable = "cmd",
             smkr: Hashable = "state",
             emkr: Hashable = "eval",
+            prevmkr: Hashable = "prev",
             vsby: Hashable = "sby",
             vna: Hashable = "na",
             vwrite: Hashable = "write",
@@ -149,6 +168,7 @@ class GoalStay(Process):
             :param cmkr: Command marker. 
             :param smkr: Goal state marker.
             :param emkr: Goal eval marker.
+            :param prevmkr: Previous goal marker.
             :param vsby: Standby value.
             :param vna: N/A value.
             :param vwrite: Write value.
@@ -166,6 +186,7 @@ class GoalStay(Process):
                 self.cmkr = cmkr
                 self.smkr = smkr
                 self.emkr = emkr
+                self.prevmkr = prevmkr
                 self.vsby = vsby
                 self.vna = vna
                 self.vwrite = vwrite
@@ -191,6 +212,9 @@ class GoalStay(Process):
 
             fspecs = ((stag, svals), (etag, evals))
 
+            prev = self.prevmkr
+            fgprev = tuple(feature((f.tag, prev), f.val) for f in self.goals)
+
             gdvs = tuple((f.tag, f.val) for f in self.goals)
             gsets = (set(g) for _, g in groupby(gdvs, lambda x: x[0]))
 
@@ -203,7 +227,7 @@ class GoalStay(Process):
                 cmds=tuple(feature(ctag, v) for v in cvals),
                 params=tuple(feature((self.name, g), v) for g, v in gdvs),
                 flags=tuple(feature(t, v) for t, vs in fspecs for v in vs),
-                extras=self.goals
+                extras=(self.goals + fgprev)
             )
         
         def parse_goal_params(self, data):

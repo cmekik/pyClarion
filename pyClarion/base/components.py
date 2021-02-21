@@ -356,6 +356,12 @@ class Interface(Domain):
         return self._flags
 
     @property
+    def extras(self) -> Tuple[feature, ...]:
+        """Additional features associated with interface."""
+
+        return self._extras
+
+    @property
     def defaults(self) -> Tuple[feature, ...]:
         """
         Default commands.
