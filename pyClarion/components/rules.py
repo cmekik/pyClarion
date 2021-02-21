@@ -379,7 +379,7 @@ class ActionRules(Process):
         self, 
         source: Symbol, 
         rules: Rules, 
-        threshold: float = .5,
+        threshold: float = 0.0,
         temperature: float = .01
     ) -> None:
 
