@@ -376,7 +376,11 @@ class ActionRules(Process):
     _serves = ConstructType.flow_tt
 
     def __init__(
-        self, source: Symbol, rules: Rules, temperature: float = .01
+        self, 
+        source: Symbol, 
+        rules: Rules, 
+        threshold: float = 0.0,
+        temperature: float = .01
     ) -> None:
 
         if rules.max_conds is None or rules.max_conds > 1:
@@ -385,6 +389,7 @@ class ActionRules(Process):
 
         super().__init__(expected=(source,))
         self.rules = rules
+        self.threshold = threshold
         self.temperature = temperature
 
     def call(
@@ -392,11 +397,14 @@ class ActionRules(Process):
     ) -> nd.NumDict:
 
         strengths, = self.extract_inputs(inputs)
+        strengths = nd.threshold(
+            strengths, th=self.threshold, keep_default=True
+        )
 
         d = nd.MutableNumDict(default=0)
         for r, form in self.rules.items():
             d[r] = form.strength(strengths)
-
+        
         probabilities = nd.boltzmann(d, self.temperature)
         selection = nd.draw(probabilities, n=1)
 
