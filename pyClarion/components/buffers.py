@@ -6,7 +6,7 @@ __all__ = ["ParamSet", "Register", "RegisterArray"]
 
 from ..base.symbols import ConstructType, Symbol, feature, subsystem, terminus
 from .. import numdicts as nd
-from .. import base 
+from .. import base
 from .blas import BLAs
 
 from typing import Callable, Hashable, Tuple, List, Collection, cast
@@ -18,8 +18,8 @@ class ParamSet(base.Process):
     _serves = ConstructType.buffer
 
     def __init__(
-        self, 
-        controller: Tuple[subsystem, terminus], 
+        self,
+        controller: Tuple[subsystem, terminus],
         interface: "ParamSet.Interface",
     ) -> None:
 
@@ -41,15 +41,15 @@ class ParamSet(base.Process):
         data, = self.extract_inputs(inputs)
         cmd, = self.interface.parse_commands(data)
 
-        cmd_index = self.interface.cmds.index(cmd) 
-        if cmd_index == 0: 
+        cmd_index = self.interface.cmds.index(cmd)
+        if cmd_index == 0:
             pass
-        elif cmd_index == 1: 
+        elif cmd_index == 1:
             self.store.clear()
-        elif cmd_index == 2: 
+        elif cmd_index == 2:
             param_strengths = nd.keep(data, keys=self.interface.params)
             self.store.max(param_strengths)
-        else: 
+        else:
             assert cmd_index == 3
             self.store.clear()
             param_strengths = nd.keep(data, keys=self.interface.params)
@@ -108,15 +108,16 @@ class ParamSet(base.Process):
 class Register(base.Process):
     """A dynamic store of nodes."""
 
-    _serves = ConstructType.buffer 
+    _serves = ConstructType.buffer
     _interface: "Register.Interface"
 
     def __init__(
-        self, 
-        controller: Tuple[subsystem, terminus], 
+        self,
+        controller: Tuple[subsystem, terminus],
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "Register.Interface",
-        blas: BLAs = None
+        blas: BLAs = None,
+        shares_blas: bool = False
     ) -> None:
         """
         Initialize a Register instance.
@@ -126,7 +127,9 @@ class Register(base.Process):
         :param interface: Defines features for controlling updates to self.
         :param blas: Optional BLA database. When items in store are found to 
             have BLA values below the set density threshold, they are dropped.
-        :param blas: Option to update BLAs at call time.
+        :param shares_blas: If True, will only report invocations. Otherwise, 
+        will also maintain BLA database and remove items in store that are 
+        below threshold.   
         """
 
         super().__init__(expected=(controller,) + sources)
@@ -134,10 +137,11 @@ class Register(base.Process):
         self._controller = controller
         self._sources = sources
 
-        self.store = nd.MutableNumDict(default=0.0) 
+        self.store = nd.MutableNumDict(default=0.0)
         self.flags = nd.MutableNumDict(default=0.0)
-        
+
         self.blas = blas
+        self.shares_blas = shares_blas
         self.interface = interface
 
     @property
@@ -176,18 +180,17 @@ class Register(base.Process):
 
         datas = self.extract_inputs(inputs)
         cmd_data, src_data = datas[0], datas[1:]
-
         cmd, = self.interface.parse_commands(cmd_data)
-        cmd_index = self.interface.cmds.index(cmd) 
+        cmd_index = self.interface.cmds.index(cmd)
         if cmd_index == 0:
             pass
         elif cmd_index == 1:
             self.store.clear()
-        else: 
+        else:
             data = src_data[cmd_index - 2]
             self.store.clearupdate(data)
             if self.blas is not None:
-                for key in data: 
+                for key in data:
                     self.blas.register_invocation(key, add_new=True)
 
         if self.is_empty:
@@ -199,14 +202,11 @@ class Register(base.Process):
         d.max(self.flags)
         d.squeeze()
 
-        if self.blas is not None:
+        if self.blas is not None and not self.shares_blas:
             self.blas.step()
-            # Remove items below threshold.
-            drop = [x for x in self.store if self.blas[x].below_threshold]
-            self.store.drop(keys=drop)
-            for x in drop:
-                del self.blas[item]
-
+            self.store.drop(keys=self.blas.keys_below_threshold(self.store))
+            self.blas.prune()
+                
         return d
 
     class Interface(base.Interface):
@@ -272,7 +272,8 @@ class RegisterArray(base.Process):
         controller: Tuple[subsystem, terminus],
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "RegisterArray.Interface",
-        blas: BLAs = None
+        blas: BLAs = None,
+        shares_blas: bool = False
     ) -> None:
         """
         Initialize RegisterArray instance.
@@ -283,16 +284,19 @@ class RegisterArray(base.Process):
         :param blas: Optional BLA database. When items in a cell store are found
             to have BLA values below the set density threshold, they are 
             dropped. The database is shared among all register array cells.
-        :param update_blas: Option to update BLAs at call time.
+        :param shares_blas: If True, will only report invocations. Otherwise, 
+            will also maintain BLA database and remove items in store that are 
+            below threshold.   
         """
 
         super().__init__(expected=(controller,) + sources)
-        
+
         self._controller = controller
         self._sources = sources
 
         self.blas = blas
-        self.interface = interface # automatically spawns memory cells
+        self.shares_blas  = shares_blas
+        self.interface = interface  # automatically spawns memory cells
 
     @property
     def interface(self) -> "RegisterArray.Interface":
@@ -314,7 +318,8 @@ class RegisterArray(base.Process):
                 controller=self._controller,
                 sources=self._sources,
                 interface=self._interface._sub_interfaces[i],
-                blas=self.blas
+                blas=self.blas,
+                shares_blas=True
             )
             for i in range(self._interface.slots)
         )
@@ -333,7 +338,7 @@ class RegisterArray(base.Process):
         self.controller to those defined in self.interface. If no commands are 
         encountered, default/standby behavior will be executed. The default 
         behavior is to maintain the current memory state.
-        
+
         The update cycle processes global resets first, slot contents are 
         updated next. As a result, it is possible to clear the memory globally 
         and populate it with new information (e.g., in the service of a new 
@@ -345,7 +350,7 @@ class RegisterArray(base.Process):
         cmds = self.interface.parse_commands(data[0])
 
         clr_cmd = self.interface.cmds.index(cmds[0])
-        if clr_cmd == 1: # Global clear
+        if clr_cmd == 1:  # Global clear
             for cell in self.cells:
                 cell.store.clear()
 
@@ -353,8 +358,14 @@ class RegisterArray(base.Process):
         for i, cell in enumerate(self.cells):
             cell_strengths = cell.call(inputs)
             read_cmd = self.interface.cmds.index(cmds[i + 1])
-            if read_cmd == 2 * (i + 1) + 1: # Read cell
+            if read_cmd == 2 * (i + 1) + 1:  # Read cell
                 d.max(cell_strengths)
+
+        if self.blas is not None and not self.shares_blas:
+            self.blas.step()
+            for cell in self.cells:
+                cell.store.drop(keys=self.blas.keys_below_threshold(cell.store))
+            self.blas.prune()
 
         return d
 
@@ -362,7 +373,7 @@ class RegisterArray(base.Process):
         """Control interface for RegisterArray instances."""
 
         _config = (
-            "name", "slots", "vops", "wmkr", "rmkr", "cmkr", "fmkr", 
+            "name", "slots", "vops", "wmkr", "rmkr", "cmkr", "fmkr",
             "vsby", "vclr", "vread"
         )
 
