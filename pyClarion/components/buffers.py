@@ -117,7 +117,7 @@ class Register(base.Process):
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "Register.Interface",
         blas: BLAs = None,
-        update_blas: bool = True
+        shares_blas: bool = False
     ) -> None:
         """
         Initialize a Register instance.
@@ -127,7 +127,9 @@ class Register(base.Process):
         :param interface: Defines features for controlling updates to self.
         :param blas: Optional BLA database. When items in store are found to 
             have BLA values below the set density threshold, they are dropped.
-        :param blas: Option to update BLAs at call time.
+        :param shares_blas: If True, will only report invocations. Otherwise, 
+        will also maintain BLA database and remove items in store that are 
+        below threshold.   
         """
 
         super().__init__(expected=(controller,) + sources)
@@ -139,7 +141,7 @@ class Register(base.Process):
         self.flags = nd.MutableNumDict(default=0.0)
 
         self.blas = blas
-        self.update_blas = update_blas
+        self.shares_blas = shares_blas
         self.interface = interface
 
     @property
@@ -178,10 +180,6 @@ class Register(base.Process):
 
         datas = self.extract_inputs(inputs)
         cmd_data, src_data = datas[0], datas[1:]
-
-        if self.blas is not None and self.update_blas:
-                self.blas.step()
-
         cmd, = self.interface.parse_commands(cmd_data)
         cmd_index = self.interface.cmds.index(cmd)
         if cmd_index == 0:
@@ -204,13 +202,10 @@ class Register(base.Process):
         d.max(self.flags)
         d.squeeze()
 
-        if self.blas is not None:
-            # Remove items below threshold.
-            keys = self.blas.keys_below_threshold(self.store)
-            self.store.drop(keys=keys)
-            if self.update_blas:
-                self.blas.prune()
-                
+        if self.blas is not None and not self.shares_blas:
+            self.blas.step()
+            self.store.drop(keys=self.blas.keys_below_threshold(self.store))
+            self.blas.prune()
                 
         return d
 
@@ -278,7 +273,7 @@ class RegisterArray(base.Process):
         sources: Tuple[Tuple[subsystem, terminus], ...],
         interface: "RegisterArray.Interface",
         blas: BLAs = None,
-        update_blas: bool = True
+        shares_blas: bool = False
     ) -> None:
         """
         Initialize RegisterArray instance.
@@ -289,7 +284,9 @@ class RegisterArray(base.Process):
         :param blas: Optional BLA database. When items in a cell store are found
             to have BLA values below the set density threshold, they are 
             dropped. The database is shared among all register array cells.
-        :param update_blas: Option to update BLAs at call time.
+        :param shares_blas: If True, will only report invocations. Otherwise, 
+            will also maintain BLA database and remove items in store that are 
+            below threshold.   
         """
 
         super().__init__(expected=(controller,) + sources)
@@ -298,7 +295,7 @@ class RegisterArray(base.Process):
         self._sources = sources
 
         self.blas = blas
-        self.update_blas = update_blas
+        self.shares_blas  = shares_blas
         self.interface = interface  # automatically spawns memory cells
 
     @property
@@ -322,7 +319,7 @@ class RegisterArray(base.Process):
                 sources=self._sources,
                 interface=self._interface._sub_interfaces[i],
                 blas=self.blas,
-                update_blas=False
+                shares_blas=True
             )
             for i in range(self._interface.slots)
         )
@@ -352,9 +349,6 @@ class RegisterArray(base.Process):
         data = self.extract_inputs(inputs)
         cmds = self.interface.parse_commands(data[0])
 
-        if self.blas is not None and self.update_blas:
-            self.blas.step()
-
         clr_cmd = self.interface.cmds.index(cmds[0])
         if clr_cmd == 1:  # Global clear
             for cell in self.cells:
@@ -367,10 +361,11 @@ class RegisterArray(base.Process):
             if read_cmd == 2 * (i + 1) + 1:  # Read cell
                 d.max(cell_strengths)
 
-        if self.blas is not None and self.update_blas:
+        if self.blas is not None and not self.shares_blas:
+            self.blas.step()
+            for cell in self.cells:
+                cell.store.drop(keys=self.blas.keys_below_threshold(cell.store))
             self.blas.prune()
-            
-
 
         return d
 
