@@ -319,7 +319,7 @@ class RegisterArray(base.Process):
             for i in range(self._interface.slots)
         )
 
-    def entrust(self, construct: Tuple[Symbol, ...]) -> None:
+    def entrust(self, construct: Tuple[Symbol, ...]) -> None: 
 
         for cell in self.cells:
             cell.entrust(construct)
