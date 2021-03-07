@@ -28,7 +28,7 @@ class ParamSet(base.Process):
         self.store = nd.MutableNumDict(default=0.0)
         self.interface = interface
 
-    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
+    def call(self, inputs):
         """
         Update the paramset state and emit outputs.
 
@@ -71,7 +71,7 @@ class ParamSet(base.Process):
             vclr: Hashable = ".clr",
             vupd: Hashable = ".upd",
             vclrupd: Hashable = ".clrupd"
-        ) -> None:
+        ):
             """
             Initialize ParamSet.Interface instance.
 
@@ -93,7 +93,7 @@ class ParamSet(base.Process):
                 self.vupd = vupd
                 self.vclrupd = vclrupd
 
-        def update(self) -> None:
+        def update(self):
 
             wtag = (self.name, self.wmkr)
             wvals = (self.vsby, self.vclr, self.vupd, self.vclrupd)
@@ -147,7 +147,7 @@ class Register(base.Process):
         return self._interface
 
     @interface.setter
-    def interface(self, obj: "Register.Interface") -> None:
+    def interface(self, obj: "Register.Interface"):
 
         if len(self._sources) != len(obj.vops):
             msg = "Incompatible interface: len(vops) != len(sources)."
@@ -156,12 +156,12 @@ class Register(base.Process):
         obj.lock()
 
     @property
-    def is_empty(self) -> bool:
+    def is_empty(self):
         """True iff no nodes are stored in self."""
 
         return len(self.store) == 0
 
-    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
+    def call(self, inputs):
         """
         Update the register state and emit the current register output.
 
@@ -319,13 +319,13 @@ class RegisterArray(base.Process):
             for i in range(self._interface.slots)
         )
 
-    def entrust(self, construct: Tuple[Symbol, ...]) -> None:
+    def entrust(self, construct):
 
         for cell in self.cells:
             cell.entrust(construct)
         super().entrust(construct)
 
-    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
+    def call(self, inputs):
         """
         Update the memory state and emit output activations.
 
