@@ -347,7 +347,7 @@ print("NACS should output nothing on sequence end b/c flows not enabled...\n")
 
 control_sequence = [
     {
-        feature(("gate", ".w"), ".upd"): 1.0,
+        feature(("gate", "w"), "upd"): 1.0,
         feature(("gate", "stimulus")): 1.0
     },
     {}
@@ -361,7 +361,7 @@ print("NACS should output 'FRUIT' on sequence end due to assoc. rules...\n")
 
 control_sequence = [
     {
-        feature(("gate", ".w"), ".upd"): 1.0,
+        feature(("gate", "w"), "upd"): 1.0,
         feature(("gate", "associations")): 1.0
     },
     {}
@@ -378,7 +378,7 @@ print(
 
 control_sequence = [
     {
-        feature(("gate", ".w"), ".clrupd"): 1.0,
+        feature(("gate", "w"), "clrupd"): 1.0,
         feature(("gate", "stimulus")): 1.0,
         feature(("gate", "bottom-up")): 1.0
     },

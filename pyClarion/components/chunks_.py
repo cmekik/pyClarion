@@ -11,7 +11,7 @@ from ..base.symbols import (
     feature, chunk, terminus, subsystem
 )
 from .. import numdicts as nd
-from ..base.components import Process
+from ..base.components import Process, Domain
 from ..base.realizers import Construct
 
 from .propagators import ThresholdSelector
@@ -21,9 +21,10 @@ from typing import (
     List, Optional, TypeVar, Type, Generic, MutableMapping, cast, overload, 
     Any, Dict
 )
+from contextlib import contextmanager
 from collections import namedtuple
 from statistics import mean
-from itertools import count
+from itertools import count, chain
 from copy import copy
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -126,6 +127,18 @@ class Chunk(object):
 
         return strength
 
+    def support(self, *domains: Domain) -> bool:
+        """
+        Return True iff domains support self.
+        
+        A set of domains is considered to support a chunk if every feature of 
+        the chunk is in at least one of the domains.
+        """
+        
+        vals = all(any(f in d.features for d in domains) for f in self.features)   
+        
+        return vals
+
 
 Ct = TypeVar("Ct", bound="Chunk")
 class Chunks(MutableMapping[chunk, Ct]):
@@ -164,6 +177,8 @@ class Chunks(MutableMapping[chunk, Ct]):
         else:
             _data = dict(data)
         self._data: MutableMapping[chunk, Ct] = _data
+        self._domains: Tuple[Domain, ...] = ()
+        self._enforce_support: bool = False
 
         if chunk_type is None:
             self.Chunk = Chunk
@@ -197,6 +212,9 @@ class Chunks(MutableMapping[chunk, Ct]):
     def __setitem__(self, key: Any, val: Any) -> None:
 
         if isinstance(val, self.Chunk):
+            if self._enforce_support and not val.support(*self._domains):
+                msg = "Chunk {} contains unexpected features."
+                raise ValueError(msg.format(key.cid))
             self._data[key] = val
         else:
             msg = "This chunk database expects chunks of type '{}'." 
@@ -255,6 +273,21 @@ class Chunks(MutableMapping[chunk, Ct]):
         found = self.find_form(form, check_promises)
 
         return 0 < len(found) 
+
+    @contextmanager
+    def enforce_support(self, *domains: Domain):
+        """
+        Reject new chunks that are not supported by domains.
+        
+        Use this method as a context manager when initializing complex 
+        knowledge to automatically check for coding errors.
+        """
+
+        self._domains = domains
+        self._enforce_support = True
+        yield
+        self._enforce_support = False
+        self._domains = ()
 
     def request_add(self, ch, form):
         """
@@ -412,15 +445,9 @@ class ChunkExtractor(Process):
         fs = nd.threshold(strengths, th=self.threshold)
         if len(fs) > 0:
             form = self.chunks.Chunk(fs)
-            found = self.chunks.find_form(form)
-            if len(found) == 0:
-                name = "{}_{}".format(self.prefix, next(self._counter))
-                ch = chunk(name)
-                d[ch] = 1.0
-                self.chunks.request_add(ch, form)
-            else: 
-                if len(found) != 1:
-                    raise ValueError("Chunk database contains duplicate forms.")
-                d.extend(found, value=1.0)
+            name = "{}_{}".format(self.prefix, next(self._counter))
+            ch = chunk(name)
+            d[ch] = 1.0
+            self.chunks.request_add(ch, form)
 
         return d
