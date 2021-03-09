@@ -77,7 +77,7 @@ class Chunk(object):
             return NotImplemented
 
     @property
-    def features(self) -> Collection[feature]:
+    def features(self) -> FrozenSet[feature]:
         """Features associated with chunk."""
         
         return self._features
@@ -107,7 +107,7 @@ class Chunk(object):
 
         return d
 
-    def bottom_up(self, strengths: Callable[..., bool]) -> float:
+    def bottom_up(self, strengths: nd.NumDict) -> float:
         """
         Compute bottom up strength for chunk associated with self.
 
@@ -203,7 +203,7 @@ class Chunks(MutableMapping[chunk, Ct]):
             TypeError(msg.format(type(self.Chunk.__name__)))
 
     @property
-    def add_promises(self) -> MutableMapping[chunk, Ct]:
+    def add_promises(self) -> Mapping[chunk, Ct]:
         """A view of promised additions."""
 
         return MappingProxyType(self._add_promises)

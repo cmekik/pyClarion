@@ -56,7 +56,7 @@ class Gated(Wrapped[Pt]):
         self.interface = interface
         self.invert = invert
 
-    def postprocess(self, inputs: Mapping[Any, nd.NumDict], output: float) -> float:
+    def postprocess(self, inputs: Mapping[Any, nd.NumDict], output: nd.NumDict) -> nd.NumDict:
         """
         Gate output of base process.
 
@@ -96,7 +96,7 @@ class Filtered(Wrapped[Pt]):
         self.invert = invert
 
     def preprocess(self, inputs: Mapping[Any, nd.NumDict]
-    ) -> Mapping[SymbolicAddress, nd.NumDict]:
+    ) -> Mapping[Any, nd.NumDict]:
 
         ws, = self.extract_inputs(inputs)[:len(self.expected_top)]
         if self.invert:
@@ -132,7 +132,7 @@ class Pruned(Wrapped[Pt]):
         self.exempt = exempt or []
 
     def preprocess(self, inputs: Mapping[Any, nd.NumDict]
-    ) -> Mapping[SymbolicAddress, nd.NumDict]:
+    ) -> Mapping[Any, nd.NumDict]:
 
         preprocessed = {}
         for source in self.base.expected:
