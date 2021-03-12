@@ -1,7 +1,9 @@
+from itertools import product
 import pyClarion.numdicts as nd
 
 import unittest
 import math
+import itertools
 
 from pyClarion.numdicts.numdicts import NumDict
 
@@ -9,11 +11,11 @@ from pyClarion.numdicts.numdicts import NumDict
 class TestNumdicts(unittest.TestCase):
     # TODO fix/improve look in the iter tools library like product
     def sequenceGenerator(self, a, b):
-        a = a*4
-        b = b*4
-        for i in range(a, b):
-            for j in range(a, b):
-                yield (i/4, j/4)
+        r = 4 # represents how many divisions
+        a = a*r
+        b = b*r
+        for i,j in itertools.product(tuple(range(a,b)),tuple(range(a,b))):
+            yield i/r,j/r
 
     def test_addition_basic_functionality(self):
         for i, j in self.sequenceGenerator(-10, 10):
@@ -247,8 +249,6 @@ class TestNumdicts(unittest.TestCase):
                 # testing basic functionality for elements
                 d1 = nd.NumDict({1: i, 2: (i+j)})
                 d2 = nd.NumDict({1: j, 2: (i-j)})
-                print(d1)
-                print(d2)
                 if(d2[1].is_integer() and d2[2].is_integer()):
                     if(d1[1] != 0 and d1[2] != 0):
                         d3 = d1 ** d2
@@ -285,8 +285,10 @@ class TestNumdicts(unittest.TestCase):
                             self.assertEqual(NumDict.__pow__(d1, d2)[2],
                                              NumDict.__rpow__(d2, d1)[2])
 
-    '''def test_pow_and_rpow_differentiation(self):
+    """def test_pow_and_rpow_differentiation(self):
         for i, j in self.sequenceGenerator(-10, 10):
+            print(i)
+            print(j)
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default with normal operator
@@ -319,8 +321,8 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads3[0].default,
                              d1.default**(d2.default-1)*d2.default)
             self.assertEqual(grads3[1].default, d1.default **
-                             d2.default*math.log(abs(d1.default)))
-'''
+                             d2.default*math.log(abs(d1.default)))"""
+
     def test_multiplication_basic_functionality(self):
         for i, j in self.sequenceGenerator(-10, 10):
             tape = nd.GradientTape()
