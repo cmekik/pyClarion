@@ -7,7 +7,8 @@ from pyClarion.numdicts.numdicts import NumDict
 
 
 class TestNumdicts(unittest.TestCase):
-    def sequenceGenerator(self, a, b):  # TODO fix/improve
+    # TODO fix/improve look in the iter tools library like product
+    def sequenceGenerator(self, a, b):
         a = a*4
         b = b*4
         for i in range(a, b):
@@ -210,88 +211,116 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(grads[1][1], 1/d1[1])
                 self.assertEqual(grads[1][2], 1/d1[2])
 
-    def test_pow_and_rpow(self):  # TODO FIX/DEBUG
-        """for i in range(-40, 40):
-            for j in range(-40, 40):
-                tape = nd.GradientTape()
-                with tape:
-                    # testing basic functionality
-                    d1 = nd.NumDict(default=i)
-                    d2 = nd.NumDict(default=j)
-                    self.assertEqual(
-                        (d1 ** d2).default, d1.default ** d2.default)
-                    self.assertEqual(NumDict.__pow__(
-                        d1, d2).default, (d1**d2).default)
-                    self.assertEqual(NumDict.__pow__(
-                        d1, d2).default, NumDict.__rpow__(d2, d1).default)
-                    d3 = NumDict.__pow__(d1, d2)
-                    d4 = NumDict.__rpow__(d2, d1)
-                # testing pow and rpow differentiation
-                d3, grads1 = tape.gradients(d3, (d1, d2))
-                print(i)
-                print(j)
-                print((math.log(abs(d1.default)))*d1.default ** d2.default)
-                self.assertEqual(
-                    grads1[0].default, (d2.default)*(d1.default) ** (d2.default-1))
-                self.assertEqual(grads1[1].default,
-                                 (math.log(abs(d1.default)))*d1.default ** d2.default)
-                d4, grads2 = tape.gradients(d4, (d1, d2))
-                self.assertEqual(
-                    grads2[0].default, (d2.default)*(d1.default) ** (d2.default-1))
-                self.assertEqual(grads1[1].default, (math.log(
-                    abs(d1.default)))*d1.default ** d2.default)
-                self.assertEqual(grads1[0], grads2[0])
-                self.assertEqual(grads1[1], grads2[1])
-                 tape = nd.GradientTape()
-                with tape:
-                    d1 = nd.NumDict({1: i, 2: (i+j)})
-                    d2 = nd.NumDict({1: j, 2: (i-j)})
-                    if(d1[1]*d1[2]*d2[1]*d2[2] == 0):
-                        with self.assertRaises(ZeroDivisionError):
-                            if(d1[1]*d1[2] == 0):
-                                d2/d1
-                            else:
-                                d1/d2
-                        with self.assertRaises(ZeroDivisionError):
-                            if(d1[1]*d1[2] == 0):
-                                NumDict.__truediv__(d2, d1)
-                            else:
-                                NumDict.__truediv__(d1, d2)
-                        with self.assertRaises(ZeroDivisionError):
-                            if(d1[1]*d1[2] == 0):
-                                NumDict.__rtruediv__(d1, d2)
-                            else:
-                                NumDict.__rtruediv__(d2, d1)
+    def test_pow_and_rpow_basic_functionality(self):
+        for i, j in self.sequenceGenerator(-10, 10):
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                if(d2.default.is_integer()):
+                    if (d1.default != 0):
+                        self.assertEqual(
+                            (d1 ** d2).default, d1.default ** d2.default)
+                        self.assertEqual(NumDict.__pow__(
+                            d1, d2).default, (d1**d2).default)
+                        self.assertEqual(NumDict.__pow__(
+                            d1, d2).default, NumDict.__rpow__(d2, d1).default)
                     else:
-                        d3 = d1/d2
-                        self.assertEqual(d3[1], d1[1]/d2[1])
-                        self.assertEqual(d3[2], d1[2]/d2[2])
-                        d3 = NumDict.__truediv__(d1, d2)
-                        self.assertEqual(d3[1], (d1/d2)[1])
-                        self.assertEqual(d3[2], (d1/d2)[2])
-                        self.assertEqual(NumDict.__truediv__(
-                            d1, d2), NumDict.__rtruediv__(d2, d1))
-                    if(d2[1]*d2[2] != 0):
-                        d3 = NumDict.__truediv__(d1, d2)
-                if(d2[1]*d2[2] != 0):
-                    d3, grads = tape.gradients(d3, (d1, d2))
-                    self.assertEqual(grads[0][1], 1/d2[1])
-                    self.assertEqual(grads[0][2], 1/d2[2])
-                    self.assertEqual(grads[1][1], (-d1[1])/(d2[1]**2))
-                    self.assertEqual(grads[1][2], (-d1[2])/(d2[2]**2))
-                tape = nd.GradientTape()
-                with tape:
-                    d1 = nd.NumDict({1: i, 2: (i+j)})
-                    d2 = nd.NumDict({1: j, 2: (i-j)})
-                    if(d1[1]*d1[2] != 0):
-                        d3 = NumDict.__rtruediv__(d1, d2)
-                if(d1[1]*d1[2] != 0):
-                    d3, grads = tape.gradients(d3, (d1, d2))
-                    self.assertEqual(grads[0][1], (-d2[1])/(d1[1]**2))
-                    self.assertEqual(grads[0][2], (-d2[2])/(d1[2]**2))
-                    self.assertEqual(grads[1][1], 1/d1[1])
-                    self.assertEqual(grads[1][2], 1/d1[2]) """
+                        if(d2.default < 0):
+                            with self.assertRaises(ZeroDivisionError):
+                                self.assertEqual(
+                                    (d1 ** d2).default, d1.default ** d2.default)
+                                self.assertEqual(NumDict.__pow__(
+                                    d1, d2).default, (d1**d2).default)
+                                self.assertEqual(NumDict.__pow__(
+                                    d1, d2).default, NumDict.__rpow__(d2, d1).default)
+                        elif (d2.default != 0):
+                            self.assertEqual(
+                                (d1 ** d2).default, d1.default ** d2.default)
+                            self.assertEqual(NumDict.__pow__(
+                                d1, d2).default, (d1**d2).default)
+                            self.assertEqual(NumDict.__pow__(
+                                d1, d2).default, NumDict.__rpow__(d2, d1).default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for elements
+                d1 = nd.NumDict({1: i, 2: (i+j)})
+                d2 = nd.NumDict({1: j, 2: (i-j)})
+                print(d1)
+                print(d2)
+                if(d2[1].is_integer() and d2[2].is_integer()):
+                    if(d1[1] != 0 and d1[2] != 0):
+                        d3 = d1 ** d2
+                        self.assertEqual(d3[1], d1[1] ** d2[1])
+                        self.assertEqual(d3[2], d1[2] ** d2[2])
+                        self.assertEqual(NumDict.__pow__(d1, d2)[1], d3[1])
+                        self.assertEqual(NumDict.__pow__(d1, d2)[2], d3[2])
+                        self.assertEqual(NumDict.__pow__(d1, d2)[1],
+                                         NumDict.__rpow__(d2, d1)[1])
+                        self.assertEqual(NumDict.__pow__(d1, d2)[2],
+                                         NumDict.__rpow__(d2, d1)[2])
+                    else:
+                        if((d1[1] == 0 and d2[1] < 0) or (d1[2] == 0 and d2[2] < 0)):
+                            with self.assertRaises(ZeroDivisionError):
+                                d3 = d1 ** d2
+                                self.assertEqual(d3[1], d1[1] ** d2[1])
+                                self.assertEqual(d3[2], d1[2] ** d2[2])
+                                self.assertEqual(
+                                    NumDict.__pow__(d1, d2)[1], d3[1])
+                                self.assertEqual(
+                                    NumDict.__pow__(d1, d2)[2], d3[2])
+                                self.assertEqual(NumDict.__pow__(d1, d2)[1],
+                                                 NumDict.__rpow__(d2, d1)[1])
+                                self.assertEqual(NumDict.__pow__(d1, d2)[2],
+                                                 NumDict.__rpow__(d2, d1)[2])
+                        elif (d2[1] != 0 and d2[2] != 0):
+                            d3 = d1 ** d2
+                            self.assertEqual(d3[1], d1[1] ** d2[1])
+                            self.assertEqual(d3[2], d1[2] ** d2[2])
+                            self.assertEqual(NumDict.__pow__(d1, d2)[1], d3[1])
+                            self.assertEqual(NumDict.__pow__(d1, d2)[2], d3[2])
+                            self.assertEqual(NumDict.__pow__(d1, d2)[1],
+                                             NumDict.__rpow__(d2, d1)[1])
+                            self.assertEqual(NumDict.__pow__(d1, d2)[2],
+                                             NumDict.__rpow__(d2, d1)[2])
 
+    '''def test_pow_and_rpow_differentiation(self):
+        for i, j in self.sequenceGenerator(-10, 10):
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for default with normal operator
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = d1 ** d2
+            d3, grads1 = tape.gradients(d3, (d1, d2))
+            self.assertAlmostEqual(
+                grads1[0].default, (d1.default**(d2.default-1))*d2.default)
+            self.assertEqual(grads1[1].default, d1.default **
+                             d2.default*math.log(abs(d1.default)))
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for default with __pow__
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = NumDict.__pow__(d1, d2)
+            d3, grads2 = tape.gradients(d3, (d1, d2))
+            self.assertEqual(grads2[0].default,
+                             d1.default**(d2.default-1)*d2.default)
+            self.assertEqual(grads2[1].default, d1.default **
+                             d2.default*math.log(abs(d1.default)))
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for default with __rpow__
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = NumDict.__rpow__(d2, d1)
+            d3, grads3 = tape.gradients(d3, (d1, d2))
+            self.assertEqual(grads3[0].default,
+                             d1.default**(d2.default-1)*d2.default)
+            self.assertEqual(grads3[1].default, d1.default **
+                             d2.default*math.log(abs(d1.default)))
+'''
     def test_multiplication_basic_functionality(self):
         for i, j in self.sequenceGenerator(-10, 10):
             tape = nd.GradientTape()
@@ -321,7 +350,7 @@ class TestNumdicts(unittest.TestCase):
         for i, j in self.sequenceGenerator(-10, 10):
             tape = nd.GradientTape()
             with tape:
-                #testing differentiation for default
+                # testing differentiation for default
                 d1 = nd.NumDict(default=i)
                 d2 = nd.NumDict(default=j)
                 d3 = d1*d2
@@ -330,7 +359,7 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1].default, d1.default)
             tape = nd.GradientTape()
             with tape:
-                #testing differentiation for multiple NumDicts
+                # testing differentiation for multiple NumDicts
                 d1 = nd.NumDict(default=i)
                 d2 = nd.NumDict(default=j)
                 d3 = d1*d1*d2
@@ -339,7 +368,7 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1].default, d1.default*d1.default)
             tape = nd.GradientTape()
             with tape:
-                #testing differentiation with non NumDict elements
+                # testing differentiation with non NumDict elements
                 d1 = nd.NumDict(default=i)
                 d2 = nd.NumDict(default=j)
                 d3 = d1*d2
@@ -349,7 +378,7 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1].default, i*d1.default)
             tape = nd.GradientTape()
             with tape:
-                #testing differentiation for elements
+                # testing differentiation for elements
                 d1 = nd.NumDict({1: i, 2: (i+j)})
                 d2 = nd.NumDict({1: j, 2: (i-j)})
                 d3 = d1*d2
