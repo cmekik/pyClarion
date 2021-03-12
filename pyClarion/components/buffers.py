@@ -9,7 +9,7 @@ from .. import numdicts as nd
 from .. import base
 from .blas import BLAs
 
-from typing import Callable, Hashable, Tuple, List, Collection, cast
+from typing import Callable, Hashable, Tuple, List, Collection, cast, Mapping
 
 
 class ParamSet(base.Process):
