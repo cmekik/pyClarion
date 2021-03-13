@@ -13,7 +13,7 @@ from .blas import BLAs
 from .chunks_ import Chunks
 from .. import numdicts as nd
 
-from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast, Iterable
+from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast, Iterable, Any
 from types import MappingProxyType
 from itertools import count, groupby
 

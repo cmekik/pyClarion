@@ -9,7 +9,7 @@ from ..base.symbols import ConstructType, Symbol, feature, features, buffer
 from ..base.components import Domain, Interface, Process
 
 from itertools import product
-from typing import List, Dict, Tuple, Hashable
+from typing import List, Dict, Tuple, Hashable, Any
 from types import MappingProxyType
 import random
 import math
