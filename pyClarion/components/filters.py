@@ -15,7 +15,7 @@ from .buffers import ParamSet
 from itertools import product
 from dataclasses import dataclass
 from typing import (
-    NamedTuple, Tuple, Hashable, Union, Mapping, List, Iterable
+    NamedTuple, Tuple, Hashable, Union, Mapping, List, Iterable, Any
 )
 from types import MappingProxyType
 import pprint
