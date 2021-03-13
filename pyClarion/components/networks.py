@@ -113,7 +113,7 @@ class SimpleQNet(Process):
         self._build_network()
 
     @property
-    def layers(self) -> Tuple[layers]:
+    def layers(self) -> Tuple[int]:
 
         return self._layers
 
