@@ -19,9 +19,9 @@ class TestGoalStay(unittest.TestCase):
                 feature("goal", "select"),
                 feature("goal", "analyze"),
                 feature("goal", "evaluate"),
-                feature("goal_object", "attribute"),
-                feature("goal_object", "response"),
-                feature("goal_object", "pattern")
+                feature("gobj", "attribute"),
+                feature("gobj", "response"),
+                feature("gobj", "pattern")
             )
         )
 
@@ -53,7 +53,7 @@ class TestGoalStay(unittest.TestCase):
         )
         
         input_ = nd.NumDict({
-            feature(("gctl", ".cmd"), ".w"): 1.0,
+            feature(("gctl", "cmd"), "write"): 1.0,
             feature(("gctl", "goal"), "analyze"): 1.0,
             feature(("gctl", "gobj"), "pattern"): 1.0
         }, default=0)        
@@ -70,7 +70,7 @@ class TestGoalStay(unittest.TestCase):
         # pprint(blas)
 
         input_ = nd.NumDict({
-            feature(("gctl", ".cmd"), ".w"): 1.0,
+            feature(("gctl", "cmd"), "write"): 1.0,
             feature(("gctl", "goal"), "evaluate"): 1.0,
             feature(("gctl", "gobj"), "attribute"): 1.0
         }, default=0)        
@@ -87,14 +87,14 @@ class TestGoalStay(unittest.TestCase):
         # pprint(blas)
 
         input_ = nd.NumDict({
-            feature(("gctl", ".cmd"), ".f"): 1.0,
+            feature(("gctl", "cmd"), "fail"): 1.0,
             feature(("gctl", "goal"), "analyze"): 1.0,
             feature(("gctl", "gobj"), "pattern"): 1.0
         }, default=0)
         inputs = {
             (subsystem("acs"), terminus("gb_actions")): input_,
             (subsystem("ms"), terminus("goal_selection")): nd.NumDict({
-                chunk(".goal_1"): 1.0
+                chunk("goal_1"): 1.0
             })
         }
 

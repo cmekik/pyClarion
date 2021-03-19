@@ -223,6 +223,19 @@ class BLAs(Mapping):
         for key in below:
             del self[key]
 
+    def keys_below_threshold(self, keys):
+        l = []
+        for x in keys:
+            try:
+                x_bla = self[x]
+            except KeyError:
+                if not x in self._add:
+                    raise
+            else:
+                if x_bla.below_threshold:
+                    l.append(x)
+        return l
+
     def register_invocation(self, key, add_new=False):
         """
         Promise key will be treated as invoked on next update.

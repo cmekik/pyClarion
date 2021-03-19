@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+- `Domain.disjoint(*domains)` for checking if domains are mutually disjoint.
+- `Chunk.support(self, *domains)` to check if domains support self.
+- `Rule.support(self, *cdbs)` to check if cdbs support self.
+- `Chunks.enforce_support(self, *domains)` context manager to ensure that chunks 
+are built out of domain features.
+- `Rules.enforce_support(self, *cdbs)` context manager to ensure that rules are 
+built out of predefined chunks.
+- `ActionRules` now has a threshold parameter.
+- `GoalStay` communicates previous goal information in dedicated features.
+
+### Changed
+
+- `ChunkExtractor` no longer ensures chunk form uniqueness.
+- Adjusted defaults for buffer and goal stay interfaces.
+
+### Fixed
+
+- Goal chunk invocation on resumption `GoalStay` would change the order in 
+which goals are executed (away from FILO order). Removed for more consistent 
+behavior.
+- A bug in `Pruned` caused it to excluded expected construct type instead of 
+including it.
+
 ## [v0.17.0] (2021-01-28)
 
 ### Added
