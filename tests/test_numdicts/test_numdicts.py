@@ -10,15 +10,17 @@ from pyClarion.numdicts.numdicts import NumDict
 
 class TestNumdicts(unittest.TestCase):
     # TODO fix/improve look in the iter tools library like product
-    def linspace(self, a, b):
+    def linspace(a, b):
         r = 4  # represents how many divisions
         a = a*r
         b = b*r
         for i, j in itertools.product(tuple(range(a, b)), tuple(range(a, b))):
             yield i/r, j/r
 
+
+class TestNumdictsAddition(unittest.TestCase):
     def test_addition_basic_functionality(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for defaults
@@ -37,7 +39,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]+d2[2])
 
     def test_addition_differentiation(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -60,7 +62,27 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1][2], 1.0)
 
     def test_subtraction_basic_functionality(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                self.assertEqual((d1-d2).default, d1.default-d2.default)
+                self.assertEqual((d2-d1).default, d2.default-d1.default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for elements
+                d1 = nd.NumDict({1: i, 2: (i+j)})
+                d2 = nd.NumDict({1: j, 2: (i-j)})
+                d3 = d1-d2
+                self.assertEqual(d3[1], d1[1]-d2[1])
+                self.assertEqual(d3[2], d1[2]-d2[2])
+
+
+class TestNumdictsSubtraction(unittest.TestCase):
+    def test_subtraction_basic_functionality(self):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -78,7 +100,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]-d2[2])
 
     def test_subtraction_differentiation(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -100,8 +122,79 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1][1], -1.0)
             self.assertEqual(grads[1][2], -1.0)
 
+
+class TestNumdictsMultiplication(unittest.TestCase):
+    def test_multiplication_basic_functionality(self):
+        for i, j in TestNumdicts.linspace(-10, 10):
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                self.assertEqual((d1*d2).default, d1.default*d2.default)
+                # testing multiplying by 0
+                d0 = nd.NumDict(default=0.0)
+                self.assertEqual((d2*d0).default, 0.0)
+                self.assertEqual((d1*d0).default, 0.0)
+                # testing communative
+                d3 = nd.NumDict(default=3.0)
+                self.assertEqual((d2*d1*d3).default, (d3*d1*d2).default)
+                self.assertEqual((d1*d2*d3).default, (d1*d2*d3).default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing basic functionality for elements
+                d1 = nd.NumDict({1: i, 2: (i+j)})
+                d2 = nd.NumDict({1: j, 2: (i-j)})
+                d3 = d1*d2
+                self.assertEqual(d3[1], d1[1]*d2[1])
+                self.assertEqual(d3[2], d1[2]*d2[2])
+
+    def test_multiplication_differentiation(self):
+        for i, j in TestNumdicts.linspace(-10, 10):
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = d1*d2
+            d3, grads = tape.gradients(d3, (d1, d2))
+            self.assertEqual(grads[0].default, d2.default)
+            self.assertEqual(grads[1].default, d1.default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for multiple NumDicts
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = d1*d1*d2
+            d3, grads = tape.gradients(d3, (d1, d2))
+            self.assertEqual(grads[0].default, d2.default*d1.default*2)
+            self.assertEqual(grads[1].default, d1.default*d1.default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation with non NumDict elements
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = d1*d2
+                d4 = i*d3
+            d3, grads = tape.gradients(d4, (d1, d2))
+            self.assertEqual(grads[0].default, i*d2.default)
+            self.assertEqual(grads[1].default, i*d1.default)
+            tape = nd.GradientTape()
+            with tape:
+                # testing differentiation for elements
+                d1 = nd.NumDict({1: i, 2: (i+j)})
+                d2 = nd.NumDict({1: j, 2: (i-j)})
+                d3 = d1*d2
+            d3, grads = tape.gradients(d3, (d1, d2))
+            self.assertEqual(grads[0][1], d2[1])
+            self.assertEqual(grads[0][2], d2[2])
+            self.assertEqual(grads[1][1], d1[1])
+            self.assertEqual(grads[1][2], d1[2])
+
+
+class TestNumdictDivision(unittest.TestCase):
     def test_truediv_and_rtruediv_basic_functionality(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -162,7 +255,7 @@ class TestNumdicts(unittest.TestCase):
                         d1, d2), NumDict.__rtruediv__(d2, d1))
 
     def test_truediv_and_rtruediv_differentiation(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for truediv and default
@@ -213,8 +306,10 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(grads[1][1], 1/d1[1])
                 self.assertEqual(grads[1][2], 1/d1[2])
 
+
+class TestNumdictsPower(unittest.TestCase):
     def test_pow_and_rpow_basic_functionality(self):
-        for i, j in self.linspace(-10, 10):
+        for i, j in TestNumdicts.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -248,13 +343,12 @@ class TestNumdicts(unittest.TestCase):
                     self.assertEqual(NumDict.__pow__(d1, d2)[1], d3[1])
                     self.assertEqual(NumDict.__pow__(d1, d2)[2], d3[2])
                     self.assertEqual(NumDict.__pow__(d1, d2)[1],
-                                        NumDict.__rpow__(d2, d1)[1])
+                                     NumDict.__rpow__(d2, d1)[1])
                     self.assertEqual(NumDict.__pow__(d1, d2)[2],
-                                        NumDict.__rpow__(d2, d1)[2])
-                
+                                     NumDict.__rpow__(d2, d1)[2])
 
     def test_pow_and_rpow_differentiation(self):
-        for i, j in self.linspace(-1, 10):
+        for i, j in TestNumdicts.linspace(-1, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default with normal operator
@@ -344,70 +438,3 @@ class TestNumdicts(unittest.TestCase):
                 else:
                     self.assertEqual(grads[1][2], d1[2] **
                                      d2[2]*math.log(d1[2]))
-
-    def test_multiplication_basic_functionality(self):
-        for i, j in self.linspace(-10, 10):
-            tape = nd.GradientTape()
-            with tape:
-                # testing basic functionality for default
-                d1 = nd.NumDict(default=i)
-                d2 = nd.NumDict(default=j)
-                self.assertEqual((d1*d2).default, d1.default*d2.default)
-                # testing multiplying by 0
-                d0 = nd.NumDict(default=0.0)
-                self.assertEqual((d2*d0).default, 0.0)
-                self.assertEqual((d1*d0).default, 0.0)
-                # testing communative
-                d3 = nd.NumDict(default=3.0)
-                self.assertEqual((d2*d1*d3).default, (d3*d1*d2).default)
-                self.assertEqual((d1*d2*d3).default, (d1*d2*d3).default)
-            tape = nd.GradientTape()
-            with tape:
-                # testing basic functionality for elements
-                d1 = nd.NumDict({1: i, 2: (i+j)})
-                d2 = nd.NumDict({1: j, 2: (i-j)})
-                d3 = d1*d2
-                self.assertEqual(d3[1], d1[1]*d2[1])
-                self.assertEqual(d3[2], d1[2]*d2[2])
-
-    def test_multiplication_differentiation(self):
-        for i, j in self.linspace(-10, 10):
-            tape = nd.GradientTape()
-            with tape:
-                # testing differentiation for default
-                d1 = nd.NumDict(default=i)
-                d2 = nd.NumDict(default=j)
-                d3 = d1*d2
-            d3, grads = tape.gradients(d3, (d1, d2))
-            self.assertEqual(grads[0].default, d2.default)
-            self.assertEqual(grads[1].default, d1.default)
-            tape = nd.GradientTape()
-            with tape:
-                # testing differentiation for multiple NumDicts
-                d1 = nd.NumDict(default=i)
-                d2 = nd.NumDict(default=j)
-                d3 = d1*d1*d2
-            d3, grads = tape.gradients(d3, (d1, d2))
-            self.assertEqual(grads[0].default, d2.default*d1.default*2)
-            self.assertEqual(grads[1].default, d1.default*d1.default)
-            tape = nd.GradientTape()
-            with tape:
-                # testing differentiation with non NumDict elements
-                d1 = nd.NumDict(default=i)
-                d2 = nd.NumDict(default=j)
-                d3 = d1*d2
-                d4 = i*d3
-            d3, grads = tape.gradients(d4, (d1, d2))
-            self.assertEqual(grads[0].default, i*d2.default)
-            self.assertEqual(grads[1].default, i*d1.default)
-            tape = nd.GradientTape()
-            with tape:
-                # testing differentiation for elements
-                d1 = nd.NumDict({1: i, 2: (i+j)})
-                d2 = nd.NumDict({1: j, 2: (i-j)})
-                d3 = d1*d2
-            d3, grads = tape.gradients(d3, (d1, d2))
-            self.assertEqual(grads[0][1], d2[1])
-            self.assertEqual(grads[0][2], d2[2])
-            self.assertEqual(grads[1][1], d1[1])
-            self.assertEqual(grads[1][2], d1[2])
