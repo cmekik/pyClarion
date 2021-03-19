@@ -8,19 +8,17 @@ import itertools
 from pyClarion.numdicts.numdicts import NumDict
 
 
-class TestNumdicts(unittest.TestCase):
-    # TODO fix/improve look in the iter tools library like product
-    def linspace(a, b):
-        r = 4  # represents how many divisions
-        a = a*r
-        b = b*r
-        for i, j in itertools.product(tuple(range(a, b)), tuple(range(a, b))):
-            yield i/r, j/r
+def linspace(a, b):
+    r = 4  # represents how many divisions
+    a = a*r
+    b = b*r
+    for i, j in itertools.product(tuple(range(a, b)), tuple(range(a, b))):
+        yield i/r, j/r
 
 
 class TestNumdictsAddition(unittest.TestCase):
     def test_addition_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for defaults
@@ -39,7 +37,7 @@ class TestNumdictsAddition(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]+d2[2])
 
     def test_addition_differentiation(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -62,7 +60,7 @@ class TestNumdictsAddition(unittest.TestCase):
             self.assertEqual(grads[1][2], 1.0)
 
     def test_subtraction_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -82,7 +80,7 @@ class TestNumdictsAddition(unittest.TestCase):
 
 class TestNumdictsSubtraction(unittest.TestCase):
     def test_subtraction_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -100,7 +98,7 @@ class TestNumdictsSubtraction(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]-d2[2])
 
     def test_subtraction_differentiation(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -125,7 +123,7 @@ class TestNumdictsSubtraction(unittest.TestCase):
 
 class TestNumdictsMultiplication(unittest.TestCase):
     def test_multiplication_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -150,7 +148,7 @@ class TestNumdictsMultiplication(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]*d2[2])
 
     def test_multiplication_differentiation(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default
@@ -194,7 +192,7 @@ class TestNumdictsMultiplication(unittest.TestCase):
 
 class TestNumdictDivision(unittest.TestCase):
     def test_truediv_and_rtruediv_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -255,7 +253,7 @@ class TestNumdictDivision(unittest.TestCase):
                         d1, d2), NumDict.__rtruediv__(d2, d1))
 
     def test_truediv_and_rtruediv_differentiation(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for truediv and default
@@ -309,7 +307,7 @@ class TestNumdictDivision(unittest.TestCase):
 
 class TestNumdictsPower(unittest.TestCase):
     def test_pow_and_rpow_basic_functionality(self):
-        for i, j in TestNumdicts.linspace(-10, 10):
+        for i, j in linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -348,7 +346,7 @@ class TestNumdictsPower(unittest.TestCase):
                                      NumDict.__rpow__(d2, d1)[2])
 
     def test_pow_and_rpow_differentiation(self):
-        for i, j in TestNumdicts.linspace(-1, 10):
+        for i, j in linspace(-1, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default with normal operator
