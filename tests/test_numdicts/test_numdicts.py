@@ -10,7 +10,7 @@ from pyClarion.numdicts.numdicts import NumDict
 
 class TestNumdicts(unittest.TestCase):
     # TODO fix/improve look in the iter tools library like product
-    def sequenceGenerator(self, a, b):
+    def linspace(self, a, b):
         r = 4  # represents how many divisions
         a = a*r
         b = b*r
@@ -18,7 +18,7 @@ class TestNumdicts(unittest.TestCase):
             yield i/r, j/r
 
     def test_addition_basic_functionality(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for defaults
@@ -37,7 +37,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]+d2[2])
 
     def test_addition_differentiation(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -60,7 +60,7 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1][2], 1.0)
 
     def test_subtraction_basic_functionality(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -78,7 +78,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]-d2[2])
 
     def test_subtraction_differentiation(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for defaults
@@ -101,7 +101,7 @@ class TestNumdicts(unittest.TestCase):
             self.assertEqual(grads[1][2], -1.0)
 
     def test_truediv_and_rtruediv_basic_functionality(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -162,7 +162,7 @@ class TestNumdicts(unittest.TestCase):
                         d1, d2), NumDict.__rtruediv__(d2, d1))
 
     def test_truediv_and_rtruediv_differentiation(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for truediv and default
@@ -214,7 +214,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(grads[1][2], 1/d1[2])
 
     def test_pow_and_rpow_basic_functionality(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -254,7 +254,7 @@ class TestNumdicts(unittest.TestCase):
                 
 
     def test_pow_and_rpow_differentiation(self):
-        for i, j in self.sequenceGenerator(-1, 10):
+        for i, j in self.linspace(-1, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default with normal operator
@@ -346,7 +346,7 @@ class TestNumdicts(unittest.TestCase):
                                      d2[2]*math.log(d1[2]))
 
     def test_multiplication_basic_functionality(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing basic functionality for default
@@ -371,7 +371,7 @@ class TestNumdicts(unittest.TestCase):
                 self.assertEqual(d3[2], d1[2]*d2[2])
 
     def test_multiplication_differentiation(self):
-        for i, j in self.sequenceGenerator(-10, 10):
+        for i, j in self.linspace(-10, 10):
             tape = nd.GradientTape()
             with tape:
                 # testing differentiation for default
