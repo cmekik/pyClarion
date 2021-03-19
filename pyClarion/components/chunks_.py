@@ -44,7 +44,7 @@ class Chunk(object):
         self, 
         features: Collection[feature], 
         weights: Mapping[Tuple[Hashable, int], Union[float, int]] = None
-    ):
+    ) -> None:
 
         dims = set(f.dim for f in features)
         if not (weights is None or dims.issuperset(weights)):
@@ -58,7 +58,7 @@ class Chunk(object):
         self._features = frozenset(features)
         self._weights = ws
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         template = "{}(features={}, weights={})"
         name = type(self).__name__
@@ -66,7 +66,7 @@ class Chunk(object):
 
         return template.format(name, frepr, wrepr)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
 
         if isinstance(other, Chunk):
             b = (
@@ -78,18 +78,18 @@ class Chunk(object):
             return NotImplemented
 
     @property
-    def features(self):
+    def features(self) -> FrozenSet[feature]:
         """Features associated with chunk."""
         
         return self._features
     
     @property
-    def weights(self):
+    def weights(self) -> nd.NumDict:
         """Dimensional weights."""
 
         return self._weights
 
-    def top_down(self, strength):
+    def top_down(self, strength: float) -> nd.NumDict:
         """
         Compute top-down strengths for features of self.
         
@@ -108,7 +108,7 @@ class Chunk(object):
 
         return d
 
-    def bottom_up(self, strengths):
+    def bottom_up(self, strengths: nd.NumDict) -> float:
         """
         Compute bottom up strength for chunk associated with self.
 
@@ -188,28 +188,28 @@ class Chunks(MutableMapping[chunk, Ct]):
         self._add_promises: MutableMapping[chunk, Ct] = dict()
         self._del_promises: Set[chunk] = set()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         repr_ = "{}({})".format(type(self).__name__, repr(self._data))
         return repr_
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self._data)
 
-    def __iter__(self):
+    def __iter__(self) -> None:
 
         yield from iter(self._data)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Chunk:
 
         return self._data[key]
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
 
         del self._data[key]
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Any, val: Any) -> None:
 
         if isinstance(val, self.Chunk):
             if self._enforce_support and not val.support(*self._domains):
@@ -221,13 +221,13 @@ class Chunks(MutableMapping[chunk, Ct]):
             TypeError(msg.format(type(self.Chunk.__name__)))
 
     @property
-    def add_promises(self):
+    def add_promises(self) -> Mapping[chunk, Ct]:
         """A view of promised additions."""
 
         return MappingProxyType(self._add_promises)
 
     @property
-    def del_promises(self):
+    def del_promises(self) -> FrozenSet[chunk]:
         """A view of promised deletions."""
 
         return frozenset(self._del_promises)
@@ -365,12 +365,12 @@ class TopDown(Process):
 
     _serves = ConstructType.flow_tb | ConstructType.flow_in
 
-    def __init__(self, source: Symbol, chunks: Chunks):
+    def __init__(self, source: Symbol, chunks: Chunks) -> None:
 
         super().__init__(expected=(source,))
         self.chunks = chunks 
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """Execute a top-down activation cycle."""
 
         strengths, = self.extract_inputs(inputs)
@@ -387,12 +387,12 @@ class BottomUp(Process):
 
     _serves = ConstructType.flow_bt | ConstructType.flow_in
 
-    def __init__(self, source: Symbol, chunks: Chunks):
+    def __init__(self, source: Symbol, chunks: Chunks) -> None:
 
         super().__init__(expected=(source,))
         self.chunks = chunks 
 
-    def call(self, inputs): 
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Execute a bottom-up activation cycle.
 
@@ -437,7 +437,7 @@ class ChunkExtractor(Process):
         self._counter = count(start=1, step=1)
         self._to_add: Optional[Tuple[chunk, Chunk]] = None
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """Extract a chunk from bottom-level activations."""
 
         d = nd.MutableNumDict(default=0.0)

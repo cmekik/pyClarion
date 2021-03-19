@@ -107,15 +107,15 @@ class Token(object):
 
     _args: Tuple[Hashable, ...]
 
-    def __init__(self, *args: Hashable):
+    def __init__(self, *args: Hashable) -> None:
 
         super().__setattr__("_args", tuple(args))
 
-    def __hash__(self):
+    def __hash__(self) -> int:
 
         return hash(self._args)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         cls_name = type(self).__name__
         args = ", ".join(repr(item) for item in self._args)
@@ -129,14 +129,14 @@ class Token(object):
         
         raise AttributeError(msg)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
 
         if isinstance(other, Token):
             return self._args == other._args
         else:
             return NotImplemented
 
-    def __lt__(self, other):
+    def __lt__(self, other) -> bool:
 
         if isinstance(other, Token):
             return self._args < other._args
@@ -175,7 +175,7 @@ class Symbol(Token):
 
         super().__init__(ctype, cid)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         cls_name = type(self).__name__
         
@@ -222,7 +222,7 @@ class feature(Symbol):
 
         super().__init__("feature", ((tag, lag), val))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         cls_name = type(self).__name__
 

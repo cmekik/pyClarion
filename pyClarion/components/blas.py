@@ -8,7 +8,7 @@ from ..base.symbols import ConstructType, Symbol, SymbolicAddress
 from ..base.components import Process
 from .. import numdicts as nd
 
-from typing import Any, FrozenSet, Sequence, Tuple, Mapping, MutableMapping, cast
+from typing import Any, FrozenSet, Sequence, Tuple, Mapping, MutableMapping, cast, Iterator
 from collections import deque
 
 
@@ -68,7 +68,7 @@ class BLA(object):
         self.uses = 1
         self.lifetime = 1
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         tname = type(self).__name__
         value = self.value
@@ -77,7 +77,7 @@ class BLA(object):
         return "<{} val={} den={}>".format(tname, value, density)
 
     @property
-    def value(self):
+    def value(self) -> float:
         """The current BLA value."""
 
         b = self.baseline
@@ -89,7 +89,7 @@ class BLA(object):
         d = self.decay
 
         bla = b + c * sum([t ** -d for t in lags])
-        if not k < 0 and k < n:
+        if (k is not None) and (k < n):
             t_k = lags[-1]
             factor = (n - k) / (1 - d)
             t_term = (t_n ** (1 - d) - t_k ** (1 - d)) / (t_n - t_k)
@@ -99,12 +99,12 @@ class BLA(object):
         return bla
 
     @property
-    def below_threshold(self):
+    def below_threshold(self) -> bool:
         """Return True iff value is below set density parameter."""
 
         return self.value < self.density
 
-    def step(self, invoked=False):
+    def step(self, invoked=False) -> None:
         """
         Advance the BLA tracker by one time step.
 
@@ -121,7 +121,7 @@ class BLA(object):
             self.lags[i] += 1
         self.lifetime += 1
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset BLA tracker to initial state."""
 
         maxlen = self.lags.maxlen
@@ -140,7 +140,7 @@ class BLAs(Mapping):
         amplitude: float = 2.0,
         decay: float = 0.5,
         depth: int = 1
-    ):
+    ) -> None:
         """
         Initialize a new BLA database.
 
@@ -162,27 +162,27 @@ class BLAs(Mapping):
         self._del: set = set()
         self._add: set = set()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         return "<BLAs {}>".format(self._dict)
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self._dict)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
 
         yield from self._dict
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> BLA:
 
         return self._dict[key]
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
 
         del self._dict[key]
 
-    def add(self, key):
+    def add(self, key: Any) -> None:
         """Add key to BLA database."""
 
         self._dict[key] = BLA(
@@ -193,7 +193,7 @@ class BLAs(Mapping):
             self.depth
         )
 
-    def step(self):
+    def step(self) -> None:
         """
         Update BLA database according to promises.
 
@@ -216,7 +216,7 @@ class BLAs(Mapping):
             self.add(key)
         self._add.clear()
 
-    def prune(self):
+    def prune(self) -> None:
         """Drop all entries that are below threshold."""
 
         below = [key for key, bla in self.items() if bla.below_threshold]
@@ -236,7 +236,7 @@ class BLAs(Mapping):
                     l.append(x)
         return l
 
-    def register_invocation(self, key, add_new=False):
+    def register_invocation(self, key: Any, add_new: bool = False) -> None:
         """
         Promise key will be treated as invoked on next update.
         
@@ -255,7 +255,7 @@ class BLAs(Mapping):
             else:
                 raise KeyError("Key not in BLA database.")
 
-    def request_add(self, key):
+    def request_add(self, key: Any) -> None:
         """Promise key will be added to database on next update."""
 
         if key in self._add or key in self._del or key in self._invoked:
@@ -264,7 +264,7 @@ class BLAs(Mapping):
         else:
             self._add.add(key)
 
-    def request_del(self, key):
+    def request_del(self, key: Any) -> None:
         """Promise key will be deleted from database on next update."""
 
         if key in self._add or key in self._del or key in self._invoked:
@@ -294,7 +294,7 @@ class BLAStrengths(Process):
         self.th = th
         self.r = r
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         th = self.th
         r = self.r
@@ -331,7 +331,7 @@ class BLAMaintainer(Process):
         self.client_db = client_db
         self.threshold = threshold
 
-    def call(self, inputs) -> nd.NumDict:
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Update BLA database and client DB.
         

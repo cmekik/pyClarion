@@ -9,14 +9,14 @@ from ..base.symbols import ConstructType, Symbol, feature, features, buffer
 from ..base.components import Domain, Interface, Process
 
 from itertools import product
-from typing import List, Dict, Tuple, Hashable
+from typing import List, Dict, Tuple, Hashable, Any, Mapping
 from types import MappingProxyType
 import random
 import math
 import warnings
 
 
-def glorot_normal(fan_in, fan_out):
+def glorot_normal(fan_in: int, fan_out: int) -> float:
     """Glorot normal weight initialization."""
 
     var = 2.0 / (fan_in + fan_out)
@@ -113,11 +113,11 @@ class SimpleQNet(Process):
         self._build_network()
 
     @property
-    def layers(self):
+    def layers(self) -> Tuple[int]:
 
         return self._layers
 
-    def _build_variables(self):
+    def _build_variables(self) -> None:
 
         layers = self.layers
         layer_in = self.domain.features
@@ -155,7 +155,7 @@ class SimpleQNet(Process):
         self.weights = weights
         self.biases = biases
 
-    def _build_network(self):
+    def _build_network(self) -> None:
 
         inputs = self._inputs
         rs = self._rs
@@ -190,7 +190,7 @@ class SimpleQNet(Process):
         self.loss = loss
         self.loss_dict = loss_dict
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         x_strengths, r_strengths, a_strengths = self.extract_inputs(inputs)
         input_features = self.domain.features
@@ -214,7 +214,8 @@ class SimpleQNet(Process):
 
         return d
 
-    def update(self, x_strengths, r_strengths, a_strengths) -> None:
+    def update(self, x_strengths: nd.NumDict, r_strengths: nd.NumDict
+        , a_strengths: nd.NumDict) -> None:
         
         input_features = self.domain.features
         r_mapping = self.r_domain.mapping
