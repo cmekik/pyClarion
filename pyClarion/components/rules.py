@@ -178,11 +178,11 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         yield from iter(self._data)
 
-    def __getitem__(self, key: rule) -> Rt:
+    def __getitem__(self, key: Any) -> Rt:
 
         return self._data[key]
 
-    def __setitem__(self, key: rule, val: Any) -> None:
+    def __setitem__(self, key: Any, val: Any) -> None:
 
         self._validate_rule_form(val)
         if isinstance(val, self.Rule):
@@ -194,7 +194,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
             msg = "This rule database expects rules of type '{}'." 
             TypeError(msg.format(type(self.Rule.__name__)))
 
-    def __delitem__(self, key: rule) -> None:
+    def __delitem__(self, key: Any) -> None:
 
         del self._data[key]
 
@@ -205,7 +205,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         return MappingProxyType(self._add_promises)
 
     @property
-    def del_promises(self) -> Set[rule]:
+    def del_promises(self) -> FrozenSet[rule]:
         """A view of promised deletions."""
 
         return frozenset(self._del_promises)

@@ -227,7 +227,7 @@ class Chunks(MutableMapping[chunk, Ct]):
         return MappingProxyType(self._add_promises)
 
     @property
-    def del_promises(self) -> Set[chunk]:
+    def del_promises(self) -> FrozenSet[chunk]:
         """A view of promised deletions."""
 
         return frozenset(self._del_promises)

@@ -16,7 +16,7 @@ import math
 import warnings
 
 
-def glorot_normal(fan_in: float, fan_out: float) -> float:
+def glorot_normal(fan_in: int, fan_out: int) -> float:
     """Glorot normal weight initialization."""
 
     var = 2.0 / (fan_in + fan_out)
