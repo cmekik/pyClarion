@@ -6,6 +6,7 @@ from ..base.components import Process
 from .chunks_ import Chunks
 from .. import numdicts as nd
 from ..rules import Rules
+from math import log2
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set,
@@ -38,7 +39,7 @@ class MatchStatistics(object):
 
 class RuleStatDB(Mapping):
     def __init__(
-        self,
+        self
     ):
         self._dict: dict = {}
         self._invoked: set = set()
@@ -70,7 +71,6 @@ class RuleStatDB(Mapping):
         """Add key to ruleStatDB database."""
 
         self._dict[key] = MatchStatistics()
-
 
     def step(self):
         """
@@ -132,7 +132,6 @@ class RuleStatDB(Mapping):
         else:
             self._del.add(key)
 
-        
 
 class RERUpdater(Process):
     """ initialize: ruleDB and RuleStatDB, flow_tt, """
@@ -141,20 +140,28 @@ class RERUpdater(Process):
     def __init__(
         self, 
         source: flow_tt,
-        rule_db: Rules,
-        rule_stat_db: RuleStatDB, 
+        rdb: Rules,
+        rsdb: RuleStatDB, 
         c1: float = 1.0,
         c2: float = 2.0
     ):
         super().__init__(expected=(source,))
-        self.rule_db = rule_db
-        self.rule_stat_db = rule_stat_db
+        self.rdb = rdb
+        self.rsdb = rsdb
         self.c1 = c1
         self.c2 = c2
         
     def IG(self, A: rule, B: rule) -> float:
         """ returns a float """
-        return         
+        pm_a = self.rsdb[A].PM
+        nm_a = self.rsdb[A].NM
+        pm_b = self.rsdb[B].PM
+        nm_b = self.rsdb[B].NM
+
+        ig = log2((pm_a+self.c1)/(pm_a+nm_a+self.c2)) - \
+            log2((pm_b+self.c1)/(pm_b+nm_b+self.c2))
+            
+        return ig   
         
     def rule_extraction_criterion(self):
         """return success(true) or not(false)"""
