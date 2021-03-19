@@ -9,7 +9,7 @@ from .. import numdicts as nd
 from .. import base
 from .blas import BLAs
 
-from typing import Callable, Hashable, Tuple, List, Collection, cast
+from typing import Callable, Hashable, Tuple, List, Collection, cast, Mapping, Any
 
 
 class ParamSet(base.Process):
@@ -28,7 +28,7 @@ class ParamSet(base.Process):
         self.store = nd.MutableNumDict(default=0.0)
         self.interface = interface
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Update the paramset state and emit outputs.
 
@@ -93,7 +93,7 @@ class ParamSet(base.Process):
                 self.vupd = vupd
                 self.vclrupd = vclrupd
 
-        def update(self):
+        def update(self) -> None:
 
             wtag = (self.name, self.wmkr)
             wvals = (self.vsby, self.vclr, self.vupd, self.vclrupd)
@@ -151,7 +151,7 @@ class Register(base.Process):
         return self._interface
 
     @interface.setter
-    def interface(self, obj: "Register.Interface"):
+    def interface(self, obj: "Register.Interface") -> None:
 
         if len(self._sources) != len(obj.vops):
             msg = "Incompatible interface: len(vops) != len(sources)."
@@ -160,12 +160,12 @@ class Register(base.Process):
         obj.lock()
 
     @property
-    def is_empty(self):
+    def is_empty(self) -> bool:
         """True iff no nodes are stored in self."""
 
         return len(self.store) == 0
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Update the register state and emit the current register output.
 
@@ -324,13 +324,13 @@ class RegisterArray(base.Process):
             for i in range(self._interface.slots)
         )
 
-    def entrust(self, construct):
+    def entrust(self, construct: Tuple[Symbol, ...]) -> None: 
 
         for cell in self.cells:
             cell.entrust(construct)
         super().entrust(construct)
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Update the memory state and emit output activations.
 
