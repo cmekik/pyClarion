@@ -144,7 +144,7 @@ class SimpleQNet(Process):
             m, n = len(_layer_in), len(_layer_out)
             w_keys = product(_layer_out, _layer_in)
             
-            b = nd.MutableNumDict({j: 0 for j in layer_out})
+            b = nd.MutableNumDict({j: 0 for j in _layer_out})
             w = nd.MutableNumDict({k: glorot_normal(m, n) for k in w_keys})
             
             biases.append(b)
