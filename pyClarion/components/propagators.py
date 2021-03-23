@@ -63,10 +63,7 @@ class Repeater(Process):
     """Copies the output of a single source construct."""
 
     _serves = (
-        ConstructType.flow_in 
-        | ConstructType.flow_h
-        | ConstructType.terminus 
-        | ConstructType.buffer
+        ConstructType.flow_in | ConstructType.flow_h | ConstructType.buffer
     )
 
     def __init__(self, source: Symbol) -> None:

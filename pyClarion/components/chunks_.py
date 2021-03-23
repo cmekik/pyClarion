@@ -19,7 +19,7 @@ from .propagators import ThresholdSelector
 from typing import (
     Mapping, Iterable, Union, Tuple, Set, Hashable, FrozenSet, Collection, 
     List, Optional, TypeVar, Type, Generic, MutableMapping, cast, overload, 
-    Any, Dict, Iterator
+    Any, Dict
 )
 from contextlib import contextmanager
 from collections import namedtuple
@@ -104,7 +104,7 @@ class Chunk(object):
 
         d = nd.MutableNumDict(default=0.0)
         d.extend(self.features)
-        d.set_by(weighted, feature.dim.fget) # type: ignore 
+        d.set_by(weighted, feature.dim.fget)
 
         return d
 
@@ -121,7 +121,7 @@ class Chunk(object):
         """
 
         d = nd.keep(strengths, keys=self.features)
-        d = nd.max_by(d, keyfunc=feature.dim.fget) # type: ignore 
+        d = nd.max_by(d, keyfunc=feature.dim.fget) # get maxima by dims
         weighted = d * self.weights 
         strength = nd.val_sum(weighted) / nd.val_sum(self.weights)
 
@@ -197,11 +197,11 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return len(self._data)
 
-    def __iter__(self) -> Iterator[chunk]:
+    def __iter__(self) -> None:
 
         yield from iter(self._data)
 
-    def __getitem__(self, key: Any) -> Ct:
+    def __getitem__(self, key: Any) -> Chunk:
 
         return self._data[key]
 
@@ -215,9 +215,7 @@ class Chunks(MutableMapping[chunk, Ct]):
             if self._enforce_support and not val.support(*self._domains):
                 msg = "Chunk {} contains unexpected features."
                 raise ValueError(msg.format(key.cid))
-            # TODO: This is bad; stems from poor design of this class. Should 
-            # be fixed when abstract construct database class is implemented.
-            self._data[key] = cast(Ct, val) 
+            self._data[key] = val
         else:
             msg = "This chunk database expects chunks of type '{}'." 
             TypeError(msg.format(type(self.Chunk.__name__)))

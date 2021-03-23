@@ -84,7 +84,7 @@ class GoalStay(Process):
             else:
                 old_goal, = self.store
                 self._update_prevs(old_goal)
-            ch = chunk("{}{:04d}".format(self.prefix, next(self._counter)))
+            ch = chunk("{}_{}".format(self.prefix, next(self._counter)))
             goal_fs = self.interface.parse_goal_params(cmd_data)
             flags = (self.interface.flags[i] for i in (1, 3))
             self.chunks[ch] = self.chunks.Chunk(features=goal_fs) 
