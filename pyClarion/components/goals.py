@@ -13,7 +13,7 @@ from .blas import BLAs
 from .chunks_ import Chunks
 from .. import numdicts as nd
 
-from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast
+from typing import FrozenSet, Tuple, Hashable, Optional, Mapping, cast, Iterable, Any
 from types import MappingProxyType
 from itertools import count, groupby
 
@@ -69,7 +69,7 @@ class GoalStay(Process):
         self.prevs = nd.MutableNumDict(default=0)
         self.flags.extend((self.interface.flags[i] for i in (0, 3)), value=1.0)
 
-    def call(self, inputs) -> nd.NumDict:
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         
         cmd_data, src_data = self.extract_inputs(inputs)
         cmds = self.interface.parse_commands(cmd_data)
@@ -84,7 +84,7 @@ class GoalStay(Process):
             else:
                 old_goal, = self.store
                 self._update_prevs(old_goal)
-            ch = chunk("{}_{}".format(self.prefix, next(self._counter)))
+            ch = chunk("{}{:04d}".format(self.prefix, next(self._counter)))
             goal_fs = self.interface.parse_goal_params(cmd_data)
             flags = (self.interface.flags[i] for i in (1, 3))
             self.chunks[ch] = self.chunks.Chunk(features=goal_fs) 
@@ -197,7 +197,7 @@ class GoalStay(Process):
                 self.vpass = vpass
                 self.vfail = vfail
 
-        def update(self):
+        def update(self) -> None:
 
             ctag = (self.name, self.cmkr)
             stag = (self.name, self.smkr)
@@ -230,7 +230,7 @@ class GoalStay(Process):
                 extras=(self.goals + fgprev)
             )
         
-        def parse_goal_params(self, data):
+        def parse_goal_params(self, data: Iterable[feature]) -> Tuple[feature]:
 
             params = tuple(f for f in self.params if f in data)
             goals = tuple(feature(f.tag[1], f.val) for f in params)

@@ -11,7 +11,7 @@ from .. import numdicts as nd
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
-    Tuple, overload, cast
+    Tuple, overload, cast, Any, Iterator
 )
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -160,29 +160,29 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         self._enforce_support = False
 
         self.max_conds = max_conds
-        self.Rule = rule_type if rule_type is not None else Rule
+        self.Rule: Type[Rt] = rule_type if rule_type is not None else Rule
 
         self._add_promises: MutableMapping[rule, Rt] = dict()
         self._del_promises: Set[rule] = set()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
 
         repr_ = "{}({})".format(type(self).__name__, repr(self._data))
         return repr_
 
-    def __len__(self):
+    def __len__(self) -> int:
 
         return len(self._data)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[rule]:
 
         yield from iter(self._data)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Rt:
 
         return self._data[key]
 
-    def __setitem__(self, key, val):
+    def __setitem__(self, key: Any, val: Any) -> None:
 
         self._validate_rule_form(val)
         if isinstance(val, self.Rule):
@@ -194,18 +194,18 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
             msg = "This rule database expects rules of type '{}'." 
             TypeError(msg.format(type(self.Rule.__name__)))
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: Any) -> None:
 
         del self._data[key]
 
     @property
-    def add_promises(self):
+    def add_promises(self) -> Mapping[rule, Rt]:
         """A view of promised additions."""
 
         return MappingProxyType(self._add_promises)
 
     @property
-    def del_promises(self):
+    def del_promises(self) -> FrozenSet[rule]:
         """A view of promised deletions."""
 
         return frozenset(self._del_promises)
@@ -227,7 +227,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         return r
 
-    def contains_form(self, form):
+    def contains_form(self, form) -> bool:
         """
         Check if the rule set contains a given rule form.
         
@@ -251,7 +251,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         self._enforce_support = False
         self._cdbs = ()
 
-    def request_add(self, r, form):
+    def request_add(self, r: rule, form: Rt) -> None:
         """
         Inform self of a new rule to be applied at a later time.
         
@@ -289,7 +289,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         else:
             self._del_promises.add(r)
 
-    def step(self):
+    def step(self) -> None:
         """Apply any promised updates."""
 
         for r in self._del_promises:
