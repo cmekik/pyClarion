@@ -11,7 +11,7 @@ from .. import numdicts as nd
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
-    Tuple, overload, cast, Any
+    Tuple, overload, cast, Any, Iterator
 )
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -160,7 +160,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         self._enforce_support = False
 
         self.max_conds = max_conds
-        self.Rule = rule_type if rule_type is not None else Rule
+        self.Rule: Type[Rt] = rule_type if rule_type is not None else Rule
 
         self._add_promises: MutableMapping[rule, Rt] = dict()
         self._del_promises: Set[rule] = set()
@@ -174,7 +174,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
 
         return len(self._data)
 
-    def __iter__(self) -> None:
+    def __iter__(self) -> Iterator[rule]:
 
         yield from iter(self._data)
 
@@ -237,7 +237,7 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         return any(form == entry for entry in self.values())
 
     @contextmanager
-    def enforce_support(self, *cdbs: Chunks) -> None:
+    def enforce_support(self, *cdbs: Chunks):
         """
         Reject new rules that are not supported by cdbs.
         

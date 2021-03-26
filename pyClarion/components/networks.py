@@ -9,7 +9,7 @@ from ..base.symbols import ConstructType, Symbol, feature, features, buffer
 from ..base.components import Domain, Interface, Process
 
 from itertools import product
-from typing import List, Dict, Tuple, Hashable, Any, Mapping
+from typing import List, Dict, Tuple, Hashable, Any, Mapping, Iterable
 from types import MappingProxyType
 import random
 import math
@@ -113,7 +113,7 @@ class SimpleQNet(Process):
         self._build_network()
 
     @property
-    def layers(self) -> Tuple[int]:
+    def layers(self) -> Tuple[int, ...]:
 
         return self._layers
 
@@ -132,15 +132,19 @@ class SimpleQNet(Process):
         inputs_lag1 = nd.MutableNumDict(default=0)
 
         weights, biases = [], []
-        hiddens = [{(l, i) for i in range(n)} for l, n in enumerate(layers)]
-        w_keys = list(zip([layer_in] + hiddens, hiddens + [layer_out]))
+        l_in: List[Tuple[Hashable, ...]] = [layer_in] 
+        l_out: List[Tuple[Hashable, ...]] = [layer_out]
+        hiddens: List[Tuple[Hashable, ...]] = [
+            tuple((l, i) for i in range(n)) for l, n in enumerate(layers)
+        ]
+        _w_keys = list(zip(l_in + hiddens, hiddens + l_out))
 
-        for layer_in, layer_out in w_keys:
+        for _layer_in, _layer_out in _w_keys:
 
-            m, n = len(layer_in), len(layer_out)
-            w_keys = product(layer_out, layer_in)
+            m, n = len(_layer_in), len(_layer_out)
+            w_keys = product(_layer_out, _layer_in)
             
-            b = nd.MutableNumDict({j: 0 for j in layer_out})
+            b = nd.MutableNumDict({j: 0 for j in _layer_out})
             w = nd.MutableNumDict({k: glorot_normal(m, n) for k in w_keys})
             
             biases.append(b)
@@ -166,9 +170,9 @@ class SimpleQNet(Process):
         weights = self.weights
         biases = self.biases
 
-        get_dim = feature.dim.fget
+        get_dim = feature.dim.fget # type: ignore
         with nd.GradientTape(persistent=True) as tape:
-            qs = inputs
+            qs: nd.NumDict = inputs
             for i, (w, b) in enumerate(zip(weights, biases)):
                 qs = nd.set_by(w, qs, keyfunc=lambda k: k[1])
                 qs = qs * w
