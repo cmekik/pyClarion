@@ -33,7 +33,7 @@ class Process(object):
     _client: Tuple[Symbol, ...]
     _expected: Tuple[SymbolicAddress, ...]
 
-    def __init__(self, expected: Sequence[SymbolicAddress] = None):
+    def __init__(self, expected: Sequence[SymbolicAddress] = None) -> None:
 
         self._expected = tuple(expected or ())
         self._client = ()
@@ -174,7 +174,7 @@ class Composite(Process, Generic[Pt]):
 class Wrapped(Composite[Pt]):
     """A Process wrapped by a pre- and/or post- processor."""
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Compute base construct's output.
 

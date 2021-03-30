@@ -39,12 +39,12 @@ class MaxNodes(Process):
         super().__init__(expected=sources)
         self.accept = ConstructType.node
 
-    def entrust(self, path):
+    def entrust(self, path: Tuple[Symbol, ...]) -> None:
 
         super().entrust(path)
         self.accept = self._ctype_map[self.client[-1].ctype]
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         data = self.extract_inputs(inputs)
         d = nd.ew_max(*data)
@@ -63,14 +63,17 @@ class Repeater(Process):
     """Copies the output of a single source construct."""
 
     _serves = (
-        ConstructType.flow_in | ConstructType.flow_h | ConstructType.buffer
+        ConstructType.flow_in 
+        | ConstructType.flow_h
+        | ConstructType.terminus 
+        | ConstructType.buffer
     )
 
     def __init__(self, source: Symbol) -> None:
 
         super().__init__(expected=(source,))
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         d, = self.extract_inputs(inputs)
         
@@ -93,7 +96,7 @@ class Lag(Process):
         super().__init__(expected=(source,))
         self.max_lag = max_lag
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         d, = self.extract_inputs(inputs)
         d = nd.transform_keys(d, func=lag, val=1)
@@ -101,7 +104,7 @@ class Lag(Process):
 
         return d
 
-    def _filter(self, f):
+    def _filter(self, f) -> bool:
 
         return f.ctype in ConstructType.feature and f.lag <= self.max_lag
 
@@ -125,7 +128,7 @@ class ThresholdSelector(Process):
         super().__init__(expected=(source,))
         self.threshold = threshold
         
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         d, = self.extract_inputs(inputs)
         d = nd.threshold(d, th=self.threshold, keep_default=True) 
@@ -149,7 +152,7 @@ class BoltzmannSelector(Process):
         self.temperature = temperature
         self.threshold = threshold
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Select chunks through an activation-based competition. 
         
@@ -196,7 +199,7 @@ class ActionSelector(Process):
         self.interface = interface
         self.temperature = temperature
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """
         Select actionable chunks for execution. 
         
@@ -248,13 +251,13 @@ class Constants(Process):
         super().__init__()
         self.strengths = nd.squeeze(strengths) or nd.NumDict(default=0.0)
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
         """Return stored strengths."""
 
         return self.strengths
 
     @staticmethod
-    def _check_default(strengths):
+    def _check_default(strengths: nd.NumDict) -> None:
 
         if strengths.default != 0.0:
             msg = "Unexpected default '{}', expected '0'."
@@ -266,17 +269,17 @@ class Stimulus(Process):
 
     _serves = ConstructType.buffer
 
-    def __init__(self):
+    def __init__(self) -> None:
 
         super().__init__()
         self.stimulus = nd.MutableNumDict(default=0.0)
 
-    def input(self, data):
+    def input(self, data: nd.NumDict) -> None:
 
         self.stimulus.update(data)
         self.stimulus.squeeze()
 
-    def call(self, inputs):
+    def call(self, inputs: Mapping[Any, nd.NumDict]) -> nd.NumDict:
 
         d = self.stimulus
         self.stimulus = nd.MutableNumDict(default=0.0)
