@@ -783,11 +783,10 @@ class NumDict(Mapping[Any, float]):
 
     @staticmethod
     def _rtruediv(a, b):
-
-        return b / a
+        return b / a #division error should return "inf" 
 
     @staticmethod
-    def _rpow(a, b):
+    def _rpow(a, b): #todo 0^0 = 1
 
         return b ** a
 
