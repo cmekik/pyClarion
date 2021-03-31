@@ -10,8 +10,7 @@ from math import log2
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set,
-    Tuple, overload, cast, Callable, Hashable, Tuple, List, Collection
-
+    Tuple, overload, cast, Callable, Hashable, Tuple, List, Collection, Any
 )
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -25,17 +24,16 @@ class MatchStatistics(object):
         self.PM: int = 0
         self.NM: int = 0
 
-    def update_MC(self, a_bool=None):
+    def update_MC(self, criterion: bool, matched: bool, fired: bool):
         """give an input of boolean whether match count was positive
         or negative, if positive (true), update Posotive Match Count(PM), 
         if negative(false), update negative Match Count(PM) """
-        if a_bool:
-            return ++PM
-            
-        if not a_bbol:
-            return ++NM
-        return None
-
+        if matched and fired and criterion: 
+            self.PM +=1
+        elif matched and fired and not criterion:
+            self.NM +=1
+        else:
+            pass
 
 class RuleStatDB(Mapping):
     def __init__(
@@ -68,7 +66,7 @@ class RuleStatDB(Mapping):
         del self._dict[key]
 
     def add(self, key: rule):
-        """Add key to ruleStatDB database."""
+        """Add item to ruleStatDB database, they key must be a rule."""
 
         self._dict[key] = MatchStatistics()
 
@@ -83,7 +81,7 @@ class RuleStatDB(Mapping):
         for key in self._del:
             del self[key]
         self._del.clear()
-
+ 
         for key, match_stat in self.items():
             if key in self._invoked:
                 match_stat.step(invoked=True)
@@ -111,7 +109,7 @@ class RuleStatDB(Mapping):
                 self._invoked.add(key)
             elif add_new:
                 self._add.add(key)
-            else:
+            else: 
                 raise KeyError("Key not in RuleStat database.")
 
     def request_add(self, key):
@@ -139,17 +137,33 @@ class RERUpdater(Process):
    
     def __init__(
         self, 
-        source: flow_tt,
+        x_source: Symbol,
+        y_source: Symbol,
+        r_source: Symbol,
+        a_source: Symbol,
+        r_symb: Symbol, 
+        x_th: float,
+        a_th: float,
+        r_th: float,
         rdb: Rules,
         rsdb: RuleStatDB, 
+        ccdb: Chunks,  # condition_chunkDB
+        acdb: Chunks,  # action_chunkDB
+        
         c1: float = 1.0,
         c2: float = 2.0
     ):
-        super().__init__(expected=(source,))
+        super().__init__(expected=(x_source, y_source, r_source, a_source))
         self.rdb = rdb
         self.rsdb = rsdb
+        self.ccdb = ccdb
+        self.acdb = acdb
         self.c1 = c1
         self.c2 = c2
+        self.a_th = a_th
+        self.x_th = x_th
+        self.r_th = r_th
+        self.r_symb = r_symb
         
     def IG(self, A: rule, B: rule) -> float:
         """ returns a float """
@@ -160,8 +174,38 @@ class RERUpdater(Process):
 
         ig = log2((pm_a+self.c1)/(pm_a+nm_a+self.c2)) - \
             log2((pm_b+self.c1)/(pm_b+nm_b+self.c2))
-            
+
         return ig   
+    
+    def call(self, inputs: Mapping[Any, nd.NumDict]):# -> nd.NumDict:
+        x, y, r, a = self.extract_inputs(inputs)
+        data = self.extract_inputs(inputs)
+        crit: bool = r[self.r_symb] > self.r_th
+
+        x_active = nd.threshold(x, th=self.x_th)
+        x_match = self.ccdb.match(x_active)
+        a_active = nd.threshold(a, th=self.a_th)
+        a_match = self.acdb.match(a_active)
+
+        # do extraction code here
+
+        #determine if outcome is positive/neg/neither
+        if crit and not x_match and not a_match:
+            # next check if there is a rule that match at the top level
+            # if not add a new rule
+            
+            # maybe match() should be checked against chunk??? 
+            
+            
+            
+            
+
+
+
+
+
+        return super().call(inputs)
+        
         
     def rule_extraction_criterion(self):
         """return success(true) or not(false)"""
