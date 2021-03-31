@@ -245,36 +245,27 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return ch
 
-    def find_form(self, form, check_promises=True):
+    def match(self, fs: Collection[feature], check_promises=True) -> Set[chunk]:
         """
-        Return the set of chunks matching the given form.
+        Return the set of chunks matching the given collection of features, fs.
+
+        A chunk is considered to match fs iff fs is a subset of the 
+        features belonging to the chunk. 
         
-        If check_promises is True, will match form against promised chunks (see 
+        If check_promises is True, will match fs against promised chunks (see 
         Chunks.request_add()).
         """
 
         # This may need a faster implementation in the future. - Can
         chunks = set()
         for ch, form_ch in self.items():
-            if form_ch == form:
+            if form_ch.features.issuperset(fs):
                 chunks.add(ch)
         for ch, form_ch in self._add_promises.items():
-            if form_ch == form:
+            if form_ch.features.issuperset(fs):
                 chunks.add(ch)
 
         return chunks
-
-    def contains_form(self, form, check_promises=True):
-        """
-        Return true if given chunk form matches at least one chunk.
-
-        If check_promises is True, will match form against promised chunks (see 
-        Chunks.request_add()).
-        """
-
-        found = self.find_form(form, check_promises)
-
-        return 0 < len(found) 
 
     @contextmanager
     def enforce_support(self, *domains: Domain):
