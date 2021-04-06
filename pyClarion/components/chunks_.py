@@ -89,7 +89,7 @@ class Chunk(object):
 
         return self._weights
 
-    def match(self, other: Chunk) -> bool:
+    def match(self, other: "Chunk") -> bool:
         """" 
         Returns true if self matches other.
 
