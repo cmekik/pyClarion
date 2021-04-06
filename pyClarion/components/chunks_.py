@@ -89,6 +89,22 @@ class Chunk(object):
 
         return self._weights
 
+    def match(self, other: Chunk) -> bool:
+        """" 
+        Returns true if self matches other.
+
+        other.features is subset of self.features and
+        other.weights is close to self.weights
+        close => isclose()
+        """
+        b = (
+            set(self.weights) == set(other.weights) 
+            and nd.isclose(self.weights, other.weights)
+            and self.features.issuperset(other.features) 
+        )
+        return b
+        
+
     def top_down(self, strength: float) -> nd.NumDict:
         """
         Compute top-down strengths for features of self.
@@ -245,7 +261,17 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return ch
 
-    def match(self, fs: Collection[feature], check_promises=True) -> Set[chunk]:
+
+    @overload
+    def match(self, obj: Chunk, check_promises: bool) -> Set[chunk]:
+        pass
+
+    @overload
+    def match(self, obj: Collection[feature], check_promises: bool) -> Set[chunk]:
+        pass
+
+    def match(self, obj: Union[Chunk, Collection[feature]], check_promises: bool = True) -> Set[chunk]:
+    
         """
         Return the set of chunks matching the given collection of features, fs.
 
@@ -257,13 +283,19 @@ class Chunks(MutableMapping[chunk, Ct]):
         """
 
         # This may need a faster implementation in the future. - Can
+        if isinstance(obj, Chunk):
+            target = obj
+        else:
+            target = Chunk(obj)
+
         chunks = set()
         for ch, form_ch in self.items():
-            if form_ch.features.issuperset(fs):
+            if form_ch.match(target):
                 chunks.add(ch)
-        for ch, form_ch in self._add_promises.items():
-            if form_ch.features.issuperset(fs):
-                chunks.add(ch)
+        if check_promises:
+            for ch, form_ch in self._add_promises.items():
+                if form_ch.match(target):
+                    chunks.add(ch)
 
         return chunks
 
