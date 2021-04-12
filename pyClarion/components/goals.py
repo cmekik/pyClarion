@@ -230,7 +230,7 @@ class GoalStay(Process):
                 extras=(self.goals + fgprev)
             )
         
-        def parse_goal_params(self, data: Iterable[feature]) -> Tuple[feature]:
+        def parse_goal_params(self, data: Iterable[feature]) -> Tuple[feature, ...]:
 
             params = tuple(f for f in self.params if f in data)
             goals = tuple(feature(f.tag[1], f.val) for f in params)

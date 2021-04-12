@@ -4,10 +4,59 @@ from pyClarion import feature, chunk, rule
 
 from contextlib import ExitStack
 from math import isclose
+from itertools import count
 
 #overall comments needed
+class Environment(object):
 
-def print_step(simulation_time, state, output, actions, goal_actions, goals):
+    def __init__(self):
+
+        self.state = nd.NumDict({}, default=0.0)
+        self.goal_stack = nd.NumDict({}, default=0.0)
+        self.acs_inputs = nd.NumDict({}, default=0.0)
+
+    def checkGoToStore(self):
+
+        travel = feature("goal", "travel")
+        store = feature("gobj", "store")
+
+        if travel in self.acs_inputs and store in self.acs_inputs:
+            if self.acs_inputs[travel] == 1.0 and self.acs_inputs[store] == 1.0:
+                return True
+
+        return False
+
+    def __iter__(self):
+
+        time = count() #start with 0
+        for t in time:
+
+            if len(self.goal_stack) == 0 and t >= 2:
+                break
+
+            if t >= 100:
+                break
+
+            else:
+                if t == 1:
+                    del self.state[feature("start")]
+
+                if self.checkGoToStore():
+                    if feature("location", "office") in self.state:
+                        del self.state[feature("location", "office")]
+                    self.state[feature("location", "store")] = 1.0
+
+                yield self.state
+
+    def update(self, inputND, inputGS, inputFS):
+
+        self.state = inputND
+        self.goal_stack = inputGS
+        self.acs_inputs = inputFS
+
+
+def print_step(simulation_time, state, output, actions, goal_actions, goals, goal_stack):
+
     print("Step {}".format(simulation_time))
     print()
 
@@ -31,13 +80,18 @@ def print_step(simulation_time, state, output, actions, goal_actions, goals):
     pcl.pprint(goals)
     print()
 
+    print("Goal stack")
+    pcl.pprint(goal_stack)
+    print()
+
 domain = pcl.Domain(
     features=(
         feature("location", "office"),
         feature("location", "enroute"),
         feature("location", "store"),
         feature("thirsty"),
-        feature("hungry")
+        feature("hungry"),
+        feature("start")
     )
 )
 
@@ -110,7 +164,8 @@ with ExitStack() as exit_stack:
             chunk("HUNGRY"),
             feature("hungry"),
             feature("goal", "check"),
-            feature("gobj", "hunger")
+            feature("gobj", "hunger"),
+            feature(("gctl", "state"), "start")
         )
     )
 
@@ -126,7 +181,8 @@ with ExitStack() as exit_stack:
             chunk("THIRSTY"),
             feature("thirsty"),
             feature("goal", "check"),
-            feature("gobj", "thirst")
+            feature("gobj", "thirst"),
+            feature(("gctl", "state"), "start")
         )
     )
 
@@ -187,6 +243,34 @@ with ExitStack() as exit_stack:
             feature("goal", "buy"),
             feature("gobj", "drink"),
             feature("location", "store")
+        )
+    )
+
+    acs_fr.define(
+        rule("IF_BUY_GOAL_PASSED_THEN_PASS_CHECK_GOAL"),
+        acs_cdb_a.define(
+            chunk("PASS_CHECK_GOAL"),
+            feature(("gctl", "cmd"), "pass")
+        ),
+        acs_cdb_c.define(
+            chunk("BUY_GOAL_PASSED"),
+            feature("goal", "check"),
+            feature(("goal", "prev"), "buy"),
+            feature(("gctl", "state"), "resume")
+        )
+    )
+
+    acs_fr.define(
+        rule("INITIALIZE"),
+        acs_cdb_a.define(
+            chunk("INITIALIZE"),
+            feature(("gctl", "cmd"), "write"),
+            feature(("gctl", "goal"), "check"),
+            feature(("gctl", "gobj"), "thirst")
+        ),
+        acs_cdb_c.define(
+            chunk("INITIAL_CONDITION"),
+            feature("start")
         )
     )
 
@@ -339,7 +423,7 @@ with agent:
             process=pcl.BLAStrengths(blas=goal_blas)
         )
 
-        pcl.Construct(
+        gs = pcl.Construct(
             name=pcl.chunks("goals"),
             process=pcl.MaxNodes(sources=(pcl.flow_in("goal_strengths"),))
         )
@@ -362,8 +446,7 @@ with agent:
 state = nd.MutableNumDict({
         feature("thirsty"): 1.0,
         feature("location", "office"): 1.0,
-        feature("goal", "check"): 1.0,
-        feature("gobj", "thirst"): 1.0
+        feature("start"): 1.0
         #feature("hungry"): 1.0,
     },default=0.0)
 
@@ -379,38 +462,45 @@ goal_travel_to_store = nd.NumDict({
 
 actions = nd.NumDict({}, default=0.0)
 
+env = Environment()
+env.update(state, gs.output, fs.output)
 
 # Simulation time limit included just in case.
 simulation_time = 0
-while (
-    not isclose(nd.val_sum(actions * final_actions), 1.0) #?????
-    and simulation_time < 100
-):
+'''while (
+    (len(gs.output) != 0 or simulation_time < 2) and simulation_time < 100
+):'''
+for curState in env:
 
     simulation_time += 1
 
-    stim.process.input(state)
+    stim.process.input(curState)
     agent.step()
     goals = gb.output
     actions = exta.output
     goal_actions = gt.output
+    goal_stack = gs.output
 
     #print function
-    print_step(simulation_time, state, fs.output, actions, goal_actions, goals)
+    print_step(simulation_time, curState, fs.output, actions, goal_actions, goals, goal_stack)
+
+    env.update(curState, gs.output, fs.output)
 
     # This is a hack, need more sophisticated control structures to prevent new 
     # goals from needlessly being spawned.
-    if feature("goal", "check") in state:#??????
+    '''if feature("goal", "check") in state:#??????
         del state[feature("goal", "check")]
 
         if feature("gobj", "thirst") in state:
             del state[feature("gobj", "thirst")]
         elif feature("gobj", "hunger") in state:
-            del state[feature("gobj", "hunger")]
+            del state[feature("gobj", "hunger")]'''
+    '''if simulation_time == 1:
+        del state[feature("start")]
 
     if nd.val_sum(fs.output * goal_travel_to_store) >= 1.0:#???????
         if feature("location", "office") in state:
             del state[feature("location", "office")]
-        state[feature("location", "store")] = 1.0
+        state[feature("location", "store")] = 1.0'''
 
 pcl.pprint(goal_cdb)
