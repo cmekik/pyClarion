@@ -5,13 +5,13 @@
 
 
 __all__ = [
-    "Op", "GradientOp", "D", "GradientTape", "NumDict", "MutableNumDict", 
+    "Op", "GradientOp", "D", "GradientTape", "NumDict", "MutableNumDict",
     "record_call", "register_op", "register_grad"
 ]
 
 
 from typing import (
-    Mapping, Any, Hashable, TypeVar, Type, Optional, Callable, Iterable, Dict, 
+    Mapping, Any, Hashable, TypeVar, Type, Optional, Callable, Iterable, Dict,
     List, Union, Tuple, Set, Container, Iterator, overload, cast
 )
 from contextvars import ContextVar
@@ -30,22 +30,22 @@ D = TypeVar("D", bound=Union["NumDict", "MutableNumDict"])
 Op = Callable[..., "NumDict"]
 GradientOp = Callable[..., Tuple["NumDict", ...]]
 
-# For a given mathematical operation, the type Op is for computing the 
+# For a given mathematical operation, the type Op is for computing the
 # forward pass and the type GradientOp is for computing the backward pass.
 
-# The argument signature of Op should roughly be 
+# The argument signature of Op should roughly be
 #   *inputs: NumDict, **kwds: Any
-# More precisely, inputs should be of length 1 at least and ops may be of 
-# fixed arity. Any required arguments that are not of type D should be set as 
+# More precisely, inputs should be of length 1 at least and ops may be of
+# fixed arity. Any required arguments that are not of type D should be set as
 # named arguments.
 
 # Likewise, the argument signature of GradientOp should roughly be:
 #   grads: NumDict, *inputs: NumDict, **kwds: Any
-# Here, *inputs, **kwds are the same as for Op, corresponding exactly to the 
-# signature of the associated forward op. Finally, grads is the incoming 
+# Here, *inputs, **kwds are the same as for Op, corresponding exactly to the
+# signature of the associated forward op. Finally, grads is the incoming
 # gradient for the backward pass.
 
-# Mappings for recording and retrieving ops and their gradients. 
+# Mappings for recording and retrieving ops and their gradients.
 OPS: Dict[str, Op] = {}
 GRADS: Dict[str, GradientOp] = {}
 
@@ -66,7 +66,7 @@ class TapeCell(object):
     value: "NumDict"
     op: str = ""
     operands: Tuple[int, ...] = ()
-    kwds: dict = field(default_factory=dict) 
+    kwds: dict = field(default_factory=dict)
 
 
 class GradientTape(object):
@@ -78,12 +78,12 @@ class GradientTape(object):
     """
 
     # May support nesting and higher order derivatives. Investigate.
-    # Seems like it can work if all supported ops have grad functions that are 
+    # Seems like it can work if all supported ops have grad functions that are
     # themselves diffable... Test it. - Can
 
     __slots__ = ("_tape", "_index", "_token", "_recording", "_persistent")
 
-    _tape: List[TapeCell] 
+    _tape: List[TapeCell]
     _index: Dict[int, int]
     _token: Any
     _recording: bool
@@ -99,11 +99,11 @@ class GradientTape(object):
     def __repr__(self):
 
         s = "<{} persistent={} recording={} len={}>"
-        name = type(self).__name__ 
+        name = type(self).__name__
         persistent = self.persistent
-        recording = self._recording 
+        recording = self._recording
         length = len(self.data)
-        
+
         return s.format(name, persistent, recording, length)
 
     def __enter__(self):
@@ -114,15 +114,16 @@ class GradientTape(object):
             self._token = TAPE.set(self)
             self._recording = True
         else:
-            raise GradientTapeError("Cannot stack tapes.")
-        
+            if (self != TAPE.get()):
+                self._token = TAPE.set(self)
+                self._recording = True
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
 
         self._recording = False
         TAPE.reset(self._token)
-    
+
     @property
     def persistent(self) -> bool:
 
@@ -143,10 +144,10 @@ class GradientTape(object):
             self._index = {}
 
     def register(
-        self, 
-        value: "NumDict", 
-        op: str = "", 
-        inputs: Tuple["NumDict", ...] = (), 
+        self,
+        value: "NumDict",
+        op: str = "",
+        inputs: Tuple["NumDict", ...] = (),
         kwds: dict = None
     ) -> None:
 
@@ -199,7 +200,7 @@ class GradientTape(object):
             else:
                 op = OPS[entry.op]
                 inputs = (self._tape[i].value for i in entry.operands)
-                output = op(*inputs, **entry.kwds) 
+                output = op(*inputs, **entry.kwds)
                 self._index[id(output)] = i
                 entry.value = output
 
@@ -212,7 +213,7 @@ class GradientTape(object):
 
     def backward(
         self, seed: int, indices: Set[int], seed_val: float = 1.0
-    ) -> Dict[int, "NumDict"]: 
+    ) -> Dict[int, "NumDict"]:
         """
         Perform a backward pass over the current tape.
 
@@ -224,8 +225,8 @@ class GradientTape(object):
         """
 
         # Need to ensure correctness: the seed may not be a single value...
-        # Perhaps should assume, if not single value, that we are 
-        # differentiating against the sum. Need to think about correct 
+        # Perhaps should assume, if not single value, that we are
+        # differentiating against the sum. Need to think about correct
         # implementation.
 
         if self._recording:
@@ -238,7 +239,7 @@ class GradientTape(object):
             if entry.op:
                 grad_op = GRADS[entry.op]
                 inputs = (self._tape[k].value for k in entry.operands)
-                grads = grad_op(delta[i], *inputs, **entry.kwds) 
+                grads = grad_op(delta[i], *inputs, **entry.kwds)
                 for j, k in enumerate(entry.operands):
                     if k in indices or self._tape[k].op != "":
                         delta.setdefault(k, NumDict(default=0.0))
@@ -248,7 +249,6 @@ class GradientTape(object):
             self.reset()
 
         return delta
-
 
     @overload
     def evaluate(self, __1: "NumDict") -> "NumDict":
@@ -264,7 +264,7 @@ class GradientTape(object):
         self, *variables: "NumDict"
     ) -> Union["NumDict", Tuple["NumDict", ...]]:
         """Evaluate variables against current state of the tape."""
-        
+
         indices = [self.index(var) for var in variables]
 
         return self.forward(*indices)
@@ -294,9 +294,9 @@ class GradientTape(object):
         ...
 
     def gradients(
-        self, 
-        output: "NumDict", 
-        variables: Union["NumDict", Tuple["NumDict", ...]], 
+        self,
+        output: "NumDict",
+        variables: Union["NumDict", Tuple["NumDict", ...]],
         forward: bool = True
     ) -> Tuple["NumDict", Union["NumDict", Tuple["NumDict", ...]]]:
         """
@@ -326,7 +326,7 @@ class GradientTape(object):
             indices = set(index[id(var)] for var in variables)
         else:
             indices = {index[id(variables)]}
-        
+        #TODO: add a comment explaining why this option is useful -Joe
         if self._persistent and forward:
             output = cast("NumDict", self.forward(seed))
         grads = self.backward(seed, indices)
@@ -339,9 +339,9 @@ class GradientTape(object):
 
 
 def record_call(
-    op: Callable, 
-    value: "NumDict", 
-    inputs: Tuple[Union["NumDict", float, int], ...], 
+    op: Callable,
+    value: "NumDict",
+    inputs: Tuple[Union["NumDict", float, int], ...],
     kwds: dict
 ) -> None:
     """Record a call to an op with autodiff support in current active tape."""
@@ -349,12 +349,12 @@ def record_call(
     try:
         tape = TAPE.get()
     except LookupError:
-        pass 
+        pass
     else:
         if value is not NotImplemented:
             # _args must contain NumDicts only
             _inputs = []
-            for x in inputs: 
+            for x in inputs:
                 if isinstance(x, NumDict):
                     _input = x
                 else:
@@ -364,6 +364,8 @@ def record_call(
 
 
 OpVar = TypeVar("OpVar", bound=Op)
+
+
 def register_op(func: OpVar) -> OpVar:
     """Decorator for registering ops with autodiff support."""
 
@@ -373,6 +375,8 @@ def register_op(func: OpVar) -> OpVar:
 
 
 GradientOpVar = TypeVar("GradientOpVar", bound=GradientOp)
+
+
 def register_grad(op: Op) -> Callable[[GradientOp], GradientOp]:
     """Decorator for registering op gradient functions."""
 
@@ -385,7 +389,7 @@ def register_grad(op: Op) -> Callable[[GradientOp], GradientOp]:
     return wrapper
 
 
-# Ideally, NumDict would be covariant in its keys. But this is not compatible 
+# Ideally, NumDict would be covariant in its keys. But this is not compatible
 # with Mapping. - Can
 class NumDict(Mapping[Any, float]):
     """
@@ -410,8 +414,8 @@ class NumDict(Mapping[Any, float]):
     _default: Optional[float]
 
     def __init__(
-        self, 
-        data: Mapping[Any, Union[float, int]] = None, 
+        self,
+        data: Mapping[Any, Union[float, int]] = None,
         default: Union[float, int] = None
     ) -> None:
         """
@@ -501,7 +505,7 @@ class NumDict(Mapping[Any, float]):
         record_call(self.__abs__, value, (self,), {})
 
         return value
-    
+
     @staticmethod
     @register_grad(__abs__)
     def _abs_grad(grads: "NumDict", d: "NumDict") -> Tuple["NumDict"]:
@@ -511,8 +515,8 @@ class NumDict(Mapping[Any, float]):
     def __eq__(self, other: Any) -> bool:
 
         if isinstance(other, NumDict):
-            _eq = self._binary(other, operator.eq) # use isclose?
-            _eq_vals = all(v == 1.0 for v in _eq.values()) 
+            _eq = self._binary(other, operator.eq)  # use isclose?
+            _eq_vals = all(v == 1.0 for v in _eq.values())
             _eq_default = self.default == other.default
             return _eq_vals and _eq_default
         else:
@@ -549,7 +553,7 @@ class NumDict(Mapping[Any, float]):
 
         value = self._binary(other, operator.add)
         record_call(self.__add__, value, (self, other), {})
-        
+
         return value
 
     @staticmethod
@@ -557,8 +561,8 @@ class NumDict(Mapping[Any, float]):
     def _grad_add(
         grads: "NumDict", d1: "NumDict", d2: "NumDict"
     ) -> Tuple["NumDict", ...]:
-        
-        return (grads * d1.constant(val=1), grads * d2.constant(val=1))    
+
+        return (grads * d1.constant(val=1), grads * d2.constant(val=1))
 
     @register_op
     def __sub__(self, other: Union["NumDict", float, int]) -> "NumDict":
@@ -573,7 +577,7 @@ class NumDict(Mapping[Any, float]):
     def _grad_sub(
         grads: "NumDict", d1: "NumDict", d2: "NumDict"
     ) -> Tuple["NumDict", ...]:
-        
+
         return (grads * d1.constant(val=1), grads * d2.constant(val=-1))
 
     @register_op
@@ -648,32 +652,32 @@ class NumDict(Mapping[Any, float]):
     @register_grad(__rtruediv__)
     def _grad_rtruediv(
         grads: "NumDict", d1: "NumDict", d2: "NumDict"
-    ) -> Tuple["NumDict", ...]: # TODO: check correctness! - Can
+    ) -> Tuple["NumDict", ...]:  # TODO: check correctness! - Can
 
-        return (grads * (- d2) / (d1 ** 2), grads / d1) 
+        return (grads * (- d2) / (d1 ** 2), grads / d1)
 
     @register_op
     def __rpow__(self, other: Union["NumDict", float, int]) -> "NumDict":
 
         value = self._binary(other, self._rpow)
         record_call(self.__rpow__, value, (self, other), {})
-        
+
         return value
 
     @staticmethod
     @register_grad(__rpow__)
     def _grad_rpow(
         grads: "NumDict", d1: "NumDict", d2: "NumDict"
-    ) -> Tuple["NumDict", ...]: # TODO: check correctness! - Can
+    ) -> Tuple["NumDict", ...]:  # TODO: check correctness! - Can
 
         return (grads * d2.log() * (d2 ** d1), grads * d1 * (d2 ** (d1 - 1)))
 
-    # TODO: Is it necessary to register constant as an op? - Can 
+    # TODO: Is it necessary to register constant as an op? - Can
     @register_op
     def constant(self, *, val: float) -> "NumDict":
         """
         Return a copy of d where all values are set to a constant.
-        
+
         The resulting numdict has a default (set to value) iff self has a 
         default.
         """
@@ -696,14 +700,13 @@ class NumDict(Mapping[Any, float]):
 
         return (grads * d.constant(val=0),)
 
-
     @register_op
     def exp(self) -> "NumDict":
         """Apply e-base exponentiation elementwise to d."""
 
         value = self._unary(math.exp)
         record_call(self.exp, value, (self,), {})
-        
+
         return value
 
     @staticmethod
@@ -715,7 +718,7 @@ class NumDict(Mapping[Any, float]):
     @register_op
     def log(self) -> "NumDict":
         """Apply the log function elementwise to d."""
-        
+
         value = self._unary(self._log)
         record_call(self.log, value, (self,), {})
 
@@ -745,15 +748,15 @@ class NumDict(Mapping[Any, float]):
         return NumDict(mapping, default)
 
     def _binary(
-        self, 
-        other: Union["NumDict", float, int], 
+        self,
+        other: Union["NumDict", float, int],
         op: Callable[[float, float], float]
     ) -> "NumDict":
         """
         Apply binary op to each element of self and other.
 
         Returns a new numdict.
-        
+
         If other is a constant c, acts as if other[key] = c.
 
         If both self and other define defaults, the new default is equal to
@@ -771,22 +774,22 @@ class NumDict(Mapping[Any, float]):
         keys = set(self.keys()) | set(_other.keys())
         mapping = {k: op(self[k], _other[k]) for k in keys}
 
-        default: Optional[float]    
+        default: Optional[float]
         if self.default is None:
             default = None
         elif _other.default is None:
             default = None
         else:
             default = op(self.default, _other.default)
-        
+
         return NumDict(mapping, default)
 
     @staticmethod
     def _rtruediv(a, b):
-        return b / a #division error should return "inf" 
+        return b / a  # division error should return "inf"
 
     @staticmethod
-    def _rpow(a, b): #todo 0^0 = 1
+    def _rpow(a, b):  # todo 0^0 = 1
 
         return b ** a
 
@@ -869,7 +872,7 @@ class MutableNumDict(NumDict):
     ) -> "MutableNumDict":
         """
         Update self with keys and values of mapping.
-        
+
         Optionally, also update default.
         """
 
@@ -883,7 +886,7 @@ class MutableNumDict(NumDict):
     def clear(self, clear_default: bool = False) -> "MutableNumDict":
         """
         Remove all explicit members of self.
-        
+
         Optionally, also clear default.
         """
 
@@ -898,7 +901,7 @@ class MutableNumDict(NumDict):
     ) -> "MutableNumDict":
         """
         Update self with keys and values of mapping after first clearing self.
-        
+
         Optionally, also update default.
         """
 
@@ -910,7 +913,7 @@ class MutableNumDict(NumDict):
     def squeeze(self, default: float = None) -> "MutableNumDict":
         """
         Drop explicit values that are close to self.default (inplace).
-        
+
         :param default: Default value to assume, if self.default is None. If 
             provided when self.default is defined, will be ignored.
         """
@@ -934,7 +937,7 @@ class MutableNumDict(NumDict):
     ) -> "MutableNumDict":
         """
         Add each new item found in the union of iterables as a key to self.
-        
+
         Inplace operation.
 
         For each item in the union of iterables, if the item does not already 
@@ -957,8 +960,8 @@ class MutableNumDict(NumDict):
         return self
 
     def keep(
-        self, 
-        func: Callable[..., bool] = None, 
+        self,
+        func: Callable[..., bool] = None,
         keys: Container[Hashable] = None,
         **kwds: Any
     ) -> "MutableNumDict":
@@ -981,8 +984,8 @@ class MutableNumDict(NumDict):
         return self
 
     def drop(
-        self, 
-        func: Callable[..., bool] = None, 
+        self,
+        func: Callable[..., bool] = None,
         keys: Container[Hashable] = None,
         **kwds: Any
     ) -> "MutableNumDict":
@@ -1019,7 +1022,7 @@ class MutableNumDict(NumDict):
     ) -> "MutableNumDict":
         """
         Apply binary op in place.
-        
+
         Defaults will be updated as appropriate. In particular, if either self 
         or other has no default, self will have no default. Otherwise, the new 
         default is op(self.default, other.default).
@@ -1036,13 +1039,13 @@ class MutableNumDict(NumDict):
         keys = set(self.keys()) | set(_other.keys())
         for k in keys:
             self[k] = op(self[k], _other[k])
-        
+
         if self.default is None:
             default = None
         elif _other.default is None:
             default = None
         else:
-            default = op(self.default, _other.default) 
+            default = op(self.default, _other.default)
         self._default = default
-        
+
         return self

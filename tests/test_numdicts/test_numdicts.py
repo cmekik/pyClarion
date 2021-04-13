@@ -223,6 +223,20 @@ class TestNumdictsMultiplication(unittest.TestCase):
             self.assertAlmostEqual(grads[1][1], d1[1])
             self.assertAlmostEqual(grads[1][2], d1[2])
 
+    def test_productRule(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape()
+            with t1:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = nd.NumDict(default=i+j)
+                d4 = (d1+d2)*d3
+            d4, grad = t1.gradients(d4, (d1, d2, d3))
+            self.assertAlmostEqual(grad[0].default, d3.default)
+            self.assertAlmostEqual(grad[1].default, d3.default)
+            self.assertAlmostEqual(grad[2].default, d1.default+d2.default)
+
 
 class TestNumdictDivision(unittest.TestCase):
     def test_truediv_and_rtruediv_basic_functionality_defaults(self):
@@ -543,3 +557,144 @@ class TestNumdictsPower(unittest.TestCase):
                 else:
                     self.assertAlmostEqual(grads[1][2], d1[2] **
                                            d2[2]*math.log(d1[2]))
+
+
+class TestNumdictsNested(unittest.TestCase):
+    def test_persistent(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape(persistent=True)
+            with t1:
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = d1*d1*d2*d2
+            d4, g1 = t1.gradients(d3, (d1, d2), forward=False)
+            self.assertAlmostEqual(
+                g1[0].default, 2*d1.default*d2.default*d2.default)
+            self.assertAlmostEqual(
+                g1[1].default, 2*d2.default*d1.default*d1.default)
+            d4, g1 = t1.gradients(d3, (d2, d1), forward=False)
+            self.assertAlmostEqual(
+                g1[1].default, 2*d1.default*d2.default*d2.default)
+            self.assertAlmostEqual(
+                g1[0].default, 2*d2.default*d1.default*d1.default)
+
+    def test_2nested_numdicts_defualts(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape(persistent=True)
+            t2 = nd.GradientTape()
+            with t1:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                with t2:
+                    d3 = d1*d1*d2*d2
+                d3, g1 = t2.gradients(
+                    d3, (d1, d2), forward=False)  # first derivative
+                self.assertAlmostEqual(
+                    g1[0].default, 2*d2.default*d2.default*d1.default)
+                self.assertAlmostEqual(
+                    g1[1].default, 2*d1.default*d1.default*d2.default)
+            print(g1)
+            # second derivative with respect to d1
+            g3, g2 = t1.gradients(g1[0], (d1, d2), forward=False)
+            self.assertAlmostEqual(g2[0].default, 2*d2.default*d2.default)
+            self.assertAlmostEqual(g2[1].default, 4*d2.default*d1.default)
+            print(g2)
+            # second derivative with respect to d2
+            # this is incorrect for some reason
+            g3, g2 = t1.gradients(g1[1], (d1, d2), forward=False)
+            print(g2)
+            self.assertAlmostEqual(g2[0].default, 2*d1.default*d1.default)
+            self.assertAlmostEqual(g2[1].default, 4*d1.default*d2.default)
+
+    def test_3nested_numdicts_defaults(self):
+        for i, j in linspace(-10, 10):
+            with GradientTape() as t1:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = nd.NumDict(default=i+j)
+                with GradientTape() as t2:
+                    with GradientTape() as t3:
+                        d4 = d1*d2*d3
+                    d4, g1 = t3.gradients(d4, (d1, d2, d3))
+                    self.assertAlmostEqual(
+                        g1[0].default, d3.default*d2.default)
+                    self.assertAlmostEqual(
+                        g1[1].default, d1.default*d3.default)
+                    self.assertAlmostEqual(
+                        g1[2].default, d1.default*d2.default)
+                g1, g2 = t2.gradients(g1[0], (d1, d2, d3))
+                self.assertAlmostEqual(g2[0].default, 0)
+                self.assertAlmostEqual(g2[1].default, d3.default)
+                self.assertAlmostEqual(g2[2].default, d2.default)
+            g2, g3 = t1.gradients(g2[0], (d1, d2, d3))
+            self.assertAlmostEqual(g3[0].default, 0)
+            self.assertAlmostEqual(g3[1].default, 0)
+            self.assertAlmostEqual(g3[2].default, 0)
+
+    def test_2nested_numdicts_keys(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape()
+            t2 = nd.GradientTape()
+            with t1:
+                # testing differentiation for default
+                d1 = nd.NumDict({1: i, 2: i+j})
+                d2 = nd.NumDict({1: j, 2: j-i})
+                with t2:
+                    d3 = d1*d1+d2*d2
+                d3, g1 = t2.gradients(d3, (d1, d2))
+                self.assertAlmostEqual(g1[0][1], 2*d1[1])
+                self.assertAlmostEqual(g1[1][1], 2*d2[1])
+                self.assertAlmostEqual(g1[0][2], 2*d1[2])
+                self.assertAlmostEqual(g1[1][2], 2*d2[2])
+            g1, g2 = t1.gradients(g1[0], (d1, d2))
+            self.assertAlmostEqual(g2[0][1], 2)
+            self.assertAlmostEqual(g2[0][2], 2)
+            self.assertAlmostEqual(g2[1][1], 0)
+            self.assertAlmostEqual(g2[1][2], 0)
+
+    def test_2nested_numdicts_mixed(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape()
+            t2 = nd.GradientTape()
+            with t1:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict({1: j, 2: j-i})
+                with t2:
+                    d3 = d1*d1+d2*d2
+                d3, g1 = t2.gradients(d3, (d1, d2))
+                self.assertAlmostEqual(g1[0][1], 2*d1.default)
+                self.assertAlmostEqual(g1[1][1], 2*d2[1])
+                self.assertAlmostEqual(g1[0][2], 2*d1.default)
+                self.assertAlmostEqual(g1[1][2], 2*d2[2])
+            g1, g2 = t1.gradients(g1[0], (d1, d2))
+            self.assertAlmostEqual(g2[0][1], 2)
+            self.assertAlmostEqual(g2[0][2], 2)
+            self.assertAlmostEqual(g2[1][1], 0)
+            self.assertAlmostEqual(g2[1][2], 0)
+
+    """def test_3nested_numdicts_productRule(self):
+        for i, j in linspace(-10, 10):
+            t1 = nd.GradientTape()
+            t2 = nd.GradientTape()
+            t3 = nd.GradientTape()
+            with t1:
+                # testing differentiation for default
+                d1 = nd.NumDict(default=i)
+                d2 = nd.NumDict(default=j)
+                d3 = nd.NumDict(default=i+j)
+                with t2:
+                    with t3:
+                        d4 = (d1+d2)*d3  # something go broke here not sure why
+                        #d4 = d1*d3+d2*d3
+                    d4, g1 = t3.gradients(d4, (d1, d2, d3))
+                    self.assertAlmostEqual(g1[0].default, d3.default)
+                    self.assertAlmostEqual(g1[1].default, d3.default)
+                    self.assertAlmostEqual(
+                        g1[2].default, d1.default+d2.default)
+                g1, g2 = t2.gradients(g1[2], (d1, d2, d3))
+                self.assertAlmostEqual(g2[0].default, 1)
+                self.assertAlmostEqual(g2[1].default, 1)
+    """
