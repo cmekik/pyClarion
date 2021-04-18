@@ -6,34 +6,26 @@ from contextlib import ExitStack
 from math import isclose
 from itertools import count
 
-#overall comments needed
 class Environment(object):
+# An automated class which help iterate through the simulation
 
     def __init__(self):
 
         self.state = nd.NumDict({}, default=0.0)
-        self.goal_stack = nd.NumDict({}, default=0.0)
-        self.acs_inputs = nd.NumDict({}, default=0.0)
-
-    def checkGoToStore(self):
-
-        travel = feature("goal", "travel")
-        store = feature("gobj", "store")
-
-        if travel in self.acs_inputs and store in self.acs_inputs:
-            if self.acs_inputs[travel] == 1.0 and self.acs_inputs[store] == 1.0:
-                return True
-
-        return False
+        self.len_goal_stack = 0
+        self.goToStore = False
 
     def __iter__(self):
+        # yield state of agent for each step of simulation
+        # Determine simulation stopping condition, place switching condition
 
-        time = count() #start with 0
+        time = count()
         for t in time:
 
-            if len(self.goal_stack) == 0 and t >= 2:
+            if self.len_goal_stack == 0 and t >= 2:
                 break
 
+            # Simulation time limit included just in case.
             if t >= 100:
                 break
 
@@ -41,21 +33,24 @@ class Environment(object):
                 if t == 1:
                     del self.state[feature("start")]
 
-                if self.checkGoToStore():
+                if self.goToStore:
                     if feature("location", "office") in self.state:
                         del self.state[feature("location", "office")]
                     self.state[feature("location", "store")] = 1.0
 
-                yield self.state
+                yield self.state, time
 
-    def update(self, inputND, inputGS, inputFS):
+    def update(self, inputND, inputGS, inputFr):
+        # Update info stored in environment, necessary for __iter__
+        # Update for each step of simulation
 
         self.state = inputND
-        self.goal_stack = inputGS
-        self.acs_inputs = inputFS
+        self.len_goal_stack = len(inputGS)
+        self.goToStore = chunk("GOAL_GO_TO_STORE") in inputFr
 
 
 def print_step(simulation_time, state, output, actions, goal_actions, goals, goal_stack):
+    # Print state of agent for each step of simulation
 
     print("Step {}".format(simulation_time))
     print()
@@ -84,6 +79,8 @@ def print_step(simulation_time, state, output, actions, goal_actions, goals, goa
     pcl.pprint(goal_stack)
     print()
 
+# Interface definition
+
 domain = pcl.Domain(
     features=(
         feature("location", "office"),
@@ -95,7 +92,7 @@ domain = pcl.Domain(
     )
 )
 
-goal_interface = pcl.GoalStay.Interface(# needs added
+goal_interface = pcl.GoalStay.Interface(
     name="gctl",
     goals=(
         feature("goal", "travel"),
@@ -150,7 +147,7 @@ with ExitStack() as exit_stack:
     ):
         exit_stack.enter_context(ctxmgr)    
 
-
+    # Fixed rules
     
     acs_fr.define(
         rule("IF_HUNGRY_THEN_GOAL_BUY_FOOD"),
@@ -278,6 +275,8 @@ agent = pcl.Structure(
     name=pcl.agent("agent")
 )
 
+# Agent definition
+
 with agent:
 
     stim = pcl.Construct(
@@ -350,12 +349,12 @@ with agent:
             )
         )
 
-        pcl.Construct(
+        fr = pcl.Construct(
             name=pcl.flow_tt("fixed_rules"),
             process=pcl.ActionRules(
                 source=pcl.chunks("condition"),
                 rules=acs_fr,
-                #threshold=.99,
+                threshold=.9,
                 temperature=0.0001
             )
         )
@@ -442,7 +441,9 @@ with agent:
             )
         )
 
-################### change initial
+# Actual simulation starts
+
+# Initial state 
 state = nd.MutableNumDict({
         feature("thirsty"): 1.0,
         feature("location", "office"): 1.0,
@@ -450,30 +451,15 @@ state = nd.MutableNumDict({
         #feature("hungry"): 1.0,
     },default=0.0)
 
-final_actions = nd.NumDict({
-    feature("buy", "food"): 1.0, 
-    feature("buy", "drink"): 1.0
-    }, default=0.0)
-
-goal_travel_to_store = nd.NumDict({
-    feature("goal", "travel"): 1.0, 
-    feature("gobj", "store"): 1.0
-}, default=0.0)
-
 actions = nd.NumDict({}, default=0.0)
 
 env = Environment()
-env.update(state, gs.output, fs.output)
+# Fill env with initial state
+env.update(state, gs.output, fr.output)
 
-# Simulation time limit included just in case.
-simulation_time = 0
-'''while (
-    (len(gs.output) != 0 or simulation_time < 2) and simulation_time < 100
-):'''
-for curState in env:
+for curState, simulation_time in env:
 
-    simulation_time += 1
-
+    # Push agent to next state
     stim.process.input(curState)
     agent.step()
     goals = gb.output
@@ -481,26 +467,12 @@ for curState in env:
     goal_actions = gt.output
     goal_stack = gs.output
 
-    #print function
+    # Print current state
     print_step(simulation_time, curState, fs.output, actions, goal_actions, goals, goal_stack)
+    print("-" * 80)
 
-    env.update(curState, gs.output, fs.output)
+    # Update env
+    env.update(curState, gs.output, fr.output)
 
-    # This is a hack, need more sophisticated control structures to prevent new 
-    # goals from needlessly being spawned.
-    '''if feature("goal", "check") in state:#??????
-        del state[feature("goal", "check")]
-
-        if feature("gobj", "thirst") in state:
-            del state[feature("gobj", "thirst")]
-        elif feature("gobj", "hunger") in state:
-            del state[feature("gobj", "hunger")]'''
-    '''if simulation_time == 1:
-        del state[feature("start")]
-
-    if nd.val_sum(fs.output * goal_travel_to_store) >= 1.0:#???????
-        if feature("location", "office") in state:
-            del state[feature("location", "office")]
-        state[feature("location", "store")] = 1.0'''
-
+# Print goal database
 pcl.pprint(goal_cdb)
