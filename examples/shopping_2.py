@@ -6,22 +6,65 @@ from contextlib import ExitStack
 from math import isclose
 from itertools import count
 
+#############
+### Setup ###
+#############
+
+# This simulation demonstrate how pyClarion agent behave in a given rule database.
+
+# The main task of this program is that given the agent starting out thirsty/hungry,
+# the agent will self-navigate itself to the store and buy drink/food,
+# under the help of Environment. 
+
+# The whole simulation is automatic with the given fixed rule data base.
+
 class Environment(object):
 # An automated class which help iterate through the simulation
 
-    def __init__(self):
+    # Define elements in the simulation that are explicit to the environment
+    # The internal elements (i.e. goal interface) will be defined in the agent
+    domain = pcl.Domain(
+        features=(
+            feature("location", "office"),
+            feature("location", "enroute"),
+            feature("location", "store"),
+            feature("start")
+        )
+    )
+
+    external_interface = pcl.Interface(
+        cmds=(
+            feature("travel", "sby"),
+            feature("travel", "office"),
+            feature("travel", "store"),
+            feature("buy", "sby"),
+            feature("buy", "food"),
+            feature("buy", "drink")
+        ),
+    )
+
+    def __init__(self, travel_time):
 
         self.state = nd.NumDict({}, default=0.0)
+        # Agent current state
         self.len_goal_stack = 0
+        # Agent goal stack
         self.goToStore = False
+        # Whether "go to store" is in agent's external actions
+        self.travel_time = travel_time
+        # Steps needed to travel from office to store
 
     def __iter__(self):
         # yield state of agent for each step of simulation
         # Determine simulation stopping condition, place switching condition
 
         time = count()
+        travel_time = 0
+
         for t in time:
 
+            # Stop the simulation when the agent has no goals anymore.
+            # Never stop for t < 2 because the agent has no goals initially.
             if self.len_goal_stack == 0 and t >= 2:
                 break
 
@@ -30,23 +73,36 @@ class Environment(object):
                 break
 
             else:
+                # Delete the "starting flag" after the simulation has started
                 if t == 1:
                     del self.state[feature("start")]
 
+                # Under certain state, move agent from office to enroute (on the way)
                 if self.goToStore:
                     if feature("location", "office") in self.state:
                         del self.state[feature("location", "office")]
+                    self.state[feature("location", "enroute")] = 1.0
+                    travel_time += 1
+
+                # Count the travel time 
+                elif travel_time > 0 and travel_time < self.travel_time:
+                    travel_time += 1
+
+                # Once travel time has been reached, move agent from enroute to store
+                elif travel_time == self.travel_time:
+                    if feature("location", "enroute") in self.state:
+                        del self.state[feature("location", "enroute")]
                     self.state[feature("location", "store")] = 1.0
 
                 yield self.state, time
 
-    def update(self, inputND, inputGS, inputFr):
+    def update(self, inputND, inputGS, inputEa):
         # Update info stored in environment, necessary for __iter__
         # Update for each step of simulation
 
         self.state = inputND
         self.len_goal_stack = len(inputGS)
-        self.goToStore = chunk("GOAL_GO_TO_STORE") in inputFr
+        self.goToStore = feature("travel", "store") in inputEa
 
 
 def print_step(simulation_time, state, output, actions, goal_actions, goals, goal_stack):
@@ -81,14 +137,11 @@ def print_step(simulation_time, state, output, actions, goal_actions, goals, goa
 
 # Interface definition
 
+# Elements implicit to the Environment declared below
 domain = pcl.Domain(
     features=(
-        feature("location", "office"),
-        feature("location", "enroute"),
-        feature("location", "store"),
         feature("thirsty"),
         feature("hungry"),
-        feature("start")
     )
 )
 
@@ -107,20 +160,8 @@ goal_interface = pcl.GoalStay.Interface(
     )
 )
 
-external_interface = pcl.Interface(
-    cmds=(
-        feature("travel", "sby"),
-        feature("travel", "office"),
-        feature("travel", "store"),
-        feature("buy", "sby"),
-        feature("buy", "food"),
-        feature("buy", "drink")
-    ),
-
-)
-
-domains = (domain, goal_interface, external_interface)
-interfaces = domains[1:]
+domains = (domain, Environment.domain, goal_interface, Environment.external_interface)
+interfaces = domains[2:]
 
 # Make sure the domains are disjoint to avoid unexpected behavior
 assert pcl.Domain.disjoint(*domains)
@@ -148,6 +189,23 @@ with ExitStack() as exit_stack:
         exit_stack.enter_context(ctxmgr)    
 
     # Fixed rules
+
+    # feature(start) indicate the first step of the simulation
+    # "check thirst/hunger" is an intermediate goal which 
+    # make sure that certain goal doesn't get initiated consecutively.
+    acs_fr.define(
+        rule("INITIALIZE"),
+        acs_cdb_a.define(
+            chunk("INITIALIZE"),
+            feature(("gctl", "cmd"), "write"),
+            feature(("gctl", "goal"), "check"),
+            feature(("gctl", "gobj"), "thirst")
+        ),
+        acs_cdb_c.define(
+            chunk("INITIAL_CONDITION"),
+            feature("start")
+        )
+    )
     
     acs_fr.define(
         rule("IF_HUNGRY_THEN_GOAL_BUY_FOOD"),
@@ -196,6 +254,21 @@ with ExitStack() as exit_stack:
             feature("goal", "buy"),
             feature(("gctl", "state"), "start"),
             feature("location", "office")
+        )
+    )
+
+    acs_fr.define(
+        rule("IF_NEW_GOAL_TRAVELING_TO_STORE_THEN_START_GOING_TO_STORE"),
+        acs_cdb_a.define(
+            chunk("START_GOING_TO_STORE"),
+            feature("travel", "store"),
+            feature(("gctl", "cmd"), "engage")
+        ),
+        acs_cdb_c.define(
+            chunk("NEW_GOAL_TRAVELING_TO_STORE"),
+            feature("goal", "travel"),
+            feature("gobj", "store"),
+            feature(("gctl", "state"), "start")
         )
     )
 
@@ -257,19 +330,6 @@ with ExitStack() as exit_stack:
         )
     )
 
-    acs_fr.define(
-        rule("INITIALIZE"),
-        acs_cdb_a.define(
-            chunk("INITIALIZE"),
-            feature(("gctl", "cmd"), "write"),
-            feature(("gctl", "goal"), "check"),
-            feature(("gctl", "gobj"), "thirst")
-        ),
-        acs_cdb_c.define(
-            chunk("INITIAL_CONDITION"),
-            feature("start")
-        )
-    )
 
 agent = pcl.Structure(
     name=pcl.agent("agent")
@@ -385,7 +445,7 @@ with agent:
             name=pcl.terminus("external_actions"),
             process=pcl.ActionSelector(
                 source=pcl.features("out"),
-                interface=external_interface,
+                interface=Environment.external_interface,
                 temperature=0.0001
             )
         )
@@ -453,9 +513,10 @@ state = nd.MutableNumDict({
 
 actions = nd.NumDict({}, default=0.0)
 
-env = Environment()
+# Set traveling steps to, for example, 2
+env = Environment(2)
 # Fill env with initial state
-env.update(state, gs.output, fr.output)
+env.update(state, gs.output, exta.output)
 
 for curState, simulation_time in env:
 
@@ -472,7 +533,7 @@ for curState, simulation_time in env:
     print("-" * 80)
 
     # Update env
-    env.update(curState, gs.output, fr.output)
+    env.update(curState, gs.output, exta.output)
 
 # Print goal database
 pcl.pprint(goal_cdb)
