@@ -1,3 +1,4 @@
+""" Tools for rule learning: still experimental, not yet stable. """
 
 __all__ = ["MatchStatistics", "RuleStatDB", "RERupdater"]
 
@@ -186,22 +187,21 @@ class RERUpdater(Process):
         x_match = self.ccdb.match(x_active)
         a_active = nd.threshold(a, th=self.a_th)
         a_match = self.acdb.match(a_active)
-
+        r_match = False
         # do extraction code here
 
         #determine if outcome is positive/neg/neither
-        if crit and not x_match and not a_match:
+        if (crit 
+            and (not x_match 
+                or not a_match or not r_match)):
             # next check if there is a rule that match at the top level
             # if not add a new rule
             
             # maybe match() should be checked against chunk??? 
+            pass
             
             
-            
-            
-
-
-
+        
 
 
         return super().call(inputs)
