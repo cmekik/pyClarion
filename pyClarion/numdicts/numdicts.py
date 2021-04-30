@@ -81,30 +81,33 @@ class GradientTape(object):
     # Seems like it can work if all supported ops have grad functions that are
     # themselves diffable... Test it. - Can
 
-    __slots__ = ("_tape", "_index", "_token", "_recording", "_persistent")
+    __slots__ = ("_tape", "_index", "_token", "_recording", "_persistent", "_allowNesting")
 
     _tape: List[TapeCell]
     _index: Dict[int, int]
     _token: Any
     _recording: bool
     _persistent: bool
+    _allowNesting: bool
 
-    def __init__(self, persistent: bool = False) -> None:
+    def __init__(self, persistent: bool = False, allowNesting = False) -> None:
 
         self._tape = []
         self._index = {}
         self._recording = False
+        self._allowNesting = allowNesting
         self._persistent = persistent
 
     def __repr__(self):
 
-        s = "<{} persistent={} recording={} len={}>"
+        s = "<{} persistent={} recording={} len={} allowNesting = {}>"
         name = type(self).__name__
         persistent = self.persistent
+        allowNesting = self._allowNesting
         recording = self._recording
         length = len(self.data)
 
-        return s.format(name, persistent, recording, length)
+        return s.format(name, persistent, recording, length, allowNesting)
 
     def __enter__(self):
 
@@ -114,9 +117,12 @@ class GradientTape(object):
             self._token = TAPE.set(self)
             self._recording = True
         else:
-            if (self != TAPE.get()):
-                self._token = TAPE.set(self)
-                self._recording = True
+            if(self._allowNesting):
+                if (self != TAPE.get()):
+                    self._token = TAPE.set(self)
+                    self._recording = True
+            else:
+                raise GradientTapeError("Cannot stack tapes; Allow Nesting is false")
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -143,7 +149,7 @@ class GradientTape(object):
             self._tape = []
             self._index = {}
 
-    def register(
+    def register(#TODO make sense add nested numdi
         self,
         value: "NumDict",
         op: str = "",
