@@ -89,6 +89,22 @@ class Chunk(object):
 
         return self._weights
 
+    def match(self, other: "Chunk") -> bool:
+        """" 
+        Returns true if self matches other.
+
+        other.features is subset of self.features and
+        other.weights is close to self.weights
+        close => isclose()
+        """
+        b = (
+            set(self.weights) == set(other.weights) 
+            and nd.isclose(self.weights, other.weights)
+            and self.features.issuperset(other.features) 
+        )
+        return b
+        
+
     def top_down(self, strength: float) -> nd.NumDict:
         """
         Compute top-down strengths for features of self.
@@ -245,36 +261,43 @@ class Chunks(MutableMapping[chunk, Ct]):
 
         return ch
 
-    def find_form(self, form, check_promises=True):
+
+    @overload
+    def match(self, obj: Chunk, check_promises: bool) -> Set[chunk]:
+        pass
+
+    @overload
+    def match(self, obj: Collection[feature], check_promises: bool) -> Set[chunk]:
+        pass
+
+    def match(self, obj: Union[Chunk, Collection[feature]], check_promises: bool = True) -> Set[chunk]:
+    
         """
-        Return the set of chunks matching the given form.
+        Return the set of chunks matching the given collection of features, fs.
+
+        A chunk is considered to match fs iff fs is a subset of the 
+        features belonging to the chunk. 
         
-        If check_promises is True, will match form against promised chunks (see 
+        If check_promises is True, will match fs against promised chunks (see 
         Chunks.request_add()).
         """
 
         # This may need a faster implementation in the future. - Can
+        if isinstance(obj, Chunk):
+            target = obj
+        else:
+            target = Chunk(obj)
+
         chunks = set()
         for ch, form_ch in self.items():
-            if form_ch == form:
+            if form_ch.match(target):
                 chunks.add(ch)
-        for ch, form_ch in self._add_promises.items():
-            if form_ch == form:
-                chunks.add(ch)
+        if check_promises:
+            for ch, form_ch in self._add_promises.items():
+                if form_ch.match(target):
+                    chunks.add(ch)
 
         return chunks
-
-    def contains_form(self, form, check_promises=True):
-        """
-        Return true if given chunk form matches at least one chunk.
-
-        If check_promises is True, will match form against promised chunks (see 
-        Chunks.request_add()).
-        """
-
-        found = self.find_form(form, check_promises)
-
-        return 0 < len(found) 
 
     @contextmanager
     def enforce_support(self, *domains: Domain):

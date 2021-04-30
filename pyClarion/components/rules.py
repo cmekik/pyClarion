@@ -11,7 +11,7 @@ from .. import numdicts as nd
 
 from typing import (
     Mapping, MutableMapping, TypeVar, Generic, Type, Dict, FrozenSet, Set, 
-    Tuple, overload, cast, Any, Iterator
+    Tuple, overload, cast, Any, Iterator, Sequence, Union
 )
 from contextlib import contextmanager
 from types import MappingProxyType
@@ -89,6 +89,16 @@ class Rule(object):
         """Conditions and condition weights of rule."""
 
         return self._weights
+
+    def match(self, other: "Rule") -> bool:
+        """ If conclusion matches and numDict is close, return True"""
+
+        b = (
+            self.conc == other.conc
+            and nd.isclose(self.weights, other.weights)
+        )
+
+        return b
 
     def strength(self, strengths: nd.NumDict) -> float:
         """
@@ -226,6 +236,33 @@ class Rules(MutableMapping[rule, Rt], Generic[Rt]):
         self[r] = self.Rule(conc, *conds, weights=weights)
 
         return r
+    
+    @overload
+    def match(self, obj: Rule, check_promises: bool) -> Set[rule]:
+        pass
+
+    @overload
+    def match(self, obj: Sequence[chunk], check_promises: bool) -> Set[rule]:
+        pass
+
+    def match(self, obj: Union[Rule, Sequence[chunk]], check_promises: bool = True) -> Set[rule]:
+        """ Returns a set of rules matching the given rule or sequence of chunks"""
+
+        if isinstance(obj, Rule):
+            target = obj
+        else:
+            target = Rule(*obj)
+
+        rules = set()
+        for ch, form_ch in self.items():
+            if form_ch.match(target):
+                rules.add(ch)
+        if check_promises:
+            for ch, form_ch in self._add_promises.items():
+                if form_ch.match(target):
+                    rules.add(ch)
+
+        return rules
 
     def contains_form(self, form) -> bool:
         """
