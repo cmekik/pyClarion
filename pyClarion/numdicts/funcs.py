@@ -1,6 +1,8 @@
 """Functions on numerical dictionaries without autodiff support."""
-
-
+#functions to differentiate
+#boltzmann
+#clip, threshold
+#keep, drop, transform_keys
 __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
     "squeeze", "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
