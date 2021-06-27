@@ -4,7 +4,8 @@
 # TODO: GradientOps may not handle defaults correctly! Check and correct. - Can
 
 
-__all__ = ["log", "exp", "sigmoid", "tanh", "set_by", "sum_by", "max_by"]
+__all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
+           "sum_by", "max_by", "threshold", "clip", "boltzmann"]
 
 
 from .numdicts import (
@@ -118,6 +119,52 @@ def _grad_max_by(grads, d, *, keyfunc):
 
 
 @register_op
+def threshold(
+    d: D, *, th: Union[float, int], keep_default: bool = False
+) -> NumDict:
+    """
+    Return a copy of d containing only values above theshold.
+
+    If the default is below threshold it is set to None in the output, unless 
+    keep default is True.
+    """
+
+    mapping = {k: d[k] for k in d if th < d[k]}
+    if d.default is not None:
+        default = d.default if keep_default or th < d.default else None
+    else: #added this to prevent errors when d.default was none as default was undefined    
+        default = None
+
+    return NumDict(mapping, default)
+
+
+@register_grad(threshold)
+def _grad_threshold(grads, d, *, keyfunc):
+    return  # TODO
+
+
+@register_op
+def clip(d: D, low: float = None, high: float = None) -> NumDict:
+    """
+    Return a copy of d with values clipped.
+
+    dtype must define +/- inf values.
+    """
+
+    low = low or float("-inf")
+    high = high or float("inf")
+
+    mapping = {k: max(low, min(high, d[k])) for k in d}
+
+    return NumDict(mapping, d.default)
+
+
+@register_grad(clip)
+def _grad_clip(grads, d, *, keyfunc):
+    return  # TODO
+
+
+@register_op
 def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     """
     Construct a boltzmann distribution from d with temperature t.
@@ -125,7 +172,6 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     If d has a default, the returned value will have a default of 0, and, if d 
     is empty, the return value will also be empty.
     """
-
     default = 0 if d.default is not None else None
     if len(d) > 0:
         x = d / t
@@ -136,6 +182,8 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     else:
         return NumDict(default=default)
 
+
 @register_grad(boltzmann)
 def _grad_boltzmann(grads, d, *, keyfunc):
-    return #TODO do this
+
+    return  # TODO do this

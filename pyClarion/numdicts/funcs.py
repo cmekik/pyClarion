@@ -1,13 +1,11 @@
 """Functions on numerical dictionaries without autodiff support."""
-#functions to differentiate
-#boltzmann
-#clip, threshold
+# functions to differentiate
 #keep, drop, transform_keys
 __all__ = [
-    "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop", 
-    "squeeze", "transform_keys", "threshold", "clip", "boltzmann", "draw", "by", 
-    "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise", 
-    "val_sum", "val_max", "val_min", "all_val", "any_val", 
+    "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop",
+    "squeeze", "transform_keys",  "draw", "by",
+    "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise",
+    "val_sum", "val_max", "val_min", "all_val", "any_val",
     "exponential_moving_avg", "tabulate"
 ]
 
@@ -42,7 +40,7 @@ def unfreeze(d: NumDict) -> MutableNumDict:
 def squeeze(d: D, default: float = None) -> NumDict:
     """
     Return a copy of d dropping explicit members close to the default .
-    
+
     :param default: Default value to assume if self.default is None. If 
         provided when self.default is defined, will be ignored.
     """
@@ -66,21 +64,21 @@ def with_default(d: D, *, default: Optional[Union[float, int]]) -> NumDict:
 
 def isclose(d1: D, d2: D) -> bool:
     """Return True if self is close to other in values."""
-    
-    _d = d1._binary(d2, math.isclose) # make this a numdict method
+
+    _d = d1._binary(d2, math.isclose)  # make this a numdict method
 
     return all(_d.values())
 
 
 def keep(
-    d: D, 
-    func: Callable[..., bool] = None, 
+    d: D,
+    func: Callable[..., bool] = None,
     keys: Container = None,
     **kwds: Any
 ) -> NumDict:
     """
     Return a copy of d keeping only the desired keys. 
-    
+
     Keys are kept iff func(key, **kwds) or key in container is True.
     """
 
@@ -88,9 +86,9 @@ def keep(
         raise ValueError("At least one of func or keys must not be None.")
 
     mapping = {
-        k: d[k] for k in d 
+        k: d[k] for k in d
         if (
-            (func is not None and func(k, **kwds)) or 
+            (func is not None and func(k, **kwds)) or
             (keys is not None and k in keys)
         )
     }
@@ -99,14 +97,14 @@ def keep(
 
 
 def drop(
-    d: D, 
-    func: Callable[..., bool] = None, 
+    d: D,
+    func: Callable[..., bool] = None,
     keys: Container = None,
     **kwds: Any
 ) -> NumDict:
     """
     Return a copy of d dropping unwanted keys. 
-    
+
     Keys are dropped iff func(key, **kwds) or key in container is True.
     """
 
@@ -114,8 +112,8 @@ def drop(
         raise ValueError("At least one of func or keys must not be None.")
 
     mapping = {
-        k: d[k] for k in d 
-        if (func is not None and not func(k, **kwds)) or 
+        k: d[k] for k in d
+        if (func is not None and not func(k, **kwds)) or
         (keys is not None and k not in keys)
     }
 
@@ -136,69 +134,17 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
 
     return NumDict(mapping, d.default)
 
-
-def threshold(
-    d: D, *, th: Union[float, int], keep_default: bool = False
-) -> NumDict:
-    """
-    Return a copy of d containing only values above theshold.
-    
-    If the default is below threshold it is set to None in the output, unless 
-    keep default is True.
-    """
-
-    mapping = {k: d[k] for k in d if th < d[k]}
-    if d.default is not None:
-        default = d.default if keep_default or th < d.default else None 
-
-    return NumDict(mapping, default)
-
-
-def clip(d: D, low: float = None, high: float = None) -> NumDict:
-    """
-    Return a copy of d with values clipped.
-    
-    dtype must define +/- inf values.
-    """
-
-    low = low or float("-inf")
-    high = high or float("inf")
-
-    mapping = {k: max(low, min(high, d[k])) for k in d}
-
-    return NumDict(mapping, d.default)
-
-
-def boltzmann(d: D, t: Union[float, int]) -> NumDict:
-    """
-    Construct a boltzmann distribution from d with temperature t.
-
-    If d has a default, the returned value will have a default of 0, and, if d 
-    is empty, the return value will also be empty.
-    """
-
-    default = 0 if d.default is not None else None
-    if len(d) > 0:
-        x = d / t
-        x = x - val_max(x) # softmax(x) = softmax(x + c)
-        numerators = x.exp()
-        denominator = val_sum(numerators)
-        return with_default(numerators / denominator, default=default)
-    else:
-        return NumDict(default=default)
-
-
 def draw(
-    d: D, 
-    n: int = 1, 
-    val: Union[float, int] = 1.0, 
+    d: D,
+    n: int = 1,
+    val: Union[float, int] = 1.0,
     default: Union[float, int] = 0.0
 ) -> NumDict:
     """
     Draw k keys from numdict without replacement.
-    
+
     If k >= len(d), returns a selection of all elements in d. 
-    
+
     Sampled elements are given a val of 1.0 by default. Output inherits its
     default value from d.
     """
@@ -213,19 +159,19 @@ def draw(
             pr.keep(output.__contains__)
     else:
         output.extend(d, value=val)
-    
+
     return NumDict(output, d.default)
 
 
 def by(
-    d: D, 
+    d: D,
     op: Callable[..., float],
-    keyfunc: Callable[..., Hashable], 
+    keyfunc: Callable[..., Hashable],
     **kwds: Any
 ) -> NumDict:
     """
     Compute op over elements grouped by keyfunc.
-    
+
     Key should be a function mapping each key in self to a grouping key. New 
     keys are determined based on the result of keyfunc(k, **kwds), where 
     k is a key from d.
@@ -242,7 +188,7 @@ def by(
 def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
     """
     Apply op elementwise to a sequence of numdicts.
-    
+
     If any numdict in ds has None default, then default is None, otherwise the 
     new default is calculated by running op on all defaults.
     """
@@ -256,7 +202,7 @@ def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
         defaults.append(d.default)
         for k in keys:
             grouped.setdefault(k, []).append(d[k])
-    
+
     if any([d is None for d in defaults]):
         default = None
     else:
@@ -268,7 +214,7 @@ def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
 def ew_sum(*ds: D) -> NumDict:
     """
     Elementwise sum of values in ds.
-    
+
     Wraps elementwise().
     """
 
@@ -278,17 +224,17 @@ def ew_sum(*ds: D) -> NumDict:
 def ew_mean(*ds: D) -> NumDict:
     """
     Elementwise sum of values in ds.
-    
+
     Wraps elementwise().
     """
 
     return elementwise(sum, *ds) / len(ds)
 
 
-def ew_max(*ds: D)  -> NumDict:
+def ew_max(*ds: D) -> NumDict:
     """
     Elementwise maximum of values in ds.
-    
+
     Wraps elementwise().
     """
 
@@ -298,7 +244,7 @@ def ew_max(*ds: D)  -> NumDict:
 def ew_min(*ds: D) -> NumDict:
     """
     Elementwise maximum of values in ds.
-    
+
     Wraps elementwise().
     """
 
@@ -337,10 +283,12 @@ def val_min(d: D) -> float:
 
     return valuewise(max, d, float("+inf"))
 
+
 def all_val(d: D) -> bool:
     """Return True if all values, including the default, are truthy."""
 
     return all(v for v in d.values()) and bool(d.default)
+
 
 def any_val(d: D) -> bool:
     """Return True if any values, including the default, are truthy."""
