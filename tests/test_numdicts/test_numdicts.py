@@ -6,6 +6,7 @@ import math
 import itertools
 
 from pyClarion.numdicts.numdicts import GradientTape, NumDict
+from pyClarion.numdicts.ops import threshold,clip
 
 
 def linspace(a, b):
@@ -558,6 +559,64 @@ class TestNumdictsPower(unittest.TestCase):
                     self.assertAlmostEqual(grads[1][2], d1[2] **
                                            d2[2]*math.log(d1[2]))
 
+
+class TestNumdictsOpsThreshold(unittest.TestCase):
+    def test_threshold_default(self):
+        d = nd.NumDict(default=5)
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertAlmostEqual(d1.default, 5)
+        d = nd.NumDict(default=2)
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertTrue(d1.default == None)
+        # TODO DIFFERENTIATE
+
+    def test_threshold_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        # TODO DIFFERENTIATE
+
+    def test_threshold_mixed(self):
+        d = nd.NumDict(default=5, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertAlmostEqual(d1.default, 5)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1[i] == d1.default)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d = nd.NumDict(default=2, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertTrue(d1.default == None)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        # TODO DIFFERENTIATE
+class TestNumdictsOpsClip(unittest.TestCase):
+    def test_clip_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = clip(d, 2,4)
+        print(d1)
+        for i in range(1,5):
+            if(i < 2):
+                self.assertAlmostEqual(d1[i],2 )
+            elif(i>4):
+                self.assertAlmostEqual(d1[i],4)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        # TODO DIFFERENTIATE
 
 class TestNumdictsNested(unittest.TestCase):
     def test_persistent(self):
