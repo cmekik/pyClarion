@@ -55,8 +55,9 @@ class TestDomainMethods(unittest.TestCase):
             )
         )
 
-        with dom.config():
-            dom._features[0] = feature("")
+        #with dom.config():
+            #update not called
+        #update called with end of "with block"
 
     def test_lock_disallows_mutation_of_domain(self):
 
@@ -72,15 +73,8 @@ class TestDomainMethods(unittest.TestCase):
 
         dom.lock()
         # how to modify dom?
-        
-        #dom = clb.Domain(
-        #    features=(
-        #        feature("d")
-        #    )
-        #)
-        # domain __init__ doesn't accept single argument (single feature)
 
-        #fs = dom.features() # tuple not callable?
+        fs = dom.features # tuple not callable?
 
 
     def test_disjoint_recognize_overlaps(self):
@@ -131,8 +125,9 @@ class TestDomainMethods(unittest.TestCase):
         self.assertEqual(clb.Domain.disjoint(dom1, dom3), False)
         self.assertEqual(clb.Domain.disjoint(dom1, dom2, dom4), True)
         self.assertEqual(clb.Domain.disjoint(dom1, dom0), True)
-        #self.assertEqual(clb.Domain.disjoint(dom1), True) # ???
-        #self.assertEqual(clb.Domain.disjoint(), True) # argument cannot be empty
+        self.assertEqual(clb.Domain.disjoint(dom1), True)
+        with self.assertRaises(ValueError):
+            clb.Domain.disjoint()
 
 
 if __name__ == "__main__":
