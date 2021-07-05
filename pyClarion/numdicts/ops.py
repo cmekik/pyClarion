@@ -83,7 +83,6 @@ def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 
 @register_grad(sum_by)
 def _grad_sum_by(grads, d, *, keyfunc):
-
     return (set_by(d, grads, keyfunc=keyfunc),)
 
 
@@ -120,8 +119,7 @@ def _grad_max_by(grads, d, *, keyfunc):
 
 @register_op
 def threshold(
-    d: D, *, th: Union[float, int], keep_default: bool = False
-) -> NumDict:
+        d: D, *, th: Union[float, int], keep_default: bool = False) -> NumDict:
     """
     Return a copy of d containing only values above theshold.
 
@@ -132,15 +130,22 @@ def threshold(
     mapping = {k: d[k] for k in d if th < d[k]}
     if d.default is not None:
         default = d.default if keep_default or th < d.default else None
-    else: #added this to prevent errors when d.default was none as default was undefined    
+    else:  # added this to prevent errors when d.default was none as default was undefined
         default = None
-
-    return NumDict(mapping, default)
+    value = NumDict(mapping, default)
+    _kwds = {"th": th}
+    record_call(threshold, value, (d,), _kwds)
+    return value
 
 
 @register_grad(threshold)
-def _grad_threshold(grads, d, *, keyfunc):
-    return  # TODO
+def _grad_threshold(grads, d, *, th):
+    print("here")
+    mapping = {k: (th < d[k]) * grads[k] for k in d}
+    print("here2")
+    print(mapping)
+    grad_thresh = NumDict(mapping, default=0)
+    return (grad_thresh,)
 
 
 @register_op
