@@ -123,7 +123,7 @@ def threshold(
     """
     Return a copy of d containing only values above theshold.
 
-    If the default is below threshold it is set to None in the output, unless 
+    If the default is below or equal threshold it is set to None in the output, unless 
     keep default is True.
     """
 
@@ -140,12 +140,8 @@ def threshold(
 
 @register_grad(threshold)
 def _grad_threshold(grads, d, *, th):
-    print("here")
     mapping = {k: (th < d[k]) * grads[k] for k in d}
-    print("here2")
-    print(mapping)
-    grad_thresh = NumDict(mapping, default=0)
-    return (grad_thresh,)
+    return NumDict(mapping, default=0)
 
 
 @register_op
@@ -160,13 +156,16 @@ def clip(d: D, low: float = None, high: float = None) -> NumDict:
     high = high or float("inf")
 
     mapping = {k: max(low, min(high, d[k])) for k in d}
-
-    return NumDict(mapping, d.default)
+    value = NumDict(mapping, d.default)
+    _kwds = {"low": low, "high": high}
+    record_call(clip, value, (d,), _kwds)
+    return value
 
 
 @register_grad(clip)
-def _grad_clip(grads, d, *, keyfunc):
-    return  # TODO
+def _grad_clip(grads, d, *, low, high):
+    mapping = {k: (low < d[k] < high) for k in d}
+    return NumDict(mapping, default = 0)
 
 
 @register_op

@@ -567,9 +567,7 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
             #d1 = sum_by(d,keyfunc=[1,2])
             d1 = threshold(d, th=3)
         self.assertAlmostEqual(d1.default, 5)
-        print(t._index)
         d1, g = t.gradients(d1, d)
-        print(g)
         self.assertAlmostEqual(g.default, 0)
         d = nd.NumDict(default=2)
         with GradientTape() as t:
@@ -585,7 +583,13 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
                 self.assertTrue(d1.get(i) == None)
             else:
                 self.assertAlmostEqual(d1[i], i)
-        # TODO DIFFERENTIATE
+        d1, g = t.gradients(d1, d)
+        print(g) #problem... can't get g to return correctly. In the function it returns correctly but not otherwise
+        self.assertAlmostEqual(g.get(1), 0)
+        self.assertAlmostEqual(g.get(2), 0)
+        self.assertAlmostEqual(g.get(3), 0)
+        self.assertAlmostEqual(g.get(4), 1)
+        self.assertAlmostEqual(g.get(5), 1)
 
     def test_threshold_mixed(self):
         d = nd.NumDict(default=5, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
@@ -606,7 +610,13 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
                 self.assertTrue(d1.get(i) == None)
             else:
                 self.assertAlmostEqual(d1[i], i)
-        # TODO DIFFERENTIATE
+        d1, g = t.gradients(d1, d)
+        print(g)
+        self.assertAlmostEqual(g.get(1), None)
+        self.assertAlmostEqual(g.get(2), None)
+        self.assertAlmostEqual(g.get(3), None)
+        self.assertAlmostEqual(g.get(4), 4)
+        self.assertAlmostEqual(g.get(5), 5)
 
 
 class TestNumdictsOpsClip(unittest.TestCase):
@@ -621,7 +631,12 @@ class TestNumdictsOpsClip(unittest.TestCase):
                 self.assertAlmostEqual(d1[i], 4)
             else:
                 self.assertAlmostEqual(d1[i], i)
-        # TODO DIFFERENTIATE
+        d1, g = t.gradients(d1, d)
+        self.assertAlmostEqual(d1.get(1), 2)
+        self.assertAlmostEqual(d1.get(2), 2)
+        self.assertAlmostEqual(d1.get(3), 3)
+        self.assertAlmostEqual(d1.get(4), 4)
+        self.assertAlmostEqual(d1.get(5), 4)
 
 
 class TestNumdictsNested(unittest.TestCase):
