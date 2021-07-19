@@ -4,6 +4,7 @@ from pyClarion import feature
 
 import unittest
 import unittest.mock as mock
+from unittest.mock import PropertyMock
 
 
 class TestProcess(unittest.TestCase):
@@ -43,17 +44,37 @@ class TestWrappedProcess(unittest.TestCase):
 
 class TestDomainMethods(unittest.TestCase):
 
+    #@mock.patch.object(clb.Domain, "config")
     def test_config(self):
 
-        dom = clb.Domain(
-            features=(
-                feature("x", "a"),
-                feature("y", "b"),
-                feature("z", "c"),
-                feature("d"),
-                feature("e")
+        with mock.patch('pyClarion.base.Domain', new_callable=PropertyMock) as mockDom:
+            mockDom._config = ("A", "B", "C")
+            mockDom = clb.Domain(
+                features=(
+                    feature("x", "a"),
+                    feature("y", "b"),
+                    feature("z", "c"),
+                    feature("d"),
+                    feature("e")
+                )
             )
-        )
+
+            with mockDom.config():
+                mockDom.update.assert_not_called()
+                mockDom.A = "a"
+                mockDom.update.assert_not_called()
+                mockDom.B = "b"
+                mockDom.update.assert_not_called()
+                mockDom.C = "c"
+            #mockDom.update.assert_not_called()???
+
+
+        #dom = mock()
+
+        #with mock.patch.object(dom, "_config", "a"):
+            #with dom.config():
+
+                #dom.update.assert_not_called()
 
         #with dom.config():
             #update not called
@@ -61,20 +82,22 @@ class TestDomainMethods(unittest.TestCase):
 
     def test_lock_disallows_mutation_of_domain(self):
 
-        dom = clb.Domain(
-            features=(
-                feature("x", "a"),
-                feature("y", "b"),
-                feature("z", "c"),
-                feature("d"),
-                feature("e")
+        with mock.patch('pyClarion.base.Domain', new_callable=PropertyMock) as mockDom:
+            mockDom = clb.Domain(
+                features=(
+                    feature("x", "a"),
+                    feature("y", "b"),
+                    feature("z", "c"),
+                    feature("d"),
+                    feature("e")
+                )
             )
-        )
+            mockDom._config = ("A", "B", "C")
 
-        dom.lock()
-        # how to modify dom?
-
-        fs = dom.features # tuple not callable?
+            mockDom.lock()
+            # how to modify dom?
+            with mockDom.config():
+                mockDom.A = "a"
 
 
     def test_disjoint_recognize_overlaps(self):
