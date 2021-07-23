@@ -219,17 +219,19 @@ class Assets(SimpleNamespace): # type: ignore
 
 
 class Domain(object):
-    """A feature domain."""
-    # add comment of meeting!!!
+    """A feature domain. It is used for definition of elements relevant to the 
+    simulation. Domain can be viewed as a collection of element.
+    For example, if a travelling agent is simulated, part of domain might be 
+    user-defined locations."""
 
     _config: ClassVar[Tuple[str, ...]] = ()
     """config is empty for class Domain, 
     but it will be filled in subclasses like Interface"""
     
     _blocked: bool = False 
-    """if true, users cannot update() after change in _config"""
+    """if '_blocked' is true, update() not autoatically called by '__setattr__()'"""
     _locked: bool = False
-    """if true, users cannot change domain at all"""
+    """if '_locked' is true, users cannot change domain at all"""
 
     _features: Tuple[feature, ...]
 
@@ -272,8 +274,8 @@ class Domain(object):
         pass
 
     @contextmanager
-    def config(self): ###???
-        """Update self after adjustments to config."""
+    def config(self): 
+        """Update self after adjustments to _config."""
         """update() is not called during adjustments"""
 
         self._blocked = True
@@ -281,21 +283,21 @@ class Domain(object):
         self._blocked = False
         self.update()
 
-    def lock(self): ###???
+    def lock(self): 
         """Disallow mutation of domain."""
 
         self._locked = True
 
-    def disjoint(*domains: "Domain") -> bool: ######???
+    def disjoint(*domains: "Domain") -> bool: 
         """Return True iff domains have no overlap."""
 
         # NOTE: This method does not have a self argument, but works both as an 
         # instance and class method. This is similar to set.union and 
         # set.intersection.
 
-        if( len(domains) == 0 ):
+        if len(domains) == 0:
             raise ValueError("disjoint() doesn't accept 0 argument")
-        elif( len(domains) == 1):
+        elif len(domains) == 1:
             """Since Domain class doesn't allow duplicate features,
             when there's only one domain, certainly no overlap"""
             return True
@@ -304,7 +306,7 @@ class Domain(object):
 
         return s == set()
 
-    ### add set operation?
+    # TO DO: add set operation?
 
 
 class Interface(Domain):
