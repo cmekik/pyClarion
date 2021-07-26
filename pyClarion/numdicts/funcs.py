@@ -2,8 +2,8 @@
 # functions to differentiate
 #keep, drop, transform_keys
 __all__ = [
-    "epsilon", "freeze", "unfreeze", "with_default", "isclose", "keep", "drop",
-    "squeeze", "transform_keys",  "draw", "by",
+    "epsilon", "freeze", "unfreeze", "with_default", "isclose", 
+    "squeeze",  "draw", "by",
     "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise",
     "val_sum", "val_max", "val_min", "all_val", "any_val",
     "exponential_moving_avg", "tabulate"
@@ -12,7 +12,7 @@ __all__ = [
 from .numdicts import NumDict, MutableNumDict, D
 
 from typing import (
-    TypeVar, Callable, Hashable, Dict, Union, List, Any, Container, Optional
+    TypeVar, Callable, Hashable, Dict, Union, List, Any, Optional
 )
 import random
 import operator
@@ -68,71 +68,6 @@ def isclose(d1: D, d2: D) -> bool:
     _d = d1._binary(d2, math.isclose)  # make this a numdict method
 
     return all(_d.values())
-
-
-def keep(
-    d: D,
-    func: Callable[..., bool] = None,
-    keys: Container = None,
-    **kwds: Any
-) -> NumDict:
-    """
-    Return a copy of d keeping only the desired keys. 
-
-    Keys are kept iff func(key, **kwds) or key in container is True.
-    """
-
-    if func is None and keys is None:
-        raise ValueError("At least one of func or keys must not be None.")
-
-    mapping = {
-        k: d[k] for k in d
-        if (
-            (func is not None and func(k, **kwds)) or
-            (keys is not None and k in keys)
-        )
-    }
-
-    return NumDict(mapping, d.default)
-
-
-def drop(
-    d: D,
-    func: Callable[..., bool] = None,
-    keys: Container = None,
-    **kwds: Any
-) -> NumDict:
-    """
-    Return a copy of d dropping unwanted keys. 
-
-    Keys are dropped iff func(key, **kwds) or key in container is True.
-    """
-
-    if func is None and keys is None:
-        raise ValueError("At least one of func or keys must not be None.")
-
-    mapping = {
-        k: d[k] for k in d
-        if (func is not None and not func(k, **kwds)) or
-        (keys is not None and k not in keys)
-    }
-
-    return NumDict(mapping, d.default)
-
-
-def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
-    """
-    Return a copy of d where each key is mapped to func(key, **kwds).
-
-    Warning: If function is not one-to-one wrt keys, will raise ValueError.
-    """
-
-    mapping = {func(k, **kwds): d[k] for k in d}
-
-    if len(d) != len(mapping):
-        raise ValueError("Func must be one-to-one on keys of arg d.")
-
-    return NumDict(mapping, d.default)
 
 def draw(
     d: D,

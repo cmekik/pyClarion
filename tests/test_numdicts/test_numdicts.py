@@ -6,7 +6,7 @@ import math
 import itertools
 
 from pyClarion.numdicts.numdicts import GradientTape, NumDict
-from pyClarion.numdicts.ops import _grad_sum_by, set_by, sum_by, threshold, clip
+from pyClarion.numdicts.ops import *
 
 
 def linspace(a, b):
@@ -584,7 +584,6 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
             else:
                 self.assertAlmostEqual(d1[i], i)
         d1, g = t.gradients(d1, d)
-        print(g) #problem... can't get g to return correctly. In the function it returns correctly but not otherwise
         self.assertAlmostEqual(g.get(1), 0)
         self.assertAlmostEqual(g.get(2), 0)
         self.assertAlmostEqual(g.get(3), 0)
@@ -604,6 +603,7 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
         d = nd.NumDict(default=2, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
         with GradientTape() as t:
             d1 = threshold(d, th=3)
+            d1 = d1*1
         self.assertTrue(d1.default == None)
         for i in range(5):
             if(i <= 3):
@@ -611,12 +611,11 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
             else:
                 self.assertAlmostEqual(d1[i], i)
         d1, g = t.gradients(d1, d)
-        print(g)
-        self.assertAlmostEqual(g.get(1), None)
-        self.assertAlmostEqual(g.get(2), None)
-        self.assertAlmostEqual(g.get(3), None)
-        self.assertAlmostEqual(g.get(4), 4)
-        self.assertAlmostEqual(g.get(5), 5)
+        self.assertAlmostEqual(g.get(1), 0)
+        self.assertAlmostEqual(g.get(2), 0)
+        self.assertAlmostEqual(g.get(3), 0)
+        self.assertAlmostEqual(g.get(4), 1)
+        self.assertAlmostEqual(g.get(5), 1)
 
 
 class TestNumdictsOpsClip(unittest.TestCase):
@@ -632,11 +631,38 @@ class TestNumdictsOpsClip(unittest.TestCase):
             else:
                 self.assertAlmostEqual(d1[i], i)
         d1, g = t.gradients(d1, d)
-        self.assertAlmostEqual(d1.get(1), 2)
-        self.assertAlmostEqual(d1.get(2), 2)
-        self.assertAlmostEqual(d1.get(3), 3)
-        self.assertAlmostEqual(d1.get(4), 4)
-        self.assertAlmostEqual(d1.get(5), 4)
+        for i in range(1, 5):
+            if(i <= 2):
+                self.assertAlmostEqual(g[i], 0)
+            elif(i >= 4):
+                self.assertAlmostEqual(g[i], 0)
+            else:
+                self.assertAlmostEqual(g[i], 1)
+
+
+class TestNumdictsOpsKeep(unittest.TestCase):
+    def dummyfunc(self, f):
+        if(f % 2 == 0):
+            return True
+        else:
+            return None
+
+    def test_keep_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        testCollection = {1: True}
+        with GradientTape() as t:
+            d1 = keep(d, self.dummyfunc, testCollection)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertAlmostEqual(d1[i], i)
+            else:
+                self.assertTrue(d1.get(i) == None)
+        d1, g = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(i % 2 == 0):
+                self.assertAlmostEqual(g[i], 1)
+            else:
+                self.assertTrue(d1)
 
 
 class TestNumdictsNested(unittest.TestCase):
