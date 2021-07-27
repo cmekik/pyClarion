@@ -219,14 +219,26 @@ class Assets(SimpleNamespace): # type: ignore
 
 
 class Domain(object):
-    """A feature domain. It is used for definition of elements relevant to the 
-    simulation. Domain can be viewed as a collection of element.
+    """
+    Domain() objects define a set of feature() symbols used in the simulation.
+
+    Domain can be viewed as a collection of features.
     For example, if a travelling agent is simulated, part of domain might be 
-    user-defined locations."""
+    user-defined locations.
+    """
+
+    """
+    Key functions:
+        update(): Reflect changes of class attribute to the whole class.
+        config(): Yield monitored attributes defined by _config.
+                  After changes of those attributes, call update().
+    """
 
     _config: ClassVar[Tuple[str, ...]] = ()
-    """config is empty for class Domain, 
-    but it will be filled in subclasses like Interface"""
+    """
+    config is empty for class Domain, 
+    but it will be filled in subclasses like Interface
+    """
     
     _blocked: bool = False 
     """if '_blocked' is true, update() not autoatically called by '__setattr__()'"""
@@ -268,6 +280,7 @@ class Domain(object):
     def update(self) -> None:
         """
         Set domain properties.
+
         Also reflect changes in domain to all relevant places
         """
 
@@ -275,8 +288,11 @@ class Domain(object):
 
     @contextmanager
     def config(self): 
-        """Update self after adjustments to _config."""
-        """update() is not called during adjustments"""
+        """
+        Update self after adjustments to monitored attributes defined by _config.
+
+        update() is not called during adjustments
+        """
 
         self._blocked = True
         yield
@@ -298,8 +314,10 @@ class Domain(object):
         if len(domains) == 0:
             raise ValueError("disjoint() doesn't accept 0 argument")
         elif len(domains) == 1:
-            """Since Domain class doesn't allow duplicate features,
-            when there's only one domain, certainly no overlap"""
+            """
+            Since Domain class doesn't allow duplicate features,
+            when there's only one domain, certainly no overlap
+            """
             return True
 
         s = set.intersection(*(set(dom.features) for dom in domains))
