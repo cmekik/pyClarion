@@ -188,7 +188,24 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_precondition_of_parse_commands_input(data);
 
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down"], res)
+            assert_parse_result(["up", "down"], res, 2)
+
+        with self.subTest(msg="different order in cmds doesn't matter"):
+            test_interface = pcl.Interface(
+                cmds=(
+                    pcl.feature("down", 1), 
+                    pcl.feature("down", 0),
+                    pcl.feature("up", 0), 
+                    pcl.feature("up", 1)
+                ),
+            )
+            data = nd.NumDict({pcl.feature("down", 1): 1.0, 
+                                pcl.feature("up", 0): 1.0}, default=0)
+
+            assert_precondition_of_parse_commands_input(data);
+
+            res = test_interface.parse_commands(data)
+            assert_parse_result(["up", "down"], res, 2)
 
 
 if __name__ == "__main__":
