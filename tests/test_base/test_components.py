@@ -158,9 +158,9 @@ class TestDomainMethods(unittest.TestCase):
 
 class TestInterfaceMethods(unittest.TestCase):
 
-    def assert_parse_result(listOfStr, parseResult, length):
+    def assert_parse_result(listOfStr, parseResult):
 
-        assert parseResult.len() == length
+        assert parseResult.len() == listOfStr.len()
         for string in listOfStr:
             assert (pcl.feature(string, 1) in res) or (pcl.feature(string, 0) in res)
 
@@ -188,7 +188,7 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_precondition_of_parse_commands_input(data);
 
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down"], res, 2)
+            assert_parse_result(["up", "down"], res)
 
         with self.subTest(msg="different order in cmds doesn't matter"):
             test_interface = pcl.Interface(
@@ -205,7 +205,29 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_precondition_of_parse_commands_input(data);
 
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down"], res, 2)
+            assert_parse_result(["up", "down"], res)
+
+        with self.subTest(msg="more randomness in cmds"):
+            test_interface = pcl.Interface(
+                cmds=(
+                    pcl.feature("down", 1), 
+                    pcl.feature("down", 0),
+                    pcl.feature("up", 0), 
+                    pcl.feature("up", 1),
+                    pcl.feature("left", 1), 
+                    pcl.feature("left", 0),
+                    pcl.feature("right", 0), 
+                    pcl.feature("right", 1),
+                ),
+            )
+            data = nd.NumDict({pcl.feature("down", 1): 1.0, 
+                                pcl.feature("up", 0): 1.0},
+                                    pcl.feature("left", 0), default=0)
+
+            assert_precondition_of_parse_commands_input(data);
+
+            res = test_interface.parse_commands(data)
+            assert_parse_result(["up", "down", "left"], res)
 
 
 if __name__ == "__main__":
