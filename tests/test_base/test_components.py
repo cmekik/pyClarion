@@ -155,21 +155,35 @@ class TestDomainMethods(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "disjoint\(\) doesn't accept 0 argument"):
                 clb.Domain.disjoint()
 
+# helper methods
+
+def assert_parse_result(listOfStr, parseResult):
+
+        assert len(parseResult) == len(listOfStr)
+        for string in listOfStr:
+            assert (feature(string, 1) in parseResult) or (feature(string, 0) in parseResult)
+
+def assert_precondition_of_parse_commands_input(data, test_interface):
+
+    # preconditions on the input
+    assert data.default == 0
+    assert set(data.values()) == {1.0} # activations must be 1.0 or default
+
+    # each cmd dim should appear exactly once in data
+    cmd = test_interface.cmds
+    tmp = set()
+    for f in cmd:
+        tmp.add(f.dim[0])
+    assert len(tmp) == len(data)
+    for d in tmp:
+        count = 0;
+        for f in data.keys():
+            tmp = f.dim
+            if(tmp[0] == d):
+                count+=1
+        assert count == 1
 
 class TestInterfaceMethods(unittest.TestCase):
-
-    def assert_parse_result(listOfStr, parseResult):
-
-        assert parseResult.len() == listOfStr.len()
-        for string in listOfStr:
-            assert (feature(string, 1) in res) or (feature(string, 0) in res)
-
-    def assert_precondition_of_parse_commands_input(data):
-
-        # preconditions on the input
-        assert data.default == 0
-        assert set(data.values()) == {1.0} # activations must be 1.0 or default
-        assert no_duplicate_dims(data) # each cmd dim should appear exactly once in data
 
     def test_parse_commands(self):
 
@@ -185,7 +199,7 @@ class TestInterfaceMethods(unittest.TestCase):
             data = nd.NumDict({feature("up", 1): 1.0, 
                                 feature("down", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data);
+            assert_precondition_of_parse_commands_input(data)
 
             res = test_interface.parse_commands(data)
             assert_parse_result(["up", "down"], res)
@@ -202,7 +216,7 @@ class TestInterfaceMethods(unittest.TestCase):
             data = nd.NumDict({feature("down", 1): 1.0, 
                                 feature("up", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data);
+            assert_precondition_of_parse_commands_input(data)
 
             res = test_interface.parse_commands(data)
             assert_parse_result(["up", "down"], res)
@@ -221,13 +235,14 @@ class TestInterfaceMethods(unittest.TestCase):
                 ),
             )
             data = nd.NumDict({feature("down", 1): 1.0, 
-                                feature("up", 0): 1.0},
-                                    feature("left", 0), default=0)
+                                feature("up", 0): 1.0,
+                                    feature("left", 0): 1.0,
+                                        feature("right", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data);
+            assert_precondition_of_parse_commands_input(data)
 
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down", "left"], res)
+            assert_parse_result(["up", "down", "left", "right"], res)
 
 
 if __name__ == "__main__":
