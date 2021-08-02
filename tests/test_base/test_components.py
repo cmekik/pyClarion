@@ -150,10 +150,34 @@ class TestDomainMethods(unittest.TestCase):
 
         with self.subTest(msg="only 1 domain as argument"):
             self.assertEqual(clb.Domain.disjoint(dom1), True)
-            
+
         with self.subTest(msg="without argument"):
             with self.assertRaisesRegex(ValueError, "disjoint\(\) doesn't accept 0 argument"):
                 clb.Domain.disjoint()
+
+
+class TestInterfaceMethods(unittest.TestCase):
+
+    def test_parse_commands(self):
+
+        test_interface = pcl.Interface(
+            cmds=(
+                pcl.feature("up", 0), 
+                pcl.feature("up", 1), 
+                pcl.feature("down", 0), 
+                pcl.feature("down", 1)
+            ),
+        )
+        data = nd.NumDict({pcl.feature("up", 1): 1.0, 
+                            pcl.feature("down", 0): 1.0}, default=0)
+
+        # preconditions on the input
+        assert data.default == 0
+        assert set(data.values()) == {1.0} # activations must be 1.0 or default
+        assert no_duplicate_dims(data) # each cmd dim should appear exactly once in data
+
+        parse = test_interface.parse_commands(data);
+
 
 
 if __name__ == "__main__":
