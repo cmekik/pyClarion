@@ -162,7 +162,7 @@ class TestInterfaceMethods(unittest.TestCase):
 
         assert parseResult.len() == listOfStr.len()
         for string in listOfStr:
-            assert (pcl.feature(string, 1) in res) or (pcl.feature(string, 0) in res)
+            assert (feature(string, 1) in res) or (feature(string, 0) in res)
 
     def assert_precondition_of_parse_commands_input(data):
 
@@ -176,14 +176,14 @@ class TestInterfaceMethods(unittest.TestCase):
         with self.subTest(msg="classic test"):
             test_interface = clb.Interface(
                 cmds=(
-                    pcl.feature("up", 0), 
-                    pcl.feature("up", 1), 
-                    pcl.feature("down", 0), 
-                    pcl.feature("down", 1)
+                    feature("up", 0), 
+                    feature("up", 1), 
+                    feature("down", 0), 
+                    feature("down", 1)
                 ),
             )
-            data = nd.NumDict({pcl.feature("up", 1): 1.0, 
-                                pcl.feature("down", 0): 1.0}, default=0)
+            data = nd.NumDict({feature("up", 1): 1.0, 
+                                feature("down", 0): 1.0}, default=0)
 
             assert_precondition_of_parse_commands_input(data);
 
@@ -193,14 +193,14 @@ class TestInterfaceMethods(unittest.TestCase):
         with self.subTest(msg="different order in cmds doesn't matter"):
             test_interface = clb.Interface(
                 cmds=(
-                    pcl.feature("down", 1), 
-                    pcl.feature("down", 0),
-                    pcl.feature("up", 0), 
-                    pcl.feature("up", 1)
+                    feature("down", 1), 
+                    feature("down", 0),
+                    feature("up", 0), 
+                    feature("up", 1)
                 ),
             )
-            data = nd.NumDict({pcl.feature("down", 1): 1.0, 
-                                pcl.feature("up", 0): 1.0}, default=0)
+            data = nd.NumDict({feature("down", 1): 1.0, 
+                                feature("up", 0): 1.0}, default=0)
 
             assert_precondition_of_parse_commands_input(data);
 
@@ -210,19 +210,19 @@ class TestInterfaceMethods(unittest.TestCase):
         with self.subTest(msg="more randomness in cmds"):
             test_interface = clb.Interface(
                 cmds=(
-                    pcl.feature("down", 1), 
-                    pcl.feature("down", 0),
-                    pcl.feature("up", 0), 
-                    pcl.feature("up", 1),
-                    pcl.feature("left", 1), 
-                    pcl.feature("left", 0),
-                    pcl.feature("right", 0), 
-                    pcl.feature("right", 1),
+                    feature("down", 1), 
+                    feature("down", 0),
+                    feature("up", 0), 
+                    feature("up", 1),
+                    feature("left", 1), 
+                    feature("left", 0),
+                    feature("right", 0), 
+                    feature("right", 1),
                 ),
             )
-            data = nd.NumDict({pcl.feature("down", 1): 1.0, 
-                                pcl.feature("up", 0): 1.0},
-                                    pcl.feature("left", 0), default=0)
+            data = nd.NumDict({feature("down", 1): 1.0, 
+                                feature("up", 0): 1.0},
+                                    feature("left", 0), default=0)
 
             assert_precondition_of_parse_commands_input(data);
 
