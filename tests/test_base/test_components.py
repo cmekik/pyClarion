@@ -158,8 +158,22 @@ class TestDomainMethods(unittest.TestCase):
 
 class TestInterfaceMethods(unittest.TestCase):
 
+    def assert_parse_result(listOfStr, parseResult, length):
+
+        assert parseResult.len() == length
+        for string in listOfStr:
+            assert (pcl.feature(string, 1) in res) or (pcl.feature(string, 0) in res)
+
+    def assert_precondition_of_parse_commands_input(data):
+
+        # preconditions on the input
+        assert data.default == 0
+        assert set(data.values()) == {1.0} # activations must be 1.0 or default
+        assert no_duplicate_dims(data) # each cmd dim should appear exactly once in data
+
     def test_parse_commands(self):
-        with self.subTest(msg="different domains with same size"):
+
+        with self.subTest(msg="classic test"):
             test_interface = pcl.Interface(
                 cmds=(
                     pcl.feature("up", 0), 
@@ -171,14 +185,10 @@ class TestInterfaceMethods(unittest.TestCase):
             data = nd.NumDict({pcl.feature("up", 1): 1.0, 
                                 pcl.feature("down", 0): 1.0}, default=0)
 
-            # preconditions on the input
-            assert data.default == 0
-            assert set(data.values()) == {1.0} # activations must be 1.0 or default
-            assert no_duplicate_dims(data) # each cmd dim should appear exactly once in data
+            assert_precondition_of_parse_commands_input(data);
 
-            res = test_interface.parse_commands(data);
-            assert (pcl.feature("up", 1) in res) or (pcl.feature("up", 0) in res)
-            assert (pcl.feature("down", 1) in res) or (pcl.feature("down", 0) in res)
+            res = test_interface.parse_commands(data)
+            assert_parse_result(["up", "down"], res)
 
 
 if __name__ == "__main__":
