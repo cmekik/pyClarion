@@ -640,12 +640,12 @@ class TestNumdictsOpsClip(unittest.TestCase):
                 self.assertAlmostEqual(g[i], 1)
 
 
-class TestNumdictsOpsKeep(unittest.TestCase):
+class TestNumdictsOpsKeepDrop(unittest.TestCase):
     def dummyfunc(self, f):
         if(f % 2 == 0):
             return True
         else:
-            return None
+            return False
 
     def test_keep_keys(self):
         d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
@@ -659,10 +659,28 @@ class TestNumdictsOpsKeep(unittest.TestCase):
                 self.assertTrue(d1.get(i) == None)
         d1, g = t.gradients(d1, d)
         for i in range(1, 5):
-            if(i % 2 == 0):
+            if(i % 2 == 0 or i == 1):
                 self.assertAlmostEqual(g[i], 1)
             else:
-                self.assertTrue(d1)
+                self.assertAlmostEqual(g.get(i), 0)
+
+    def test_drop_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        testCollection = {1: True}
+        with GradientTape() as t:
+            d1 = drop(d, self.dummyfunc, testCollection)
+        print(d1)  
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d1, g = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertAlmostEqual(g.get(i), 0)
+            else:
+                self.assertAlmostEqual(g[i], 1)
 
 
 class TestNumdictsNested(unittest.TestCase):

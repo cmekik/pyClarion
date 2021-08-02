@@ -224,8 +224,8 @@ def keep(
             (keys is not None and k in keys)
         )
     }
-    _kwds = {"func": func, "keys": keys, "**kwds": kwds}  # TODO TEST THIS
-    
+    _kwds = {"func": func, "keys": keys, **kwds}
+
     value = NumDict(mapping, d.default)
     record_call(keep, value, (d,), _kwds)
     return value
@@ -235,12 +235,13 @@ def keep(
 def _grad_keep(grads, d, *, func, keys, **kwds):
     mapping = {
         k: (
-            (func is not None and func(k, **kwds)) or#KWDS FAILS HERE TODO FIGURE OUT WHY
+            # KWDS FAILS HERE TODO FIGURE OUT WHY
+            (func is not None and func(k, **kwds)) or
             (keys is not None and k in keys)
         )*grads[k]
         for k in d
     }
-    return (NumDict(mapping, 1*grads.default),)  # default prob incorrect
+    return (NumDict(mapping, grads.default),)  # default prob incorrect
 
 
 def drop(
@@ -257,13 +258,12 @@ def drop(
 
     if func is None and keys is None:
         raise ValueError("At least one of func or keys must not be None.")
-
     mapping = {
         k: d[k] for k in d
-        if (func is not None and not func(k, **kwds)) or
-        (keys is not None and k not in keys)
+        if ((func is not None and not func(k, **kwds)) and
+            (keys is not None and k not in keys))
     }
-    _kwds = {"func": func, "keys": keys, "**kwds": kwds}  # TODO TEST THIS
+    _kwds = {"func": func, "keys": keys, **kwds}  # TODO TEST THIS
     value = NumDict(mapping, d.default)
     record_call(drop, value, (d,), _kwds)
     return value
@@ -272,10 +272,10 @@ def drop(
 @ register_grad(drop)
 def _grad_drop(grads, d, *, func, keys, **kwds):
     mapping = {
-        k: ((func is not None and not func(k, **kwds)) or
+        k: ((func is not None and not func(k, **kwds)) and
             (keys is not None and k not in keys))*grads[k] for k in d
     }
-    return (NumDict(mapping, 1*grads.default),)  # default prob incorrect
+    return (NumDict(mapping, grads.default),)  # default prob incorrect
 
 
 def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
@@ -290,7 +290,7 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
     if len(d) != len(mapping):
         raise ValueError("Func must be one-to-one on keys of arg d.")
     value = NumDict(mapping, d.default)
-    _kwds = {"func": func, "**kwds": kwds}  # TODO TEST THIS
+    _kwds = {"func": func, **kwds}  # TODO TEST THIS
     record_call(transform_keys, value, (d,), _kwds)
     return value
 
@@ -298,5 +298,5 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
 @ register_grad(transform_keys)
 # ASK ABOUT THIS IMPLEMENTATION BC IT'S WHACKY
 def _grad_transform_keys(grads, d, *, func, **kwds):
-    mapping = {k: grads[func(k, **kwds)] for k in d}
+    mapping = {k: grads[k]*func(k, **kwds) for k in d}
     return (NumDict(mapping, 1*grads.default),)  # default prob incorrect
