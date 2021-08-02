@@ -174,7 +174,7 @@ class TestInterfaceMethods(unittest.TestCase):
     def test_parse_commands(self):
 
         with self.subTest(msg="classic test"):
-            test_interface = pcl.Interface(
+            test_interface = clb.Interface(
                 cmds=(
                     pcl.feature("up", 0), 
                     pcl.feature("up", 1), 
@@ -191,7 +191,7 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_parse_result(["up", "down"], res)
 
         with self.subTest(msg="different order in cmds doesn't matter"):
-            test_interface = pcl.Interface(
+            test_interface = clb.Interface(
                 cmds=(
                     pcl.feature("down", 1), 
                     pcl.feature("down", 0),
@@ -208,7 +208,7 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_parse_result(["up", "down"], res)
 
         with self.subTest(msg="more randomness in cmds"):
-            test_interface = pcl.Interface(
+            test_interface = clb.Interface(
                 cmds=(
                     pcl.feature("down", 1), 
                     pcl.feature("down", 0),
