@@ -271,7 +271,51 @@ class TestInterfaceMethods(unittest.TestCase):
 
     def test_parse_commands_runtime_error(self):
 
-        
+        with self.subTest(msg="unexpected default strength"):
+            test_interface = clb.Interface(
+                cmds=(
+                    feature("down", 1), 
+                    feature("down", 0),
+                    feature("up", 0), 
+                    feature("up", 1),
+                ),
+            )
+            data = nd.NumDict({feature("down", 1): 1.0, 
+                                feature("up", 0): 1.0}, default=1)
+
+            with self.assertRaises(ValueError):
+                res = test_interface.parse_commands(data)
+
+        with self.subTest(msg="Encounter non-integral cmd strength"):
+            test_interface = clb.Interface(
+                cmds=(
+                    feature("down", 1), 
+                    feature("down", 0),
+                    feature("up", 0), 
+                    feature("up", 1),
+                ),
+            )
+            data = nd.NumDict({feature("down", 1): 0.5, 
+                                feature("up", 0): 1.0}, default=0)
+
+            with self.assertRaises(ValueError):
+                res = test_interface.parse_commands(data)
+
+        with self.subTest(msg="Encounter multiple values from a single dim"):
+            test_interface = clb.Interface(
+                cmds=(
+                    feature("down", 1), 
+                    feature("down", 0),
+                    feature("up", 0), 
+                    feature("up", 1),
+                ),
+            )
+            data = nd.NumDict({feature("down", 1): 1.0, 
+                                feature("down", 0): 1.0, 
+                                feature("up", 0): 1.0}, default=0)
+
+            with self.assertRaises(ValueError):
+                res = test_interface.parse_commands(data)
 
 
 if __name__ == "__main__":
