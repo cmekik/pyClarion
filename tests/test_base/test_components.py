@@ -167,7 +167,7 @@ def assert_precondition_of_parse_commands_input(data, test_interface):
 
     # preconditions on the input
     assert data.default == 0
-    assert set(data.values()) == {1.0} # activations must be 1.0 or default
+    assert set(data.values()) == {1.0} or set(data.values()) == set() # activations must be 1.0 or default
 
     # each cmd dim should appear exactly once in data
     cmd = test_interface.cmds
@@ -268,6 +268,10 @@ class TestInterfaceMethods(unittest.TestCase):
             assert_parse_result([], res)
         # more test: cmd == 1 or 0 feature 
         #            paths (errors) in function (whitebox)
+
+    def test_parse_commands_runtime_error(self):
+
+        
 
 
 if __name__ == "__main__":
