@@ -266,8 +266,6 @@ class TestInterfaceMethods(unittest.TestCase):
 
             res = test_interface.parse_commands(data)
             assert_parse_result([], res)
-        # more test: cmd == 1 or 0 feature 
-        #            paths (errors) in function (whitebox)
 
     def test_parse_commands_runtime_error(self):
 
@@ -311,7 +309,8 @@ class TestInterfaceMethods(unittest.TestCase):
                 ),
             )
             data = nd.NumDict({feature("down", 1): 1.0, 
-                                feature("down", 0): 1.0, 
+                                feature("down", 0): 1.0,
+                                feature("down", 2): 1.0, 
                                 feature("up", 0): 1.0}, default=0)
 
             with self.assertRaises(ValueError):
