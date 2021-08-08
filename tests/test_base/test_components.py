@@ -243,8 +243,31 @@ class TestInterfaceMethods(unittest.TestCase):
 
             res = test_interface.parse_commands(data)
             assert_parse_result(["up", "down", "left", "right"], res)
+
+        with self.subTest(msg="cmds size == 1"):
+            test_interface = clb.Interface(
+                cmds=(
+                    feature("up", 1), 
+                ),
+            )
+            data = nd.NumDict({feature("up", 0): 1.0}, default=0)
+
+            assert_precondition_of_parse_commands_input(data, test_interface)
+
+            res = test_interface.parse_commands(data)
+            assert_parse_result(["up"], res)
+
+        with self.subTest(msg="cmds size == 0"):
+            test_interface = clb.Interface(
+                cmds=(),)
+            data = nd.NumDict({}, default=0)
+
+            assert_precondition_of_parse_commands_input(data, test_interface)
+
+            res = test_interface.parse_commands(data)
+            assert_parse_result([], res)
         # more test: cmd == 1 or 0 feature 
-        #            paths (errors) in functions (whitebox)
+        #            paths (errors) in function (whitebox)
 
 
 if __name__ == "__main__":
