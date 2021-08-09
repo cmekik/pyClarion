@@ -278,7 +278,7 @@ def _grad_drop(grads, d, *, func, keys, **kwds):
     return (NumDict(mapping, grads.default),)  # default prob incorrect
 
 
-def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
+def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
     """
     Return a copy of d where each key is mapped to func(key, **kwds).
 
@@ -298,5 +298,5 @@ def transform_keys(d: D, *, func: Callable[..., Hashable], **kwds) -> NumDict:
 @ register_grad(transform_keys)
 # ASK ABOUT THIS IMPLEMENTATION BC IT'S WHACKY
 def _grad_transform_keys(grads, d, *, func, **kwds):
-    mapping = {k: grads[k]*func(k, **kwds) for k in d}
+    mapping = {func(k,**kwds): grads[k]/func(grads[k], **kwds) for k in d}
     return (NumDict(mapping, 1*grads.default),)  # default prob incorrect

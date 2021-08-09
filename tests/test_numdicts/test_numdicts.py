@@ -669,7 +669,6 @@ class TestNumdictsOpsKeepDrop(unittest.TestCase):
         testCollection = {1: True}
         with GradientTape() as t:
             d1 = drop(d, self.dummyfunc, testCollection)
-        print(d1)  
         for i in range(1, 5):
             if(i % 2 == 0 or i == 1):
                 self.assertTrue(d1.get(i) == None)
@@ -681,6 +680,23 @@ class TestNumdictsOpsKeepDrop(unittest.TestCase):
                 self.assertAlmostEqual(g.get(i), 0)
             else:
                 self.assertAlmostEqual(g[i], 1)
+
+
+class TestNumdictsOpsTransform(unittest.TestCase):
+    def dummyfunc1(self, f):
+        return f*2
+
+    def test_transform_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = transform_keys(d, self.dummyfunc1)
+        for i in range(1, 10):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(d1.get(i), i/2)
+        d1, g1 = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(g1[i], 1/2)
 
 
 class TestNumdictsNested(unittest.TestCase):
