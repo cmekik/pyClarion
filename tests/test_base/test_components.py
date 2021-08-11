@@ -155,35 +155,13 @@ class TestDomainMethods(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "disjoint\(\) doesn't accept 0 argument"):
                 clb.Domain.disjoint()
 
-# helper methods
-
-def assert_parse_result(listOfStr, parseResult):
-
-        assert len(parseResult) == len(listOfStr)
-        for string in listOfStr:
-            assert (feature(string, 1) in parseResult) or (feature(string, 0) in parseResult)
-
-def assert_precondition_of_parse_commands_input(data, test_interface):
-
-    # preconditions on the input
-    assert data.default == 0
-    assert set(data.values()) == {1.0} or set(data.values()) == set() # activations must be 1.0 or default
-
-    # each cmd dim should appear exactly once in data
-    cmd = test_interface.cmds
-    dimset = set()
-    for f in cmd:
-        dimset.add(f.dim[0])
-    assert len(dimset) == len(data.keys())
-
-    for d in dimset:
-        count = 0;
-        for f in data.keys():
-            if(f.dim[0] == d):
-                count+=1
-        assert count == 1
 
 class TestInterfaceMethods(unittest.TestCase):
+
+    def assert_parse_result(self, listOfFeature, parseResult):
+         
+        self.assertEqual(len(parseResult), len(listOfFeature))
+        self.assertEqual(set(listOfFeature), set(parseResult))
 
     def test_parse_commands(self):
 
@@ -199,10 +177,8 @@ class TestInterfaceMethods(unittest.TestCase):
             data = nd.NumDict({feature("up", 1): 1.0, 
                                 feature("down", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data, test_interface)
-
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down"], res)
+            self.assert_parse_result([feature("up", 1), feature("down", 0)], res)
 
         with self.subTest(msg="different order in cmds doesn't matter"):
             test_interface = clb.Interface(
@@ -216,10 +192,8 @@ class TestInterfaceMethods(unittest.TestCase):
             data = nd.NumDict({feature("down", 1): 1.0, 
                                 feature("up", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data, test_interface)
-
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down"], res)
+            self.assert_parse_result([feature("down", 1), feature("up", 0)], res)
 
         with self.subTest(msg="more randomness in cmds"):
             test_interface = clb.Interface(
@@ -239,10 +213,12 @@ class TestInterfaceMethods(unittest.TestCase):
                                     feature("left", 0): 1.0,
                                         feature("right", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data, test_interface)
-
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up", "down", "left", "right"], res)
+            self.assert_parse_result(
+                [feature("down", 1), 
+                    feature("up", 0),
+                        feature("left", 0),
+                            feature("right", 0)], res)
 
         with self.subTest(msg="cmds size == 1"):
             test_interface = clb.Interface(
@@ -252,25 +228,21 @@ class TestInterfaceMethods(unittest.TestCase):
             )
             data = nd.NumDict({feature("up", 0): 1.0}, default=0)
 
-            assert_precondition_of_parse_commands_input(data, test_interface)
-
             res = test_interface.parse_commands(data)
-            assert_parse_result(["up"], res)
+            self.assert_parse_result([feature("up", 1)], res)
 
         with self.subTest(msg="cmds size == 0"):
             test_interface = clb.Interface(
-                cmds=(),)
+                cmds=(),
+            )
             data = nd.NumDict({}, default=0)
 
-            assert_precondition_of_parse_commands_input(data, test_interface)
-
             res = test_interface.parse_commands(data)
-            assert_parse_result([], res)
+            self.assert_parse_result([], res)
 
     def test_parse_commands_runtime_error(self):
-
-        with self.subTest(msg="unexpected default strength"):
-            test_interface = clb.Interface(
+        
+        test_interface = clb.Interface(
                 cmds=(
                     feature("down", 1), 
                     feature("down", 0),
@@ -278,6 +250,9 @@ class TestInterfaceMethods(unittest.TestCase):
                     feature("up", 1),
                 ),
             )
+
+        with self.subTest(msg="unexpected default strength"):
+
             data = nd.NumDict({feature("down", 1): 1.0, 
                                 feature("up", 0): 1.0}, default=1)
 
@@ -285,14 +260,7 @@ class TestInterfaceMethods(unittest.TestCase):
                 res = test_interface.parse_commands(data)
 
         with self.subTest(msg="Encounter non-integral cmd strength"):
-            test_interface = clb.Interface(
-                cmds=(
-                    feature("down", 1), 
-                    feature("down", 0),
-                    feature("up", 0), 
-                    feature("up", 1),
-                ),
-            )
+
             data = nd.NumDict({feature("down", 1): 0.5, 
                                 feature("up", 0): 1.0}, default=0)
 
@@ -300,14 +268,7 @@ class TestInterfaceMethods(unittest.TestCase):
                 res = test_interface.parse_commands(data)
 
         with self.subTest(msg="Encounter multiple values from a single dim"):
-            test_interface = clb.Interface(
-                cmds=(
-                    feature("down", 1), 
-                    feature("down", 0),
-                    feature("up", 0), 
-                    feature("up", 1),
-                ),
-            )
+            
             data = nd.NumDict({feature("down", 1): 1.0, 
                                 feature("down", 0): 1.0,
                                 feature("down", 2): 1.0, 
