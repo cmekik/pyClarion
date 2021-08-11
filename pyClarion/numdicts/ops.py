@@ -141,7 +141,10 @@ def threshold(
 @register_grad(threshold)
 def _grad_threshold(grads, d, *, th):
     mapping = {k: (th < d[k]) * grads[k] for k in d}
-    return (NumDict(mapping, default=0),)
+    default = grads.default
+    if(d.default == None):
+        default = None
+    return (NumDict(mapping, default),)
 
 
 @register_op
@@ -165,7 +168,7 @@ def clip(d: D, low: float = None, high: float = None) -> NumDict:
 @register_grad(clip)
 def _grad_clip(grads, d, *, low, high):
     mapping = {k: (low < d[k] < high)*grads[k] for k in d}
-    return (NumDict(mapping, default=0),)
+    return (NumDict(mapping, grads.default),)
 
 
 @register_op
@@ -213,7 +216,6 @@ def keep(
 
     Keys are kept iff func(key, **kwds) or key in container is True.
     """
-
     if func is None and keys is None:
         raise ValueError("At least one of func or keys must not be None.")
 
@@ -235,13 +237,15 @@ def keep(
 def _grad_keep(grads, d, *, func, keys, **kwds):
     mapping = {
         k: (
-            # KWDS FAILS HERE TODO FIGURE OUT WHY
             (func is not None and func(k, **kwds)) or
             (keys is not None and k in keys)
         )*grads[k]
         for k in d
     }
-    return (NumDict(mapping, grads.default),)  # default prob incorrect
+    #default = grads.default
+    # if(d.default == None):
+    #    default = None
+    return (NumDict(mapping, grads.default),)
 
 
 def drop(
@@ -275,7 +279,10 @@ def _grad_drop(grads, d, *, func, keys, **kwds):
         k: ((func is not None and not func(k, **kwds)) and
             (keys is not None and k not in keys))*grads[k] for k in d
     }
-    return (NumDict(mapping, grads.default),)  # default prob incorrect
+    #default = grads.default
+    # if(d.default == None):
+    #    default = None
+    return (NumDict(mapping, grads.default),)
 
 
 def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
@@ -296,7 +303,7 @@ def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
 
 
 @ register_grad(transform_keys)
-# ASK ABOUT THIS IMPLEMENTATION BC IT'S WHACKY
 def _grad_transform_keys(grads, d, *, func, **kwds):
-    mapping = {func(k,**kwds): grads[k]/func(grads[k], **kwds) for k in d}
-    return (NumDict(mapping, 1*grads.default),)  # default prob incorrect
+    # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
+    mapping = {k: grads[func(k, **kwds)]}
+    return (NumDict(mapping, grads.default),)
