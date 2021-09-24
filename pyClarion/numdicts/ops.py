@@ -180,28 +180,29 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     is empty, the return value will also be empty.
     """
     default = 0 if d.default is not None else None
-    _kwds = {"t": t}
     if len(d) > 0:
         x = d / t
         x = x - val_max(x)  # softmax(x) = softmax(x + c)
         numerators = x.exp()
         denominator = val_sum(numerators)
         value = with_default(numerators / denominator, default=default)
-        record_call(boltzmann, value, (d,), _kwds)
+        record_call(boltzmann, value, (d,), t)
         return value
     else:
         value = NumDict(default=default)
-        record_call(boltzmann, value, (d,), _kwds)
+        record_call(boltzmann, value, (d,), t)
         return NumDict(default=default)
 
 
 @ register_grad(boltzmann)  # LOOK UP SOFTMAX
-def _grad_boltzmann(grads, d, *, t):
-    if(len(d) > 0):
-        return (None,)
+def _grad_boltzmann(grads, d, *, t):#default values?
+    if len(d) > 0:
+        x = d/t
+        delta = {
+            k: (k == d) for k in x
+        }
     else:
-        return (NumDict(default=0),)
-
+        return grads
 
 def keep(
     d: D,
@@ -305,5 +306,5 @@ def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
 @ register_grad(transform_keys)
 def _grad_transform_keys(grads, d, *, func, **kwds):
     # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
-    mapping = {k: grads[func(k, **kwds)]}
+    mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)

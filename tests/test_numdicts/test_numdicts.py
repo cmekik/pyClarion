@@ -568,7 +568,7 @@ class TestNumdictsOpsThreshold(unittest.TestCase):
             d1 = threshold(d, th=3)
         self.assertAlmostEqual(d1.default, 5)
         d1, g = t.gradients(d1, d)
-        self.assertAlmostEqual(g.default, 0)
+        self.assertAlmostEqual(g.default, 1)
         d = nd.NumDict(default=2)
         with GradientTape() as t:
             d1 = threshold(d, th=3)
@@ -687,7 +687,7 @@ class TestNumdictsOpsTransform(unittest.TestCase):
         return f*2
 
     def test_transform_keys(self):#TODO FIX
-        '''d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
         with GradientTape() as t:
             d1 = transform_keys(d, self.dummyfunc1)
         for i in range(1, 10):
@@ -696,7 +696,20 @@ class TestNumdictsOpsTransform(unittest.TestCase):
         d1, g1 = t.gradients(d1, d)
         for i in range(1, 5):
             if(d1.get(i) != None):
-                self.assertAlmostEqual(g1[i], 1/2)'''
+                self.assertAlmostEqual(g1[i], 1)
+
+
+class TestNumdictsOpsBoltzmann(unittest.TestCase):
+
+    def test_transform_keys(self):#TODO FIX
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3})
+        with GradientTape() as t:
+            d1 = boltzmann(d,1)
+        print(d1)
+        d1, g1 = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(g1[i], 1)
 
 
 class TestNumdictsNested(unittest.TestCase):
