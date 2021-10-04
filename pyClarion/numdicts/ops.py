@@ -180,27 +180,37 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     is empty, the return value will also be empty.
     """
     default = 0 if d.default is not None else None
+    
     if len(d) > 0:
         x = d / t
         x = x - val_max(x)  # softmax(x) = softmax(x + c)
         numerators = x.exp()
         denominator = val_sum(numerators)
         value = with_default(numerators / denominator, default=default)
-        record_call(boltzmann, value, (d,), t)
+        kwds = {"t": t, "value": value}
+        record_call(boltzmann, value, (d,), kwds)
         return value
     else:
         value = NumDict(default=default)
-        record_call(boltzmann, value, (d,), t)
+        kwds = {"t": t, "value": value}
+        record_call(boltzmann, value, (d,), kwds)
         return NumDict(default=default)
 
 
 @ register_grad(boltzmann)  # LOOK UP SOFTMAX
-def _grad_boltzmann(grads, d, *, t):#default values?
+def _grad_boltzmann(grads, d, *, t, value):#default values?
     if len(d) > 0:
         x = d/t
         delta = {
-            k: (k == d) for k in x
-        }
+            k: {
+                j: value[k]*((j==k)-value[j]) for j in x
+            } for k in x
+        } 
+        mapping = {k: 0 for k in x}
+        for k in x:
+            for j in x:
+                mapping[k]+=delta[k][j]
+        return (NumDict(mapping, default = None),)
     else:
         return grads
 

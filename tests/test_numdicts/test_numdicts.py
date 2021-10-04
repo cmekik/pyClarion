@@ -701,15 +701,14 @@ class TestNumdictsOpsTransform(unittest.TestCase):
 
 class TestNumdictsOpsBoltzmann(unittest.TestCase):
 
-    def test_transform_keys(self):#TODO FIX
+    def test_boltzmann(self):#TODO FIX
         d = nd.NumDict(data={1: 1, 2: 2, 3: 3})
         with GradientTape() as t:
             d1 = boltzmann(d,1)
-        print(d1)
         d1, g1 = t.gradients(d1, d)
         for i in range(1, 5):
             if(d1.get(i) != None):
-                self.assertAlmostEqual(g1[i], 1)
+                self.assertAlmostEqual(g1[i], 0)
 
 
 class TestNumdictsNested(unittest.TestCase):
