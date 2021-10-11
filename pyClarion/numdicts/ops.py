@@ -51,7 +51,6 @@ def set_by(
     For each key in source, output[key] = source[keyfunc(key)]. Defaults are
     discarded.
     """
-
     value = NumDict({k: source[keyfunc(k)] for k in target}, None)
     record_call(set_by, value, (target, source), {"keyfunc": keyfunc})
 
@@ -187,29 +186,25 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
         numerators = x.exp()
         denominator = val_sum(numerators)
         value = with_default(numerators / denominator, default=default)
-        kwds = {"t": t, "value": value}
+        kwds = {"t": t}
         record_call(boltzmann, value, (d,), kwds)
         return value
     else:
         value = NumDict(default=default)
-        kwds = {"t": t, "value": value}
+        kwds = {"t": t}
         record_call(boltzmann, value, (d,), kwds)
         return NumDict(default=default)
 
 
-@ register_grad(boltzmann)  # LOOK UP SOFTMAX
-def _grad_boltzmann(grads, d, *, t, value):#default values?
+@ register_grad(boltzmann)  #This always returns zero... is this what we want?
+def _grad_boltzmann(grads, d, *, t):#default values?
     if len(d) > 0:
+        #can't use set by because need to modify interior values not just assign
+        #value = set_by({(k,j) for k in d for j in d}, boltzmann(d,t), keyfunc=lambda kj: a if (kj[0]==kj[1]) else -kj[1])
+        value = boltzmann(d,t)
         x = d/t
-        delta = {
-            k: {
-                j: value[k]*((j==k)-value[j]) for j in x
-            } for k in x
-        } 
-        mapping = {k: 0 for k in x}
-        for k in x:
-            for j in x:
-                mapping[k]+=delta[k][j]
+        delta = NumDict({(k,j):grads[k]*(value[k]*((j==k)-value[j])) for j in d for k in d})
+        mapping = sum_by(delta,keyfunc=lambda k: k[0])
         return (NumDict(mapping, default = None),)
     else:
         return grads

@@ -700,8 +700,7 @@ class TestNumdictsOpsTransform(unittest.TestCase):
 
 
 class TestNumdictsOpsBoltzmann(unittest.TestCase):
-
-    def test_boltzmann(self):#TODO FIX
+    def test_boltzmann(self):#This always returns zero.... is this really what we want?
         d = nd.NumDict(data={1: 1, 2: 2, 3: 3})
         with GradientTape() as t:
             d1 = boltzmann(d,1)
@@ -773,7 +772,7 @@ class TestNumdictsNested(unittest.TestCase):
             # this is incorrect for some reason
             g3, g2 = t1.gradients(g1[1], (d1, d2), forward=False)
             self.assertAlmostEqual(g2[0].default, 2*d1.default*d1.default)
-            self.assertAlmostEqual(g2[1].default, 4*d1.default*d2.default)"""
+            self.assertAlmostEqual(g2[1].default, 4*d1.default*d2.default)
 
     def test_3nested_numdicts_defaults(self):
         for i, j in linspace(-10, 10):
@@ -843,7 +842,7 @@ class TestNumdictsNested(unittest.TestCase):
             self.assertAlmostEqual(g2[1][1], 0)
             self.assertAlmostEqual(g2[1][2], 0)
 
-    """def test_3nested_numdicts_productRule(self): #TODO fix this test
+    def test_3nested_numdicts_productRule(self): #TODO fix this test
         for i, j in linspace(-10, 10):
             t1 = nd.GradientTape()
             t2 = nd.GradientTape(allowNesting=True)
