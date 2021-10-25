@@ -219,12 +219,31 @@ class Assets(SimpleNamespace): # type: ignore
 
 
 class Domain(object):
-    """A feature domain."""
+    """
+    Domain() objects define a set of feature() symbols used in the simulation.
+
+    Domain can be viewed as a collection of features.
+    For example, if a travelling agent is simulated, part of domain might be 
+    user-defined locations.
+    """
+
+    """
+    Key functions:
+        update(): Reflect changes of class attribute to the whole class.
+        config(): Yield monitored attributes defined by _config.
+                  After changes of those attributes, call update().
+    """
 
     _config: ClassVar[Tuple[str, ...]] = ()
+    """
+    config is empty for class Domain, 
+    but it will be filled in subclasses like Interface
+    """
     
-    _blocked: bool = False
+    _blocked: bool = False 
+    """if '_blocked' is true, update() not autoatically called by '__setattr__()'"""
     _locked: bool = False
+    """if '_locked' is true, users cannot change domain at all"""
 
     _features: Tuple[feature, ...]
 
@@ -244,6 +263,7 @@ class Domain(object):
         self._features = features
 
     def __setattr__(self, name, value):
+        """ignore if name is no in _config"""
 
         if name in type(self)._config and self._locked:
             raise RuntimeError("Cannot mutate locked domain.")
@@ -258,34 +278,53 @@ class Domain(object):
         return self._features
 
     def update(self) -> None:
-        """Set domain properties."""
+        """
+        Set domain properties.
+
+        Also reflect changes in domain to all relevant places
+        """
 
         pass
 
     @contextmanager
-    def config(self):
-        """Update self after adjustments to config."""
+    def config(self): 
+        """
+        Update self after adjustments to monitored attributes defined by _config.
+
+        update() is not called during adjustments
+        """
 
         self._blocked = True
         yield
         self._blocked = False
         self.update()
 
-    def lock(self):
+    def lock(self): 
         """Disallow mutation of domain."""
 
         self._locked = True
 
-    def disjoint(*domains: "Domain") -> bool:
+    def disjoint(*domains: "Domain") -> bool: 
         """Return True iff domains have no overlap."""
 
         # NOTE: This method does not have a self argument, but works both as an 
         # instance and class method. This is similar to set.union and 
         # set.intersection.
 
+        if len(domains) == 0:
+            raise ValueError("disjoint() doesn't accept 0 argument")
+        elif len(domains) == 1:
+            """
+            Since Domain class doesn't allow duplicate features,
+            when there's only one domain, certainly no overlap
+            """
+            return True
+
         s = set.intersection(*(set(dom.features) for dom in domains))
 
         return s == set()
+
+    # TO DO: add set operation?
 
 
 class Interface(Domain):
