@@ -1,3 +1,6 @@
+#value_max, value_min, value_sum -> reduce_max, reduce_min, reduce_sum
+#valuewise too
+
 """Ops on numerical dictionaries with automdiff support."""
 
 
@@ -14,6 +17,7 @@ from .numdicts import (
 from .funcs import by, val_max, val_sum, with_default
 
 from typing import TypeVar, Union, Callable, Hashable, Container, Any
+import operator
 import math
 
 
@@ -196,11 +200,9 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
         return NumDict(default=default)
 
 
-@ register_grad(boltzmann)  #This always returns zero... is this what we want?
+@ register_grad(boltzmann)
 def _grad_boltzmann(grads, d, *, t):#default values?
     if len(d) > 0:
-        #can't use set by because need to modify interior values not just assign
-        #value = set_by({(k,j) for k in d for j in d}, boltzmann(d,t), keyfunc=lambda kj: a if (kj[0]==kj[1]) else -kj[1])
         value = boltzmann(d,t)
         x = d/t
         delta = NumDict({(k,j):grads[k]*(value[k]*((j==k)-value[j])) for j in d for k in d})
@@ -313,3 +315,72 @@ def _grad_transform_keys(grads, d, *, func, **kwds):
     # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
     mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)
+
+def valuewise(
+    op: Callable[[float, float], float], d: D, initial: float
+) -> float:
+    """Recursively apply commutative binary op to explicit values of d."""
+
+    if not 0 < len(d):
+        raise ValueError("Arg d must be non-empty.")
+
+    v = initial
+    for item in d.values():
+        v = op(v, item)
+
+    return v
+@register_op
+def reduce_sum(d: NumDict, *, key: Hashable=None) -> NumDict:
+
+    result = sum(d.values(), 0)
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_sum)
+def _grad_reduce_sum(
+    grads: NumDict, d: NumDict, *, key: Hashable = None
+) -> tuple[NumDict]:
+
+    return (d.constant(val=grads.default if key is None else grads[key]),)
+
+
+@register_op
+def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
+
+    result = max(d.values())
+
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_max) #TODO implement isclose
+def _grad_reduce_max(
+    grads: NumDict, d: NumDict, *, key: Hashable
+) -> tuple[NumDict]:
+
+    g = grads.default if key is None else grads[key]
+
+    return (g * isclose(d, reduce_max(d)),)
+
+
+@register_op
+def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
+
+    result = min(d.values())
+
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_min)
+def _grad_reduce_max(
+    grads: NumDict, d: NumDict, *, key: Hashable
+) -> tuple[NumDict]:
+
+    g = grads.default if key is None else grads[key]
+
+    return (g * isclose(d, reduce_min(d)),)

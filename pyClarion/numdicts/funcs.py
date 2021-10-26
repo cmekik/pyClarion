@@ -15,7 +15,6 @@ from typing import (
     TypeVar, Callable, Hashable, Dict, Union, List, Any, Optional
 )
 import random
-import operator
 import math
 
 
@@ -186,37 +185,7 @@ def ew_min(*ds: D) -> NumDict:
     return elementwise(min, *ds)
 
 
-def valuewise(
-    op: Callable[[float, float], float], d: D, initial: float
-) -> float:
-    """Recursively apply commutative binary op to explicit values of d."""
 
-    if not 0 < len(d):
-        raise ValueError("Arg d must be non-empty.")
-
-    v = initial
-    for item in d.values():
-        v = op(v, item)
-
-    return v
-
-
-def val_sum(d: D) -> float:
-    """Return the sum of the values of d."""
-
-    return valuewise(operator.add, d, 0.0)
-
-
-def val_max(d: D) -> float:
-    """Return the maximum explicit value in d."""
-
-    return valuewise(max, d, float("-inf"))
-
-
-def val_min(d: D) -> float:
-    """Return the minimum explicit value in d."""
-
-    return valuewise(max, d, float("+inf"))
 
 
 def all_val(d: D) -> bool:
