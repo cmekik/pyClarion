@@ -1,23 +1,19 @@
-#value_max, value_min, value_sum -> reduce_max, reduce_min, reduce_sum
-#valuewise too
-
 """Ops on numerical dictionaries with automdiff support."""
 
 
 # TODO: GradientOps may not handle defaults correctly! Check and correct. - Can
-
+# by op
 
 __all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
-           "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep", "drop", "transform_keys"]
+           "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep", 
+           "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", "by"]
 
 
 from .numdicts import (
     D, NumDict, MutableNumDict, record_call, register_op, register_grad
 )
-from .funcs import by, val_max, val_sum, with_default
-
-from typing import TypeVar, Union, Callable, Hashable, Container, Any
-import operator
+from .funcs import isclose, with_default
+from typing import TypeVar, Union, Dict, List, Callable, Hashable, Container, Any
 import math
 
 
@@ -88,6 +84,26 @@ def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 def _grad_sum_by(grads, d, *, keyfunc):
     return (set_by(d, grads, keyfunc=keyfunc),)
 
+def by( #TODO FIX
+    d: D,
+    op: Callable[..., float],
+    keyfunc: Callable[..., Hashable],
+    **kwds: Any
+) -> NumDict:
+    """
+    Compute op over elements grouped by keyfunc.
+
+    Key should be a function mapping each key in self to a grouping key. New 
+    keys are determined based on the result of keyfunc(k, **kwds), where 
+    k is a key from d.
+    """
+
+    _d: Dict[Hashable, List[float]] = {}
+    for k, v in d.items():
+        _d.setdefault(keyfunc(k, **kwds), []).append(v)
+    mapping = {k: op(v) for k, v in _d.items()}
+
+    return NumDict(mapping, d.default)
 
 @register_op
 def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
@@ -174,6 +190,63 @@ def _grad_clip(grads, d, *, low, high):
     return (NumDict(mapping, grads.default),)
 
 
+
+@register_op
+def reduce_sum(d: NumDict, *, key: Hashable=None) -> NumDict:
+
+    result = sum(d.values(), 0)
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_sum)
+def _grad_reduce_sum(
+    grads: NumDict, d: NumDict, *, key: Hashable = None
+) -> tuple[NumDict]:
+
+    return (d.constant(val=grads.default if key is None else grads[key]),)
+
+
+@register_op
+def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
+
+    result = max(d.values())
+
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_max) #TODO implement isclose
+def _grad_reduce_max(
+    grads: NumDict, d: NumDict, *, key: Hashable
+) -> tuple[NumDict]:
+
+    g = grads.default if key is None else grads[key]
+
+    return (g * isclose(d, reduce_max(d)),)
+
+
+@register_op
+def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
+
+    result = min(d.values())
+
+    if key is None:
+        return NumDict(default=result)
+    else:
+        return NumDict({key: result})
+
+@register_grad(reduce_min)
+def _grad_reduce_max(
+    grads: NumDict, d: NumDict, *, key: Hashable
+) -> tuple[NumDict]:
+
+    g = grads.default if key is None else grads[key]
+
+    return (g * isclose(d, reduce_min(d)),)
+
 @register_op
 def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     """(low < d[k] < high)
@@ -186,9 +259,9 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     
     if len(d) > 0:
         x = d / t
-        x = x - val_max(x)  # softmax(x) = softmax(x + c)
+        x = x - reduce_max(x).default  # softmax(x) = softmax(x + c)
         numerators = x.exp()
-        denominator = val_sum(numerators)
+        denominator = reduce_sum(numerators).default
         value = with_default(numerators / denominator, default=default)
         kwds = {"t": t}
         record_call(boltzmann, value, (d,), kwds)
@@ -198,7 +271,6 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
         kwds = {"t": t}
         record_call(boltzmann, value, (d,), kwds)
         return NumDict(default=default)
-
 
 @ register_grad(boltzmann)
 def _grad_boltzmann(grads, d, *, t):#default values?
@@ -315,72 +387,4 @@ def _grad_transform_keys(grads, d, *, func, **kwds):
     # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
     mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)
-
-def valuewise(
-    op: Callable[[float, float], float], d: D, initial: float
-) -> float:
-    """Recursively apply commutative binary op to explicit values of d."""
-
-    if not 0 < len(d):
-        raise ValueError("Arg d must be non-empty.")
-
-    v = initial
-    for item in d.values():
-        v = op(v, item)
-
-    return v
-@register_op
-def reduce_sum(d: NumDict, *, key: Hashable=None) -> NumDict:
-
-    result = sum(d.values(), 0)
-    if key is None:
-        return NumDict(default=result)
-    else:
-        return NumDict({key: result})
-
-@register_grad(reduce_sum)
-def _grad_reduce_sum(
-    grads: NumDict, d: NumDict, *, key: Hashable = None
-) -> tuple[NumDict]:
-
-    return (d.constant(val=grads.default if key is None else grads[key]),)
-
-
-@register_op
-def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
-
-    result = max(d.values())
-
-    if key is None:
-        return NumDict(default=result)
-    else:
-        return NumDict({key: result})
-
-@register_grad(reduce_max) #TODO implement isclose
-def _grad_reduce_max(
-    grads: NumDict, d: NumDict, *, key: Hashable
-) -> tuple[NumDict]:
-
-    g = grads.default if key is None else grads[key]
-
-    return (g * isclose(d, reduce_max(d)),)
-
-
-@register_op
-def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
-
-    result = min(d.values())
-
-    if key is None:
-        return NumDict(default=result)
-    else:
-        return NumDict({key: result})
-
-@register_grad(reduce_min)
-def _grad_reduce_max(
-    grads: NumDict, d: NumDict, *, key: Hashable
-) -> tuple[NumDict]:
-
-    g = grads.default if key is None else grads[key]
-
-    return (g * isclose(d, reduce_min(d)),)
+    

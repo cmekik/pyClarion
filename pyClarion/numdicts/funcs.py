@@ -1,10 +1,7 @@
 """Functions on numerical dictionaries without autodiff support."""
-# functions to differentiate
-#keep, drop, transform_keys
 __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", 
-    "squeeze",  "draw", "by",
-    "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min", "valuewise",
+    "squeeze",  "draw", "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min",
     "val_sum", "val_max", "val_min", "all_val", "any_val",
     "exponential_moving_avg", "tabulate"
 ]
@@ -16,7 +13,7 @@ from typing import (
 )
 import random
 import math
-
+import warnings
 
 def epsilon():
     """A very small value (1e-07),"""
@@ -96,29 +93,6 @@ def draw(
 
     return NumDict(output, d.default)
 
-
-def by(
-    d: D,
-    op: Callable[..., float],
-    keyfunc: Callable[..., Hashable],
-    **kwds: Any
-) -> NumDict:
-    """
-    Compute op over elements grouped by keyfunc.
-
-    Key should be a function mapping each key in self to a grouping key. New 
-    keys are determined based on the result of keyfunc(k, **kwds), where 
-    k is a key from d.
-    """
-
-    _d: Dict[Hashable, List[float]] = {}
-    for k, v in d.items():
-        _d.setdefault(keyfunc(k, **kwds), []).append(v)
-    mapping = {k: op(v) for k, v in _d.items()}
-
-    return NumDict(mapping, d.default)
-
-
 def elementwise(op: Callable[..., float], *ds: D) -> NumDict:
     """
     Apply op elementwise to a sequence of numdicts.
@@ -184,9 +158,17 @@ def ew_min(*ds: D) -> NumDict:
 
     return elementwise(min, *ds)
 
+def val_max(d: D) -> float:
+    warnings.warn("val_max is Deprecated; Use reduce_max", DeprecationWarning)
+    return max(d.values())
 
+def val_sum(d: D) -> float:
+    warnings.warn("val_sum is Deprecated; Use reduce_sum", DeprecationWarning)
+    return sum(d.values(), 0)
 
-
+def val_min(d: D) -> float:
+    warnings.warn("val_min is Deprecated; Use reduce_min", DeprecationWarning)
+    return min(d.values())
 
 def all_val(d: D) -> bool:
     """Return True if all values, including the default, are truthy."""
@@ -225,3 +207,4 @@ def tabulate(*ds: D) -> Dict[Hashable, List[float]]:
             l.append(v)
 
     return tabulation
+
