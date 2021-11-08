@@ -5,15 +5,15 @@
 # by op
 
 __all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
-           "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep", 
+           "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep",
            "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", "by"]
 
 
 from .numdicts import (
     D, NumDict, MutableNumDict, record_call, register_op, register_grad
 )
-from .funcs import isclose, with_default
-from typing import TypeVar, Union, Dict, List, Callable, Hashable, Container, Any
+from .funcs import isclose, with_default, by
+from typing import Tuple, Union, Dict, List, Callable, Hashable, Container, Any
 import math
 
 
@@ -84,26 +84,6 @@ def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
 def _grad_sum_by(grads, d, *, keyfunc):
     return (set_by(d, grads, keyfunc=keyfunc),)
 
-def by( #TODO FIX
-    d: D,
-    op: Callable[..., float],
-    keyfunc: Callable[..., Hashable],
-    **kwds: Any
-) -> NumDict:
-    """
-    Compute op over elements grouped by keyfunc.
-
-    Key should be a function mapping each key in self to a grouping key. New 
-    keys are determined based on the result of keyfunc(k, **kwds), where 
-    k is a key from d.
-    """
-
-    _d: Dict[Hashable, List[float]] = {}
-    for k, v in d.items():
-        _d.setdefault(keyfunc(k, **kwds), []).append(v)
-    mapping = {k: op(v) for k, v in _d.items()}
-
-    return NumDict(mapping, d.default)
 
 @register_op
 def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
@@ -190,62 +170,67 @@ def _grad_clip(grads, d, *, low, high):
     return (NumDict(mapping, grads.default),)
 
 
-
 @register_op
-def reduce_sum(d: NumDict, *, key: Hashable=None) -> NumDict:
-
+def reduce_sum(d: NumDict, *, key: Hashable = None) -> NumDict:
+    kwds = {"key": key}
     result = sum(d.values(), 0)
     if key is None:
-        return NumDict(default=result)
+        value = NumDict(default=result)
     else:
-        return NumDict({key: result})
+        value = NumDict({key: result})
+    record_call(reduce_sum, value, (d,), kwds)
+    return value
+
 
 @register_grad(reduce_sum)
 def _grad_reduce_sum(
     grads: NumDict, d: NumDict, *, key: Hashable = None
-) -> tuple[NumDict]:
+) -> Tuple[NumDict, ...]:
 
     return (d.constant(val=grads.default if key is None else grads[key]),)
 
 
 @register_op
 def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
-
+    kwds = {"key": key}
     result = max(d.values())
-
     if key is None:
-        return NumDict(default=result)
+        value = NumDict(default=result)
     else:
-        return NumDict({key: result})
+        value = NumDict({key: result})
+    record_call(reduce_max, value, (d,), kwds)
+    return value
 
-@register_grad(reduce_max) #TODO implement isclose
+
+@register_grad(reduce_max)  # TODO implement isclose
 def _grad_reduce_max(
     grads: NumDict, d: NumDict, *, key: Hashable
-) -> tuple[NumDict]:
-
+) -> Tuple[NumDict, ...]:
     g = grads.default if key is None else grads[key]
-
     return (g * isclose(d, reduce_max(d)),)
 
 
 @register_op
 def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
-
+    kwds = {"key": key}
     result = min(d.values())
-
     if key is None:
-        return NumDict(default=result)
+        value = NumDict(default=result)
     else:
-        return NumDict({key: result})
+        value = NumDict({key: result})
+    record_call(reduce_min, value, (d,), kwds)
+    return value
+
 
 @register_grad(reduce_min)
 def _grad_reduce_max(
     grads: NumDict, d: NumDict, *, key: Hashable
-) -> tuple[NumDict]:
+) -> Tuple[NumDict, ...]:
 
     g = grads.default if key is None else grads[key]
 
     return (g * isclose(d, reduce_min(d)),)
+
 
 @register_op
 def boltzmann(d: D, t: Union[float, int]) -> NumDict:
@@ -256,7 +241,7 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
     is empty, the return value will also be empty.
     """
     default = 0 if d.default is not None else None
-    
+
     if len(d) > 0:
         x = d / t
         x = x - reduce_max(x).default  # softmax(x) = softmax(x + c)
@@ -272,16 +257,19 @@ def boltzmann(d: D, t: Union[float, int]) -> NumDict:
         record_call(boltzmann, value, (d,), kwds)
         return NumDict(default=default)
 
+
 @ register_grad(boltzmann)
-def _grad_boltzmann(grads, d, *, t):#default values?
+def _grad_boltzmann(grads, d, *, t):  # default values?
     if len(d) > 0:
-        value = boltzmann(d,t)
+        value = boltzmann(d, t)
         x = d/t
-        delta = NumDict({(k,j):grads[k]*(value[k]*((j==k)-value[j])) for j in d for k in d})
-        mapping = sum_by(delta,keyfunc=lambda k: k[0])
-        return (NumDict(mapping, default = None),)
+        delta = NumDict(
+            {(k, j): grads[k]*(value[k]*((j == k)-value[j])) for j in d for k in d})
+        mapping = sum_by(delta, keyfunc=lambda k: k[0])
+        return (NumDict(mapping, default=None),)
     else:
         return grads
+
 
 def keep(
     d: D,
@@ -387,4 +375,3 @@ def _grad_transform_keys(grads, d, *, func, **kwds):
     # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
     mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)
-    
