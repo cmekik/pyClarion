@@ -40,13 +40,14 @@ def tanh(d: D) -> NumDict:
 
     return (2 * sigmoid(d)) - 1
 
+
 @register_op
 def set_by(
     target: D, source: D, *, keyfunc: Callable[..., Hashable]
 ) -> NumDict:
     """
     Construct a numdict mapping target keys to matching values in source. 
-    
+
     For each key in source, output[key] = source[keyfunc(key)]. Defaults are
     discarded.
     """
@@ -55,6 +56,7 @@ def set_by(
     record_call(set_by, value, (target, source), {"keyfunc": keyfunc})
 
     return value
+
 
 @register_grad(set_by)
 def _grad_set_by(grads, target, source, *, keyfunc):
@@ -123,7 +125,7 @@ def reduce_sum(d: NumDict, *, key: Hashable = None) -> NumDict:
     if key is None:
         value = NumDict(default=result)
     else:
-        value = NumDict({key: result})
+        value = NumDict({key: result}, default=d.default)
     record_call(reduce_sum, value, (d,), kwds)
     return value
 
@@ -143,7 +145,7 @@ def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
     if key is None:
         value = NumDict(default=result)
     else:
-        value = NumDict({key: result})
+        value = NumDict({key: result}, default=d.default)
     record_call(reduce_max, value, (d,), kwds)
     return value
 
@@ -163,7 +165,7 @@ def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
     if key is None:
         value = NumDict(default=result)
     else:
-        value = NumDict({key: result})
+        value = NumDict({key: result}, default=d.default)
     record_call(reduce_min, value, (d,), kwds)
     return value
 
@@ -177,26 +179,28 @@ def _grad_reduce_max(
 
     return (g * isclose(d, reduce_min(d)),)
 
+
 @register_op
 def merge(*ds: NumDict) -> NumDict:
 
     if len(ds) == 0:
         raise ValueError("Nothing to merge.")
-    
+
     if len(set.union(*map(set, ds))) < sum(map(len, ds)):
         raise ValueError("NumDicts are not disjoint")
 
     data = {}
     for d in ds:
         data.update(d)
-    
+
     if len(set((d.default for d in ds))) == 1:
         default = ds[0].default
     else:
         default = None
     value = NumDict(data, default=default)
-    record_call(merge, value, ds,{})
+    record_call(merge, value, ds, {})
     return value
+
 
 @register_grad(merge)
 def _grad_merge(grads: NumDict, *ds: NumDict) -> Tuple[NumDict, ...]:
@@ -206,10 +210,11 @@ def _grad_merge(grads: NumDict, *ds: NumDict) -> Tuple[NumDict, ...]:
 #   1) it is an op
 #   2) it is a wrapper for a sequence of ops
 
+
 def by(
-    d: NumDict, 
-    *, 
-    reducer: Callable[[NumDict, Hashable], NumDict], 
+    d: NumDict,
+    *,
+    reducer: Callable[[NumDict, Hashable], NumDict],
     keyfunc: Callable[[Hashable], Hashable]
 ) -> NumDict:
     """
@@ -221,9 +226,9 @@ def by(
     :param reducer: An op that maps all values of a numdict to a single key.
     :param keyfunc: The grouping function; maps keys to keys.
     """
-    
+
     keys = tuple(set(keyfunc(k) for k in d))
-    selectors = ([x for x in d if keyfunc(x) == k] for k in keys)#THIS ISN"T WORKING
+    selectors = ([x for x in d if keyfunc(x) == k] for k in keys)
     groups = (keep(d, keys=s) for s in selectors)
 
     return merge(*[reducer(g, key=k) for k, g in zip(keys, groups)])
@@ -235,14 +240,19 @@ def sum_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
     return by(d, reducer=reduce_sum, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
+
+
 def max_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
     return by(d, reducer=reduce_max, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
+
+
 def min_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
     return by(d, reducer=reduce_min, keyfunc=keyfunc)
+
 
 @register_op
 def boltzmann(d: D, t: Union[float, int]) -> NumDict:
@@ -281,6 +291,7 @@ def _grad_boltzmann(grads, d, *, t):  # default values?
         return (NumDict(mapping, default=None),)
     else:
         return grads
+
 
 @register_op
 def keep(
@@ -327,6 +338,7 @@ def _grad_keep(grads, d, *, func, keys, **kwds):
     #    default = None
     return (NumDict(mapping, grads.default),)
 
+
 @register_op
 def drop(
     d: D,
@@ -363,6 +375,7 @@ def _grad_drop(grads, d, *, func, keys, **kwds):
     # if(d.default == None):
     #    default = None
     return (NumDict(mapping, grads.default),)
+
 
 @register_op
 def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
