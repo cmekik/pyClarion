@@ -228,12 +228,12 @@ def by(
     """
 
     keys = tuple(set(keyfunc(k) for k in d))
-    selectors = ([x for x in d if keyfunc(x) == k] for k in keys)
-    groups = (keep(d, keys=s) for s in selectors)
-    if(keys):
+    if keys:
+        selectors = ([x for x in d if keyfunc(x) == k] for k in keys)
+        groups = (keep(d, keys=s) for s in selectors)
         return merge(*[reducer(g, key=k) for k, g in zip(keys, groups)])
-    else: #if keys is empty virtual fail
-        return d 
+    else:  # if keys is empty merge will fail
+        return d
 
 
 # This is an op b/c only calls diffable ops
@@ -328,13 +328,9 @@ def keep(
 
 @ register_grad(keep)
 def _grad_keep(grads, d, *, func, keys, **kwds):
-    mapping = {
-        k: (
-            (func is not None and func(k, **kwds)) or
-            (keys is not None and k in keys)
-        )*grads[k]
-        for k in d
-    }
+    mapping = {k: grads[k] if (func is not None and func(
+        k, **kwds)) or (keys is not None and k in keys) else 0 for k in d}
+
     #default = grads.default
     # if(d.default == None):
     #    default = None
