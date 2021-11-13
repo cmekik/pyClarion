@@ -52,29 +52,6 @@ def squeeze(d: D, default: float = None) -> NumDict:
 
     return NumDict(mapping, default)
 
-
-def by( #TODO FIX
-    d: D,
-    op: Callable[..., float],
-    keyfunc: Callable[..., Hashable],
-    **kwds: Any
-) -> NumDict:
-    """
-    Compute op over elements grouped by keyfunc.
-
-    Key should be a function mapping each key in self to a grouping key. New 
-    keys are determined based on the result of keyfunc(k, **kwds), where 
-    k is a key from d.
-    """
-
-    _d: Dict[Hashable, List[float]] = {}
-    for k, v in d.items():
-        _d.setdefault(keyfunc(k, **kwds), []).append(v)
-    mapping = {k: op(v) for k, v in _d.items()}
-
-    return NumDict(mapping, d.default)
-
-
 def with_default(d: D, *, default: Optional[Union[float, int]]) -> NumDict:
 
     return NumDict(d, default=default)

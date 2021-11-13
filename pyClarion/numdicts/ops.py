@@ -6,13 +6,13 @@
 
 __all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
            "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep",
-           "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", "by"]
+           "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", "by", "merge"]
 
 
 from .numdicts import (
     D, NumDict, MutableNumDict, record_call, register_op, register_grad
 )
-from .funcs import isclose, with_default, by
+from .funcs import isclose, with_default
 from typing import Tuple, Union, Dict, List, Callable, Hashable, Container, Any
 import math
 
@@ -40,80 +40,26 @@ def tanh(d: D) -> NumDict:
 
     return (2 * sigmoid(d)) - 1
 
-
 @register_op
-def set_by(
+def set_by( #TODO change maybe to sum_by style
     target: D, source: D, *, keyfunc: Callable[..., Hashable]
 ) -> NumDict:
     """
-    Construct a numdict mapping target keys to matching values in source.
-
+    Construct a numdict mapping target keys to matching values in source. 
+    
     For each key in source, output[key] = source[keyfunc(key)]. Defaults are
     discarded.
     """
+
     value = NumDict({k: source[keyfunc(k)] for k in target}, None)
     record_call(set_by, value, (target, source), {"keyfunc": keyfunc})
 
     return value
 
-
 @register_grad(set_by)
 def _grad_set_by(grads, target, source, *, keyfunc):
 
-    return (grads * 0, sum_by(grads, keyfunc=keyfunc))
-
-
-@register_op
-def sum_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
-    """
-    Sum the values of d grouped by keyfunc.
-
-    Maps each l in the range of keyfunc to the sum of all d[k] such that
-    keyfunc(k) is equal to l. See by() for further details.
-    """
-
-    value = by(d, sum, keyfunc, **kwds)
-    _kwds = {"keyfunc": keyfunc}
-    _kwds.update(kwds)
-    record_call(sum_by, value, (d,), _kwds)
-
-    return value
-
-
-@register_grad(sum_by)
-def _grad_sum_by(grads, d, *, keyfunc):
-    return (set_by(d, grads, keyfunc=keyfunc),)
-
-
-@register_op
-def max_by(d: D, *, keyfunc: Callable[..., Hashable], **kwds: Any) -> NumDict:
-    """
-    Find maximum values in d grouped by keyfunc.
-
-    Maps each l in the range of keyfunc to the max of all d[k] such that
-    keyfunc(k) is equal to l. See by() for further details.
-    """
-
-    value = by(d, max, keyfunc, **kwds)
-    _kwds = {"keyfunc": keyfunc}
-    _kwds.update(kwds)
-    record_call(max_by, value, (d,), _kwds)
-
-    return value
-
-# TODO: _grad_max_by is not differentiable, should probably be made so. - Can
-
-
-@register_grad(max_by)
-def _grad_max_by(grads, d, *, keyfunc):
-
-    _isclose = math.isclose
-    y = max_by(d, keyfunc=keyfunc)
-    arg_max = {k for k, v in d.items() if _isclose(v, y[keyfunc(k)])}
-    grad_max = NumDict(
-        {k: grads[keyfunc(k)] if k in arg_max else 0 for k in d})
-
-    return (grad_max,)
+    return (grads * NumDict(default=0), sum_by(grads, keyfunc=keyfunc))
 
 
 @register_op
@@ -231,6 +177,75 @@ def _grad_reduce_max(
 
     return (g * isclose(d, reduce_min(d)),)
 
+@register_op
+def merge(*ds: NumDict) -> NumDict:
+
+    if len(ds) == 0:
+        raise ValueError("Nothing to merge.")
+    
+    if len(set.union(*map(set, ds))) < sum(map(len, ds)):
+        raise ValueError("NumDicts are not disjoint")
+
+    data = {}
+    for d in ds:
+        data.update(d)
+    
+    if len(set((d.default for d in ds))) == 1:
+        default = ds[0].default
+    else:
+        default = None
+    value = NumDict(data, default=default)
+    record_call(merge, value, (ds,),{})
+    return value
+
+@register_grad(merge)
+def _grad_merge(grads: NumDict, *ds: NumDict) -> Tuple[NumDict, ...]:
+    return tuple(NumDict({k: grads[k] for k in d}, grads.default) for d in ds)
+
+# We consider a function diffable if
+#   1) it is an op
+#   2) it is a wrapper for a sequence of ops
+
+def by(
+    d: NumDict, 
+    *, 
+    reducer: Callable[[NumDict, Hashable], NumDict], 
+    keyfunc: Callable[[Hashable], Hashable]
+) -> NumDict:
+    """
+    Reduce values in d grouped by keyfunc.
+
+    If reducer is diffable, this function is diffable.
+
+    :param d: The target numdict.
+    :param reducer: An op that maps all values of a numdict to a single key.
+    :param keyfunc: The grouping function; maps keys to keys.
+    """
+    
+    keys = tuple(set(keyfunc(k) for k in d))
+    selectors = ([x for x in d if keyfunc(x) == k] for k in keys)#THIS ISN"T WORKING
+    groups = (keep(d, keys=s) for s in selectors)
+
+    return merge(*[reducer(g, key=k) for k, g in zip(keys, groups)])
+
+
+# This is an op b/c only calls diffable ops
+@register_op
+def sum_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
+
+    return by(d, reducer=reduce_sum, keyfunc=keyfunc)
+
+# This is an op b/c only calls diffable ops
+@register_op
+def max_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
+
+    return by(d, reducer=reduce_max, keyfunc=keyfunc)
+
+# This is an op b/c only calls diffable ops
+@register_op
+def min_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
+
+    return by(d, reducer=reduce_min, keyfunc=keyfunc)
 
 @register_op
 def boltzmann(d: D, t: Union[float, int]) -> NumDict:
