@@ -282,7 +282,7 @@ def _grad_boltzmann(grads, d, *, t):  # default values?
     else:
         return grads
 
-
+@register_op
 def keep(
     d: D,
     func: Callable[..., bool] = None,
@@ -327,7 +327,7 @@ def _grad_keep(grads, d, *, func, keys, **kwds):
     #    default = None
     return (NumDict(mapping, grads.default),)
 
-
+@register_op
 def drop(
     d: D,
     func: Callable[..., bool] = None,
@@ -364,7 +364,7 @@ def _grad_drop(grads, d, *, func, keys, **kwds):
     #    default = None
     return (NumDict(mapping, grads.default),)
 
-
+@register_op
 def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
     """
     Return a copy of d where each key is mapped to func(key, **kwds).
