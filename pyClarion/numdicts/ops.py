@@ -195,7 +195,7 @@ def merge(*ds: NumDict) -> NumDict:
     else:
         default = None
     value = NumDict(data, default=default)
-    record_call(merge, value, (ds,),{})
+    record_call(merge, value, ds,{})
     return value
 
 @register_grad(merge)
