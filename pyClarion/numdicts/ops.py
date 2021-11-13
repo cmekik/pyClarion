@@ -41,7 +41,7 @@ def tanh(d: D) -> NumDict:
     return (2 * sigmoid(d)) - 1
 
 @register_op
-def set_by( #TODO change maybe to sum_by style
+def set_by(
     target: D, source: D, *, keyfunc: Callable[..., Hashable]
 ) -> NumDict:
     """
@@ -230,19 +230,16 @@ def by(
 
 
 # This is an op b/c only calls diffable ops
-@register_op
 def sum_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
     return by(d, reducer=reduce_sum, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
-@register_op
 def max_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
     return by(d, reducer=reduce_max, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
-@register_op
 def min_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
     return by(d, reducer=reduce_min, keyfunc=keyfunc)
