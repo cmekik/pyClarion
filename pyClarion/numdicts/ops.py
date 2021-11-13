@@ -230,8 +230,10 @@ def by(
     keys = tuple(set(keyfunc(k) for k in d))
     selectors = ([x for x in d if keyfunc(x) == k] for k in keys)
     groups = (keep(d, keys=s) for s in selectors)
-
-    return merge(*[reducer(g, key=k) for k, g in zip(keys, groups)])
+    if(keys):
+        return merge(*[reducer(g, key=k) for k, g in zip(keys, groups)])
+    else: #if keys is empty virtual fail
+        return d 
 
 
 # This is an op b/c only calls diffable ops
