@@ -46,7 +46,7 @@ def set_by(
     target: D, source: D, *, keyfunc: Callable[..., Hashable]
 ) -> NumDict:
     """
-    Construct a numdict mapping target keys to matching values in source. 
+    Construct a numdict mapping target keys to matching values in source.
 
     For each key in source, output[key] = source[keyfunc(key)]. Defaults are
     discarded.
@@ -150,7 +150,7 @@ def reduce_max(d: NumDict, *, key: Hashable = None) -> NumDict:
     return value
 
 
-@register_grad(reduce_max)  # TODO implement isclose
+@register_grad(reduce_max)
 def _grad_reduce_max(
     grads: NumDict, d: NumDict, *, key: Hashable
 ) -> Tuple[NumDict, ...]:
@@ -182,7 +182,6 @@ def _grad_reduce_max(
 
 @register_op
 def merge(*ds: NumDict) -> NumDict:
-
     if len(ds) == 0:
         raise ValueError("Nothing to merge.")
 
@@ -238,21 +237,18 @@ def by(
 
 # This is an op b/c only calls diffable ops
 def sum_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
-
     return by(d, reducer=reduce_sum, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
 
 
 def max_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
-
     return by(d, reducer=reduce_max, keyfunc=keyfunc)
 
 # This is an op b/c only calls diffable ops
 
 
 def min_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
-
     return by(d, reducer=reduce_min, keyfunc=keyfunc)
 
 
@@ -331,7 +327,7 @@ def _grad_keep(grads, d, *, func, keys, **kwds):
     mapping = {k: grads[k] if (func is not None and func(
         k, **kwds)) or (keys is not None and k in keys) else 0 for k in d}
 
-    #default = grads.default
+    # default = grads.default
     # if(d.default == None):
     #    default = None
     return (NumDict(mapping, grads.default),)
@@ -357,7 +353,7 @@ def drop(
         if ((func is not None and not func(k, **kwds)) and
             (keys is not None and k not in keys))
     }
-    _kwds = {"func": func, "keys": keys, **kwds}  # TODO TEST THIS
+    _kwds = {"func": func, "keys": keys, **kwds}
     value = NumDict(mapping, d.default)
     record_call(drop, value, (d,), _kwds)
     return value
@@ -365,17 +361,15 @@ def drop(
 
 @ register_grad(drop)
 def _grad_drop(grads, d, *, func, keys, **kwds):
-    mapping = {
-        k: ((func is not None and not func(k, **kwds)) and
-            (keys is not None and k not in keys))*grads[k] for k in d
-    }
-    #default = grads.default
+    mapping = {k: grads[k] if (func is not None and not func(k, **kwds)) and
+            (keys is not None and k not in keys) else 0 for k in d}
+    # default = grads.default
     # if(d.default == None):
     #    default = None
     return (NumDict(mapping, grads.default),)
 
 
-@register_op
+@ register_op
 def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
     """
     Return a copy of d where each key is mapped to func(key, **kwds).
@@ -388,13 +382,12 @@ def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
     if len(d) != len(mapping):
         raise ValueError("Func must be one-to-one on keys of arg d.")
     value = NumDict(mapping, d.default)
-    _kwds = {"func": func, **kwds}  # TODO TEST THIS
+    _kwds = {"func": func, **kwds}
     record_call(transform_keys, value, (d,), _kwds)
     return value
 
 
 @ register_grad(transform_keys)
 def _grad_transform_keys(grads, d, *, func, **kwds):
-    # mapping = {func(k,**kwds): grads[k], **kwds) for k in d}
     mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)
