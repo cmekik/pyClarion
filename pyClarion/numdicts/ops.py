@@ -80,13 +80,13 @@ def threshold(
     else:  # added this to prevent errors when d.default was none as default was undefined
         default = None
     value = NumDict(mapping, default)
-    _kwds = {"th": th}
+    _kwds = {"th": th, "keep_default": keep_default}
     record_call(threshold, value, (d,), _kwds)
     return value
 
 
 @register_grad(threshold)
-def _grad_threshold(grads, d, *, th):
+def _grad_threshold(grads, d, *, th, keep_default):
     mapping = {k: (th < d[k]) * grads[k] for k in d}
     default = grads.default
     if(d.default == None):
@@ -102,8 +102,8 @@ def clip(d: D, low: float = None, high: float = None) -> NumDict:
     dtype must define +/- inf values.
     """
 
-    low = low or float("-inf")
-    high = high or float("inf")
+    low = float("-inf") if low is None else low
+    high = float("inf") if high is None else high
 
     mapping = {k: max(low, min(high, d[k])) for k in d}
     value = NumDict(mapping, d.default)
@@ -324,8 +324,8 @@ def keep(
 
 @ register_grad(keep)
 def _grad_keep(grads, d, *, func, keys, **kwds):
-    mapping = {k: grads[k] if (func is not None and func(
-        k, **kwds)) or (keys is not None and k in keys) else 0 for k in d}
+    mapping = {k: grads[k] if (func is not None and func(k, **kwds))
+               or (keys is not None and k in keys) else 0 for k in d}
 
     # default = grads.default
     # if(d.default == None):
@@ -362,7 +362,7 @@ def drop(
 @ register_grad(drop)
 def _grad_drop(grads, d, *, func, keys, **kwds):
     mapping = {k: grads[k] if (func is not None and not func(k, **kwds)) and
-            (keys is not None and k not in keys) else 0 for k in d}
+               (keys is not None and k not in keys) else 0 for k in d}
     # default = grads.default
     # if(d.default == None):
     #    default = None
@@ -389,5 +389,5 @@ def transform_keys(d: D, func: Callable[..., Hashable], **kwds) -> NumDict:
 
 @ register_grad(transform_keys)
 def _grad_transform_keys(grads, d, *, func, **kwds):
-    mapping = {func(k, **kwds): grads[func(k, **kwds)] for k in d}
+    mapping = {k: grads[func(k, **kwds)] for k in d}
     return (NumDict(mapping, grads.default),)
