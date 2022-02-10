@@ -32,12 +32,12 @@ jobs:
     - name: Test with unittest
       run: |
         python -m unittest discover
-    - name: Run examples
-      run: |
-        python examples/gradients.py
-        python examples/lagged_features.py
-        python examples/free_association.py
-        python examples/flow_control.py
-        python examples/q_learning.py
-        python examples/chunk_extraction.py
-        python examples/working_memory.py
+    # - name: Run examples
+    #   run: |
+    #     python examples/gradients.py
+    #     python examples/lagged_features.py
+    #     python examples/free_association.py
+    #     python examples/flow_control.py
+    #     python examples/q_learning.py
+    #     python examples/chunk_extraction.py
+    #     python examples/working_memory.py
