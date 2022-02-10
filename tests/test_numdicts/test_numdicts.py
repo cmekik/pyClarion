@@ -699,17 +699,6 @@ class TestNumdictsOpsTransform(unittest.TestCase):
                 self.assertAlmostEqual(g1[i], 1)
 
 
-class TestNumdictsOpsBoltzmann(unittest.TestCase):
-    def test_boltzmann(self):#This always returns zero.... is this really what we want?
-        d = nd.NumDict(data={1: 1, 2: 2, 3: 3})
-        with GradientTape() as t:
-            d1 = boltzmann(d,1)
-        d1, g1 = t.gradients(d1, d)
-        for i in range(1, 5):
-            if(d1.get(i) != None):
-                self.assertAlmostEqual(g1[i], 0)
-
-
 class TestNumdictsNested(unittest.TestCase):
     def test_persistent(self):
         for i, j in linspace(-10, 10):
