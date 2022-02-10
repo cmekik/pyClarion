@@ -1,5 +1,4 @@
-"""Provides numerical dictionaries with autodiff support."""
+from .numdict import NumDict
+from .gradient_tape import GradientTape
 
-from .numdicts import *
-from .funcs import *
-from .ops import *
+__all__ = ["NumDict", "GradientTape"]

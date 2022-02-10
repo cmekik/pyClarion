@@ -9,7 +9,7 @@ description = (
 
 setuptools.setup(
     name="pyClarion",
-    version="0.17.1",
+    version="0.18.0",
     author="Can Serif Mekik",
     author_email="can.mekik@gmail.com",
     description=description,
@@ -17,11 +17,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/cmekik/pyClarion",
     packages=setuptools.find_packages(exclude=["tests", "tests.*"]),
-    classifiers=(
+    classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-    ),
+    ],
     python_requires='>=3.7',
     install_requires=[]
 )

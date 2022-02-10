@@ -1,15 +1,10 @@
-"""
-Framework for simulating Clarion constructs.
-
-Views Clarion constructs as networks of networks that propagate activations 
-among their nodes. Each node is named by a single symbolic token and 
-connections among nodes are decided based on formal properties of construct 
-symbols.
-
-Activation propagation follows a pull-based architecture. 
-"""
+"""Framework for simulating Clarion constructs."""
 
 
-from .symbols import *
-from .components import *
-from .realizers import *
+from .symbols import dimension, feature, chunk, rule
+from .processes import Process 
+from .constructs import Module, Structure
+
+
+__all__ = ["dimension", "feature", "chunk", "rule", "Process", "Module", 
+    "Structure"]

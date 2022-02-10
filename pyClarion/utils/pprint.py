@@ -5,7 +5,6 @@ __all__ = ["PrettyPrinter", "pprint", "pformat"]
 
 
 from ..numdicts import NumDict
-from ..components import Chunks, Rules, Chunk, Rule, BLAs
 
 from typing import ClassVar
 import pprint as _pprint
@@ -22,107 +21,17 @@ class PrettyPrinter(_pprint.PrettyPrinter):
         write = stream.write
         name = type(object).__name__
         indent += len(name) + 1
-        end = [" " * indent, 'default=', _pprint.saferepr(object.default),')']
+        end = [
+            " " * indent, 
+            'c=', _pprint.saferepr(object.c), 
+            ')']
         
         stream.write(name + '(')
-        self._pprint_dict(object, stream, indent, allowance, context, level)
+        self._pprint_dict(object, stream, indent, allowance, context, level) # type: ignore
         stream.write(',\n')
         stream.write("".join(end))
 
     _dispatch[NumDict.__repr__] = _pprint_numdict
-
-    def _pprint_Chunks(
-        self, object, stream, indent, allowance, context, level
-    ):
-
-        write = stream.write
-        name = type(object).__name__
-        indent += len(name) + 1
-
-        stream.write(name + '(')
-        self._pprint_dict(object, stream, indent, allowance, context, level)
-        stream.write(')')
-
-    _dispatch[Chunks.__repr__] = _pprint_Chunks
-
-    def _pprint_Chunk(
-        self, object, stream, indent, allowance, context, level
-    ):
-
-        write = stream.write
-        
-        name = type(object).__name__
-        features = object.features
-        weights = object.weights
-
-        indent += len(name) + 1
-        findent = indent + len("features=")
-        windent = indent + len("weights=")
-
-        stream.write(name + '(')
-        stream.write("features=")
-        self._dispatch[type(features).__repr__](
-            self, features, stream, findent, allowance, context, level
-        )
-        stream.write(",\n" + " " * indent + "weights=")
-        self._dispatch[type(weights).__repr__](
-            self, weights, stream, windent, allowance, context, level
-        )
-        stream.write(')')
-
-    _dispatch[Chunk.__repr__] = _pprint_Chunk
-
-    def _pprint_Rules(
-        self, object, stream, indent, allowance, context, level
-    ):
-
-        write = stream.write
-        name = type(object).__name__
-        indent += len(name) + 1
-        
-        stream.write(name + '(')
-        self._pprint_dict(object, stream, indent, allowance, context, level)
-        stream.write(')')
-
-    _dispatch[Rules.__repr__] = _pprint_Rules
-
-    def _pprint_Rule(
-        self, object, stream, indent, allowance, context, level
-    ):
-
-        write = stream.write
-        
-        name = type(object).__name__
-        conc = object.conc
-        weights = object.weights
-
-        indent += len(name) + 1
-        windent = indent + len("weights=")
-
-        stream.write(name + '(')
-        stream.write("conc="+_pprint.saferepr(conc))
-        stream.write(",\n" + " " * indent + "weights=")
-        self._dispatch[type(weights).__repr__](
-            self, weights, stream, windent, allowance, context, level
-        )
-        stream.write(')')
-
-    _dispatch[Rule.__repr__] = _pprint_Rule
-
-    def _pprint_BLAs(
-        self, object, stream, indent, allowance, context, level
-    ):
-
-        write = stream.write
-        name = type(object).__name__
-        indent += len(name) + 2
-        
-        stream.write('<' + name + ' ')
-        self._pprint_dict(object._dict, stream, indent, allowance, context, level)
-        stream.write('>')
-
-    _dispatch[BLAs.__repr__] = _pprint_BLAs
-
 
 def pprint(object, stream=None, indent=1, width=80, depth=None, *,
            compact=False):

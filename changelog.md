@@ -1,8 +1,35 @@
 # Changelog
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Unreleased
+
+This is a backwards incompatible rewrite.
+
+## Added
+
+- A new `dimension` symbol.
+- A markup language and parser for easily specifying initial chunks & fixed rules.
+- Visualization and inspection tools.
+- Support for multiple outputs in each process.
+
+## Changed
+
+- Renamed several classes in base; basic design is preserved.
+- Replaced construct symbols with URI strings in a majority of cases. Construct symbols still used as numdict keys for features, chunks and rules. Even in these cases, the design has been heavily revised.
+- Integrated `Domain` and `Interface` functionality into `Process` objects.
+- Simplified `Process` objects. Most notably, `call()` now expects a list of numdicts instead of a mapping.
+- Rewrote nearly all previous components with simplified implementations. Variable component parameters now passed through inputs to call.
+- Chunk and rule databases are now full-fledged `Process` objects.
+- Completely rewrote numdicts.
+
+## Removed
+
+- Native QNet support.
+
 
 ## [0.17.1] (2022-02-09)
 
