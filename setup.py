@@ -9,7 +9,7 @@ description = (
 
 setuptools.setup(
     name="pyClarion",
-    version="0.17.0",
+    version="0.17.1",
     author="Can Serif Mekik",
     author_email="can.mekik@gmail.com",
     description=description,

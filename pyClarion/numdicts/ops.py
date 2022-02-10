@@ -256,45 +256,6 @@ def min_by(d: NumDict, *, keyfunc: Callable[[Hashable], Hashable]) -> NumDict:
 
 
 @register_op
-def boltzmann(d: D, t: Union[float, int]) -> NumDict:
-    """(low < d[k] < high)
-    Construct a boltzmann distribution from d with temperature t.
-
-    If d has a default, the returned value will have a default of 0, and, if d
-    is empty, the return value will also be empty.
-    """
-    default = 0 if d.default is not None else None
-
-    if len(d) > 0:
-        x = d / t
-        x = x - reduce_max(x).default  # softmax(x) = softmax(x + c)
-        numerators = x.exp()
-        denominator = reduce_sum(numerators).default
-        value = with_default(numerators / denominator, default=default)
-        kwds = {"t": t}
-        record_call(boltzmann, value, (d,), kwds)
-        return value
-    else:
-        value = NumDict(default=default)
-        kwds = {"t": t}
-        record_call(boltzmann, value, (d,), kwds)
-        return NumDict(default=default)
-
-
-@ register_grad(boltzmann)
-def _grad_boltzmann(grads, d, *, t):  # default values?
-    if len(d) > 0:
-        value = boltzmann(d, t)
-        x = d/t
-        delta = NumDict(
-            {(k, j): grads[k]*(value[k]*((j == k)-value[j])) for j in d for k in d})
-        mapping = sum_by(delta, keyfunc=lambda k: k[0])
-        return (NumDict(mapping, default=None),)
-    else:
-        return grads
-
-
-@register_op
 def keep(
     d: D,
     func: Callable[..., bool] = None,
