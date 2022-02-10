@@ -43,9 +43,6 @@ class NumDict(Mapping[T, float]):
     :param m: Symbol-value associations represented by the NumDict.
     :param c: Optional constant, default value for all keys not in the map given 
         by m.
-    :param rank: Non-negative int (default=0), all keys passed to a NumDict 
-        with rank r > 0 must be r-tuples. The rank may not be changed after 
-        initialization.
     :param prot: Bool indicating whether the NumDict is protected. When True, 
         in-place operations are disabled.
     """

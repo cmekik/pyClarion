@@ -160,23 +160,29 @@ class ActionSampler(Process):
     """
     Selects actions and relays action paramaters.
 
-    Expects to be linked to an external 'cmds' property and an optional 
-    'params' property.
-
-    Outputs three numdicts. Output 0 contains action choices, output 1 contains 
-    the distributions from which choices were sampled, and output 2 contains 
-    parameter strengths.
+    Expects to be linked to an external 'cmds' fspace.
 
     Actions are selected for each command dimension according to a Boltzmann 
-    distribution. Parameter strengths for each parameter are passed on as 
-    received.
+    distribution.
     """
 
     initial = nd.NumDict(c=0), nd.NumDict(c=0)
 
     def call(
         self, p: nd.NumDict[feature], d: nd.NumDict[feature]
-    ) -> Tuple[nd.NumDict[feature], nd.NumDict[feature], nd.NumDict[feature]]:
+    ) -> Tuple[nd.NumDict[feature], nd.NumDict[feature]]:
+        """
+        Select actions for each client command dimension.
+        
+        :param p: Selection parameters (temperature). See self.params for 
+            expected parameter keys.
+        :param d: Action feature strengths.
+
+        :returns: tuple (actions, distributions)
+            where
+            actions sends selected actions to 1 and everything else to 0, and
+            distributions contains the sampling probabilities for each action
+        """
 
         dims = group_by_dims(self.fspaces[0]())
         temp = p.isolate(key=self.params[0])
@@ -188,12 +194,7 @@ class ActionSampler(Process):
         dists = nd.NumDict().merge(*_dists) 
         actions = nd.NumDict().merge(*_actions)
 
-        if len(self.fspaces) == 2:  
-            params = d.with_keys(ks=self.fspaces[1]())
-        else:
-            params = nd.NumDict()
-
-        return actions, dists, params
+        return actions, dists
 
     def validate(self) -> None:
         nv = len(self.fspaces)
@@ -202,9 +203,6 @@ class ActionSampler(Process):
         vt0 = self.fspaces[0].args[1] 
         if vt0 != "cmds":
             raise RuntimeError(f"Expected vocab type 'cmds', got '{vt0}'.")
-        vt1 = self.fspaces[1].args[1] if nv >= 2 else None
-        if vt1 is not None and vt1 != "params":
-            raise RuntimeError(f"Expected vocab type 'params', got '{vt1}'.")
 
     @property
     def params(self) -> Tuple[feature, ...]:
@@ -212,6 +210,7 @@ class ActionSampler(Process):
 
 
 class BottomUp(Process1):
+    """Propagates bottom-up activations."""
 
     def call(
         self, 
@@ -220,6 +219,15 @@ class BottomUp(Process1):
         wn: nd.NumDict[chunk], 
         d: nd.NumDict[feature]
     ) -> nd.NumDict[chunk]:
+        """
+        Propagate bottom-up activations.
+        
+        :param fs: Chunk-feature associations (binary).
+        :param ws: Chunk-dimension associations (i.e., top-down weights).
+        :param wn: Normalization terms for each chunk. For each chunk, expected 
+            to be equal to g(sum(|w|)), where g is some superlinear function.
+        :param d: Feature strengths in the bottom level.
+        """
 
         return (fs
             .put(d, kf=second, strict=True)
@@ -231,6 +239,7 @@ class BottomUp(Process1):
 
 
 class TopDown(Process1):
+    """Propagates top-down activations."""
 
     def call(
         self, 
@@ -238,6 +247,13 @@ class TopDown(Process1):
         ws: nd.NumDict[Tuple[chunk, dimension]], 
         d: nd.NumDict[chunk]
     ) -> nd.NumDict[feature]:
+        """
+        Propagate top-down activations.
+        
+        :param fs: Chunk-feature associations (binary).
+        :param ws: Chunk-dimension associations (i.e., top-down weights).
+        :param d: Chunk strengths in the top level.
+        """
 
         return (fs
             .mul_from(d, kf=first, strict=True)
@@ -246,7 +262,8 @@ class TopDown(Process1):
             .squeeze())
 
 
-class AssocRules(Process):
+class AssociativeRules(Process):
+    """Propagates activations according to associative rules."""
 
     initial = (nd.NumDict(), nd.NumDict())
 
@@ -256,6 +273,14 @@ class AssocRules(Process):
         rc: nd.NumDict[Tuple[rule, chunk]], 
         d: nd.NumDict[chunk]
     ) -> Tuple[nd.NumDict[chunk], nd.NumDict[rule]]:
+        """
+        Propagate activations through associative rules.
+        
+        :param cr: Chunk-to-rule associations (i.e., condition weights).
+        :param rc: Rule-to-chunk associations (i.e., conclusion weights; 
+            typically binary).
+        :param d: Condition chunk strengths.
+        """
 
         norm = (cr
             .put(cr.abs().sum_by(kf=first), kf=first)
@@ -274,6 +299,7 @@ class AssocRules(Process):
 
 
 class ActionRules(Process):
+    """Selects action chunks according to action rules."""
 
     initial = (nd.NumDict(), nd.NumDict(), nd.NumDict())
 
@@ -284,6 +310,16 @@ class ActionRules(Process):
         rc: nd.NumDict[Tuple[rule, chunk]], 
         d: nd.NumDict[chunk]
     ) -> Tuple[nd.NumDict[chunk], nd.NumDict[rule], nd.NumDict[rule]]:
+        """
+        Select actions chunks through action rules.
+        
+        :param p: Selection parameters (threshold and temperature). See 
+            self.params for expected parameter keys.
+        :param cr: Chunk-to-rule associations (i.e., condition weights).
+        :param rc: Rule-to-chunk associations (i.e., conclusion weights; 
+            typically binary).
+        :param d: Condition chunk strengths.
+        """
 
         # assuming d.c == 0
         _d = d.keep_greater(ref=p.isolate(key=self.params[0]))

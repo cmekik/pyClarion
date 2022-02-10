@@ -253,6 +253,7 @@ class Structure(Construct):
             construct.step()
 
     def modules(self) -> Iterator[Module]:
+        """Return an interator over member modules."""
         for construct in self._dict.values():
             if isinstance(construct, Module):
                 yield construct
