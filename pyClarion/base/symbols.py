@@ -19,8 +19,6 @@ class dimension(NamedTuple):
     id: str
     lag: int = 0
 
-    def __hash__(self):
-        return super().__hash__()
 
 class feature(NamedTuple):
     """
@@ -34,9 +32,6 @@ class feature(NamedTuple):
     d: str
     v: Union[str, int, None] = None
     l: int = 0
-
-    def __hash__(self):
-        return super().__hash__()
 
     @property
     def dim(self) -> dimension:
@@ -53,9 +48,6 @@ class chunk(NamedTuple):
     
     id: str
 
-    def __hash__(self):
-        return super().__hash__()
-
 
 class rule(NamedTuple):
     """
@@ -65,6 +57,3 @@ class rule(NamedTuple):
     """
     
     id: str
-
-    def __hash__(self):
-        return super().__hash__()
