@@ -5,8 +5,9 @@
 # by op
 
 __all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
-           "sum_by", "max_by", "threshold", "clip", "boltzmann", "keep",
-           "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", "by", "merge"]
+           "sum_by", "max_by", "threshold", "clip", "keep",
+           "drop", "transform_keys", "reduce_sum", "reduce_max", "reduce_min", 
+           "by", "merge"]
 
 
 from .numdicts import (

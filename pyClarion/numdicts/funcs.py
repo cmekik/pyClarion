@@ -1,8 +1,8 @@
 """Functions on numerical dictionaries without autodiff support."""
 __all__ = [
     "epsilon", "freeze", "unfreeze", "with_default", "isclose", 
-    "squeeze",  "draw", "elementwise", "ew_sum", "ew_mean", "ew_max", "ew_min",
-    "val_sum", "val_max", "val_min", "all_val", "any_val",
+    "squeeze",  "boltzmann", "draw", "elementwise", "ew_sum", "ew_mean", 
+    "ew_max", "ew_min", "val_sum", "val_max", "val_min", "all_val", "any_val",
     "exponential_moving_avg", "tabulate"
 ]
 
