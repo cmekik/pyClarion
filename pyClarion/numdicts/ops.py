@@ -10,11 +10,14 @@ __all__ = ["log", "exp", "sigmoid", "tanh", "set_by",
 
 
 from .numdicts import (
-    D, NumDict, MutableNumDict, record_call, register_op, register_grad
+    NumDict, MutableNumDict, record_call, register_op, register_grad
 )
 from .funcs import isclose, with_default
 from typing import Tuple, Union, Dict, List, Callable, Hashable, Container, Any
 import math
+
+
+D = Union[NumDict, MutableNumDict]
 
 
 def log(d: D) -> NumDict:
@@ -89,7 +92,7 @@ def threshold(
 def _grad_threshold(grads, d, *, th, keep_default):
     mapping = {k: (th < d[k]) * grads[k] for k in d}
     default = grads.default
-    if(d.default == None):
+    if d.default is None:
         default = None
     return (NumDict(mapping, default),)
 
@@ -171,7 +174,7 @@ def reduce_min(d: NumDict, *, key: Hashable = None) -> NumDict:
 
 
 @register_grad(reduce_min)
-def _grad_reduce_max(
+def _grad_reduce_min(
     grads: NumDict, d: NumDict, *, key: Hashable
 ) -> Tuple[NumDict, ...]:
 

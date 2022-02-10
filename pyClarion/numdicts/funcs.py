@@ -6,7 +6,7 @@ __all__ = [
     "exponential_moving_avg", "tabulate"
 ]
 
-from .numdicts import NumDict, MutableNumDict, D
+from .numdicts import NumDict, MutableNumDict
 
 from typing import (
     TypeVar, Callable, Hashable, Dict, Union, List, Any, Optional
@@ -14,6 +14,10 @@ from typing import (
 import random
 import math
 import warnings
+
+
+D = Union[NumDict, MutableNumDict]
+
 
 def epsilon():
     """A very small value (1e-07),"""
@@ -55,6 +59,24 @@ def squeeze(d: D, default: float = None) -> NumDict:
 def with_default(d: D, *, default: Optional[Union[float, int]]) -> NumDict:
 
     return NumDict(d, default=default)
+
+
+def boltzmann(d: D, t: Union[float, int]) -> NumDict:
+    """
+    Construct a boltzmann distribution from d with temperature t.
+    If d has a default, the returned value will have a default of 0, and, if d 
+    is empty, the return value will also be empty.
+    """
+
+    default = 0 if d.default is not None else None
+    if len(d) > 0:
+        x = d / t
+        x = x - val_max(x) # softmax(x) = softmax(x + c)
+        numerators = x.exp()
+        denominator = val_sum(numerators)
+        return with_default(numerators / denominator, default=default)
+    else:
+        return NumDict(default=default)
 
 
 def isclose(d1: D, d2: D) -> bool:
