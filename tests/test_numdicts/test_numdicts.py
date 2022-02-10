@@ -6,6 +6,7 @@ import math
 import itertools
 
 from pyClarion.numdicts.numdicts import GradientTape, NumDict
+from pyClarion.numdicts.ops import *
 
 
 def linspace(a, b):
@@ -559,6 +560,156 @@ class TestNumdictsPower(unittest.TestCase):
                                            d2[2]*math.log(d1[2]))
 
 
+class TestNumdictsOpsThreshold(unittest.TestCase):
+    def test_threshold_default(self):
+        d = nd.NumDict(default=5)
+        with GradientTape() as t:
+            #d1 = sum_by(d,keyfunc=[1,2])
+            d1 = threshold(d, th=3)
+        self.assertAlmostEqual(d1.default, 5)
+        d1, g = t.gradients(d1, d)
+        self.assertAlmostEqual(g.default, 1)
+        d = nd.NumDict(default=2)
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertTrue(d1.default == None)
+
+    def test_threshold_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d1, g = t.gradients(d1, d)
+        self.assertAlmostEqual(g.get(1), 0)
+        self.assertAlmostEqual(g.get(2), 0)
+        self.assertAlmostEqual(g.get(3), 0)
+        self.assertAlmostEqual(g.get(4), 1)
+        self.assertAlmostEqual(g.get(5), 1)
+
+    def test_threshold_mixed(self):
+        d = nd.NumDict(default=5, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+        self.assertAlmostEqual(d1.default, 5)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1[i] == d1.default)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d = nd.NumDict(default=2, data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = threshold(d, th=3)
+            d1 = d1*1
+        self.assertTrue(d1.default == None)
+        for i in range(5):
+            if(i <= 3):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d1, g = t.gradients(d1, d)
+        self.assertAlmostEqual(g.get(1), 0)
+        self.assertAlmostEqual(g.get(2), 0)
+        self.assertAlmostEqual(g.get(3), 0)
+        self.assertAlmostEqual(g.get(4), 1)
+        self.assertAlmostEqual(g.get(5), 1)
+
+
+class TestNumdictsOpsClip(unittest.TestCase):
+    def test_clip_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = clip(d, 2, 4)
+        for i in range(1, 5):
+            if(i < 2):
+                self.assertAlmostEqual(d1[i], 2)
+            elif(i > 4):
+                self.assertAlmostEqual(d1[i], 4)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d1, g = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(i <= 2):
+                self.assertAlmostEqual(g[i], 0)
+            elif(i >= 4):
+                self.assertAlmostEqual(g[i], 0)
+            else:
+                self.assertAlmostEqual(g[i], 1)
+
+
+class TestNumdictsOpsKeepDrop(unittest.TestCase):
+    def dummyfunc(self, f):
+        if(f % 2 == 0):
+            return True
+        else:
+            return False
+
+    def test_keep_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        testCollection = {1: True}
+        with GradientTape() as t:
+            d1 = keep(d, self.dummyfunc, testCollection)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertAlmostEqual(d1[i], i)
+            else:
+                self.assertTrue(d1.get(i) == None)
+        d1, g = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertAlmostEqual(g[i], 1)
+            else:
+                self.assertAlmostEqual(g.get(i), 0)
+
+    def test_drop_keys(self):
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        testCollection = {1: True}
+        with GradientTape() as t:
+            d1 = drop(d, self.dummyfunc, testCollection)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertTrue(d1.get(i) == None)
+            else:
+                self.assertAlmostEqual(d1[i], i)
+        d1, g = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(i % 2 == 0 or i == 1):
+                self.assertAlmostEqual(g.get(i), 0)
+            else:
+                self.assertAlmostEqual(g[i], 1)
+
+
+class TestNumdictsOpsTransform(unittest.TestCase):
+    def dummyfunc1(self, f):
+        return f*2
+
+    def test_transform_keys(self):#TODO FIX
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3, 4: 4, 5: 5})
+        with GradientTape() as t:
+            d1 = transform_keys(d, self.dummyfunc1)
+        for i in range(1, 10):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(d1.get(i), i/2)
+        d1, g1 = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(g1[i], 1)
+
+
+class TestNumdictsOpsBoltzmann(unittest.TestCase):
+    def test_boltzmann(self):#This always returns zero.... is this really what we want?
+        d = nd.NumDict(data={1: 1, 2: 2, 3: 3})
+        with GradientTape() as t:
+            d1 = boltzmann(d,1)
+        d1, g1 = t.gradients(d1, d)
+        for i in range(1, 5):
+            if(d1.get(i) != None):
+                self.assertAlmostEqual(g1[i], 0)
+
+
 class TestNumdictsNested(unittest.TestCase):
     def test_persistent(self):
         for i, j in linspace(-10, 10):
@@ -603,8 +754,10 @@ class TestNumdictsNested(unittest.TestCase):
                 with t2:
                     result = (x**2)*(y**2)
                 result, g1 = t2.gradients(result, (x, y))  # first derivative
-            result2, g2 = t1.gradients(g1[0], (x, y)) # derivative of first derivative with respect to x
-            result3, g3 = t1.gradients(g1[1], (x, y)) # derivative of first derivative with respect to y
+            # derivative of first derivative with respect to x
+            result2, g2 = t1.gradients(g1[0], (x, y))
+            # derivative of first derivative with respect to y
+            result3, g3 = t1.gradients(g1[1], (x, y))
 
             self.assertAlmostEqual(g3);
             self.assertAlmostEqual(
@@ -619,7 +772,7 @@ class TestNumdictsNested(unittest.TestCase):
             # this is incorrect for some reason
             g3, g2 = t1.gradients(g1[1], (d1, d2), forward=False)
             self.assertAlmostEqual(g2[0].default, 2*d1.default*d1.default)
-            self.assertAlmostEqual(g2[1].default, 4*d1.default*d2.default)"""
+            self.assertAlmostEqual(g2[1].default, 4*d1.default*d2.default)
 
     def test_3nested_numdicts_defaults(self):
         for i, j in linspace(-10, 10):
@@ -689,7 +842,7 @@ class TestNumdictsNested(unittest.TestCase):
             self.assertAlmostEqual(g2[1][1], 0)
             self.assertAlmostEqual(g2[1][2], 0)
 
-    """def test_3nested_numdicts_productRule(self): #TODO fix this test
+    def test_3nested_numdicts_productRule(self): #TODO fix this test
         for i, j in linspace(-10, 10):
             t1 = nd.GradientTape()
             t2 = nd.GradientTape(allowNesting=True)
@@ -702,7 +855,7 @@ class TestNumdictsNested(unittest.TestCase):
                 with t2:
                     with t3:
                         d4 = (d1+d2)*d3  # something go broke here not sure why
-                        #d4 = d1*d3+d2*d3
+                        # d4 = d1*d3+d2*d3
                     d4, g1 = t3.gradients(d4, (d1, d2, d3))
                     self.assertAlmostEqual(g1[0].default, d3.default)
                     self.assertAlmostEqual(g1[1].default, d3.default)
