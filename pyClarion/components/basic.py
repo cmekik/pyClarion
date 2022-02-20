@@ -2,7 +2,7 @@
 
 
 __all__ = ["Repeat", "Actions", "CAM", "Shift", "BoltzmannSampler", 
-    "ActionSampler", "BottomUp", "TopDown", "AssocRules", "ActionRules"]
+    "ActionSampler", "BottomUp", "TopDown", "AssociativeRules", "ActionRules"]
 
 
 from ..base import Process, dimension, feature, chunk, rule, uris

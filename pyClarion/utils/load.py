@@ -1,587 +1,563 @@
-from __future__ import annotations
-import re
-from typing import Dict, Tuple, List, Union, Any
-from typing_extensions import TypedDict
+"""Interpreter for the pyClarion Explicit Knowledge Language."""
+
+
 from contextlib import contextmanager
-import enum
+from dataclasses import dataclass, field
+import re
+from typing import Dict, List, Tuple, Iterable, Optional, Set, IO, Generator
+from collections import OrderedDict, ChainMap
+from itertools import combinations
 
-from ..base import uris, dimension, feature, chunk, rule, Structure, Module
-from ..components import Store
-from ..components.utils import first
-from .. import numdicts as nd
-from . import inspect
-
-
-__all__ = ["load"]
+import pyClarion as cl
+from pyClarion.components.utils import first
 
 
-class ParseError(Exception):
-    ...
+sign = r"\+|\-"
+uint = r"\d+"
+int_ = r"(?:\+|\-)?\d+"
+float_ = r"(?:\+|\-)?(?:\d+|\.\d+|\d+.\d+)(?:e(?:\+|\-)?\d+)?"
+term = r"\w+"
+ref = r"{\*?\w+(?:#(?:\+|\-)?\d+)?}"
+key = r"\w+="
+pdelim, fdelim, dd = r"\/", r"#", r"\.\."
+ellipsis = r"\.\.\."
+name = fr"(?:{term}|{ref}|{sign})(?:\.?(?:{term}|{ref}|{sign}))*"
+path = fr"(?:{name})(?:{pdelim}{name})*"
+purepath = fr"(?:{term})(?:{pdelim}{term})*"
+uri = fr"(?:{dd}{pdelim})?{path}(?:{fdelim}{path})?"
+param = fr"{key}{float_}"
+literal = fr"(?:{uri}|{float_}|{param})" 
+indent = r"'INDENT"
+dedent = r"'DEDENT"
 
 
-class ChunkSpec(TypedDict):
-    fs: List[Tuple[str, Union[str, None], int]]
-    ws: Dict[Tuple[str, int], float]
+class EKLangError(RuntimeError):
+    pass
 
 
-class RuleSpecS1(TypedDict):
-    conds: List[Tuple[str, ChunkSpec, float]]
-    conc: Tuple[str, ChunkSpec, float]
+@dataclass
+class Token:
+    t: str = ""
+    i: str = ""
+    l: int = 1
+    d: Dict[str, str] = field(default_factory=dict)
+    elts: List["Token"] = field(default_factory=list)
 
 
-class RuleSpecS2(TypedDict):
-    conds: List[Tuple[str, float]]
-    conc: Tuple[str, float]
+class IndentAnalyzer:
+    def __init__(self):
+        self.level = 0
+        self.lineno = None
+    
+    def __call__(self, mo: re.Match) -> str:
+        spaces, exprs = mo.groups()
+        num = len(spaces)
+        if num % 4: 
+            raise EKLangError(f"Line {self.lineno}: Indent must be a multiple "
+                "of 4 spaces")
+        delta = (num // 4) - self.level
+        self.level += delta
+        if delta == 0:
+            return exprs
+        if delta == 1:
+            return "\n".join([indent, exprs])
+        if delta < 0:
+            return "\n".join([dedent] * -delta + [exprs])
+        else:
+            raise EKLangError(f"Line {self.lineno}: Indent too deep")
+
+    @contextmanager
+    def at_line(self, lineno: int) -> Generator[None, None, None]:
+        self.lineno = lineno
+        yield
+        self.lineno = None
+
+    def close(self):
+        while self.level:
+            self.level -= 1
+            yield dedent
 
 
-class IterContext(enum.Enum):
+class Tokenizer:
+    # preprocessor patterns
+    p_comment = r"(?:^|\s+)#(.*)"
+    p_cmd_expr = ": (?! *\n)"
+    p_cmd_trailing_space = r":\s*\Z"
+    p_composite = "(.*:)(\n)(.+)"
+    p_indent = r"^( *)(\S.*)"
+    p_empty = r"^\s*"
 
-    NONE = enum.auto()
-    VAR = enum.auto()
-    CHUNK = enum.auto()
-    RULE = enum.auto()
-    RULESET = enum.auto()
+    tokens = OrderedDict([
+        ("INDENT", indent),
+        ("DEDENT", dedent),
+        ("ELLIPSIS", ellipsis),
+        ("DATA", fr"(?P<data>{literal}(?: +{literal})*)"),
+        ("CHUNK", fr"chunk(?: +(?P<chunk_id>{term}|{ref}))?:"),
+        ("CTX", fr"ctx:"),
+        ("SIG", fr"sig:"),
+        ("FOR", fr"(?:for +(?P<mode>each|combinations(?= +k={uint}))(?: +k=(?P<k>{uint}))?:)"),
+        ("VAR", fr"var(?: +(?P<var_id>{term}))?:"),
+        ("RULESET", fr"ruleset(?: +(?P<ruleset_id>{term}|{ref}))?:"),
+        ("RULE", fr"rule(?: +(?P<rule_id>{term}|{ref}))?:"),
+        ("CONC", fr"conc(?: +(?P<conc_id>{term}|{ref}))?:"),
+        ("COND", fr"cond(?: +(?P<cond_id>{term}|{ref}))?:"),
+        ("STORE", fr"store +(?P<store_id>{purepath}):")
+    ])
+    tok_re = re.compile(r"|".join(fr"(?P<{s}>{p})" for s, p in tokens.items()))
+
+    def __call__(self, stream: IO) -> Generator[Token, None, None]:
+        for lineno, logical_line in self.preprocess(stream):
+            mo = self.tok_re.fullmatch(logical_line)
+            if mo:
+                t = mo.lastgroup
+                args = re.fullmatch(self.tokens[t], mo[t]).groupdict() # type: ignore
+                yield Token(t=f"'{t}", d=args, l=lineno) # type: ignore
+            else:
+                raise EKLangError(f"Line {lineno}: Invalid expression")
+
+    def preprocess(self, stream: IO) -> Generator[Tuple[int, str], None, None]:
+        indenter = IndentAnalyzer()
+        for lineno, line in enumerate(stream, start=1):
+            line = re.sub(self.p_comment, "", line) # type: ignore 
+            line = re.sub(self.p_cmd_expr, ":\n", line)
+            line = re.sub(self.p_cmd_trailing_space, ":", line)
+            line = re.sub(self.p_composite, self.delimit_composite_line, line)
+            with indenter.at_line(lineno):
+                line = re.sub(self.p_indent, indenter, line)
+            line = re.sub(self.p_empty, "", line)
+            for logical_line in line.splitlines():
+                yield lineno, logical_line.strip()
+        else:
+            for dedent in indenter.close(): 
+                yield lineno, dedent # type: ignore 
+
+    def delimit_composite_line(self, mo: re.Match) -> str:
+        pre, delim, post = mo.groups()
+        repr(post)
+        if delim:
+            res = "\n".join([fr"{pre}", r"'INDENT", post, r"'DEDENT"])
+            return res
+        else:
+            return pre
 
 
 class Parser:
+    terminals = ["'DATA", "'ELLIPSIS"]
+    grammar = {
+        r"'ROOT": r"(?:'STORE|'VAR)*",
+        r"'STORE": r"(?:'CHUNK|'RULE|'RULESET|'CTX|'SIG|'VAR|'FOR)*",
+        r"'CHUNK": r"(?:(?:'DATA|'FOR)+|'ELLIPSIS)",
+        r"'RULE": r"'CONC(?:'COND|'FOR)+",
+        r"'CONC": r"(?:(?:'DATA|'FOR)+|'ELLIPSIS)",
+        r"'COND": r"(?:(?:'DATA|'FOR)+|'ELLIPSIS)",
+        r"'RULESET": r"(?:'RULE|'VAR|'CTX|'FOR|'SIG)+",
+        r"'SIG": r"(?:'DATA|'FOR)+", 
+        r"'VAR": r"(?:'DATA|'FOR)+",
+        (r"'CTX", r"∅"): r"(?:'CHUNK|'RULE|'RULESET|'CTX|'SIG|'VAR|'FOR)+",
+        (r"'CTX", r"s"): r"(?:'RULE|'CTX|'SIG|'VAR|'FOR)+",
+        (r"'FOR", r"∅"): r"(?:'VAR)+(?:'CHUNK|'RULE|'RULESET|'CTX|'SIG|'FOR)+",
+        (r"'FOR", r"s"): r"(?:'VAR)+(?:'RULE|'CTX|'SIG|'FOR)+",
+        (r"'FOR", r"r"): r"(?:'VAR)+(?:'COND|'FOR)+",
+        (r"'FOR", r"c"): r"(?:'VAR)+(?:'DATA|'FOR)+",
+        (r"'FOR", r"l"): r"(?:'VAR)+(?:'DATA|'FOR)+",
+    }
+    index_updates = {
+        r"'CHUNK": r"c",
+        r"'CONC": r"c",
+        r"'COND": r"c",
+        r"'RULE": r"r",
+        r"'RULESET": r"s",
+        r"'SIG": r"c",
+        r"'VAR": r"l"
+    }
 
-    # Tokenization regexps
-    comment = re.compile("(^\#)|(\s\#)")
-    empty = re.compile("\s*")
-    kw_exp = re.compile("\s*\w.*:\s*[\w/+#\-.(){}\s]*")
-    data_exp = re.compile("\s*[\w/+#\-.(){}\s]*")
+    def __call__(self, stream: Iterable[Token]) -> Token:
+        stack, current = [], Token(t="'ROOT", i="∅")
+        for token in stream:
+            current = self.build_tree(stack, current, token)
+        assert current.t == "'ROOT"
+        self.check_grammar(current)
+        return current
 
-    # Parsing regexps
-    c_expr = re.compile("chunk ?(?P<id>[\w/]*)?") 
-    cf_expr = re.compile(
-        "(?P<d>[\w/#.]+) ?(?P<v>[\w/#+-]+)? ?(?P<l>[-+\d]*)? ?(\((?P<w>[\w.+-]+)\))?") 
-    r_expr = re.compile("rule ?(?P<id>[\w/]*)?") 
-    r_subexpr = re.compile(
-        "(?P<type>cond|conc) ?(?P<id>[\w/]*) ?(\((?P<w>[\w.+-]+)\))?") 
-    ruleset_expr = re.compile("ruleset (?P<id>\w+)") 
-    ctx_expr = re.compile("ctx ?(?P<cmd>expand|contract)?")
-    iter_expr = re.compile("for each (?P<vars>\w+( \w+)*)") 
-    var_expr = re.compile("var (?P<id>[\w/]*)")
-    var_data_expr = re.compile(".*") 
-    # NOTE: Wildcard match for var_data_expr may cause problems. Makes dispatch 
-    #   key order significant. Should be cleaned up at some point.
+    def build_tree(
+        self, stack: List[Token], current: Token, token: Token
+    ) -> Token:
+        t = token.t
+        if t == "'INDENT":
+            stack.append(current)
+            return current.elts[-1]
+        elif t == "'DEDENT":
+            self.check_grammar(current)
+            assert stack
+            return stack.pop()
+        else:
+            token.i = self.index_updates.get(current.t, current.i)
+            current.elts.append(token)
+            return current
+    
+    def check_grammar(self, tok: Token) -> None:
+        seq = "".join(elt.t for elt in tok.elts)
+        pat = (self.grammar[tok.t] if tok.t in self.grammar 
+            else self.grammar[(tok.t, tok.i)]) # type: ignore
+        if not re.fullmatch(pat, seq):
+            raise EKLangError(f"Line {tok.l}: Syntax error "
+                f"in {tok.t[1:]} block")
+        for elt in tok.elts:
+            if elt.t not in self.terminals: 
+                self.check_grammar(elt)
 
-    _r_prefix = "r"
-    _c_prefix = "c"
 
-    def __init__(self, prefix, fspace=None):
-        self.prefix = prefix
+NumDict = cl.nd.NumDict
+@dataclass
+class Load:
+    address: str
+    cs: List[cl.chunk] = field(default_factory=list)
+    rs: List[cl.rule] = field(default_factory=list)
+    fs: NumDict[Tuple[cl.chunk, cl.feature]] = field(default_factory=NumDict)
+    ws: NumDict[Tuple[cl.chunk, cl.dimension]] = field(default_factory=NumDict)
+    cr: NumDict[Tuple[cl.chunk, cl.rule]] = field(default_factory=NumDict)
+    rc: NumDict[Tuple[cl.rule, cl.chunk]] = field(default_factory=NumDict)
+
+    @property
+    def wn(self) -> NumDict[cl.chunk]:
+        return self.ws.abs().sum_by(kf=first)
+
+
+@dataclass
+class Context:
+    loaded: List[Load] = field(default_factory=list)
+    load: Optional[Load] = None
+    lstack: List[str] = field(default_factory=list)
+    fstack: List[Tuple[cl.feature, Optional[float]]] = field(default_factory=list)
+    fdelims: List[int] = field(default_factory=list)
+    fspace: Optional[Set[cl.feature]] = None
+    frames: ChainMap = field(default_factory=ChainMap)
+    vstack: List[str] = field(default_factory=list)
+    for_vars: list = field(default_factory=list)
+    for_index: List[str] = field(default_factory=list)
+    var_id: str = ""
+    lineno: List[str] = field(default_factory=list)
+    _ref: str = r"{(?P<level>\*)?(?P<id>\w+)(?:#(?P<index>(?:\+|\-)?\d+))?}"
+
+    @property
+    def vdata(self):
+        assert self.var_id in self.frames
+        return self.frames[self.var_id]
+
+    @contextmanager
+    def fspace_scope(self, fspace: Optional[Set[cl.feature]]) -> Generator[None, None, None]:
         self.fspace = fspace
-        self._dispatcher = {
-            "empty": (self.empty, self._tokenize_empty),
-            "kw_exp": (self.kw_exp, self._tokenize_kw_exp),
-            "data_exp": (self.data_exp, self._tokenize_data_exp),
-            "cf_expr": (self.cf_expr, self._parse_cf_expr),
-            "c_expr": (self.c_expr, self._parse_c_expr),
-            "r_expr": (self.r_expr, self._parse_r_expr),
-            "r_subexpr": (self.r_subexpr, self._parse_r_subexpr),
-            "ruleset_expr": (self.ruleset_expr, self._parse_ruleset_expr),
-            "ctx_expr": (self.ctx_expr, self._parse_ctx_expr),
-            "iter_expr": (self.iter_expr, self._parse_iter_expr),
-            "var_expr": (self.var_expr, self._parse_var_expr),
-            "var_data_expr": (self.var_data_expr, self._parse_var_data_expr)
+        yield
+        self.fspace = None
+
+    @contextmanager
+    def feature_scope(self) -> Generator[None, None, None]:
+        self.fdelims.append(len(self.fstack))
+        yield
+        self.fstack = self.fstack[:self.fdelims.pop()]
+
+    @contextmanager
+    def label_scope(self, lineno: int, lbl: str) -> Generator[None, None, None]:
+        with self.at_line(lineno):
+            self.lstack.append(self.deref(lineno, lbl))
+            yield
+            self.lstack.pop()
+
+    @contextmanager
+    def ruleset_scope(self, lineno: int, lbl: str) -> Generator[None, None, None]:
+        with self.label_scope(lineno, lbl):
+            with self.var_frame():
+                with self.feature_scope():
+                    yield
+
+    @contextmanager
+    def store_scope(self, store_id: str) -> Generator[None, None, None]:
+        self.load = Load(store_id)
+        with self.var_frame(): 
+            with self.feature_scope():
+                yield
+        self.loaded.append(self.load)
+        self.load = None
+        
+    @contextmanager
+    def var_scope(self, lineno: int, var_id: str) -> Generator[None, None, None]:
+        if var_id in self.frames.maps[0]:
+            raise EKLangError(f"Line {lineno}: Var '{var_id}' already defined "
+                f"in current scope")
+        self.vstack.append(self.var_id)
+        self.frames.maps[0][var_id] = []
+        self.var_id = var_id
+        yield
+        self.var_id = self.vstack.pop()
+
+    @contextmanager
+    def var_frame(self) -> Generator[None, None, None]:
+        self.frames = self.frames.new_child()
+        yield
+        self.frames = self.frames.parents
+    
+    @contextmanager
+    def for_scope(self):
+        self.for_index.append("")
+        with self.var_frame():
+            yield
+        self.for_index.pop()
+
+    @contextmanager
+    def at_line(self, lineno: int) -> Generator[None, None, None]:
+        self.lineno.append(str(lineno).zfill(4))
+        yield
+        self.lineno.pop()
+
+    def gen_uri(self) -> str:
+        assert self.load
+        coords = ".".join([self.lineno[-1], *self.for_index])
+        fragment = "/".join(filter(None, [coords, *self.lstack]))
+        return "#".join(filter(None, [self.load.address, fragment]))
+
+    def _deref(self, mo: re.Match) -> str:
+        try:
+            data = self.frames[mo["id"]]
+        except KeyError as e:
+            raise EKLangError(f"Line {self.lineno[-1]}: "
+                f"Undefined reference") from e
+        if mo["index"]:
+            try: 
+                data = data[int(mo["index"])]
+            except IndexError as e:
+                raise EKLangError(f"Line {self.lineno[-1]}: Reference index out "
+                    f"of bounds") from e
+        if mo["level"]:
+            if isinstance(data, str):
+                mo2 = re.fullmatch(self._ref, f"{{{data}}}")
+                if mo2: 
+                    return self._deref(mo2)
+                else: 
+                    raise EKLangError(f"Line {self.lineno[-1]}: Invalid "
+                        f"reference")
+            else:
+                raise EKLangError(f"Line {self.lineno[-1]}: Invalid "
+                    f"reference to list")
+        if isinstance(data, list):
+            data = " ".join(data)
+        return data
+
+    def deref(self, lineno: int, literal: str) -> str:
+        with self.at_line(lineno):
+            return re.sub(self._ref, self._deref, literal)
+
+
+class Interpreter:
+    data_patterns = {
+        r"c": (fr"(?P<d>{uri})(?: +(?P<v>{uri}))?(?: +l=(?P<l>{int_}))?"
+            fr"(?: +w=(?P<w>{float_}))?"),
+        r"l": fr"(?P<data>{literal}(?: +{literal})*)",
+    }
+ 
+    def __init__(self, structure: cl.Structure = None):
+        self.structure = structure
+        self.dispatcher = {
+            (r"'DATA", r"c"): self.feature,
+            (r"'DATA", r"l"): self.list_,
+            r"'ELLIPSIS": self.ellipsis,
+            r"'CHUNK": self.chunk,
+            r"'CONC": self.conc,
+            r"'COND": self.cond,
+            r"'RULE": self.rule,
+            r"'RULESET": self.ruleset,
+            r"'STORE": self.store,
+            r"'CTX": self.ctx_,
+            r"'SIG": self.sig,
+            r"'VAR": self.var,
+            r"'FOR": self.for_,
         }
 
-    def parse(self, f):
-        self._init_parse()
-        self._tokenize(f)
-        self._pass_1()
-        self._pass_2()
-        return self._prepare_output()
+    def __call__(self, ast):
+        ctx = Context()
+        fspace = (set(cl.inspect.fspace(self.structure)) 
+            if self.structure is not None else None)
+        with ctx.fspace_scope(fspace):
+            self.dispatch(ast.elts, ctx)
+        return ctx.loaded
 
-    def _init_parse(self):
+    def dispatch(self, stream, ctx):
+        for node in stream:
+            func = (self.dispatcher[node.t] if node.t in self.dispatcher 
+                else self.dispatcher[(node.t, node.i)])
+            func(node, ctx)
 
-        # Tokenizer data
-        self._indent_level = 0
-        self._super = []
-        self._data = []
-        self._current: List[Any] = self._data
-        self._prev = []
+    def feature(self, tok: Token, ctx: Context) -> None:
+        args = self.parse_data(tok)
+        d, v, l, w = [ctx.deref(tok.l, args[k] or "") for k in "dvlw"]
+        assert d
+        if v == "": 
+            v = None
+        else:
+            try: v = int(v)
+            except ValueError: pass
+        l = int(l) if l else 0
+        w = float(w) if w != "" else 1.0
+        f = cl.feature(d, v, l)
+        if ctx.fspace is not None and f not in ctx.fspace:
+            raise EKLangError(f"Line {tok.l}: {f} not a member of working "
+                "feature space")
+        ctx.fstack.append((f, w))
 
-        # Parser data
-        self._chunks_s1: Dict[str, List[ChunkSpec]] = {}
-        self._chunks_s2: Dict[str, ChunkSpec] = {}
-        self._rules_s1: Dict[Tuple[str, str, str], List[RuleSpecS1]] = {}
-        self._rules_s2: Dict[str, RuleSpecS2] = {}
-        self._fspecs: list = []
-        self._rid: str = ""
-        self._rspec: Dict = {}
-        self._rulesets: List[str] = []
-        self._ruleset_id: str = ""
-        self._rnames: List[str] = []
-        self._ctx: List[str] = []
-        self._ctx_delims: List[int] = []
-        self._ctx_level = []
-        self._ctx_ruleset_level: int = 0
-        self._ctx_iter_level: List[int] = []
-        self._iter_ctx: List[IterContext] = [IterContext.NONE]
-        self._iter_vars: Dict[str, Any] = {}
-        self._var_data: List[Tuple[int, str]] = []
+    def parse_data(self, tok: Token):
+        mo = re.fullmatch(self.data_patterns[tok.i], tok.d["data"])
+        if mo: 
+            args = mo.groupdict()
+        else:
+            raise EKLangError(f"Line {tok.l}: Invalid feature expression")
+        return args
 
-    #####################
-    # Tokenizer Methods #
-    #####################
-
-    def _tokenize(self, f):
-        for i, line in enumerate(f):
-            line = self.comment.split(line, maxsplit=1)[0] # remove comments
-            for k in ["empty", "kw_exp", "data_exp"]:
-                exp, handler = self._dispatcher[k]
-                m = exp.fullmatch(line)
-                if m is not None:
-                    handler(i, line)
-                    break
-            else:
-                raise ParseError(
-                    f"Invalid syntax '{line.strip()}' on line {i + 1}")
-        return self._data            
-
-    def _tokenize_empty(self, i, line) -> None:
+    def ellipsis(self, tok: Token, ctx: Context) -> None:
         pass
 
-    def _tokenize_kw_exp(self, i: int, line: str) -> None:
-        self._update_indent_level(i, line)
-        kw_exp = line.strip()
-        head, tail = kw_exp.split(":")
-        head, tail = head.strip(), [(i, tail.strip())]
-        data = {(i, head): tail}
-        self._current.append(data)
-        self._prev = tail
-        
-    def _tokenize_data_exp(self, i, line) -> None:
-        self._update_indent_level(i, line)
-        data = (i, line.strip())
-        self._current.append(data)
+    def chunk(self, tok: Token, ctx: Context) -> None:
+        with ctx.label_scope(tok.l, tok.d["chunk_id"] or ""):
+            with ctx.feature_scope():
+                self.dispatch(tok.elts, ctx)
+                self.load_chunk(tok, ctx)
 
-    def _update_indent_level(self, i, line):
-        lspaces = len(line) - len(line.lstrip())
-        if lspaces % 4:
-            raise ParseError(f"Indentation error on line {i + 1}")
-        indent_diff = (lspaces // 4) - self._indent_level
-        self._indent_level += indent_diff
-        if indent_diff == 0:
-            pass
-        elif indent_diff == 1:
-            self._super.append(self._current)
-            self._current = self._prev
-        elif indent_diff < 0:
-            self._current = self._super[indent_diff]
-            self._super = self._super[:indent_diff]
-        else:
-            raise ParseError(f"Indentation error on line {i + 1}")
+    @staticmethod
+    def load_chunk(tok: Token, ctx: Context, noctx=False) -> None:
+        assert ctx.load
+        c = cl.chunk(ctx.gen_uri())
+        ctx.load.cs.append(c)
+        fdata, dims, ws = ctx.fstack, [], {}
+        if noctx: fdata = fdata[ctx.fdelims[-1]:]
+        for f, w in fdata:
+            ctx.load.fs[(c, f)] = 1.0
+            dims.append(f.dim)
+            if w and w != 1 and f.dim in ws and w != ws[f.dim]:
+                raise EKLangError(f"Line {tok.l}: Ambiguous weight "
+                    f"specification in {tok.t} block")
+            else:
+                ws[f.dim] = w
+        for dim in dims:
+            ctx.load.ws[(c, dim)] = ws.get(dim, 1.0)
 
-    ##############
-    # First Pass #
-    ##############
+    def conc(self, tok: Token, ctx: Context) -> None:
+        with ctx.label_scope(tok.l, tok.d["conc_id"] or ""):
+            with ctx.feature_scope():
+                self.dispatch(tok.elts, ctx)
+                self.load_chunk(tok, ctx, noctx=True)
+        assert ctx.load
+        ctx.load.rc[(ctx.load.rs[-1], ctx.load.cs[-1])] = 1.0
 
-    def _pass_1(self):
-        for block in self._data:
-            self._parser_dispatch(0, block, ["c_expr", "r_expr", 
-                "ruleset_expr", "iter_expr", "ctx_expr", "var_expr"])
+    def cond(self, tok: Token, ctx: Context) -> None:
+        with ctx.label_scope(tok.l, tok.d["cond_id"] or ""):
+            with ctx.feature_scope():
+                self.dispatch(tok.elts, ctx)
+                self.load_chunk(tok, ctx, noctx=False)
+        assert ctx.load
+        ctx.load.cr[(ctx.load.cs[-1], ctx.load.rs[-1])] = 1.0
 
-    def _parser_dispatch(self, i, block, keys):
-        (i, cmd), data = self._unpack_block(i, block)
-        for k in keys:
-            template, handler = self._dispatcher[k]
-            m = self._match_exp(cmd, template)
-            if m is not None:
-                handler(i, cmd, m, data)
-                break
-        else:
-            raise ParseError(f"Invalid command '{cmd}' on line {i + 1}")
+    def rule(self, tok: Token, ctx: Context) -> None:
+        assert ctx.load
+        with ctx.label_scope(tok.l, tok.d["rule_id"] or ""):
+            ctx.load.rs.append(cl.rule(ctx.gen_uri()))
+            self.dispatch(tok.elts, ctx)
+    
+    def ruleset(self, tok: Token, ctx: Context) -> None:
+        with ctx.ruleset_scope(tok.l, tok.d["ruleset_id"] or ""):
+            self.dispatch(tok.elts, ctx)
 
-    def _unpack_block(self, i, block):
-        if isinstance(block, dict):
-            assert len(block) == 1, f"Malformed block on line {i + 1}"
-            exp, data = list(block.items())[0]
-            return exp, data
-        elif isinstance(block, tuple):
-            return block, []
-        else: 
-            assert False, f"Malformed block on line {i + 1}"
-
-    def _prepare_id(self, key, index, n, prefix=True):
-        id_ = key
-        if n > 1:
-            id_ = uris.SEP.join([id_, str(index)]).strip(uris.SEP)
-        if prefix:
-            id_ = uris.FSEP.join([self.prefix, id_]).strip(uris.FSEP)
-        return id_
-
-    def _extract_id(self, match, i=None) -> str:
-        id_str = match.group("id")
-        if id_str is None:
-            raise ParseError(f"Invalid identifier '{id_str}'")
-        if id_str and not uris.ispath(id_str):
-            raise ParseError(f"Invalid identifier '{id_str}'")
-        if i is not None:
-            id_str = uris.SEP.join([id_str, str(i)])
-        return id_str
-
-    def _match_exp(self, exp, match_re):
-        exp = self._clean_exp(exp)
-        return match_re.fullmatch(exp)
-
-    def _clean_exp(self, exp):
-        exp = re.sub(" +", " ", exp)
-        old = None
-        while old != exp:
-            old = exp
-            for var, val in self._iter_vars.items():
-                exp = re.sub(f"{{{var}}}", str(val), exp)
-        return exp
-
-    ################################
-    # Methods for Parsing cf_exprs #
-    ################################
-
-    def _parse_cf_expr(self, i, cmd, m, _):
-        _d = m.group("d")
-        if _d is None:
-            raise ParseError(f"Empty dimension field on line {i + 1}.")
-        d: str = _d
-        v: str | int | None = m.group("v") or None
-        if v is not None:
-            try: 
-                v = int(v) 
-            except ValueError: 
-                pass
-            if v == "None":
-                v = None
-        l: int = int(m.group("l") or 0)
-        w: float = float(m.group("w") or 1)
-        if self.fspace is not None and feature(d, v, l) not in self.fspace:
-            raise ParseError(f"Feature spec '{(d, v, l)}' on line {i + 1} not "
-                "a member of given fspace")
-        self._fspecs.append(((d, v, l), ((d, l), w)))
-
-    ###############################
-    # Methods for Parsing c_exprs #
-    ###############################
-
-    @contextmanager
-    def _chunk_ctx(self):
-        self._fspecs = []
-        self._iter_ctx.append(IterContext.CHUNK)
-        yield
-        self._iter_ctx.pop()
-        self._fspecs = []
-
-    def _parse_c_expr(self, i, cmd, m, data):
-        cid = self._extract_id(m, i + 1)
-        assert isinstance(data, list), f"Malformed chunk block on line {i + 1}"
-        data = data[1:] + self._ctx
-        fs, ws = self._parse_c_data(i, data)
-        (self._chunks_s1
-            .setdefault(cid, [])
-            .append(ChunkSpec(fs=fs, ws=ws))) # type: ignore
-
-    def _parse_c_data(self, i, data):
-        with self._chunk_ctx():
-            for block in data:
-                self._parser_dispatch(i, block, keys=["cf_expr", "iter_expr"])
-            fs, _ws = zip(*self._fspecs)
-        ws = self._parse_cw_sequence(i, _ws)
-        return fs, ws
-
-    def _parse_cw_sequence(self, i, seq):
-        d = {}
-        for dim, weight in seq:
-            if dim in d and weight != 1.0:
-                raise ParseError(f"Multiple weight specs for dim '{dim}' "
-                    f"on line {i + 1}")
-            d[dim] = weight
-        return d
-
-    ###############################
-    # Methods for Parsing r_exprs #
-    ###############################
-
-    @contextmanager
-    def _rule_ctx(self, rid):
-        self._rid = rid
-        self._rspec = {}
-        self._iter_ctx.append(IterContext.RULE)
-        yield
-        self._iter_ctx.pop()
-        self._rspec = {}
-        self._rid = ""
-
-    def _parse_r_expr(self, i, cmd, m, data):
-        rid = (self._ruleset_id, self._extract_id(m), str(i + 1))
-        with self._rule_ctx(rid):
-            assert isinstance(data, list), "Malformed rule body."
-            for block in data[1:]:
-                self._parser_dispatch(i, block, ["r_subexpr", "iter_expr"])
-            if "conc" not in self._rspec:
-                raise ParseError(f"No conc defined for rule '{rid}' on "
-                    f"line {i + 1}")
-            if "cond" not in self._rspec:
-                raise ParseError(f"No conds defined for rule '{rid}' on "
-                    f"line {i + 1}")
-            conc, conds = self._rspec["conc"], self._rspec["cond"]
-            (self._rules_s1
-                .setdefault(rid, [])
-                .append(RuleSpecS1(conds=conds, conc=conc)))
-        
-    def _parse_r_subexpr(self, i, cmd, m, data):
-        t, n, w = m.group("type"), m.group("id"), float(m.group("w") or 1)
-        cid = uris.SEP.join(filter(bool, [t, n, str(i + 1)])).strip(uris.SEP)
-        if t == "cond": 
-            data = data + self._ctx
-        fs, ws = self._parse_c_data(i, data[1:])
-        parse = (cid, ChunkSpec(fs=fs, ws=ws), w) #type: ignore
-        if t == "conc":
-            if "conc" in self._rspec:
-                raise ParseError(f"Extra conc '{n}' in rule on line {i + 1}")
-            self._rspec[t] = parse
-        else:
-            assert t == "cond"
-            self._rspec.setdefault(t, []).append(parse)
-
-    #####################################
-    # Methods for Parsing ruleset_exprs #
-    #####################################
-
-    @contextmanager
-    def _ruleset(self, i, ruleset_id):
-
-        # Can this be relaxed?
-        if ruleset_id in self._rulesets:
-            raise ParseError(f"Framented definition for ruleset '{ruleset_id}' "
-                f"on line {i} ")
-        else:
-            self._rulesets.append(ruleset_id)
-
-        if self._ruleset_id != "":
-            raise ParseError(f"Nested ruleset on line {i}")
-
-        self._ruleset_id = ruleset_id
-        self._iter_ctx.append(IterContext.RULESET)
-        yield
-        self._iter_ctx.pop()
-        self._ruleset_id = ""
-
-    def _parse_ruleset_expr(self, i, cmd, m, data):
-        ruleset_id = self._extract_id(m)
-        with self._ruleset(i, ruleset_id):
-            for block in data[1:]:
-                self._parser_dispatch(i, block, ["r_expr", "iter_expr", 
-                    "ctx_expr"])
-
-    #################################
-    # Methods for Parsing ctx_exprs #
-    #################################
-
-    @contextmanager
-    def _local_ctx(self, i):
-        self._ctx_level.append(len(self._ctx_delims))
-        yield
-        lvl = self._ctx_level.pop()
-        self._contract_ctx(i, len(self._ctx_delims) - lvl)
-
-    def _parse_ctx_expr(self, i, cmd, m, data):
-        with self._local_ctx(i):
-            data = data[1:] # drop data after colon
+    def store(self, tok: Token, ctx: Context) -> None:
+        store_id = tok.d["store_id"]
+        if self.structure is not None:
             try:
-                index = [type(stmt) for stmt in data].index(dict)
-            except ValueError as e:
-                index = len(data)
-            self._ctx_delims.append(len(self._ctx))
-            self._ctx.extend(data[:index])
-            for block in data[index:]:
-                if self._ruleset_id:
-                    self._parser_dispatch(i, block, keys=["r_expr", 
-                        "iter_expr", "ctx_expr"])
+                store = self.structure[store_id]
+            except KeyError as e:
+                raise EKLangError(f"Line {tok.l}: No module at '{store_id}' "
+                    "in working structure") from e
+            else:
+                if not isinstance(store, cl.Module):
+                    raise EKLangError(f"Line {tok.l}: Expected Module "
+                        f"instance at '{store_id}', found "
+                        f"{store.__class__.__name__} instead")
+                elif not isinstance(store.process, cl.Store):
+                    raise EKLangError(f"Line {tok.l}: Expected process of "
+                        f"type Store at '{store_id}', found "
+                        f"{store.__class__.__name__} instead")
+        with ctx.store_scope(store_id):
+            self.dispatch(tok.elts, ctx)
+
+    def ctx_(self, tok: Token, ctx: Context) -> None:
+        with ctx.feature_scope():
+            self.dispatch(tok.elts, ctx)
+
+    def sig(self, tok: Token, ctx: Context) -> None:
+        self.dispatch(tok.elts, ctx)
+
+    def list_(self, tok: Token, ctx: Context) -> None:
+        args = self.parse_data(tok)
+        _ldata = ctx.deref(tok.l, args["data"])
+        _ldata = re.sub(" +", " ", _ldata.strip())
+        ldata = _ldata.split(" ")
+        ctx.vdata.extend(ldata)
+
+    def var(self, tok: Token, ctx: Context) -> None:
+        var_id = tok.d["var_id"]
+        with ctx.var_scope(tok.l, var_id):
+            self.dispatch(tok.elts, ctx)
+    
+    def for_(self, tok: Token, ctx: Context) -> None:
+        index = 0
+        for elt in tok.elts: 
+            if elt.t == r"'VAR": index += 1
+            else: break
+        with ctx.for_scope():
+            self.dispatch(tok.elts[:index], ctx)
+            for _ in self._iter(tok, ctx):
+                if tok.i in ["∅", "s"]:
+                    with ctx.feature_scope():
+                        self.dispatch(tok.elts[index:], ctx)
                 else:
-                    self._parser_dispatch(i, block, keys=["c_expr", "r_expr", 
-                        "ruleset_expr", "iter_expr", "ctx_expr"])
+                    assert tok.i in ["r", "c", "l"]
+                    self.dispatch(tok.elts[index:], ctx)
 
-    def _contract_ctx(self, i, levels):
-        if levels > len(self._ctx_delims):
-            raise ParseError(f"Context contraction too deep on line {i + 1}")
-        if levels:
-            n = self._ctx_delims[-levels]
-            self._ctx_delims = self._ctx_delims[:-levels]
-            self._ctx = self._ctx[:n - len(self._ctx)]
+    def _iter(self, tok: Token, ctx: Context):
+        vars_, seqs = list(zip(*ctx.frames.maps[0].items()))
+        lens = set(len(seq) for seq in seqs)
+        if len(lens) != 1:
+            raise EKLangError(f"Line {tok.l}: Iterated var lists must all "
+                f"have the same length")
+        else:
+            n, = lens
+        with ctx.var_frame():
+            if tok.d["mode"] == r"each":
+                for i in range(n):
+                    for j, k in enumerate(vars_):
+                        ctx.frames[k] = seqs[j][i]
+                        ctx.for_index[-1] = str(i).zfill(2)
+                    yield
+            else:
+                assert tok.d["mode"] == r"combinations"
+                k = int(tok.d["k"])
+                for i, (i1, i2) in enumerate(combinations(range(n), k)):
+                    for j, k in enumerate(vars_):
+                        ctx.frames[k] = [seqs[j][i1], seqs[j][i2]]
+                        ctx.for_index[-1] = str(i).zfill(2)
+                    yield
+    
 
-    #################################
-    # Methods for Parsing for_exprs #
-    #################################
-
-    def _parse_iter_expr(self, i, cmd, m, data):
-        _vars = m.group("vars")
-        vars = _vars.split(" ")
-        for var in vars:
-            if var in self._iter_vars:
-                raise ParseError(f"Reused var '{var}' in for expr on line "
-                    f"{i + 1}")
-        iterables, body = self._parse_iter_data(i, len(vars), data)
-        for vals in zip(*iterables):
-            for var, val in zip(vars, vals):
-                self._iter_vars[var] = val
-            for block in body:
-                if self._iter_ctx[-1] == IterContext.VAR:
-                    self._parser_dispatch(i, block, keys=["iter_expr", 
-                        "var_data_expr"])
-                elif self._iter_ctx[-1] == IterContext.CHUNK:
-                    self._parser_dispatch(i, block, keys=["iter_expr", 
-                        "cf_expr"])
-                elif self._iter_ctx[-1] == IterContext.RULE:
-                    self._parser_dispatch(i, block, keys=["iter_expr", 
-                        "r_subexpr"])
-                elif self._iter_ctx[-1] == IterContext.RULESET:
-                    self._parser_dispatch(i, block, keys=["iter_expr", 
-                        "r_expr", "ctx_expr"])
-                else:
-                    assert self._iter_ctx[-1] == IterContext.NONE
-                    self._parser_dispatch(i, block, keys=["iter_expr", "c_expr", 
-                        "r_expr", "ctx_expr"])
-        for var in vars:
-            del self._iter_vars[var]
-
-    def _parse_iter_data(self, i, n_seq, data):
-        if len(data) <= n_seq:
-            raise ParseError(f"Malformed iter block on line {i + 1}.")
-        iterables = []
-        for block in data[1:n_seq + 1]:
-            (j, cmd), _data = self._unpack_block(i, block)
-            if cmd != "in":
-                raise ParseError(f"Expected 'in' block on line {j + 1}, "
-                    f"got '{cmd}' instead")
-            if not len(_data):
-                raise ParseError(f"Empty 'in' block on line {j + 1}")
-            iterables.append(self._parse_var_data(_data).split())
-        if 1 < len(set(len(d) for d in iterables)):
-            raise ParseError(f"Uneven 'in' blocks on line {i + 1}")
-        body = data[n_seq + 1:]
-        return iterables, body
-
-    #################################
-    # Methods for Parsing var_exprs #
-    #################################
-
-    @contextmanager
-    def _var(self):
-        self._var_data = []
-        self._iter_ctx.append(IterContext.VAR)
-        yield
-        self._iter_ctx.pop()
-        self._var_data = []
-
-    def _parse_var_expr(self, i, cmd, m, data):
-        var = m.group("id")
-        with self._var():
-            for block in data:
-                self._parser_dispatch(i, block, keys=["iter_expr", 
-                    "var_data_expr"]) # order sig as var_data_expr matches all
-            self._iter_vars[var] = self._parse_var_data(self._var_data)
- 
-    def _parse_var_data_expr(self, i, cmd, m, data):
-        self._var_data.append((i, m.string))
- 
-    def _parse_var_data(self, data):
-        exp = " ".join([s for _, s in data])
-        return self._clean_exp(exp)
-
-    ###############
-    # Second Pass #
-    ###############
-
-    def _pass_2(self):
-        self._prepare_chunks_s2()
-        self._prepare_rules_s2()
-
-    def _prepare_chunks_s2(self):
-        
-        for cname, cspecs in self._chunks_s1.items():
-            n = len(cspecs)
-            for i, cspec in enumerate(cspecs):
-                cid = uris.SEP.join([self._c_prefix, cname]).strip(uris.SEP)
-                cid = self._prepare_id(cid, i, n)
-                self._chunks_s2[cid] = cspec
-
-    # This might need to be broken up.
-    def _prepare_rules_s2(self):
-        for (ruleset, rname, lineno), rspecs in self._rules_s1.items():
-            n = len(rspecs)
-            rname = (uris.SEP.join(
-                filter(bool, [self._r_prefix, ruleset, rname, lineno]))
-                .strip(uris.SEP))
-            if rname in self._rnames:
-                raise ParseError("Rule stub '{rname}' already in use." 
-                    "Check for clashes between rule names and ruleset names.")
-            for i, rspec in enumerate(rspecs):
-                rid = self._prepare_id(rname, i, n)
-                conc_id, conc_spec, conc_w = rspec["conc"]
-                conc_id = uris.SEP.join([rid, conc_id]).strip(uris.SEP)
-                self._chunks_s2[conc_id] = conc_spec
-                rspec2 = RuleSpecS2(conc=(conc_id, conc_w), conds=[])
-                n_conds = len(rspec["conds"])
-                for j, (cond_id, cond_spec, cond_w) in enumerate(rspec["conds"]):
-                    cond_id = self._prepare_id(cond_id, j, n_conds, False)
-                    cond_id = (uris.SEP
-                        .join([rid, cond_id])
-                        .strip(uris.SEP))
-                    self._chunks_s2[cond_id] = cond_spec
-                    rspec2["conds"].append((cond_id, cond_w))
-                self._rules_s2[rid] = rspec2
-
-    def _prepare_output(self):
-
-        cs, cf, cw = set(), nd.NumDict(), nd.NumDict()
-        for cid, cspec in self._chunks_s2.items():
-            c = chunk(cid)
-            cs.add(c)
-            for fspec in cspec["fs"]:
-                cf[c, feature(*fspec)] = 1
-            for dspec, w in cspec["ws"].items():
-                cw[c, dimension(*dspec)] = w
-        wn = cw.abs().sum_by(kf=first)
-
-        rs, cr, rc = set(), nd.NumDict(), nd.NumDict()
-        for rid, rspec in self._rules_s2.items():
-            conc_id, conc_w = rspec["conc"]
-            r, conc = rule(rid), chunk(conc_id)
-            rs.add(r)
-            rc[r, conc] = conc_w
-            for cond_id, cond_w in rspec["conds"]:
-                cond = chunk(cond_id)
-                cr[cond, r] = cond_w
-
-        return cs, rs, cf, cw, wn, cr, rc
-
-
-def load(f, structure: Structure, uri: str, p: nd.NumDict):
-    """Load top level knowledge encoded in a pyClarion markup file."""
-
-    module = structure[uri] 
-    if not isinstance(module, Module):
-        raise TypeError(f"Expected Module object at '{uri}', got "
-            f"'{type(module)}' instead")
-
-    store = module.process
-    if not isinstance(store, Store):
-        raise TypeError(f"Expected process of type Store in module '{uri}', "
-            f"got '{type(store)}' instead")
-
-    fspace = inspect.fspace(structure)
-    prefix = module.path
-    loader = Parser(prefix, fspace)
-    cs, rs, cf, cw, wn, cr, rc = loader.parse(f)
-
-    store.cf = cf
-    store.cw = cw
-    store.wn = wn
-    store.cr = cr
-    store.rc = rc
-
-    if store.cb is not None:
-        store.cb.update(p, nd.NumDict({c: 1 for c in cs}))
-    if store.rb is not None:
-        store.rb.update(p, nd.NumDict({r: 1 for r in rs}))
+def load(f: IO, structure: cl.Structure) -> None:
+    t, p, i = Tokenizer(), Parser(), Interpreter(structure)
+    for _load in i(p(t(f))):
+        assert _load.address in structure
+        module = structure[_load.address]
+        store = module.process
+        assert isinstance(store, cl.Store)
+        p = module.inputs[0][1]() # pull parameters from parameter module
+        # Populate store
+        store.cf = _load.fs
+        store.cw = _load.ws
+        store.wn = _load.wn
+        store.cr = _load.cr
+        store.rc = _load.rc
+        if store.cb is not None:
+            store.cb.update(p, cl.nd.NumDict({c: 1 for c in _load.cs}))
+        if store.rb is not None:
+            store.rb.update(p, cl.nd.NumDict({r: 1 for r in _load.rs}))    
