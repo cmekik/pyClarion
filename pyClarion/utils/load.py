@@ -31,7 +31,7 @@ indent = r"'INDENT"
 dedent = r"'DEDENT"
 
 
-class EKLangError(RuntimeError):
+class CCMLError(RuntimeError):
     pass
 
 
@@ -53,7 +53,7 @@ class IndentAnalyzer:
         spaces, exprs = mo.groups()
         num = len(spaces)
         if num % 4: 
-            raise EKLangError(f"Line {self.lineno}: Indent must be a multiple "
+            raise CCMLError(f"Line {self.lineno}: Indent must be a multiple "
                 "of 4 spaces")
         delta = (num // 4) - self.level
         self.level += delta
@@ -64,7 +64,7 @@ class IndentAnalyzer:
         if delta < 0:
             return "\n".join([dedent] * -delta + [exprs])
         else:
-            raise EKLangError(f"Line {self.lineno}: Indent too deep")
+            raise CCMLError(f"Line {self.lineno}: Indent too deep")
 
     @contextmanager
     def at_line(self, lineno: int) -> Generator[None, None, None]:
@@ -113,7 +113,7 @@ class Tokenizer:
                 args = re.fullmatch(self.tokens[t], mo[t]).groupdict() # type: ignore
                 yield Token(t=f"'{t}", d=args, l=lineno) # type: ignore
             else:
-                raise EKLangError(f"Line {lineno}: Invalid expression")
+                raise CCMLError(f"Line {lineno}: Invalid expression")
 
     def preprocess(self, stream: IO) -> Generator[Tuple[int, str], None, None]:
         indenter = IndentAnalyzer()
@@ -200,7 +200,7 @@ class Parser:
         pat = (self.grammar[tok.t] if tok.t in self.grammar 
             else self.grammar[(tok.t, tok.i)]) # type: ignore
         if not re.fullmatch(pat, seq):
-            raise EKLangError(f"Line {tok.l}: Syntax error "
+            raise CCMLError(f"Line {tok.l}: Syntax error "
                 f"in {tok.t[1:]} block")
         for elt in tok.elts:
             if elt.t not in self.terminals: 
@@ -282,7 +282,7 @@ class Context:
     @contextmanager
     def var_scope(self, lineno: int, var_id: str) -> Generator[None, None, None]:
         if var_id in self.frames.maps[0]:
-            raise EKLangError(f"Line {lineno}: Var '{var_id}' already defined "
+            raise CCMLError(f"Line {lineno}: Var '{var_id}' already defined "
                 f"in current scope")
         self.vstack.append(self.var_id)
         self.frames.maps[0][var_id] = []
@@ -319,13 +319,13 @@ class Context:
         try:
             data = self.frames[mo["id"]]
         except KeyError as e:
-            raise EKLangError(f"Line {self.lineno[-1]}: "
+            raise CCMLError(f"Line {self.lineno[-1]}: "
                 f"Undefined reference") from e
         if mo["index"]:
             try: 
                 data = data[int(mo["index"])]
             except IndexError as e:
-                raise EKLangError(f"Line {self.lineno[-1]}: Reference index out "
+                raise CCMLError(f"Line {self.lineno[-1]}: Reference index out "
                     f"of bounds") from e
         if mo["level"]:
             if isinstance(data, str):
@@ -333,10 +333,10 @@ class Context:
                 if mo2: 
                     return self._deref(mo2)
                 else: 
-                    raise EKLangError(f"Line {self.lineno[-1]}: Invalid "
+                    raise CCMLError(f"Line {self.lineno[-1]}: Invalid "
                         f"reference")
             else:
-                raise EKLangError(f"Line {self.lineno[-1]}: Invalid "
+                raise CCMLError(f"Line {self.lineno[-1]}: Invalid "
                     f"reference to list")
         if isinstance(data, list):
             data = " ".join(data)
@@ -399,7 +399,7 @@ class Interpreter:
         w = float(w) if w != "" else 1.0
         f = cl.feature(d, v, l)
         if ctx.fspace is not None and f not in ctx.fspace:
-            raise EKLangError(f"Line {tok.l}: {f} not a member of working "
+            raise CCMLError(f"Line {tok.l}: {f} not a member of working "
                 "feature space")
         ctx.fstack.append((f, w))
 
@@ -408,7 +408,7 @@ class Interpreter:
         if mo: 
             args = mo.groupdict()
         else:
-            raise EKLangError(f"Line {tok.l}: Invalid feature expression")
+            raise CCMLError(f"Line {tok.l}: Invalid feature expression")
         return args
 
     def ellipsis(self, tok: Token, ctx: Context) -> None:
@@ -431,7 +431,7 @@ class Interpreter:
             ctx.load.fs[(c, f)] = 1.0
             dims.append(f.dim)
             if w and w != 1 and f.dim in ws and w != ws[f.dim]:
-                raise EKLangError(f"Line {tok.l}: Ambiguous weight "
+                raise CCMLError(f"Line {tok.l}: Ambiguous weight "
                     f"specification in {tok.t} block")
             else:
                 ws[f.dim] = w
@@ -470,15 +470,15 @@ class Interpreter:
             try:
                 store = self.structure[store_id]
             except KeyError as e:
-                raise EKLangError(f"Line {tok.l}: No module at '{store_id}' "
+                raise CCMLError(f"Line {tok.l}: No module at '{store_id}' "
                     "in working structure") from e
             else:
                 if not isinstance(store, cl.Module):
-                    raise EKLangError(f"Line {tok.l}: Expected Module "
+                    raise CCMLError(f"Line {tok.l}: Expected Module "
                         f"instance at '{store_id}', found "
                         f"{store.__class__.__name__} instead")
                 elif not isinstance(store.process, cl.Store):
-                    raise EKLangError(f"Line {tok.l}: Expected process of "
+                    raise CCMLError(f"Line {tok.l}: Expected process of "
                         f"type Store at '{store_id}', found "
                         f"{store.__class__.__name__} instead")
         with ctx.store_scope(store_id):
@@ -522,7 +522,7 @@ class Interpreter:
         vars_, seqs = list(zip(*ctx.frames.maps[0].items()))
         lens = set(len(seq) for seq in seqs)
         if len(lens) != 1:
-            raise EKLangError(f"Line {tok.l}: Iterated var lists must all "
+            raise CCMLError(f"Line {tok.l}: Iterated var lists must all "
                 f"have the same length")
         else:
             n, = lens
