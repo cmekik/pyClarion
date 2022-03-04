@@ -54,7 +54,6 @@ class Receptors(Process1):
             to its value.
         """
         if isinstance(data, list):
-            print(nd.NumDict({f:1.0 for f in self._fseq(data)}))
             self._data = nd.NumDict({f: 1.0 for f in self._fseq(data)})
         elif isinstance(data, dict):
             fspecs, strengths = zip(*data.items())
