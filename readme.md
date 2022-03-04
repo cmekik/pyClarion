@@ -7,67 +7,10 @@ The primary resource for the implementation is Ron Sun's [*Anatomy of the Mind*]
 # Key Features
 
 - Convenient and modular agent assembly
-```python
-import pyClarion as cl
-from pyClarion import nd
-
-# Order of definition == Order of activation
-
-# Constructs defined within a Structure context are automatically linked
-with cl.Structure("agent") as agent: 
-
-    # sensory stimulus module to maintain stimulus
-    cl.Module(name="stim", process=Repeat(), i_uris=["stim"])
-
-    # parameter module to house process parameters
-    p = cl.Module(name="p", process=Repeat(), i_uris=["p"])
-
-    # Nested structures allowed
-    with cl.Structure("nacs") as nacs: 
-
-        # chunk pool to combine different chunk strength recommendations
-        cp = cl.Module(name="cp", process=CAM(), i_uris=["../stim"])
-
-        # boltzmann sampler to select chunks for retrieval
-        cl.Module(name="ret", process=BoltzmannSampler(), i_uris=["p", "cp"])
-
-# set boltzmann sampler's temperature parameter in the parameter module
-p.output = nd.NumDict({cl.feature("nacs/ret#temp"): 1e-3})
-
-# Access objects with uris
-assert agent["nacs/cp"] == cp
-```
 - A simple language for initializing explicit knowledge  
-```yaml
-rule:
-    conc:
-        A
-        B
-    cond:
-        X
-        Y
-        Z
-```
 - Numerical dictionaries with autodiff support
-```python
-from pyClarion import nd
 
-tape = nd.GradientTape()
-
-with tape:
-    d1 = nd.NumDict({1: 1.0, 2: 2.0})
-    d2 = nd.NumDict({1: 3.0, 2: 4.0})
-    d3 = d1 * d2 # elementwise multiplication by key
-    d4 = d3.sum_by(kf=lambda x: 3) # Sum values mapping to same key
-
-assert d4 == nd.NumDict({3: 11.0})
-
-d4, grads = tape.gradients(d4, (d1, d2))
-d1_grad, d2_grad = grads
-
-assert d1_grad == nd.NumDict({1: 3.0, 2: 4.0})
-assert d2_grad == nd.NumDict({1: 1.0, 2: 2.0})
-```
+See the tutorial for a demonstration of most of these features.
 
 # Installation
 

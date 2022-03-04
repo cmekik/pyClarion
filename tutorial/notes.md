@@ -49,7 +49,7 @@ cl.rule("rule_identifier")
 
 ### An Example
 
-To illustrate the concepts above, consider the task of simulating an agent in the style of Braitenberg vehicles. The following python script simulates such an agent that navigates a 2D environment. 
+To illustrate the concepts above, consider the task of simulating an agent in the style of Braitenberg vehicles. The following python script, included in the tutorial as `demo.py`, simulates such an agent that navigates a 2D environment. 
 
 ```python
 """
