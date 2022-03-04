@@ -5,7 +5,7 @@ from ..base import Structure, feature, uris
 
 
 def links(s: Structure) -> List[Tuple[str, str]]:
-    return [(module.path, uris.join(module.path, input)) # type: ignore
+    return [(module.path, uris.join(module.path, input[0])) # type: ignore
         for module in s.modules() for input in module.inputs]
 
 
