@@ -10,7 +10,8 @@ from .. import numdicts as nd
 from .utils import expand_dim, lag, group_by_dims, first, second, cf2cd, eye
 
 import re
-from typing import OrderedDict, Tuple, Dict, List, TypeVar
+from typing import (OrderedDict, Tuple, Dict, List, TypeVar, Union, Sequence, 
+    Generator)
 from functools import partial
 
 
@@ -29,12 +30,73 @@ class Repeat(Process1):
         return d
 
 
+class Receptors(Process1):
+    """Represents a perceptual channel."""
+
+    def __init__(
+        self, reprs: Union[List[str], Dict[str, List[Union[str, int]]]]
+    ) -> None:
+        self._reprs = reprs
+        self._data: nd.NumDict[feature] = nd.NumDict()
+
+    def call(self) -> nd.NumDict[feature]:
+        return self._data
+
+    def stimulate(
+        self, data: Union[List[Union[str, Tuple[str, Union[str, int]]]], 
+            Dict[Union[str, Tuple[str, Union[str, int]]], float]]
+    ) -> None:
+        """
+        Set perceptual stimulus levels for defined perceptual features.
+        
+        :param data: Stimulus data. If list, each entry is given an activation 
+            value of 1.0. If dict, each key is set to an activation level equal 
+            to its value.
+        """
+        if isinstance(data, list):
+            print(nd.NumDict({f:1.0 for f in self._fseq(data)}))
+            self._data = nd.NumDict({f: 1.0 for f in self._fseq(data)})
+        elif isinstance(data, dict):
+            fspecs, strengths = zip(*data.items())
+            fseq = self._fseq(fspecs) # type: ignore
+            self._data = nd.NumDict({f: v for f, v in zip(fseq, strengths)})
+        else:
+            raise ValueError("Stimulus spec must be list or dict, "
+                f"got {type(data)}.")
+
+    def _fseq(
+        self, data: Sequence[Union[str, Tuple[str, Union[str, int]]]]
+    ) -> Generator[feature, None, None]:
+        for x in data:
+            if isinstance(x, tuple):
+                f = feature(expand_dim(x[0], self.prefix), x[1]) 
+            else:
+                f = feature(expand_dim(x, self.prefix)) 
+            if f in self.reprs:
+                yield f
+            else:
+                raise ValueError(f"Unexpected stimulus feature spec: '{x}'")
+
+    @property
+    def reprs(self) -> Tuple[feature]:
+        if isinstance(self._reprs, list):
+            return tuple(feature(expand_dim(x, self.prefix)) 
+                for x in self._reprs)
+        else:
+            assert isinstance(self._reprs, dict)
+            return tuple(
+                feature(expand_dim(d, self.prefix), v) if len(l) 
+                else feature(expand_dim(d, self.prefix)) 
+                for d, l in self._reprs.items() for v in l 
+            )
+
+
 class Actions(Process1):
     """Represents external actions."""
 
     _cmd_pre = "cmd"
 
-    def __init__(self, actions: Dict[str, List[str]]) -> None:
+    def __init__(self, actions: Dict[str, List[Union[str, int]]]) -> None:
         self.actions = OrderedDict(actions)
 
     def call(self, c: nd.NumDict[feature]) -> nd.NumDict[feature]:
