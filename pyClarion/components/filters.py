@@ -1,10 +1,9 @@
 from __future__ import annotations
+from typing import Tuple, TypeVar, Sequence
 
-from typing import Tuple, List, TypeVar, Sequence
-
-from ..base import Process, feature
+from ..base import feature
 from .wm import Flags
-from .utils import expand_dim
+from .. import dev as cld
 from .. import numdicts as nd
 
 
@@ -14,7 +13,7 @@ __all__ = ["Gates", "DimFilter"]
 T = TypeVar("T")
 
 
-class Gates(Process):
+class Gates(cld.Process):
     """Selectively gates inputs."""
 
     def __init__(self, fs: Sequence[str]) -> None:
@@ -69,7 +68,7 @@ class Gates(Process):
         return self._flags.nops
 
 
-class DimFilter(Process):
+class DimFilter(cld.Process):
     """Selectively filters dimensions."""
 
     initial = (nd.NumDict(), nd.NumDict())
@@ -86,10 +85,10 @@ class DimFilter(Process):
         return store, d.mul_from(store, kf=self._feature2flag)
 
     def _feature2flag(self, f):
-        return feature(expand_dim(f.d.replace("#", "."), self.prefix))
+        return feature(cld.prefix(f.d.replace(cld.FSEP, "."), self.prefix))
 
     def update(self, c):
-        self._flags.fs = tuple(f.d.replace("#", ".") 
+        self._flags.fs = tuple(f.d.replace(cld.FSEP, ".") 
             for fspace in self.fspaces for f in fspace()) 
         self._flags.update(c)
 

@@ -5,9 +5,9 @@ __all__ = ["Repeat", "Actions", "CAM", "Shift", "BoltzmannSampler",
     "ActionSampler", "BottomUp", "TopDown", "AssociativeRules", "ActionRules"]
 
 
-from ..base import Process, dimension, feature, chunk, rule, uris
+from ..base import dimension, feature, chunk, rule
 from .. import numdicts as nd
-from .utils import expand_dim, lag, group_by_dims, first, second, cf2cd, eye
+from .. import dev as cld
 
 import re
 from typing import (OrderedDict, Tuple, Dict, List, TypeVar, Union, Sequence, 
@@ -18,20 +18,19 @@ from functools import partial
 T = TypeVar("T")
 
 
-class Process1(Process):
-    """A single output process."""    
-    initial = nd.NumDict(c=0)
-
-
-class Repeat(Process1):
+class Repeat(cld.Process):
     """Copies signal from a single source."""
+
+    initial = nd.NumDict()
 
     def call(self, d: nd.NumDict[T]) -> nd.NumDict[T]:
         return d
 
 
-class Receptors(Process1):
+class Receptors(cld.Process):
     """Represents a perceptual channel."""
+
+    initial = nd.NumDict()
 
     def __init__(
         self, reprs: Union[List[str], Dict[str, List[Union[str, int]]]]
@@ -68,9 +67,9 @@ class Receptors(Process1):
     ) -> Generator[feature, None, None]:
         for x in data:
             if isinstance(x, tuple):
-                f = feature(expand_dim(x[0], self.prefix), x[1]) 
+                f = feature(cld.prefix(x[0], self.prefix), x[1]) 
             else:
-                f = feature(expand_dim(x, self.prefix)) 
+                f = feature(cld.prefix(x, self.prefix)) 
             if f in self.reprs:
                 yield f
             else:
@@ -79,20 +78,21 @@ class Receptors(Process1):
     @property
     def reprs(self) -> Tuple[feature]:
         if isinstance(self._reprs, list):
-            return tuple(feature(expand_dim(x, self.prefix)) 
+            return tuple(feature(cld.prefix(x, self.prefix)) 
                 for x in self._reprs)
         else:
             assert isinstance(self._reprs, dict)
             return tuple(
-                feature(expand_dim(d, self.prefix), v) if len(l) 
-                else feature(expand_dim(d, self.prefix)) 
+                feature(cld.prefix(d, self.prefix), v) if len(l) 
+                else feature(cld.prefix(d, self.prefix)) 
                 for d, l in self._reprs.items() for v in l 
             )
 
 
-class Actions(Process1):
+class Actions(cld.Process):
     """Represents external actions."""
 
+    initial = nd.NumDict()
     _cmd_pre = "cmd"
 
     def __init__(self, actions: Dict[str, List[Union[str, int]]]) -> None:
@@ -109,7 +109,7 @@ class Actions(Process1):
         result = {}
         for d, vs in self.actions.items():
             for v in vs:
-                s = a[feature(expand_dim(d, self.prefix), v)]
+                s = a[feature(cld.prefix(d, self.prefix), v)]
                 if s == 1 and d not in result and v is not None:
                     result[d] = v
                 elif s == 1 and d in result and v is not None:
@@ -121,7 +121,7 @@ class Actions(Process1):
     def _cmd2repr(self, cmd: feature):
         _d, v, l = cmd
         if l != 0: raise ValueError("Lagged cmd not allowed.")
-        d = re.sub(f"{uris.FSEP}{self._cmd_pre}/", f"{uris.FSEP}", _d)
+        d = re.sub(f"{cld.FSEP}{self._cmd_pre}/", f"{cld.FSEP}", _d)
         return feature(d, v)
 
     def _action_items(self):
@@ -133,35 +133,39 @@ class Actions(Process1):
     @property
     def reprs(self) -> Tuple[feature, ...]:
         ds, vls = list(zip(*self.actions.items()))
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) # type: ignore
         return tuple(feature(d, v) for d, vs in zip(ds, vls) for v in vs)
 
     @property
     def cmds(self) -> Tuple[feature, ...]:
         ds, vls = self._action_items()
-        ds = [uris.SEP.join([self._cmd_pre, d]).strip(uris.SEP) # type: ignore
+        ds = [cld.SEP.join([self._cmd_pre, d]).strip(cld.SEP) # type: ignore
             for d in ds] 
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) # type: ignore
         vls = [[None] + l for l in vls] # type: ignore
         return tuple(feature(d, v) for d, vs in zip(ds, vls) for v in vs)
 
     @property
     def nops(self) -> Tuple[feature, ...]:
-        ds = [uris.SEP.join([self._cmd_pre, d]).strip(uris.SEP) # type: ignore
+        ds = [cld.SEP.join([self._cmd_pre, d]).strip(cld.SEP) # type: ignore
             for d in self.actions.keys()] 
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) # type: ignore
         return tuple(feature(d, None) for d in ds)
 
 
-class CAM(Process1):
+class CAM(cld.Process):
     """Computes the combined-add-max activation for each node in a pool."""
+
+    initial = nd.NumDict()
 
     def call(self, *inputs: nd.NumDict[T]) -> nd.NumDict[T]:
         return nd.NumDict.eltwise_cam(*inputs)
 
 
-class Shift(Process1):
+class Shift(cld.Process):
     """Shifts feature strengths by one time step."""
+
+    initial = nd.NumDict()
 
     def __init__(
         self, lead: bool = False, max_lag: int = 1, min_lag: int = 0
@@ -174,7 +178,7 @@ class Shift(Process1):
         :param min_lag: Drops features with lags less than this value.
         """
 
-        self.lag = partial(lag, val=1 if not lead else -1)
+        self.lag = partial(cld.lag, val=1 if not lead else -1)
         self.min_lag = min_lag
         self.max_lag = max_lag
 
@@ -185,7 +189,7 @@ class Shift(Process1):
         return type(f) == feature and self.min_lag <= f.dim.lag <= self.max_lag
 
 
-class BoltzmannSampler(Process):
+class BoltzmannSampler(cld.Process):
     """Samples a node according to a Boltzmann distribution."""
 
     initial = (nd.NumDict(), nd.NumDict())
@@ -214,10 +218,10 @@ class BoltzmannSampler(Process):
     @property
     def params(self) -> Tuple[feature, ...]:
         return tuple(feature(dim) 
-            for dim in expand_dim(("th", "temp"), self.prefix))
+            for dim in cld.prefix(("th", "temp"), self.prefix))
 
 
-class ActionSampler(Process):
+class ActionSampler(cld.Process):
     """
     Selects actions and relays action paramaters.
 
@@ -227,7 +231,7 @@ class ActionSampler(Process):
     distribution.
     """
 
-    initial = nd.NumDict(c=0), nd.NumDict(c=0)
+    initial = (nd.NumDict(), nd.NumDict())
 
     def call(
         self, p: nd.NumDict[feature], d: nd.NumDict[feature]
@@ -245,7 +249,7 @@ class ActionSampler(Process):
             distributions contains the sampling probabilities for each action
         """
 
-        dims = group_by_dims(self.fspaces[0]())
+        dims = cld.group_by_dims(self.fspaces[0]())
         temp = p.isolate(key=self.params[0])
         _dists, _actions = [], [] 
         for fs in dims.values():
@@ -267,11 +271,13 @@ class ActionSampler(Process):
 
     @property
     def params(self) -> Tuple[feature, ...]:
-        return (feature(expand_dim("temp", self.prefix)),)
+        return (feature(cld.prefix("temp", self.prefix)),)
 
 
-class BottomUp(Process1):
+class BottomUp(cld.Process):
     """Propagates bottom-up activations."""
+
+    initial = nd.NumDict()
 
     def call(
         self, 
@@ -291,16 +297,18 @@ class BottomUp(Process1):
         """
 
         return (fs
-            .put(d, kf=second, strict=True)
-            .cam_by(kf=cf2cd)
-            .mul_from(ws, kf=eye)
-            .sum_by(kf=first)
+            .put(d, kf=cld.second, strict=True)
+            .cam_by(kf=cld.cf2cd)
+            .mul_from(ws, kf=cld.eye)
+            .sum_by(kf=cld.first)
             .squeeze()
-            .div_from(wn, kf=eye, strict=True))
+            .div_from(wn, kf=cld.eye, strict=True))
 
 
-class TopDown(Process1):
+class TopDown(cld.Process):
     """Propagates top-down activations."""
+
+    initial = nd.NumDict()
 
     def call(
         self, 
@@ -317,13 +325,13 @@ class TopDown(Process1):
         """
 
         return (fs
-            .mul_from(d, kf=first, strict=True)
-            .mul_from(ws, kf=cf2cd, strict=True)
-            .cam_by(kf=second) 
+            .mul_from(d, kf=cld.first, strict=True)
+            .mul_from(ws, kf=cld.cf2cd, strict=True)
+            .cam_by(kf=cld.second) 
             .squeeze())
 
 
-class AssociativeRules(Process):
+class AssociativeRules(cld.Process):
     """Propagates activations according to associative rules."""
 
     initial = (nd.NumDict(), nd.NumDict())
@@ -344,22 +352,22 @@ class AssociativeRules(Process):
         """
 
         norm = (cr
-            .put(cr.abs().sum_by(kf=first), kf=first)
+            .put(cr.abs().sum_by(kf=cld.first), kf=cld.first)
             .set_c(1))
         s_r = (cr
-            .mul_from(d, kf=first, strict=True)
+            .mul_from(d, kf=cld.first, strict=True)
             .div(norm)
-            .sum_by(kf=first)
+            .sum_by(kf=cld.first)
             .squeeze())
         s_c = (rc
-            .mul_from(s_r, kf=first, strict=True)
-            .max_by(kf=first)
+            .mul_from(s_r, kf=cld.first, strict=True)
+            .max_by(kf=cld.first)
             .squeeze())
 
         return s_c, s_r
 
 
-class ActionRules(Process):
+class ActionRules(cld.Process):
     """Selects action chunks according to action rules."""
 
     initial = (nd.NumDict(), nd.NumDict(), nd.NumDict())
@@ -386,13 +394,13 @@ class ActionRules(Process):
         _d = d.keep_greater(ref=p.isolate(key=self.params[0]))
         if len(_d) and len(cr):
             dist = (cr
-                .mul_from(_d, kf=first)
+                .mul_from(_d, kf=cld.first)
                 .boltzmann(p.isolate(key=self.params[1]))
-                .transform_keys(kf=second)
+                .transform_keys(kf=cld.second)
                 .squeeze())
-            r_sampled = rc.put(dist.sample().squeeze(), kf=first)
-            r_data = r_sampled.transform_keys(kf=first).squeeze()
-            action = r_sampled.mul(rc).transform_keys(kf=second).squeeze()
+            r_sampled = rc.put(dist.sample().squeeze(), kf=cld.first)
+            r_data = r_sampled.transform_keys(kf=cld.first).squeeze()
+            action = r_sampled.mul(rc).transform_keys(kf=cld.second).squeeze()
             return action, r_data, dist
         else:
             return self.initial
@@ -400,4 +408,4 @@ class ActionRules(Process):
     @property
     def params(self) -> Tuple[feature, ...]:
         return tuple(feature(dim) 
-            for dim in expand_dim(("th", "temp"), self.prefix))
+            for dim in cld.prefix(("th", "temp"), self.prefix))

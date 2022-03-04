@@ -8,8 +8,11 @@ from typing import Dict, List, Tuple, Iterable, Optional, Set, IO, Generator
 from collections import OrderedDict, ChainMap, deque
 from itertools import combinations
 
-import pyClarion as cl
-from pyClarion.components.utils import first
+from ..base import dimension, feature, chunk, rule, Structure, Module
+from .. import numdicts as nd
+from .. import dev as cld
+from .. import components as comps
+from . import inspect
 
 
 sign = r"\+|\-"
@@ -207,20 +210,19 @@ class Parser:
                 self.check_grammar(elt)
 
 
-NumDict = cl.nd.NumDict
 @dataclass
 class Load:
     address: str
-    cs: List[cl.chunk] = field(default_factory=list)
-    rs: List[cl.rule] = field(default_factory=list)
-    fs: NumDict[Tuple[cl.chunk, cl.feature]] = field(default_factory=NumDict)
-    ws: NumDict[Tuple[cl.chunk, cl.dimension]] = field(default_factory=NumDict)
-    cr: NumDict[Tuple[cl.chunk, cl.rule]] = field(default_factory=NumDict)
-    rc: NumDict[Tuple[cl.rule, cl.chunk]] = field(default_factory=NumDict)
+    cs: List[chunk] = field(default_factory=list)
+    rs: List[rule] = field(default_factory=list)
+    fs: nd.NumDict[Tuple[chunk, feature]] = field(default_factory=nd.NumDict)
+    ws: nd.NumDict[Tuple[chunk, dimension]] = field(default_factory=nd.NumDict)
+    cr: nd.NumDict[Tuple[chunk, rule]] = field(default_factory=nd.NumDict)
+    rc: nd.NumDict[Tuple[rule, chunk]] = field(default_factory=nd.NumDict)
 
     @property
-    def wn(self) -> NumDict[cl.chunk]:
-        return self.ws.abs().sum_by(kf=first)
+    def wn(self) -> nd.NumDict[chunk]:
+        return self.ws.abs().sum_by(kf=cld.first)
 
 
 @dataclass
@@ -228,9 +230,9 @@ class Context:
     loaded: List[Load] = field(default_factory=list)
     load: Optional[Load] = None
     lstack: List[str] = field(default_factory=list)
-    fstack: List[Tuple[cl.feature, Optional[float]]] = field(default_factory=list)
+    fstack: List[Tuple[feature, Optional[float]]] = field(default_factory=list)
     fdelims: List[int] = field(default_factory=list)
-    fspace: Optional[Set[cl.feature]] = None
+    fspace: Optional[Set[feature]] = None
     frames: ChainMap = field(default_factory=ChainMap)
     vstack: List[str] = field(default_factory=list)
     for_vars: list = field(default_factory=list)
@@ -249,7 +251,7 @@ class Context:
         return self.lineno[-1].lstrip("0")
 
     @contextmanager
-    def fspace_scope(self, fspace: Optional[Set[cl.feature]]) -> Generator[None, None, None]:
+    def fspace_scope(self, fspace: Optional[Set[feature]]) -> Generator[None, None, None]:
         self.fspace = fspace
         yield
         self.fspace = None
@@ -354,7 +356,7 @@ class Interpreter:
         r"l": fr"(?P<data>{literal}(?: +{literal})*)",
     }
  
-    def __init__(self, structure: Optional[cl.Structure] = None):
+    def __init__(self, structure: Optional[Structure] = None):
         self.structure = structure
         self.dispatcher = {
             (r"'DATA", r"c"): self.feature,
@@ -374,7 +376,7 @@ class Interpreter:
 
     def __call__(self, ast):
         ctx = Context()
-        fspace = (set(cl.inspect.fspace(self.structure)) 
+        fspace = (set(inspect.fspace(self.structure)) 
             if self.structure is not None else None)
         with ctx.fspace_scope(fspace):
             self.dispatch(ast.elts, ctx)
@@ -397,7 +399,7 @@ class Interpreter:
             except ValueError: pass
         l = int(l) if l else 0
         w = float(w) if w != "" else None
-        f = cl.feature(d, v, l)
+        f = feature(d, v, l)
         if ctx.fspace is not None and f not in ctx.fspace:
             raise CCMLError(f"Line {tok.l}: {f} not a member of working "
                 "feature space")
@@ -423,7 +425,7 @@ class Interpreter:
     @staticmethod
     def load_chunk(tok: Token, ctx: Context, noctx=False) -> None:
         assert ctx.load
-        c = cl.chunk(ctx.gen_uri())
+        c = chunk(ctx.gen_uri())
         ctx.load.cs.append(c)
         fdata, dims, ws = ctx.fstack, [], {}
         if noctx: fdata = fdata[ctx.fdelims[-1]:]
@@ -458,7 +460,7 @@ class Interpreter:
     def rule(self, tok: Token, ctx: Context) -> None:
         assert ctx.load
         with ctx.label_scope(tok.l, tok.d["rule_id"] or ""):
-            ctx.load.rs.append(cl.rule(ctx.gen_uri()))
+            ctx.load.rs.append(rule(ctx.gen_uri()))
             self.dispatch(tok.elts, ctx)
     
     def ruleset(self, tok: Token, ctx: Context) -> None:
@@ -474,11 +476,11 @@ class Interpreter:
                 raise CCMLError(f"Line {tok.l}: No module at '{store_id}' "
                     "in working structure") from e
             else:
-                if not isinstance(store, cl.Module):
+                if not isinstance(store, Module):
                     raise CCMLError(f"Line {tok.l}: Expected Module "
                         f"instance at '{store_id}', found "
                         f"{store.__class__.__name__} instead")
-                elif not isinstance(store.process, cl.Store):
+                elif not isinstance(store.process, comps.Store):
                     raise CCMLError(f"Line {tok.l}: Expected process of "
                         f"type Store at '{store_id}', found "
                         f"{store.__class__.__name__} instead")
@@ -552,13 +554,13 @@ class Interpreter:
                     yield
     
 
-def load(f: IO, structure: cl.Structure) -> None:
+def load(f: IO, structure: Structure) -> None:
     t, p, i = Tokenizer(), Parser(), Interpreter(structure)
     for _load in i(p(t(f))):
         assert _load.address in structure
         module = structure[_load.address]
         store = module.process
-        assert isinstance(store, cl.Store)
+        assert isinstance(store, comps.Store)
         p = module.inputs[0][1]() # pull parameters from parameter module
         # Populate store
         store.cf = _load.fs
@@ -567,6 +569,6 @@ def load(f: IO, structure: cl.Structure) -> None:
         store.cr = _load.cr
         store.rc = _load.rc
         if store.cb is not None:
-            store.cb.update(p, cl.nd.NumDict({c: 1 for c in _load.cs}))
+            store.cb.update(p, nd.NumDict({c: 1 for c in _load.cs}))
         if store.rb is not None:
-            store.rb.update(p, cl.nd.NumDict({r: 1 for r in _load.rs}))    
+            store.rb.update(p, nd.NumDict({r: 1 for r in _load.rs}))    

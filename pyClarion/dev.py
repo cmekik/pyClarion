@@ -1,17 +1,22 @@
-from ..base.symbols import feature, dimension, chunk
-from ..base import uris
+"""Tools for developing new pyClarion components."""
 
+
+from .base import feature, dimension, chunk, Process
+from .base.uris import (FSEP, SEP, SUP, ID, ispath, join, split, split_head, 
+    commonprefix, remove_prefix, relativize, prefix)
 from typing import overload, Dict, Any, Tuple, Iterable, Callable, TypeVar, List
 
 
-__all__ = ["lag", "first", "second", "expand_dim", "group_by", "group_by_dims", 
-    "collect_dims"]
+__all__ = ["FSEP", "SEP", "SUP", "ID", "Process", "lag", "first", "second", 
+    "group_by", "group_by_dims", "ispath", "join", "split", "split_head", 
+    "commonprefix", "remove_prefix", "relativize", "prefix"]
 
 
 T = TypeVar("T")
 
 
 def eye(x: T) -> T:
+    """Return input x (identity function)."""
     return x
 
 
@@ -34,44 +39,18 @@ def lag(x, val = 1):
 
 
 def first(pair: Tuple[T, Any]) -> T:
+    """Return the first element in a pair."""
     return pair[0]
 
 
 def second(pair: Tuple[T, Any]) -> T:
+    """Return the second element in a pair."""
     return pair[1]
 
 
 def cf2cd(key: Tuple[chunk, feature]) -> Tuple[chunk, dimension]:
+    """Convert a chunk-feature pair to a chunk-dimension pair."""
     return key[0], key[1].dim
-
-
-@overload
-def expand_dim(x: str, prefix: str) -> str:
-    ...
-
-@overload
-def expand_dim(x: Dict[str, Any], prefix: str) -> Dict[str, Any]:
-    ...
-
-@overload
-def expand_dim(x: List[str], prefix: str) -> List[str]:
-    ...
-
-@overload
-def expand_dim(x: Tuple[str, ...], prefix: str) -> Tuple[str, ...]:
-    ...
-
-def expand_dim(x, prefix):
-    if isinstance(x, str):
-        return uris.FSEP.join([prefix, x]).strip(uris.FSEP)
-    elif isinstance(x, dict):
-        return {uris.FSEP.join([prefix, k]).strip(uris.FSEP): v 
-            for k, v in x.items()}
-    elif isinstance(x, list):
-        return list(uris.FSEP.join([prefix, k]).strip(uris.FSEP) for k in x)
-    else:
-        assert isinstance(x, tuple)
-        return tuple(uris.FSEP.join([prefix, k]).strip(uris.FSEP) for k in x)
 
 
 def group_by(iterable: Iterable, key: Callable) -> Dict[Any, Tuple]:
@@ -95,11 +74,3 @@ def group_by_dims(
     :param features: An iterable of features to be grouped by dimension.
     """
     return group_by(iterable=features, key=feature.dim.fget)
-
-
-def collect_dims(features):
-    dims = []
-    for f in features:
-        if f.d not in dims:
-            dims.append(f.d)
-    return dims

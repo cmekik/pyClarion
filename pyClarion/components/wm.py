@@ -3,15 +3,15 @@ import re
 
 from ..base import feature, Process, uris, chunk
 from .. import numdicts as nd
-from .basic import Process1
-from .utils import expand_dim, first, second
+from .. import dev as cld
 
 
 __all__ = ["Flags", "Slots"]
 
 
-class Flags(Process1):
+class Flags(cld.Process):
 
+    initial = nd.NumDict()
     set_prefix = "set"
 
     def __init__(self, fs: Sequence[str], vs: Sequence[int] = (-1, 0, 1)) -> None:
@@ -51,24 +51,24 @@ class Flags(Process1):
         l, sep, r = f_cmd.d.partition(uris.FSEP)
         d_cmd = l if not sep else r
         flag = re.sub("^set/", "", d_cmd)
-        f = feature(expand_dim(flag, self.prefix))
+        f = feature(cld.prefix(flag, self.prefix))
         assert f in self.flags, f"regexp sub likely failed: '{f}'"
         return f
 
     @property
     def flags(self) -> Tuple[feature, ...]:
-        return tuple(feature(dim) for dim in expand_dim(self.fs, self.prefix))
+        return tuple(feature(dim) for dim in cld.prefix(self.fs, self.prefix))
 
     @property
     def cmds(self):
         dims = [uris.SEP.join([self.set_prefix, f]) for f in self.fs]
-        dims = expand_dim(dims, self.prefix)
+        dims = cld.prefix(dims, self.prefix)
         return tuple(feature(dim, v) for dim in dims for v in self.vs)
 
     @property
     def nops(self):
         dims = [uris.SEP.join([self.set_prefix, f]) for f in self.fs]
-        dims = expand_dim(dims, self.prefix)
+        dims = cld.prefix(dims, self.prefix)
         return tuple(feature(dim, None) for dim in dims)
 
 
@@ -99,13 +99,13 @@ class Slots(Process):
             .keep(sf=lambda k: k.d not in self._write_dims() and k.v == 1)
             .transform_keys(kf=self._cmd2slot))
         chunks = (self.store
-            .put(rd, kf=first)
+            .put(rd, kf=cld.first)
             .squeeze()
-            .max_by(kf=second))
+            .max_by(kf=cld.second))
 
         full = (self.store
             .abs()
-            .sum_by(kf=first)
+            .sum_by(kf=cld.first)
             .greater(0)
             .mul(2)
             .sub(1)
@@ -113,8 +113,8 @@ class Slots(Process):
             .set_c(0)
             .transform_keys(kf=self._full_flag))
         match = (self.store
-            .put(m, kf=second)
-            .cam_by(kf=first)
+            .put(m, kf=cld.second)
+            .cam_by(kf=cld.first)
             .squeeze()
             .transform_keys(kf=self._match_flag))
         flags = full + match
@@ -135,14 +135,14 @@ class Slots(Process):
                 .squeeze()))
 
     def _write_dims(self) -> List[str]:
-        return expand_dim([f"write/{i + 1}" for i in range(self.slots)], 
+        return cld.prefix([f"write/{i + 1}" for i in range(self.slots)], 
             self.prefix)
     
     def _full_flag(self, i: int) -> feature:
-        return feature(expand_dim(f"full{uris.SEP}{i}", self.prefix))
+        return feature(cld.prefix(f"full{uris.SEP}{i}", self.prefix))
     
     def _match_flag(self, i: int) -> feature:
-        return feature(expand_dim(f"match{uris.SEP}{i}", self.prefix))
+        return feature(cld.prefix(f"match{uris.SEP}{i}", self.prefix))
 
     def _cmd2slot(self, cmd: feature) -> int:
         dim = cmd.d
@@ -152,7 +152,7 @@ class Slots(Process):
         
     @property
     def flags(self) -> Tuple[feature, ...]:
-        tup = expand_dim(("full", "match"), self.prefix) 
+        tup = cld.prefix(("full", "match"), self.prefix) 
         return tuple(feature(f"{k}{uris.SEP}{i + 1}") 
             for k in tup for i in range(self.slots))
 
@@ -163,7 +163,7 @@ class Slots(Process):
             d[f"read/{i + 1}"] = (0, 1)
             d[f"write/{i + 1}"] = (-1, 0, +1)
         return tuple(feature(k, v) 
-            for k, vs in expand_dim(d, self.prefix).items() for v in vs)
+            for k, vs in cld.prefix(d, self.prefix).items() for v in vs)
 
     @property
     def nops(self) -> Tuple[feature, ...]:
@@ -172,4 +172,4 @@ class Slots(Process):
             d[f"read/{i + 1}"] = 0
             d[f"write/{i + 1}"] = 0
         return tuple(feature(k, v) 
-            for k, v in expand_dim(d, self.prefix).items())
+            for k, v in cld.prefix(d, self.prefix).items())

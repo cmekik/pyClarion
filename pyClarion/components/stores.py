@@ -2,14 +2,13 @@
 
 
 from __future__ import annotations
-
-from ..base import Process, uris, dimension, feature, chunk, rule
-from .. import numdicts as nd
-from .utils import first, expand_dim, eye
-
 from typing import (OrderedDict, Tuple, Any, Dict, List, Generic, TypeVar, 
     Container, Optional, Callable)
 from itertools import count
+
+from ..base import Process, uris, dimension, feature, chunk, rule
+from .. import numdicts as nd
+from .. import dev as cld
 
 
 __all__ = ["BLATracker", "Store", "GoalStore"]
@@ -49,7 +48,7 @@ class BLATracker(Generic[T]):
         dec = p.isolate(key=self.params[3])
 
         selector = self.uses > self.depth
-        selector_lags = self.lags.put(selector, kf=first)
+        selector_lags = self.lags.put(selector, kf=cld.first)
         n = self.uses.keep_if(cond=selector)
         t_n = self.lifetimes.keep_if(cond=selector)
         t_k = self.lags.keep_if(cond=selector_lags).max_by(kf=self.xi2x)
@@ -58,7 +57,7 @@ class BLATracker(Generic[T]):
         t = (t_n ** dec_rs_1 - t_k ** dec_rs_1) / (t_n - t_k).set_c(1)
         distant_approx = factor * t
 
-        dec_lags = self.lags.put(dec, kf=first)
+        dec_lags = self.lags.put(dec, kf=cld.first)
         sum_t = (self.lags ** -dec_lags).sum_by(kf=self.xi2x) + distant_approx
 
         return bln + amp * sum_t
@@ -74,7 +73,7 @@ class BLATracker(Generic[T]):
             .add((d > th).mul(0)) # ensures new items added to lifetimes
             .mask()) 
 
-        invoked_lags = self.lags.put(invoked, kf=first)
+        invoked_lags = self.lags.put(invoked, kf=cld.first)
         unshifted = self.lags.keep_if(cond=invoked_lags.rsub(1))
         self.lags = (self.lags
             .keep_if(invoked_lags) # select entries w/ new invocations
@@ -127,9 +126,9 @@ class Store(Process):
 
     def __init__(
         self, 
-        g: Callable[[nd.NumDict[chunk]], nd.NumDict[chunk]] = eye,
-        cbt: BLATracker[chunk] = None, 
-        rbt: BLATracker[rule] = None
+        g: Callable[[nd.NumDict[chunk]], nd.NumDict[chunk]] = cld.eye,
+        cbt: Optional[BLATracker[chunk]] = None, 
+        rbt: Optional[BLATracker[rule]] = None
     ) -> None:
 
         self.g = g
@@ -224,7 +223,7 @@ class Store(Process):
             for p in self.cb.params] if self.cb is not None else []
         rps = [uris.SEP.join([self.r_pre, p]).strip(uris.SEP) 
             for p in self.rb.params] if self.rb is not None else []
-        ps = expand_dim(cps + rps, self.prefix)
+        ps = cld.prefix(cps + rps, self.prefix)
         return tuple(feature(p) for p in ps)   
 
 
@@ -236,8 +235,8 @@ class GoalStore(Store):
 
     def __init__(self, 
         gspec: Dict[str, List[str]], 
-        g: Callable[[nd.NumDict[chunk]], nd.NumDict[chunk]] = eye,
-        cbt: BLATracker[chunk] = None,
+        g: Callable[[nd.NumDict[chunk]], nd.NumDict[chunk]] = cld.eye,
+        cbt: Optional[BLATracker[chunk]] = None,
     ) -> None:
 
         super().__init__(g=g, cbt=cbt)
@@ -277,7 +276,7 @@ class GoalStore(Store):
             self.cf = self.cf.merge(d.outer(set_))
             cw = d.outer(set_.transform_keys(kf=feature.dim.fget)) #type: ignore
             self.cw = self.cw.merge(cw)
-            self.wn = self.wn.merge(cw.abs().sum_by(kf=first))
+            self.wn = self.wn.merge(cw.abs().sum_by(kf=cld.first))
             return super().call(p, nd.NumDict(), d, nd.NumDict())
         else:
             return super().call(p, nd.NumDict(), nd.NumDict(), nd.NumDict())
@@ -294,7 +293,7 @@ class GoalStore(Store):
     @property
     def reprs(self) -> Tuple[feature, ...]:
         ds, v_lists = self._goal_items()
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) # type: ignore
         return tuple(feature(d, v) for d, vs in zip(ds, v_lists) for v in vs)
 
     @property
@@ -302,10 +301,10 @@ class GoalStore(Store):
         ds, v_lists = self._goal_items()
         ds = [uris.SEP.join([self._set_pre, d]).strip(uris.SEP) # type: ignore
             for d in ds] 
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) 
         v_lists = [[None] + l for l in v_lists] # type: ignore
         set_ = tuple(feature(d, v) for d, vs in zip(ds, v_lists) for v in vs)
-        eval_dim = expand_dim(self._eval, self.prefix)
+        eval_dim = cld.prefix(self._eval, self.prefix)
         eval_ = tuple(feature(eval_dim, v) for v in self._eval_vals)
         return set_ + eval_
 
@@ -313,7 +312,7 @@ class GoalStore(Store):
     def nops(self) -> Tuple[feature, ...]:
         ds = [uris.SEP.join([self._set_pre, d]).strip(uris.SEP) # type: ignore
             for d in self.gspec.keys()] 
-        ds = expand_dim(ds, self.prefix) # type: ignore
+        ds = cld.prefix(ds, self.prefix) 
         set_ = tuple(feature(d, None) for d in ds)
-        eval_dim = expand_dim(self._eval, self.prefix)
+        eval_dim = cld.prefix(self._eval, self.prefix)
         return set_ + (feature(eval_dim, None), )
