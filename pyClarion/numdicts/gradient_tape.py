@@ -3,7 +3,7 @@ from __future__ import annotations
 from . import numdict as nd
 
 from typing import (Tuple, List, Dict, Any, Set, Union, TypeVar, 
-    Hashable, Callable, overload, ClassVar)
+    Hashable, Callable, overload, ClassVar, Optional)
 from typing_extensions import ParamSpec
 from functools import wraps
 from contextlib import contextmanager
@@ -93,7 +93,7 @@ class GradientTape:
         value: nd.NumDict,
         op: str = "",
         inputs: Tuple[nd.NumDict, ...] = (),
-        kwds: dict = None
+        kwds: Optional[dict] = None
     ) -> None:
         # Add a new tape cell containing the given information.
 

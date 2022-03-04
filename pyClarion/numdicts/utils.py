@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from . import numdict as nd
 
-from typing import Callable, Union, Iterable, TypeVar, Any, Set, Dict, List, overload
+from typing import (Callable, Union, Iterable, TypeVar, Any, Set, Dict, List,   
+    overload, Optional)
 from math import copysign, exp
 from math import isclose as _isclose
 from math import isinf as _isinf
@@ -43,25 +44,19 @@ def op2(
 ### ABSTRACT AGGREGATION FUNCTIONS ###
 
 
-@overload
 def reduce(
-    d: nd.NumDict[Any], *, 
-    f: Callable[[Iterable[float]], float], initial: float
-) -> nd.NumDict[Any]:
-    ...
-
-@overload
-def reduce(
-    d: nd.NumDict[Any], *,
-    f: Callable[[Iterable[float]], float], initial: float, key: T
+    d: nd.NumDict[Any], 
+    *,
+    f: Callable[[Iterable[float]], float], 
+    initial: float, 
+    key: Optional[T] = None
 ) -> nd.NumDict[T]:
-    ...
-
-def reduce(d, *, f, initial, key=None):
     values = [initial]; values.extend(d.values())
     result = f(values)
-    if key is None: return nd.NumDict._new(m={}, c=result)
-    else: return nd.NumDict._new(m={key: result})
+    if key is None: 
+        return nd.NumDict[T]._new(m={}, c=result)
+    else: 
+        return nd.NumDict[T]._new(m={key: result})
 
 
 def by(

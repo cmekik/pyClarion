@@ -8,7 +8,7 @@ from . import dict_ops as dops
 from . import vec_ops as vops
 from . import nn_ops
 
-from typing import Callable, Dict, Mapping, TypeVar, Iterator, Any
+from typing import Callable, Dict, Mapping, TypeVar, Iterator, Any, Optional
 from typing_extensions import Concatenate, ParamSpec
 from functools import wraps
 from math import isnan, isinf
@@ -54,7 +54,10 @@ class NumDict(Mapping[T, float]):
     _prot: bool 
 
     def __init__(
-        self, m: Mapping[T, Any] = None, c: Any = 0.0, prot: bool = False
+        self, 
+        m: Optional[Mapping[T, Any]] = None,
+        c: Any = 0.0, 
+        prot: bool = False
     ) -> None:
         self._m = {k: float(v) for k, v in m.items()} if m else {}
         self._c = float(c) 
@@ -62,7 +65,10 @@ class NumDict(Mapping[T, float]):
 
     @classmethod
     def _new(
-        cls, m: Dict[T, float] = None, c: float = 0.0, prot: bool = False
+        cls, 
+        m: Optional[Dict[T, float]] = None, 
+        c: float = 0.0, 
+        prot: bool = False
     ) -> "NumDict[T]":
         # Fast instance constructor (omits checks); for use in op defs
         new = cls.__new__(cls)
