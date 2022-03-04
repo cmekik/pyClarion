@@ -317,7 +317,7 @@ class Context:
 
     def gen_uri(self) -> str:
         assert self.load
-        coords = ".".join([self.lineno[-1], *self.for_index])
+        coords = "-".join([self.lineno[-1], *self.for_index])
         fragment = "/".join(filter(None, [coords, *self.lstack]))
         return "#".join(filter(None, [self.load.address, fragment]))
 
@@ -534,14 +534,14 @@ class Interpreter:
                 for i in range(n):
                     for j, k in enumerate(vars_):
                         ctx.frames[k] = seqs[j][i]
-                        ctx.for_index[-1] = str(i).zfill(2)
+                        ctx.for_index[-1] = str(i).zfill(3)
                     yield
             elif tok.d["mode"] == r"rotations":
                 deq = deque(range(n))
                 for i in range(n):
                     for j, k in enumerate(vars_):
                         ctx.frames[k] = [seqs[j][_i] for _i in deq]
-                        ctx.for_index[-1] = str(i).zfill(2)
+                        ctx.for_index[-1] = str(i).zfill(3)
                         deq.rotate(-1)
                     yield
             else:
@@ -550,7 +550,7 @@ class Interpreter:
                 for i, (i1, i2) in enumerate(combinations(range(n), k)):
                     for j, k in enumerate(vars_):
                         ctx.frames[k] = [seqs[j][i1], seqs[j][i2]]
-                        ctx.for_index[-1] = str(i).zfill(2)
+                        ctx.for_index[-1] = str(i).zfill(3)
                     yield
     
 
