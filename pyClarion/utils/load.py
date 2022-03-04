@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 import re
 from typing import Dict, List, Tuple, Iterable, Optional, Set, IO, Generator
-from collections import OrderedDict, ChainMap
+from collections import OrderedDict, ChainMap, deque
 from itertools import combinations
 
 import pyClarion as cl
@@ -25,7 +25,7 @@ name = fr"(?:{term}|{ref}|{sign})(?:\.?(?:{term}|{ref}|{sign}))*"
 path = fr"(?:{name})(?:{pdelim}{name})*"
 purepath = fr"(?:{term})(?:{pdelim}{term})*"
 uri = fr"(?:{dd}{pdelim})?{path}(?:{fdelim}{path})?"
-param = fr"{key}{float_}"
+param = fr"{key}({float_}|{ref})"
 literal = fr"(?:{uri}|{float_}|{param})" 
 indent = r"'INDENT"
 dedent = r"'DEDENT"
@@ -95,7 +95,7 @@ class Tokenizer:
         ("CHUNK", fr"chunk(?: +(?P<chunk_id>{term}|{ref}))?:"),
         ("CTX", fr"ctx:"),
         ("SIG", fr"sig:"),
-        ("FOR", fr"(?:for +(?P<mode>each|combinations(?= +k={uint}))(?: +k=(?P<k>{uint}))?:)"),
+        ("FOR", fr"(?:for +(?P<mode>each|rotations|combinations(?= +k={uint}))(?:(?<=combinations) +k=(?P<k>{uint}))?):"),
         ("VAR", fr"var(?: +(?P<var_id>{term}))?:"),
         ("RULESET", fr"ruleset(?: +(?P<ruleset_id>{term}|{ref}))?:"),
         ("RULE", fr"rule(?: +(?P<rule_id>{term}|{ref}))?:"),
@@ -244,6 +244,10 @@ class Context:
         assert self.var_id in self.frames
         return self.frames[self.var_id]
 
+    @property
+    def l(self):
+        return self.lineno[-1].lstrip("0")
+
     @contextmanager
     def fspace_scope(self, fspace: Optional[Set[cl.feature]]) -> Generator[None, None, None]:
         self.fspace = fspace
@@ -315,46 +319,42 @@ class Context:
         fragment = "/".join(filter(None, [coords, *self.lstack]))
         return "#".join(filter(None, [self.load.address, fragment]))
 
+    def deref(self, lineno: int, literal: str) -> str:
+        with self.at_line(lineno):
+            return re.sub(self._ref, self._deref, literal)
+
     def _deref(self, mo: re.Match) -> str:
-        try:
+        try: 
             data = self.frames[mo["id"]]
-        except KeyError as e:
-            raise CCMLError(f"Line {self.lineno[-1]}: "
-                f"Undefined reference") from e
+        except KeyError as e: 
+            raise CCMLError(f"Line {self.l}: Undefined reference") from e
         if mo["index"]:
             try: 
                 data = data[int(mo["index"])]
-            except IndexError as e:
-                raise CCMLError(f"Line {self.lineno[-1]}: Reference index out "
-                    f"of bounds") from e
+            except IndexError as e: 
+                raise CCMLError(f"Line {self.l}: Index out of bounds") from e
         if mo["level"]:
             if isinstance(data, str):
                 mo2 = re.fullmatch(self._ref, f"{{{data}}}")
                 if mo2: 
                     return self._deref(mo2)
                 else: 
-                    raise CCMLError(f"Line {self.lineno[-1]}: Invalid "
-                        f"reference")
-            else:
-                raise CCMLError(f"Line {self.lineno[-1]}: Invalid "
-                    f"reference to list")
-        if isinstance(data, list):
+                    raise CCMLError(f"Line {self.l}: Invalid reference")
+            else: 
+                raise CCMLError(f"Line {self.l}: Invalid list reference")
+        if isinstance(data, list): 
             data = " ".join(data)
         return data
-
-    def deref(self, lineno: int, literal: str) -> str:
-        with self.at_line(lineno):
-            return re.sub(self._ref, self._deref, literal)
 
 
 class Interpreter:
     data_patterns = {
-        r"c": (fr"(?P<d>{uri})(?: +(?P<v>{uri}))?(?: +l=(?P<l>{int_}))?"
-            fr"(?: +w=(?P<w>{float_}))?"),
+        r"c": (fr"(?P<d>{uri})(?: +(?P<v>{uri}))?(?: +l=(?P<l>{int_}|{ref}))?"
+            fr"(?: +w=(?P<w>{float_}|{ref}))?"),
         r"l": fr"(?P<data>{literal}(?: +{literal})*)",
     }
  
-    def __init__(self, structure: cl.Structure = None):
+    def __init__(self, structure: Optional[cl.Structure] = None):
         self.structure = structure
         self.dispatcher = {
             (r"'DATA", r"c"): self.feature,
@@ -396,7 +396,7 @@ class Interpreter:
             try: v = int(v)
             except ValueError: pass
         l = int(l) if l else 0
-        w = float(w) if w != "" else 1.0
+        w = float(w) if w != "" else None
         f = cl.feature(d, v, l)
         if ctx.fspace is not None and f not in ctx.fspace:
             raise CCMLError(f"Line {tok.l}: {f} not a member of working "
@@ -430,11 +430,12 @@ class Interpreter:
         for f, w in fdata:
             ctx.load.fs[(c, f)] = 1.0
             dims.append(f.dim)
-            if w and w != 1 and f.dim in ws and w != ws[f.dim]:
-                raise CCMLError(f"Line {tok.l}: Ambiguous weight "
-                    f"specification in {tok.t} block")
-            else:
-                ws[f.dim] = w
+            if w is not None: 
+                if f.dim in ws:
+                    raise CCMLError(f"Line {tok.l}: Ambiguous weight "
+                        f"specification in {tok.t} block")
+                else:
+                    ws[f.dim] = w
         for dim in dims:
             ctx.load.ws[(c, dim)] = ws.get(dim, 1.0)
 
@@ -532,6 +533,14 @@ class Interpreter:
                     for j, k in enumerate(vars_):
                         ctx.frames[k] = seqs[j][i]
                         ctx.for_index[-1] = str(i).zfill(2)
+                    yield
+            elif tok.d["mode"] == r"rotations":
+                deq = deque(range(n))
+                for i in range(n):
+                    for j, k in enumerate(vars_):
+                        ctx.frames[k] = [seqs[j][_i] for _i in deq]
+                        ctx.for_index[-1] = str(i).zfill(2)
+                        deq.rotate(-1)
                     yield
             else:
                 assert tok.d["mode"] == r"combinations"
