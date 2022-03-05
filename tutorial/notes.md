@@ -352,8 +352,8 @@ with open(path) as f:
 Rules defined in a ccml file are named according to their parent store and ruleset. They are also indexed by the line number and iteration index for easy reference. Thus the `ccml` script defined above will create four rules with the following identifiers.
 
 ```python
-cl.rule("acs/fr_store#0006.000/bbv") # go right if light left
-cl.rule("acs/fr_store#0006.001/bbv") # go left if light right
-cl.rule("acs/fr_store#0006.002/bbv") # go down if light up
-cl.rule("acs/fr_store#0006.003/bbv") # go up if light down
+cl.rule("acs/fr_store#0006-000/bbv") # go right if light left
+cl.rule("acs/fr_store#0006-001/bbv") # go left if light right
+cl.rule("acs/fr_store#0006-002/bbv") # go down if light up
+cl.rule("acs/fr_store#0006-003/bbv") # go up if light down
 ```
