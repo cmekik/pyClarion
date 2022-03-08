@@ -1,7 +1,8 @@
 from .base import dimension, feature, chunk, rule, Module, Structure
 from .components import (Repeat, Receptors, Actions, CAM, Shift, 
     BoltzmannSampler, ActionSampler, BottomUp, TopDown, AssociativeRules, 
-    ActionRules, BLATracker, Store, GoalStore, Flags, Slots, Gates, DimFilter)
+    ActionRules, BLATracker, Store, GoalStore, Flags, Slots, Gates, DimFilter, 
+    FRNN)
 from .numdicts import NumDict, GradientTape
 from .utils import pprint, pformat, load, inspect
 
@@ -10,5 +11,5 @@ __all__ = [
     "Repeat", "Receptors", "Actions", "CAM", "Shift", "BoltzmannSampler", 
     "ActionSampler", "BottomUp", "TopDown", "AssociativeRules", "ActionRules", 
     "BLATracker", "Store", "GoalStore", "Flags", "Slots", "Gates", "DimFilter", 
-    "NumDict", "GradientTape", "pprint", "pformat", "load", "inspect"
+    "FRNN", "NumDict", "pprint", "pformat", "load", "inspect"
 ]

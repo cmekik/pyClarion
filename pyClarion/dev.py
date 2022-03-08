@@ -5,11 +5,12 @@ from .base import feature, dimension, chunk, Process
 from .base.uris import (FSEP, SEP, SUP, ID, ispath, join, split, split_head, 
     commonprefix, remove_prefix, relativize, prefix)
 from typing import overload, Dict, Any, Tuple, Iterable, Callable, TypeVar, List
+from .numdicts import GradientTape
 
 
-__all__ = ["FSEP", "SEP", "SUP", "ID", "Process", "lag", "first", "second", 
-    "group_by", "group_by_dims", "ispath", "join", "split", "split_head", 
-    "commonprefix", "remove_prefix", "relativize", "prefix"]
+__all__ = ["FSEP", "SEP", "SUP", "ID", "Process", "GradientTape", "lag", 
+    "first", "second", "group_by", "group_by_dims", "ispath", "join", "split", 
+    "split_head", "commonprefix", "remove_prefix", "relativize", "prefix"]
 
 
 T = TypeVar("T")
