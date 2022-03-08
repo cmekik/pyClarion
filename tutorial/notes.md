@@ -345,7 +345,7 @@ The contents of a ccml file can be loaded into an agent using the `cl.load()` fu
 ```python
 # load fixed rules
 with open(path) as f:
-	cl.load(f, agent)
+    cl.load(f, agent)
 ```
 
 Rules defined in a ccml file are named according to their parent store and ruleset. They are also indexed by the line number and iteration index for easy reference. Thus the `ccml` script defined above will create four rules with the following identifiers.
