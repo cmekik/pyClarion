@@ -165,11 +165,10 @@ Here is the definition for the action selection module, with added keywords for 
 
 ```python
 cl.Module(
-	name="mov", 
-	process=cl.ActionSampler(), 
-	i_uris=["../params", "bo"], 
-	fs_uris=["../mov#cmds"]
-)
+    name="mov", 
+    process=cl.ActionSampler(), 
+    i_uris=["../params", "bo"], 
+    fs_uris=["../mov#cmds"])
 ```
 
 Here, `cl.ActionSampler()` is a `Process` instance. The rest of the parameters are `pyClarion` URIs (or URI segments) which specify how this module networks with the rest of the agent.
@@ -315,8 +314,8 @@ It is also possible to directly set module outputs through the `Module.output` p
 
 ```python
 params.output = cl.nd.NumDict({
-	cl.feature("acs/fr#temp"): 1e-2,  
-	cl.feature("acs/mov#temp"): 1e-2,
+    cl.feature("acs/fr#temp"): 1e-2,  
+    cl.feature("acs/mov#temp"): 1e-2,
 })
 ```
 
@@ -357,3 +356,67 @@ cl.rule("acs/fr_store#0006-001/bbv") # go left if light right
 cl.rule("acs/fr_store#0006-002/bbv") # go down if light up
 cl.rule("acs/fr_store#0006-003/bbv") # go up if light down
 ```
+
+## Custom `Process` classes
+
+In some cases, it may be necessary to extend `pyClarion` with new or customized components. This can be done by subclassing `Process` or one of its existing subclasses.
+
+To illustrate this process, consider the following snippet, adapted from `networks.py` in the `components` subpackage.
+
+```python
+from dataclasses import dataclass
+from typing import List, Tuple, Callable
+
+import pyClarion as cl
+import pyClarion.dev as cld
+
+
+class NAM(cld.Process):
+    """
+    A neural associative memory.
+    
+    Implements a single fully connected layer. 
+    
+    For validation, each weight and bias key must belong to a client fspace.
+
+    May be used as a static network or as a base for various associative 
+    learning models such as Hopfield nets.
+    """
+
+    initial = cl.NumDict()
+
+    def __init__(
+        self,
+        w: cl.NumDict[Tuple[cl.feature, cl.feature]],
+        b: cl.NumDict[cl.feature],
+        f: Callable[[NumDict[feature]], NumDict[cl.feature]] = cld.eye
+    ) -> None:
+        self.w = w
+        self.b = b
+        self.f = f
+
+    def validate(self):
+        fspace = set(f for fspace in self.fspaces for f in fspace())
+        if (any(k1 not in fspace or k2 not in fspace for k1, k2 in self.w) 
+            or any(k not in fspace for k in self.b)):
+            raise ValueError("Parameter key not a member of set fspaces.")
+
+    def call(self, x: cl.NumDict[feature]) -> cl.NumDict[feature]:
+        return (self.w
+            .mul_from(x, kf=cld.first)
+            .sum_by(kf=cld.second)
+            .add(self.b)
+            .pipe(self.f))
+```
+
+The module `pyClarion.dev` provides some essential tools for implementing new `Process` subclasses.
+
+A `Process` subclass minimally requires the implementation of the `initial` attribute and the `call()` method. The `initial` attribute defines the initial output and the `call()` method computes outputs in all subequent steps.
+
+The `validate()` method is a hook for checking whether a `Process` object has been correctly initialized. It is called during agent construction, after all components have been linked. 
+
+A `Process` object may define its own feature spaces using the `reprs`, `flags`, `cmds`, `nops`, or it may use external feature spaces as in the case of the `acs/mov` module in the initial example. 
+
+External feature spaces are available as a sequence of callables through the `fspaces` property. This propety is populated during agent construction and each of its members returns the current state of a client feauture space. 
+
+For access to external feature space names, an `fspace_names` property is also available. This property returns a sequence of strings ordered to match `fspaces` and can be useful for sorting external fspaces into different groups.
