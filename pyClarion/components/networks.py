@@ -12,7 +12,7 @@ class NAM(cld.Process):
     
     Implements a single fully connected layer. 
     
-    Weight and bias keys must be a member of at least one client fspace.
+    For validation, each weight and bias key must belong to a client fspace.
 
     May be used as a static network or as a base for various associative 
     learning models such as Hopfield nets.
