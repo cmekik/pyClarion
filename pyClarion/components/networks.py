@@ -10,7 +10,9 @@ class NAM(cld.Process):
     """
     A neural associative memory.
     
-    Implements a single fully connected layer.
+    Implements a single fully connected layer. 
+    
+    Weight and bias keys must be a member of at least one client fspace.
 
     May be used as a static network or as a base for various associative 
     learning models such as Hopfield nets.
