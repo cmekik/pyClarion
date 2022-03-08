@@ -6,8 +6,15 @@ from ..base import feature
 from ..numdicts import NumDict
 
 
-class FRNN(cld.Process):
-    """A fully recurrent neural network."""
+class NAM(cld.Process):
+    """
+    A neural associative memory.
+    
+    Implements a single fully connected layer.
+
+    May be used as a static network or as a base for various associative 
+    learning models such as Hopfield nets.
+    """
      
     def __init__(
         self,
