@@ -17,7 +17,9 @@ class NAM(cld.Process):
     May be used as a static network or as a base for various associative 
     learning models such as Hopfield nets.
     """
-     
+
+    initial = NumDict()
+
     def __init__(
         self,
         w: NumDict[Tuple[feature, feature]],
