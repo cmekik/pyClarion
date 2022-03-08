@@ -409,13 +409,13 @@ class NAM(cld.Process):
             .pipe(self.f))
 ```
 
-The module `pyClarion.dev` provides some essential tools for implementing new `Process` subclasses.
+The module `pyClarion.dev` provides some essential tools for implementing new `Process` subclasses, including exposing the `Process` class itself.
 
 A `Process` subclass minimally requires the implementation of the `initial` attribute and the `call()` method. The `initial` attribute defines the initial output and the `call()` method computes outputs in all subequent steps.
 
 The `validate()` method is a hook for checking whether a `Process` object has been correctly initialized. It is called during agent construction, after all components have been linked. 
 
-A `Process` object may define its own feature spaces using the `reprs`, `flags`, `cmds`, `nops`, or it may use external feature spaces as in the case of the `acs/mov` module in the initial example. 
+A `Process` object may define its own feature spaces using the `reprs`, `flags`, `cmds`, and `nops` attributes, or it may use external feature spaces as in the case of the `acs/mov` module in the initial example. 
 
 External feature spaces are available as a sequence of callables through the `fspaces` property. This propety is populated during agent construction and each of its members returns the current state of a client feauture space. 
 
