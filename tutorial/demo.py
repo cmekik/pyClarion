@@ -92,8 +92,8 @@ def main():
         agent.step()
 
         display = [
-            f"Stimulus: {cl.pprint.pformat(vis.output)}",
-            f"Response: {cl.pprint.pformat(mov.output)}"
+            f"Stimulus: {cl.pformat(vis.output)}",
+            f"Response: {cl.pformat(mov.output)}"
         ]
         if i: print()
         print(f"Step {i}:")
