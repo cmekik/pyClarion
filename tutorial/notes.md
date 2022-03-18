@@ -2,11 +2,11 @@
 
 ## Overview
 
-The basic representational unit of Clarion theory is the connectionist node. Even explicit knowledge, which consists of chunks and rules, is encoded using connectionist nodes of the localist variety. Clarion may therefore be viewed as a modular neural network architecture. This is the fundamental insight informing the design of `pyClarion`.
+The basic representational unit of Clarion theory is the connectionist node. Clarion encodes even explicit knowledge, which consists of chunks and rules, using localist connectionist nodes. Clarion may therefore be viewed as a modular neural network architecture. This is the fundamental insight informing the design of `pyClarion`.
 
 `PyClarion` agents are structured as collections of networked components. These networks are constructed using `Module` and `Structure` objects. 
 
-The behavior of individual components are defined by `Process` objects, which reside in `Module` instances. `Process` objects compute activations and update parameters locally. They may have multiple output sites and they may expose a number of feature spaces for others to use.
+The behavior of individual components are defined by `Process` objects, which reside in `Module` instances. `Process` objects compute activations and update parameters locally. They may have multiple output sites and they may expose a number of feature spaces for other components to use.
 
 All computations are carried out over pyClarion's native `NumDict` objects. To a first approximation, a  `NumDict` is a vector with named dimensions. Typically, `NumDict` keys are symbolic identifiers for elementary representational nodes.
 
@@ -19,14 +19,14 @@ In many cases node symbols contain identifier strings. These strings are expecte
 Dimension nodes are represented by `dimension` symbols, which consist of an identifier (`str`) and a lag value (`int`, optional).
 
 ```python
-cl.dimension("dim_identifier", 0)
+cl.dimension("dim-identifier", 0)
 ```
 
 Feature nodes are represented by `feature` symbols, which consist of a dimension identifier (`str`), a value identifier (`str` or `int`, optional) and a lag identifier (`int`, optional).
 
 ```python
-cl.feature("dim_identifier", "val_identifier", 0)
-cl.feature("dim_identifier", 1, 0)
+cl.feature("dim-identifier", "val-identifier", 0)
+cl.feature("dim-identifier", 1, 0)
 ```
 
 The `dimension` symbol associated with a given feature can be accessed through the `dim` property.
@@ -38,13 +38,13 @@ assert cl.feature("dim", "val", 1).dim ==  cl.dimension("dim", 1)
 Chunk nodes are represented by `chunk` symbols, which consist of a chunk identifier (`str`).
 
 ```python
-cl.chunk("chunk_identifier")
+cl.chunk("chunk-identifier")
 ```
 
 Rule nodes are represented by `rule` symbols, which consist of a rule identifier (`str`).
 
 ```python
-cl.rule("rule_identifier")
+cl.rule("rule-identifier")
 ```
 
 ### An Example
@@ -99,7 +99,7 @@ def build(scfg, acfg, path):
         cl.Module("mov", cl.Actions(acfg), ["acs/mov#0"])
 
     # set temperature parameters for rule & action selection
-    params.output = cl.nd.NumDict({
+    params.output = cl.NumDict({
         cl.feature("acs/fr#temp"): 1e-2,  
         cl.feature("acs/mov#temp"): 1e-2,
     })    
@@ -113,7 +113,7 @@ def build(scfg, acfg, path):
 
 def main():
     # Stimulus config
-    scfg = ["lum_L", "lum_R", "lum_U", "lum_D"]
+    scfg = ["lum-L", "lum-R", "lum-U", "lum-D"]
     acfg = {"move": ["L", "R", "U", "D"]}
 
     # Build agent
@@ -123,7 +123,7 @@ def main():
 
     # Pretty print all features defined in agent
     print("DEFINED FEATURES", end="\n\n")
-    cl.pprint.pprint(cl.inspect.fspace(agent))
+    cl.pprint(cl.inspect.fspace(agent))
     print() # leave a blank line
 
     # Visualize agent structure (if matplotlib is installed)
@@ -146,8 +146,8 @@ def main():
         agent.step()
 
         display = [
-            f"Stimulus: {cl.pprint.pformat(vis.output)}",
-            f"Response: {cl.pprint.pformat(mov.output)}"
+            f"Stimulus: {cl.pformat(vis.output)}",
+            f"Response: {cl.pformat(mov.output)}"
         ]
         if i: print()
         print(f"Step {i}:")
@@ -157,6 +157,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 ```
 
 For now, let us focus on a single representative line in the above defnition. 
@@ -173,7 +174,7 @@ cl.Module(
 
 Here, `cl.ActionSampler()` is a `Process` instance. The rest of the parameters are `pyClarion` URIs (or URI segments) which specify how this module networks with the rest of the agent.
 
-The `name` argument is the name of the module, and therefore the last entry in the module's path. Locators for module inputs are passed to the module through the `i_uris` argument. Finally, the `fs_uris` argument points the module to action feature spaces. In this case, the module is given a locator for the command features exposed by the `'actions'` module.
+The `name` argument is the name of the module, and therefore the last entry in the module's path. Locators for module inputs are passed to the module through the `i_uris` argument. Finally, the `fs_uris` argument points the module to action feature spaces. In this case, the module is given a locator for the command features exposed by the top-level `'mov'` module.
 
 `pyClarion` provides some tools for us to inspect and visualize the agents that we construct.
 
@@ -184,21 +185,21 @@ Here is a list of all features defined by the agent. These are the most basic re
  feature(d='mov#move', v='L', l=0),
  feature(d='mov#move', v='R', l=0),
  feature(d='mov#move', v='U', l=0),
- feature(d='vis#lum_D', v=None, l=0),
- feature(d='vis#lum_L', v=None, l=0),
- feature(d='vis#lum_R', v=None, l=0),
- feature(d='vis#lum_U', v=None, l=0),
+ feature(d='vis#lum-D', v=None, l=0),
+ feature(d='vis#lum-L', v=None, l=0),
+ feature(d='vis#lum-R', v=None, l=0),
+ feature(d='vis#lum-U', v=None, l=0),
  feature(d='acs/fr#temp', v=None, l=0),
  feature(d='acs/fr#th', v=None, l=0),
  feature(d='acs/mov#temp', v=None, l=0),
- feature(d='mov#cmd/move', v=None, l=0),
- feature(d='mov#cmd/move', v='D', l=0),
- feature(d='mov#cmd/move', v='L', l=0),
- feature(d='mov#cmd/move', v='R', l=0),
- feature(d='mov#cmd/move', v='U', l=0)]
+ feature(d='mov#cmd-move', v=None, l=0),
+ feature(d='mov#cmd-move', v='D', l=0),
+ feature(d='mov#cmd-move', v='L', l=0),
+ feature(d='mov#cmd-move', v='R', l=0),
+ feature(d='mov#cmd-move', v='U', l=0)]
 ```
 
-This list is generated by the following segment of the script.
+This list is generated by the following function call in the script.
 
 ```python
 cl.inspect.fspace(agent)
@@ -302,13 +303,19 @@ This construction can be iterated without ambiguity.
 cl.feature("compositor2#compositor.acs/mov.temp")
 ```
 
+### Naming Conventions
+
+Words within identifiers should be delimited by `'-'`. Using `'/'` as a delimiter should be viewed as a signal that a path is being referenced, as with composite features discussed above. Underscores can also be used. In this case the whole sequence joined by the underscore should be interpreted as one token. Dots should be reserved for composite URIs.  
+
+`Process` objects defined in the library exposing their own feature spaces follow this convention.
+
 ## Controlling Agent Behavior
 
-The two main ways to control agent behavior is to inject activations (i.e., stimulus) into the agent or to control the flow of activations (e.g., through fixed rules).
+The two main ways to control agent behavior is to inject activations (i.e., stimulus) into the agent, to control the flow of activations (e.g., through fixed rules).
 
 ### Activation-setting
 
-Some modules, like the `Stimulus` module, may provide APIs dedicated to receiving external input. 
+Some modules, like the `Receptors` module, may provide interfaces dedicated to receiving external input. 
 
 It is also possible to directly set module outputs through the `Module.output` property.
 
@@ -319,11 +326,13 @@ params.output = cl.nd.NumDict({
 })
 ```
 
+Direct setting of activations is a quick way to get activations into an agent. It is most useful when setting constant parameters, but may also serve during initial experimentation with activation flows.
+
 ### Declaring Explicit Knowledge with `ccml`
 
 We often want an agent to have some pre-programmed behavior and knowledge. 
 
-Pre-programmed behavior is typically defined in the form of fixed rules and pre-programmed knowledge as initial chunks and associative rules. `pyClarion` provides a programming language, called `ccml`, to facilitate specification of such initial agent knowledge. This language offers many conveniences for specifying fixed rules, some of which are demonstrated here.
+Pre-programmed behavior is typically defined in the form of fixed rules and pre-programmed knowledge as initial chunks and associative rules. `pyClarion` provides a programming language, called `ccml`, to facilitate specification of such initial agent knowledge.
 
 A `ccml` script implementing fixed rules for Braitenberg-style behavior, called `"frs.ccml"`, is given below.
 
@@ -332,13 +341,15 @@ store acs/fr_store:
     ruleset bbv:
         for each:
             var direction: L R U D
-            var opposite: R L D U
+            var opposite:  R L D U
             rule:
                 conc:
-                    mov#cmd/move {opposite}
+                    mov#cmd-move {opposite}
                 cond:
-                    vis#lum_{direction}
+                    vis#lum-{direction}
 ```
+
+
 
 The contents of a ccml file can be loaded into an agent using the `cl.load()` function.
 
@@ -348,20 +359,20 @@ with open(path) as f:
     cl.load(f, agent)
 ```
 
-Rules defined in a ccml file are named according to their parent store and ruleset. They are also indexed by the line number and iteration index for easy reference. Thus the `ccml` script defined above will create four rules with the following identifiers.
+Rules defined in a ccml file are named according to their parent store and ruleset. They are also indexed by line number and iteration index for easy reference. Thus the `ccml` script defined above will create four rules with the following identifiers.
 
 ```python
-cl.rule("acs/fr_store#0006-000/bbv") # go right if light left
-cl.rule("acs/fr_store#0006-001/bbv") # go left if light right
-cl.rule("acs/fr_store#0006-002/bbv") # go down if light up
-cl.rule("acs/fr_store#0006-003/bbv") # go up if light down
+cl.rule("acs/fr_store#0006-000-bbv") # go right if light left
+cl.rule("acs/fr_store#0006-001-bbv") # go left if light right
+cl.rule("acs/fr_store#0006-002-bbv") # go down if light up
+cl.rule("acs/fr_store#0006-003-bbv") # go up if light down
 ```
 
 ## Custom `Process` classes
 
 In some cases, it may be necessary to extend `pyClarion` with new or customized components. This can be done by subclassing `Process` or one of its existing subclasses.
 
-To illustrate this process, consider the following snippet, adapted from `networks.py` in the `components` subpackage.
+As an example, consider the following snippet, adapted from `networks.py` in the `components` subpackage.
 
 ```python
 from dataclasses import dataclass
@@ -415,8 +426,8 @@ A `Process` subclass minimally requires the implementation of the `initial` attr
 
 The `validate()` method is a hook for checking whether a `Process` object has been correctly initialized. It is called during agent construction, after all components have been linked. 
 
-A `Process` object may define its own feature spaces using the `reprs`, `flags`, `cmds`, and `nops` attributes, or it may use external feature spaces as in the case of the present `NAM` class or the `acs/mov` module in the initial example. 
+A `Process` object may define its own feature spaces using the `reprs`, `flags`, `params`, `cmds`, and `nops` attributes, or it may use external feature spaces as in the case of the present `NAM` class or the `acs/mov` module in the initial example. 
 
-External feature spaces are available as a sequence of callables through the `fspaces` property. This propety is populated during agent construction and each of its members returns the current state of a client feature space. 
+External feature spaces are available as a sequence of callables through the `fspaces` property. This propety is populated during agent construction and each of its members returns the current state of a client feature space.
 
 For access to external feature space names, an `fspace_names` property is also available. This property returns a sequence of strings ordered to match `fspaces` and can be useful for sorting external fspaces into different groups.

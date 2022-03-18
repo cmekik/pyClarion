@@ -59,7 +59,7 @@ def build(scfg, acfg, path):
 
 def main():
     # Stimulus config
-    scfg = ["lum_L", "lum_R", "lum_U", "lum_D"]
+    scfg = ["lum-L", "lum-R", "lum-U", "lum-D"]
     acfg = {"move": ["L", "R", "U", "D"]}
 
     # Build agent

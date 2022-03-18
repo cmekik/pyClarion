@@ -5,6 +5,6 @@ store acs/fr_store:
             var opposite:  R L D U
             rule:
                 conc:
-                    mov#cmd/move {opposite}
+                    mov#cmd-move {opposite}
                 cond:
-                    vis#lum_{direction}
+                    vis#lum-{direction}
