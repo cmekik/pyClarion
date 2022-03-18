@@ -318,7 +318,7 @@ class Context:
     def gen_uri(self) -> str:
         assert self.load
         coords = "-".join([self.lineno[-1], *self.for_index])
-        fragment = "/".join(filter(None, [coords, *self.lstack]))
+        fragment = "-".join(filter(None, [coords, *self.lstack]))
         return "#".join(filter(None, [self.load.address, fragment]))
 
     def deref(self, lineno: int, literal: str) -> str:
