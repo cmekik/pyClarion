@@ -121,7 +121,7 @@ class Actions(cld.Process):
     def _cmd2repr(self, cmd: feature):
         _d, v, l = cmd
         if l != 0: raise ValueError("Lagged cmd not allowed.")
-        d = re.sub(f"{cld.FSEP}{self._cmd_pre}/", f"{cld.FSEP}", _d)
+        d = re.sub(f"{cld.FSEP}{self._cmd_pre}-", f"{cld.FSEP}", _d)
         return feature(d, v)
 
     def _action_items(self):
@@ -139,7 +139,7 @@ class Actions(cld.Process):
     @property
     def cmds(self) -> Tuple[feature, ...]:
         ds, vls = self._action_items()
-        ds = [cld.SEP.join([self._cmd_pre, d]).strip(cld.SEP) # type: ignore
+        ds = ["-".join(filter(None, [self._cmd_pre, d])) # type: ignore
             for d in ds] 
         ds = cld.prefix(ds, self.prefix) # type: ignore
         vls = [[None] + l for l in vls] # type: ignore
@@ -147,7 +147,7 @@ class Actions(cld.Process):
 
     @property
     def nops(self) -> Tuple[feature, ...]:
-        ds = [cld.SEP.join([self._cmd_pre, d]).strip(cld.SEP) # type: ignore
+        ds = ["-".join(filter(None, [self._cmd_pre, d])) # type: ignore
             for d in self.actions.keys()] 
         ds = cld.prefix(ds, self.prefix) # type: ignore
         return tuple(feature(d, None) for d in ds)

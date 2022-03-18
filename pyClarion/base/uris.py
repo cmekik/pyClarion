@@ -6,7 +6,7 @@ from urllib import parse
 from typing import Tuple, List, Dict, TypeVar, Any, overload
 
 
-ID, SEP, FSEP, SUP = re.compile(r"\w+"), "/", "#", ".." # type: ignore
+ID, SEP, FSEP, SUP = re.compile(r"[\w-]+"), "/", "#", ".." # type: ignore
 
 
 join = parse.urljoin

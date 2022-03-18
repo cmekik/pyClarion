@@ -1,7 +1,7 @@
 from typing import Tuple, List, Sequence
 import re
 
-from ..base import feature, Process, uris, chunk
+from ..base import feature, chunk
 from .. import numdicts as nd
 from .. import dev as cld
 
@@ -16,9 +16,9 @@ class Flags(cld.Process):
 
     def __init__(self, fs: Sequence[str], vs: Sequence[int] = (-1, 0, 1)) -> None:
         for f in fs:
-            if not uris.ispath(f):
+            if not cld.ispath(f):
                 raise ValueError(f"Flag name '{f}' is not a valid path.")
-            if f.startswith(f"{self.set_prefix}/"):
+            if f.startswith(f"{self.set_prefix}"):
                 raise ValueError("Flag name starts with reserved prefix "
                     f"'{self.set_prefix}'")
 
@@ -48,9 +48,9 @@ class Flags(cld.Process):
                 .mul(-1)))
 
     def cmd2flag(self, f_cmd):
-        l, sep, r = f_cmd.d.partition(uris.FSEP)
+        l, sep, r = f_cmd.d.partition(cld.FSEP)
         d_cmd = l if not sep else r
-        flag = re.sub("^set/", "", d_cmd)
+        flag = re.sub("^set-", "", d_cmd)
         f = feature(cld.prefix(flag, self.prefix))
         assert f in self.flags, f"regexp sub likely failed: '{f}'"
         return f
@@ -61,18 +61,18 @@ class Flags(cld.Process):
 
     @property
     def cmds(self):
-        dims = [uris.SEP.join([self.set_prefix, f]) for f in self.fs]
+        dims = ["-".join([self.set_prefix, f]) for f in self.fs]
         dims = cld.prefix(dims, self.prefix)
         return tuple(feature(dim, v) for dim in dims for v in self.vs)
 
     @property
     def nops(self):
-        dims = [uris.SEP.join([self.set_prefix, f]) for f in self.fs]
+        dims = ["-".join([self.set_prefix, f]) for f in self.fs]
         dims = cld.prefix(dims, self.prefix)
         return tuple(feature(dim, None) for dim in dims)
 
 
-class Slots(Process):
+class Slots(cld.Process):
 
     initial = (nd.NumDict(), nd.NumDict())
     store: nd.NumDict[Tuple[int, chunk]]
@@ -135,33 +135,33 @@ class Slots(Process):
                 .squeeze()))
 
     def _write_dims(self) -> List[str]:
-        return cld.prefix([f"write/{i + 1}" for i in range(self.slots)], 
+        return cld.prefix([f"write-{i + 1}" for i in range(self.slots)], 
             self.prefix)
     
     def _full_flag(self, i: int) -> feature:
-        return feature(cld.prefix(f"full{uris.SEP}{i}", self.prefix))
+        return feature(cld.prefix(f"full-{i}", self.prefix))
     
     def _match_flag(self, i: int) -> feature:
-        return feature(cld.prefix(f"match{uris.SEP}{i}", self.prefix))
+        return feature(cld.prefix(f"match-{i}", self.prefix))
 
     def _cmd2slot(self, cmd: feature) -> int:
         dim = cmd.d
         if self.prefix:
-            dim = uris.split(dim).fragment
-        return int(dim.split(uris.SEP)[-1])
+            dim = cld.split(dim).fragment
+        return int(dim.split("-")[-1])
         
     @property
     def flags(self) -> Tuple[feature, ...]:
         tup = cld.prefix(("full", "match"), self.prefix) 
-        return tuple(feature(f"{k}{uris.SEP}{i + 1}") 
+        return tuple(feature(f"{k}-{i + 1}") 
             for k in tup for i in range(self.slots))
 
     @property
     def cmds(self) -> Tuple[feature, ...]:
         d: dict[str, Tuple[int, ...]] = {}
         for i in range(self.slots):
-            d[f"read/{i + 1}"] = (0, 1)
-            d[f"write/{i + 1}"] = (-1, 0, +1)
+            d[f"read-{i + 1}"] = (0, 1)
+            d[f"write-{i + 1}"] = (-1, 0, +1)
         return tuple(feature(k, v) 
             for k, vs in cld.prefix(d, self.prefix).items() for v in vs)
 
@@ -169,7 +169,7 @@ class Slots(Process):
     def nops(self) -> Tuple[feature, ...]:
         d: dict[str, int] = {}
         for i in range(self.slots):
-            d[f"read/{i + 1}"] = 0
-            d[f"write/{i + 1}"] = 0
+            d[f"read-{i + 1}"] = 0
+            d[f"write-{i + 1}"] = 0
         return tuple(feature(k, v) 
             for k, v in cld.prefix(d, self.prefix).items())

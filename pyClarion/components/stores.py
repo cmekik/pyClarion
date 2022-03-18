@@ -219,9 +219,9 @@ class Store(Process):
 
     @property
     def params(self):
-        cps = [uris.SEP.join([self.c_pre, p]).strip(uris.SEP) 
+        cps = ["-".join(filter(None, [self.c_pre, p])) 
             for p in self.cb.params] if self.cb is not None else []
-        rps = [uris.SEP.join([self.r_pre, p]).strip(uris.SEP) 
+        rps = ["-".join(filter(None, [self.r_pre, p])) 
             for p in self.rb.params] if self.rb is not None else []
         ps = cld.prefix(cps + rps, self.prefix)
         return tuple(feature(p) for p in ps)   
@@ -310,7 +310,7 @@ class GoalStore(Store):
 
     @property
     def nops(self) -> Tuple[feature, ...]:
-        ds = [uris.SEP.join([self._set_pre, d]).strip(uris.SEP) # type: ignore
+        ds = ["-".join(filter(None, [self._set_pre, d])) # type: ignore
             for d in self.gspec.keys()] 
         ds = cld.prefix(ds, self.prefix) 
         set_ = tuple(feature(d, None) for d in ds)
