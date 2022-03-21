@@ -429,5 +429,3 @@ The `validate()` method is a hook for checking whether a `Process` object has be
 A `Process` object may define its own feature spaces using the `reprs`, `flags`, `params`, `cmds`, and `nops` attributes, or it may use external feature spaces as in the case of the present `NAM` class or the `acs/mov` module in the initial example. 
 
 External feature spaces are available as a sequence of callables through the `fspaces` property. This propety is populated during agent construction and each of its members returns the current state of a client feature space.
-
-For access to external feature space names, an `fspace_names` property is also available. This property returns a sequence of strings ordered to match `fspaces` and can be useful for sorting external fspaces into different groups.
