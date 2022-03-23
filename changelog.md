@@ -16,6 +16,7 @@ This is a backwards incompatible rewrite.
 - A new mini language `ccml` and interpreter for easily specifying initial chunks & rules.
 - The `dev` module, collecting tools and resources relevant for developing new components.
 - Visualization and inspection tools.
+- New processes: `NAM`, `Drives`
 
 ## Changed
 
