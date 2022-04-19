@@ -20,21 +20,23 @@ class NAM(cld.Process):
 
     initial = NumDict()
 
+    w: NumDict[Tuple[feature, feature]]
+    b: NumDict[feature]
+
     def __init__(
         self,
-        w: NumDict[Tuple[feature, feature]],
-        b: NumDict[feature],
         f: Callable[[NumDict[feature]], NumDict[feature]] = cld.eye
     ) -> None:
-        self.w = w
-        self.b = b
+        self.w = NumDict()
+        self.b = NumDict()
         self.f = f
 
     def validate(self):
-        fspace = set(f for fspace in self.fspaces for f in fspace())
-        if (any(k1 not in fspace or k2 not in fspace for k1, k2 in self.w) 
-            or any(k not in fspace for k in self.b)):
-            raise ValueError("Parameter key not a member of set fspaces.")
+        if self.fspaces:
+            fspace = set(f for fspace in self.fspaces for f in fspace())
+            if (any(k1 not in fspace or k2 not in fspace for k1, k2 in self.w) 
+                or any(k not in fspace for k in self.b)):
+                raise ValueError("Parameter key not a member of set fspaces.")
 
     def call(self, x: NumDict[feature]) -> NumDict[feature]:
         return (self.w

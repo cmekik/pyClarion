@@ -172,7 +172,8 @@ def merge(*ds: nd.NumDict[T]) -> nd.NumDict[T]:
     if len(ds) == 0:
         raise ValueError("Merge must be provided with at least one argument.")
     d = nd.NumDict[T]._new(c=0.0)
-    d.update({k: v for d in ds for k, v in d.items()}, strict=True)
+    for _d in ds: 
+        d.update({k: v for k, v in _d.items()}, strict=True)
     return d
 
 @gt.GradientTape.grad(merge)
