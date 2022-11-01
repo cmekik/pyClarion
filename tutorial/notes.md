@@ -375,7 +375,6 @@ In some cases, it may be necessary to extend `pyClarion` with new or customized 
 As an example, consider the following snippet, adapted from `networks.py` in the `components` subpackage.
 
 ```python
-from dataclasses import dataclass
 from typing import List, Tuple, Callable
 
 import pyClarion as cl
@@ -396,14 +395,15 @@ class NAM(cld.Process):
 
     initial = cl.NumDict()
 
+    w: cl.NumDict[Tuple[cl.feature, cl.feature]]
+    b: cl.NumDict[cl.feature]
+
     def __init__(
-        self,
-        w: cl.NumDict[Tuple[cl.feature, cl.feature]],
-        b: cl.NumDict[cl.feature],
-        f: Callable[[NumDict[feature]], NumDict[cl.feature]] = cld.eye
+        self, 
+        f: Callable[[cl.NumDict[cl.feature]], cl.NumDict[cl.feature]] = cld.eye
     ) -> None:
-        self.w = w
-        self.b = b
+        self.w = cl.NumDict()
+        self.b = cl.NumDict()
         self.f = f
 
     def validate(self):
@@ -412,7 +412,7 @@ class NAM(cld.Process):
             or any(k not in fspace for k in self.b)):
             raise ValueError("Parameter key not a member of set fspaces.")
 
-    def call(self, x: cl.NumDict[feature]) -> cl.NumDict[feature]:
+    def call(self, x: cl.NumDict[cl.feature]) -> cl.NumDict[cl.feature]:
         return (self.w
             .mul_from(x, kf=cld.first)
             .sum_by(kf=cld.second)
