@@ -14,7 +14,7 @@ else:
     def adjacency_matrix(
         ax: plt.Axes, s: Structure, exclude: Sequence[str] = ()
     ) -> plt.Axes:
-        ms = sorted([m.path for m in s.modules() if m.path not in exclude])
+        ms = [m.path for m in s.modules() if m.path not in exclude]
         ms_rev = list(reversed(ms))
         links = sorted(set((tgt, src.partition(uris.FSEP)[0]) 
             for tgt, src in inspect.links(s)))
