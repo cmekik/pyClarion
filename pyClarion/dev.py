@@ -44,7 +44,7 @@ def first(pair: Tuple[T, Any]) -> T:
     return pair[0]
 
 
-def second(pair: Tuple[T, Any]) -> T:
+def second(pair: Tuple[Any, T]) -> T:
     """Return the second element in a pair."""
     return pair[1]
 

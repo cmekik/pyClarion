@@ -51,16 +51,8 @@ def _grad_reduce_sum(grads, result, d, *, key):
     return (dops.isolate(grads, key=key) * dops.mask(d),)
 
 
-@overload
 def matmul(d1: nd.NumDict[T], d2: nd.NumDict[T]) -> nd.NumDict[Any]:
-    ...
-
-@overload
-def matmul(d1: nd.NumDict[T], d2: nd.NumDict[T], *, key: T) -> nd.NumDict[T]:
-    ...
-
-def matmul(d1, d2, *, key=None):
-    return reduce_sum(d1 * d2, key=key)
+    return reduce_sum(d1 * d2)
 
 
 @overload
@@ -242,7 +234,7 @@ def _grad_max_by(
     grads: nd.NumDict[T2], result: nd.NumDict[T2], d: nd.NumDict[T1], *, 
     kf: Callable[[T1], T2]
 ) -> Tuple[nd.NumDict]:
-    return (put(grads, d, kf=kf) * bops.isclose(d, put(d, result, kf=kf)),)
+    return (put(d, grads, kf=kf) * bops.isclose(d, put(d, result, kf=kf)),)
 
 
 @gt.GradientTape.op()
@@ -258,9 +250,9 @@ def min_by(d: nd.NumDict[T1], *, kf: Callable[[T1], T2]) -> nd.NumDict[T2]:
 @gt.GradientTape.grad(min_by)
 def _grad_min_by(
     grads: nd.NumDict[T2], result: nd.NumDict[T2], d: nd.NumDict[T1], *, 
-    kf: Callable[[T2], T1]
+    kf: Callable[[T1], T2]
 ) -> Tuple[nd.NumDict]:
-    return (put(grads, d, kf=kf) * bops.isclose(d, put(d, result, kf=kf)),)
+    return (put(d, grads, kf=kf) * bops.isclose(d, put(d, result, kf=kf)),)
 
 
 @gt.GradientTape.op()

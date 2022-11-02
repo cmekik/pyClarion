@@ -33,7 +33,8 @@ class Receptors(cld.Process):
     initial = nd.NumDict()
 
     def __init__(
-        self, reprs: Union[List[str], Dict[str, List[Union[str, int]]]]
+        self, 
+        reprs: Union[List[str], Dict[str, List[str]], Dict[str, List[int]]]
     ) -> None:
         self._reprs = reprs
         self._data: nd.NumDict[feature] = nd.NumDict()
@@ -95,7 +96,10 @@ class Actions(cld.Process):
     initial = nd.NumDict()
     _cmd_pre = "cmd"
 
-    def __init__(self, actions: Dict[str, List[Union[str, int]]]) -> None:
+    def __init__(
+        self, 
+        actions: Union[Dict[str, List[str]], Dict[str, List[int]]]
+    ) -> None:
         self.actions = OrderedDict(actions)
 
     def call(self, c: nd.NumDict[feature]) -> nd.NumDict[feature]:
@@ -357,11 +361,11 @@ class AssociativeRules(cld.Process):
         s_r = (cr
             .mul_from(d, kf=cld.first, strict=True)
             .div(norm)
-            .sum_by(kf=cld.first)
+            .sum_by(kf=cld.second)
             .squeeze())
         s_c = (rc
             .mul_from(s_r, kf=cld.first, strict=True)
-            .max_by(kf=cld.first)
+            .max_by(kf=cld.second)
             .squeeze())
 
         return s_c, s_r

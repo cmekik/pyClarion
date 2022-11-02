@@ -31,5 +31,5 @@ class Drives(cld.Process):
                 .mul_from(gains, kf=cld.eye)))
 
     @property
-    def reprs(self) -> Tuple[NumDict[feature], ...]:
+    def reprs(self) -> Tuple[feature, ...]:
         return tuple(feature(cld.prefix(d, self.prefix)) for d in self.dspec)

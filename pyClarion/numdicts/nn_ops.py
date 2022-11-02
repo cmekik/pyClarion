@@ -56,6 +56,7 @@ def boltzmann(d: nd.NumDict, t: nd.NumDict) -> nd.NumDict:
     vmax, _t = max(vs), t._c
     # v - vmax is a stability trick; softmax(x) = softmax(x + c)
     exp_v = [_exp((v - vmax) / _t) for v in vs]
+    assert len(exp_v)
     sum_exp_v = sum(exp_v)
     vals = [v / sum_exp_v for v in exp_v]
     return nd.NumDict._new(m={k: v for k, v in zip(ks, vals)})

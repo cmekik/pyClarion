@@ -6,7 +6,7 @@ from abc import abstractmethod
 from types import MappingProxyType
 from contextvars import ContextVar
 from typing import (Union, Tuple, Callable, Any, Sequence, Iterator, ClassVar, 
-    List, OrderedDict)
+    List, OrderedDict, Generic, TypeVar)
 from functools import partial
 import logging
 
@@ -81,12 +81,14 @@ class Construct:
             logging.debug(f"Initializing {tname} '{name}' in '{context}'.")
 
 
-class Module(Construct):
+P = TypeVar("P", bound=Process)
+
+class Module(Construct, Generic[P]):
     """An elementary module."""
 
     _constant: ClassVar[float] = 0.0
 
-    _process: Process
+    _process: P
     _inputs: List[Tuple[str, Callable]]
     _i_uris: Tuple[str, ...]
     _fs_uris: Tuple[str, ...]
@@ -94,7 +96,7 @@ class Module(Construct):
     def __init__(
         self, 
         name: str, 
-        process: Process, 
+        process: P, 
         i_uris: Sequence[str] = (),
         fs_uris: Sequence[str] = ()
     ) -> None:
@@ -124,12 +126,12 @@ class Module(Construct):
         return self._fs_uris
 
     @property
-    def process(self) -> Process:
+    def process(self) -> P:
         """Module process; issues updates and emits activations."""
         return self._process
 
     @process.setter
-    def process(self, process: Process) -> None:
+    def process(self, process: P) -> None:
         self._process = process
         process.prefix = uris.split_head(self.path.lstrip(uris.SEP))[1]
 
