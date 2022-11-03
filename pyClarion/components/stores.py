@@ -299,8 +299,7 @@ class GoalStore(Store):
     @property
     def cmds(self) -> Tuple[feature, ...]:
         ds, v_lists = self._goal_items()
-        ds = [uris.SEP.join([self._set_pre, d]).strip(uris.SEP) # type: ignore
-            for d in ds] 
+        ds = ["-".join([self._set_pre, d]) for d in ds] # type: ignore 
         ds = cld.prefix(ds, self.prefix) 
         v_lists = [[None] + l for l in v_lists] # type: ignore
         set_ = tuple(feature(d, v) for d, vs in zip(ds, v_lists) for v in vs)
