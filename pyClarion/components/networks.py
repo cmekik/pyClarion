@@ -1,5 +1,4 @@
-from dataclasses import dataclass
-from typing import List, Tuple, Callable
+from typing import Tuple, Callable, TypeVar
 
 from .. import dev as cld
 from ..base import feature
@@ -44,3 +43,47 @@ class NAM(cld.Process):
             .sum_by(kf=cld.second)
             .add(self.b)
             .pipe(self.f))
+
+
+T = TypeVar("T")
+
+class NDRAM(NAM):
+
+    p: int
+    lr: float
+    delta: float
+    xi: float
+
+    def __init__(self, 
+        p: int = 10, 
+        lr: float = 1e-3, 
+        delta: float = .49, 
+        xi: float = 9999e-4
+    ) -> None:
+        self.p = p
+        self.lr = lr
+        self.delta = delta
+        self.xi = xi
+        super().__init__(f=self.activation)
+
+    def call(self, x: NumDict[feature]) -> NumDict[feature]:
+        output = super().call(x)
+        self.update(x)
+        return output
+
+    def update(self, x: NumDict[feature]) -> None:
+        y = x
+        for _ in range(self.p):
+            y = super().call(y)
+        xx = x.outer(x)
+        yy = y.outer(y)
+        self.w = (self.w
+            .mul(self.xi)
+            .sub(self.lr * (xx - yy)))
+        
+    def activation(self, x: NumDict[T]) -> NumDict[T]:
+        return (x
+            .mul(1 + self.delta)
+            .sub(x.pow(3).mul(self.delta))
+            .max(-1)
+            .min(1))
