@@ -86,7 +86,9 @@ class NDRAM(cld.Process):
             .mul(self.xi)
             .add(apply * self.lr * (xx - yy)))
         
-    def forward_pass(self, x: NumDict[feature], iter=1) -> NumDict[feature]:
+    def forward_pass(
+        self, x: NumDict[feature], iter: int = 1
+    ) -> NumDict[feature]:
         y = x
         for _ in range(iter):
             y = self.activation(self.w
