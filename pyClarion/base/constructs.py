@@ -148,7 +148,7 @@ class Module(Construct, Generic[P]):
             f"{type(self.process).__name__} of module '{self.path}'") from e
 
     @property
-    def output(self) -> Union[nd.NumDict, Tuple[nd.NumDict, ...]]:
+    def output(self) -> Any:
         return self._output
 
     @output.setter

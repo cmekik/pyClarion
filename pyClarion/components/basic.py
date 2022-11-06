@@ -43,8 +43,14 @@ class Receptors(cld.Process):
         return self._data
 
     def stimulate(
-        self, data: Union[List[Union[str, Tuple[str, Union[str, int]]]], 
-            Dict[Union[str, Tuple[str, Union[str, int]]], float]]
+        self, 
+        data: Union[
+            List[str],
+            List[Tuple[str, str]],
+            List[Tuple[str, int]],
+            Dict[str, float],
+            Dict[Tuple[str, str], float],
+            Dict[Tuple[str, int], float]]
     ) -> None:
         """
         Set perceptual stimulus levels for defined perceptual features.
