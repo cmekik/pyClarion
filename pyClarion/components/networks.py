@@ -1,4 +1,4 @@
-from typing import Tuple, Callable, TypeVar
+from typing import Sequence, Tuple, Callable, TypeVar
 
 from .. import dev as cld
 from ..base import feature
@@ -47,43 +47,65 @@ class NAM(cld.Process):
 
 T = TypeVar("T")
 
-class NDRAM(NAM):
+class NDRAM(cld.Process):
 
-    p: int
+    initial = NumDict()
+
     lr: float
+    t: int
     delta: float
     xi: float
+    w: NumDict[Tuple[feature, feature]]
 
-    def __init__(self, 
-        p: int = 10, 
+    def __init__(
+        self, 
         lr: float = 1e-3, 
-        delta: float = .49, 
-        xi: float = 9999e-4
+        t: int = 1, 
+        delta: float = .2, 
+        xi: float = 1.
     ) -> None:
-        self.p = p
         self.lr = lr
+        self.t = t
         self.delta = delta
         self.xi = xi
-        super().__init__(f=self.activation)
+        self.w = NumDict()
 
-    def call(self, x: NumDict[feature]) -> NumDict[feature]:
-        output = super().call(x)
-        self.update(x)
+    def call(
+        self, c: NumDict[feature], x: NumDict[feature]
+    ) -> NumDict[feature]:
+        output = self.forward_pass(x)
+        self.update(c, x)
         return output
 
-    def update(self, x: NumDict[feature]) -> None:
-        y = x
-        for _ in range(self.p):
-            y = super().call(y)
+    def update(self, c: NumDict[feature], x: NumDict[feature]) -> None:
+        apply = c[self.cmds[1]] # controls whether to update weights
+        y = self.forward_pass(x, iter=self.t)
         xx = x.outer(x)
         yy = y.outer(y)
         self.w = (self.w
             .mul(self.xi)
-            .sub(self.lr * (xx - yy)))
+            .add(apply * self.lr * (xx - yy)))
         
+    def forward_pass(self, x: NumDict[feature], iter=1) -> NumDict[feature]:
+        y = x
+        for _ in range(iter):
+            y = self.activation(self.w
+                .mul_from(y, kf=cld.first)
+                .sum_by(kf=cld.second))
+        return y
+
     def activation(self, x: NumDict[T]) -> NumDict[T]:
         return (x
             .mul(1 + self.delta)
             .sub(x.pow(3).mul(self.delta))
-            .max(-1)
-            .min(1))
+            .max(-1).min(1)) # clip output to be between [-1, 1]
+
+    @property
+    def cmds(self) -> Tuple[feature, ...]:
+        return (
+            feature(cld.prefix("ud", self.prefix), None), 
+            feature(cld.prefix("ud", self.prefix), "apply"))
+
+    @property
+    def nops(self) -> Tuple[feature, ...]:
+        return (feature(cld.prefix("ud", self.prefix), None),)
