@@ -76,7 +76,7 @@ For testing, the model is cued with the feature `size-medium`, which matches bot
 
 ## Files
 
-The file `main.py` contains the model definition and experimental code. The file `chunks.ccml` contains chunk definitions. The file `out.txt` is an instance of the output produced on the console by running `main.py`. The file `dynamics.png` is a graph representing the dynamics of the NDRAM as explained below.
+The file `main.py` contains the model definition and experimental code. The file `chunks.ccml` contains chunk definitions. The file `out.txt` is an instance of the output produced on the console by running `main.py`. The file `dynamics.png` is a graph representing the dynamics of the NDRAM during testing as explained above.
 
 ## References
 

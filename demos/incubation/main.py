@@ -11,8 +11,13 @@ def build():
         "size-medium", "size-large"
     ]
 
+    # Key Point:
+    # In this implementation, NDRAM training is enabled by an external command 
+    # which theoretically may be issued by the ACS. In this simulation, it is 
+    # directly controlled though the 'ctrl' module.
+
     with cl.Structure("agent") as agent:
-        stim = cl.Module("stim", cl.Receptors(pcfg))
+        stim = cl.Module("stim", cl.Receptors(pcfg)) 
         ctrl = cl.Module("ctrl", cl.Repeat(), ["ctrl"])
         cl.Module("null", cl.Repeat(), ["null"])
         with cl.Structure("nacs"):
@@ -31,6 +36,8 @@ def build():
 
 def main():
 
+    # INITIALIZATION
+
     agent, (stim, ctrl, ndram, bu, chunks) = build()
 
     print("Perceptual Feature Set:")
@@ -40,6 +47,8 @@ def main():
     print("Pre-defined Chunks:")
     cl.pprint(chunks.process.cw)
     print()
+
+    # TRAINING
 
     training_stimuli = {
         "apple": {
@@ -71,12 +80,14 @@ def main():
         },
     }
 
-    ctrl.output = cl.NumDict({ndram.process.cmds[1]: 1.0})
+    ctrl.output = cl.NumDict({ndram.process.cmds[1]: 1.0}) # enable training
     for key in random.choices(list(training_stimuli),k=2000):
         stim.process.stimulate(training_stimuli[key])
         agent.step()
-    ctrl.output = cl.NumDict()
-    ndram.output = cl.NumDict()
+    ctrl.output = cl.NumDict() # disable training
+    ndram.output = cl.NumDict() # clear NDRAM output for test
+
+    # TESTING
 
     N = 50
     apple, banana, watermelon = [], [], []
