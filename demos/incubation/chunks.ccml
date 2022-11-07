@@ -1,0 +1,25 @@
+store nacs/chunks:
+    chunk apple:
+        stim#color-red
+        stim#color-yellow w=-1
+        stim#color-green w=-1
+        stim#shape-round
+        stim#shape-oblong w=-1
+        stim#size-medium
+        stim#size-large w=-1
+    chunk banana:
+        stim#color-red w=-1
+        stim#color-yellow
+        stim#color-green w=-1
+        stim#shape-round w=-1
+        stim#shape-oblong
+        stim#size-medium
+        stim#size-large w=-1
+    chunk watermelon:
+        stim#color-red w=-1
+        stim#color-yellow w=-1
+        stim#color-green
+        stim#shape-round
+        stim#shape-oblong w=-1
+        stim#size-medium w=-1
+        stim#size-large
