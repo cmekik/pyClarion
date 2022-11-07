@@ -109,9 +109,10 @@ def main():
     else:
         time = list(range(N))
         fig, ax = plt.subplots()
-        ax.plot(time, apple, label="apple", color="tab:red")
-        ax.plot(time, banana, label="banana", color="tab:olive")
-        ax.plot(time, watermelon, label="watermelon", color="tab:green")
+        ax.plot(time, apple, label="apple", color="tab:red", alpha=.7)
+        ax.plot(time, banana, label="banana", color="tab:olive", alpha=.7)
+        ax.plot(time, watermelon, 
+            label="watermelon", color="tab:green", alpha=.7)
         ax.legend()
         ax.set(
             title="NDRAM dynamics on input 'size-medium'", 

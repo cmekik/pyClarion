@@ -32,8 +32,8 @@ NumDict({(chunk(id='nacs/chunks#0002-apple'), dimension(id='stim#color-green', l
         c=0.0)
 
 Retrieval Output:
-NumDict({chunk(id='nacs/chunks#0002-apple'): 0.011565098949450283,
-         chunk(id='nacs/chunks#0010-banana'): 0.8386815951836344,
-         chunk(id='nacs/chunks#0018-watermelon'): -0.8583583374048116},
+NumDict({chunk(id='nacs/chunks#0002-apple'): -0.006223173796610748,
+         chunk(id='nacs/chunks#0010-banana'): 0.8503373178863665,
+         chunk(id='nacs/chunks#0018-watermelon'): -0.8347234970212318},
         c=0.0)
 
