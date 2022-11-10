@@ -69,7 +69,7 @@ The predefined chunks are contrived to represent three different types of fruits
 
 The experimental setup involves training the associative network to settle on the feature patterns associated with each predefined chunk and observing how the model settles on learned patterns when cued with a feature to be matched by the retrieved chunk.
 
-For testing, the model is cued with the feature `size-medium`, which matches both the APPLE chunk and the BANANA chunk but conflicts with the WATERMELON chunk. Thus a competition takes place between the APPLE and BANANA prototypes, the result of which can be read off of Figure 1.
+For testing, the model is cued with the feature `size-medium`, which matches both the APPLE chunk and the BANANA chunk but conflicts with the WATERMELON chunk. Thus a competition takes place between the APPLE and BANANA patterns, the result of which can be read off of Figure 1.
 
 ![Model Dynamics on Cue 'size-medium'](dynamics.png)
 <figcaption align = "center">Figure 1. Model settling on a prototype after training.</figcaption>
