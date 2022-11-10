@@ -72,7 +72,7 @@ The experimental setup involves training the associative network to settle on th
 For testing, the model is cued with the feature `size-medium`, which matches both the APPLE chunk and the BANANA chunk but conflicts with the WATERMELON chunk. Thus a competition takes place between the APPLE and BANANA patterns, the result of which can be read off of Figure 1.
 
 ![Model Dynamics on Cue 'size-medium'](dynamics.png)
-<figcaption align = "center">Figure 1. Model settling on a prototype after training.</figcaption>
+<figcaption align = "center">Figure 1. Model settling on a learned pattern after training.</figcaption>
 
 ## Files
 
