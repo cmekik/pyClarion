@@ -1,113 +1,76 @@
-from typing import Sequence, Tuple, Callable, TypeVar
+from typing import List, Tuple, Deque, Optional
+from collections import deque
 
-from .. import dev as cld
-from ..base import feature
 from ..numdicts import NumDict
+from ..base.constructs import Process
+from ..base.symbols import F, D, V
+from ..nn import Optimizer, NeuralNet, ADAM, sequential, sum_squares
 
 
-class NAM(cld.Process):
-    """
-    A neural associative memory.
-    
-    Implements a single fully connected layer. 
-    
-    For validation, each weight and bias key must belong to a client fspace.
-
-    May be used as a static network or as a base for various associative 
-    learning models such as Hopfield nets.
-    """
-
-    initial = NumDict()
-
-    w: NumDict[Tuple[feature, feature]]
-    b: NumDict[feature]
-
-    def __init__(
-        self,
-        f: Callable[[NumDict[feature]], NumDict[feature]] = cld.eye
-    ) -> None:
-        self.w = NumDict()
-        self.b = NumDict()
-        self.f = f
-
-    def validate(self):
-        if self.fspaces:
-            fspace = set(f for fspace in self.fspaces for f in fspace())
-            if (any(k1 not in fspace or k2 not in fspace for k1, k2 in self.w) 
-                or any(k not in fspace for k in self.b)):
-                raise ValueError("Parameter key not a member of set fspaces.")
-
-    def call(self, x: NumDict[feature]) -> NumDict[feature]:
-        return (self.w
-            .mul_from(x, kf=cld.first)
-            .sum_by(kf=cld.second)
-            .add(self.b)
-            .pipe(self.f))
-
-
-T = TypeVar("T")
-
-class NDRAM(cld.Process):
-
-    initial = NumDict()
-
-    lr: float
-    t: int
-    delta: float
-    xi: float
-    w: NumDict[Tuple[feature, feature]]
+class SQNet(Process):
+    layers: List[int]
+    gamma: float
+    optimizer: Optimizer
+    n: List[NumDict]
+    net: NeuralNet
+    _xio: Deque[Tuple[NumDict[F], NumDict[F], NumDict[V]]]
+    _ar: Deque[Tuple[NumDict[V], NumDict[D]]]
 
     def __init__(
         self, 
-        lr: float = 1e-3, 
-        t: int = 1, 
-        delta: float = .2, 
-        xi: float = 1.
+        path: str = "", 
+        inputs: Optional[List[str]] = None, 
+        layers: Optional[List[int]] = None, 
+        gamma: float = 0.7,
+        optimizer: Optional[Optimizer] = None
     ) -> None:
-        self.lr = lr
-        self.t = t
-        self.delta = delta
-        self.xi = xi
-        self.w = NumDict()
+        super().__init__(path, inputs)
+        self.layers = layers or []
+        self.gamma = gamma
+        self.optimizer = optimizer or ADAM()
+        self.__validate()
+        self.n = [NumDict({i: 1.0 for i in range(n)}) for n in self.layers]
+        self.net = self._init_net()
+        self._xio = deque([(NumDict(),) * 3] * 2, maxlen=2)
+        self._ar = deque([(NumDict(),) * 2], maxlen=1)
 
+    def __validate(self) -> None:
+        if not 0 <= self.gamma or not self.gamma <= 1:
+            raise ValueError("Discount factor must be in interval [0, 1].")
+
+    def initial(self) -> NumDict[V]:
+        return NumDict()
+    
     def call(
-        self, c: NumDict[feature], x: NumDict[feature]
-    ) -> NumDict[feature]:
-        output = self.forward_pass(x)
-        self.update(c, x)
-        return output
+        self, 
+        x_curr: NumDict[F], 
+        i_curr: NumDict[F], 
+        o_curr: NumDict[V],
+        a_prev: NumDict[V], 
+        r_prev: NumDict[D],
+    ) -> NumDict[V]:
+        self._xio.append((x_curr, i_curr, o_curr))
+        self._ar.append((a_prev, r_prev))
+        output = self.net.call(
+            *self._collect_inputs(*self._xio[1], NumDict(), NumDict()))
+        q, (a, r) = output[-3], self._ar[0]
+        y = r + self.gamma * q.max_by(kf=F.dim.fget)
+        self.optimizer.update(self.net, 
+            *self._collect_inputs(*self._xio[0], a, y))
+        return q.tanh()
 
-    def update(self, c: NumDict[feature], x: NumDict[feature]) -> None:
-        apply = c[self.cmds[1]] # controls whether to update weights
-        y = self.forward_pass(x, iter=self.t)
-        xx = x.outer(x)
-        yy = y.outer(y)
-        self.w = (self.w
-            .mul(self.xi)
-            .add(apply * self.lr * (xx - yy)))
-        
-    def forward_pass(
-        self, x: NumDict[feature], iter: int = 1
-    ) -> NumDict[feature]:
-        y = x
-        for _ in range(iter):
-            y = self.activation(self.w
-                .mul_from(y, kf=cld.first)
-                .sum_by(kf=cld.second))
-        return y
+    def _collect_inputs(self, x, i, o, a, y):
+        return [x, i, *self.n, o, a, y]
 
-    def activation(self, x: NumDict[T]) -> NumDict[T]:
-        return (x
-            .mul(1 + self.delta)
-            .sub(x.pow(3).mul(self.delta))
-            .max(-1).min(1)) # clip output to be between [-1, 1]
+    def _init_net(self):
+        net = sequential(len(self.layers), NumDict.tanh)
+        l = len(net.spec) - 1
+        i = len(self.layers) + 3
+        net.add((self._td_err, (f"l{l}", f"i{i}", f"i{i + 1}")), 
+            (sum_squares, (f"l{l+1}",)))
+        return net
 
-    @property
-    def cmds(self) -> Tuple[feature, ...]:
-        return (
-            feature(cld.prefix("ud", self.prefix), None), 
-            feature(cld.prefix("ud", self.prefix), "apply"))
-
-    @property
-    def nops(self) -> Tuple[feature, ...]:
-        return (feature(cld.prefix("ud", self.prefix), None),)
+    @staticmethod
+    def _td_err(q, a, y):
+        y_hat = q.mul(a).sum_by(kf=F.dim.fget)
+        return y.sub(y_hat)

@@ -1,1 +1,0 @@
-This folder houses demos for various specialized modules and patterns inspired by existing literature on Clarion.
