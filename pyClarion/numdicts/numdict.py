@@ -263,6 +263,7 @@ class NumDict(Mapping[T, float]):
     reduce_max = vops.reduce_max
     reduce_min = vops.reduce_min
     put = vops.put
+    take = vops.take
     mul_from = vops.mul_from
     div_from = vops.div_from
     sum_by = vops.sum_by
@@ -280,3 +281,4 @@ class NumDict(Mapping[T, float]):
     sample = nn_ops.sample
     cam_by = nn_ops.cam_by
     eltwise_cam = nn_ops.eltwise_cam
+    add_normal_noise = nn_ops.add_normal_noise

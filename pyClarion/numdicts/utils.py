@@ -3,7 +3,7 @@ from __future__ import annotations
 from . import numdict as nd
 
 from typing import (Callable, Union, Iterable, TypeVar, Any, Set, Dict, List,   
-    overload, Optional)
+    overload, Optional, Tuple)
 from math import copysign, exp
 from math import isclose as _isclose
 from math import isinf as _isinf
@@ -124,3 +124,16 @@ def le(x: float, y: float) -> float:
 
 def ge(x: float, y: float) -> float:
     return float(x >= y)
+
+
+### OTHER UTILITIES ###
+
+
+def first(pair: Tuple[T, Any]) -> T:
+    """Return the first element in a pair."""
+    return pair[0]
+
+
+def second(pair: Tuple[Any, T]) -> T:
+    """Return the second element in a pair."""
+    return pair[1]

@@ -5,16 +5,14 @@ from . import gradient_tape as gt
 
 from . import basic_ops as bops
 from . import dict_ops as dops 
-from .utils import reduce, by, eltwise
+from .utils import reduce, by, eltwise, first, second
 
 from itertools import product
 from typing import TypeVar, Tuple, Callable, overload, Any
 
 
-__all__ = [
-    "reduce_sum", "reduce_max", "reduce_min", "put", "sum_by", "max_by", 
-    "min_by"
-]
+__all__ = ["reduce_sum", "reduce_max", "reduce_min", "put", "take", "sum_by", 
+    "max_by", "min_by"]
 
 T = TypeVar("T")
 T1, T2 = TypeVar("T1"), TypeVar("T2")
@@ -47,7 +45,7 @@ def _grad_reduce_sum(
     ...
 
 @gt.GradientTape.grad(reduce_sum)
-def _grad_reduce_sum(grads, result, d, *, key):
+def _grad_reduce_sum(grads, result, d, *, key=None):
     return (dops.isolate(grads, key=key) * dops.mask(d),)
 
 
@@ -146,6 +144,34 @@ def _grad_put(
 
 
 @gt.GradientTape.op()
+def take(
+    d: nd.NumDict[T1], source: nd.NumDict[T2], *, 
+    kf: Callable[[T1], T2], strict: bool = False
+) -> nd.NumDict[T2]:
+    """
+    Map values of d to keys from source according to kf.
+    
+    Constructs a new mapping such that its members are as follows: 
+        {kf(k): d[k] for k in d if not strict or kf(k) in source}
+    """
+    return nd.NumDict._new(
+        m={kf(k): d[k] for k in d if not strict or kf(k) in source})
+
+@gt.GradientTape.grad(take)
+def _grad_take(
+    grads: nd.NumDict[T2], 
+    result: nd.NumDict[T2], 
+    d: nd.NumDict[T1], 
+    source: nd.NumDict[T2],
+    *, 
+    kf: Callable[[T1], T2],
+    strict: bool
+) -> Tuple[nd.NumDict[T1], nd.NumDict[T2]]:
+
+    return (put(d, grads, kf=kf, strict=strict), nd.NumDict(c=0))
+
+
+@gt.GradientTape.op()
 def mul_from(
     d: nd.NumDict[T1], source: nd.NumDict[T2], *, 
     kf: Callable[[T1], T2], strict: bool = False
@@ -168,9 +194,10 @@ def _grad_mul_from(
     source: nd.NumDict[T2],
     *, 
     kf: Callable[[T1], T2],
-    strict: bool
+    strict: bool = False
 ) -> Tuple[nd.NumDict[T1], nd.NumDict[T2]]:
-    raise NotImplementedError()
+    return (put(d, source, kf=kf, strict=strict), 
+        take(d, source, kf=kf, strict=strict))
 
 
 @gt.GradientTape.op()
@@ -287,5 +314,5 @@ def _grad_outer(
     grads: nd.NumDict[Tuple[T1, T2]], result: nd.NumDict[Tuple[T1, T2]], 
     d1: nd.NumDict[T1], d2: nd.NumDict[T2]
 ) -> Tuple[nd.NumDict[T1], nd.NumDict[T2]]:
-    raise NotImplementedError()
-
+    return (sum_by(mul_from(grads, d2, kf=second), kf=first), 
+        sum_by(mul_from(grads, d1, kf=first), kf=second))

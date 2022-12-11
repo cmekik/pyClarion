@@ -252,7 +252,7 @@ def _grad_maximum(
     grads: nd.NumDict[T], result: nd.NumDict[T], 
     d1: nd.NumDict[T], d2: nd.NumDict[T]
 ) -> Tuple[nd.NumDict[T], nd.NumDict[T]]:
-    return (grads * (d2 <= d1), grads * (d1 <= d2))
+    return (grads * less_equal(d2, d1), grads * less_equal(d1, d2))
 
 
 @coerce2
@@ -265,4 +265,4 @@ def _grad_minimum(
     grads: nd.NumDict[T], result: nd.NumDict[T], 
     d1: nd.NumDict[T], d2: nd.NumDict[T]
 ) -> Tuple[nd.NumDict[T], nd.NumDict[T]]:
-    return (grads * (d1 <= d2), grads * (d2 <= d1))
+    return (grads * less_equal(d1, d2), grads * less_equal(d2, d1))

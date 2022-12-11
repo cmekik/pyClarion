@@ -13,13 +13,15 @@ from .utils import tanh as _tanh
 from math import exp as _exp
 
 from typing import Tuple, Callable, Iterable, TypeVar, cast
-from random import choices
+from random import choices, normalvariate
 
 
-__all__ = ["sigmoid", "tanh", "boltzmann", "sample", "cam_by", "eltwise_cam"]
+__all__ = ["sigmoid", "tanh", "boltzmann", "sample", "cam_by", "eltwise_cam", 
+    "add_normal_noise"]
 
 
 T = TypeVar("T")
+T1, T2 = TypeVar("T1"), TypeVar("T2")
 
 
 @gt.GradientTape.op()
@@ -85,7 +87,7 @@ def _grad_sample(
 
 
 @gt.GradientTape.op()
-def cam_by(d: nd.NumDict, *, kf: Callable) -> nd.NumDict:
+def cam_by(d: nd.NumDict[T1], *, kf: Callable[[T1], T2]) -> nd.NumDict[T2]:
     return by(d, f=_cam, kf=kf)
 
 @gt.GradientTape.grad(cam_by)
@@ -100,11 +102,28 @@ def _cam(xs: Iterable[float]) -> float:
 
 
 @gt.GradientTape.op()
-def eltwise_cam(*ds: nd.NumDict) -> nd.NumDict:
+def eltwise_cam(*ds: nd.NumDict[T]) -> nd.NumDict[T]:
     return eltwise(*ds, f=_cam)
 
 @gt.GradientTape.grad(eltwise_cam)
 def _grad_eltwise_cam(
     grads: nd.NumDict[T], result: nd.NumDict[T], *ds: nd.NumDict[T]
 ) -> Tuple[nd.NumDict[T], ...]:
+    raise NotImplementedError()
+
+
+@gt.GradientTape.op()
+def add_normal_noise(
+    d: nd.NumDict[T], *, mu: float = 0, sigma: float = 1
+) -> nd.NumDict[T]:
+    """Sample a key from d according to its strength."""
+    if sigma < 0:
+        raise ValueError("Std must be non-negative.")
+    return nd.NumDict._new(m={k: v + normalvariate(mu, sigma) 
+        for k, v in d.items()})
+
+@gt.GradientTape.grad(add_normal_noise)
+def _grad_add_normal_noise(
+    grads: nd.NumDict[T], result: nd.NumDict[T], d: nd.NumDict[T]
+) -> Tuple[nd.NumDict[T]]:
     raise NotImplementedError()
