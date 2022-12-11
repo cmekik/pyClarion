@@ -92,8 +92,10 @@ def main():
     N = 50
     apple, banana, watermelon = [], [], []
     stim.process.stimulate(["size-medium"])
-    for _ in range(N):
+    for i in range(N):
         agent.step()
+        if i == 0:
+            stim.process.stimulate([]) # clear stimulus
         apple.append(bu.output[cl.chunk("nacs/chunks#0002-apple")])
         banana.append(bu.output[cl.chunk("nacs/chunks#0010-banana")])
         watermelon.append(bu.output[cl.chunk("nacs/chunks#0018-watermelon")])
