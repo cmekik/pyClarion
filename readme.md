@@ -8,9 +8,7 @@ The primary resource for the implementation is Ron Sun's [*Anatomy of the Mind*]
 
 - Convenient and modular agent assembly
 - A simple language for initializing explicit knowledge  
-- Numerical dictionaries with autodiff support
-
-See the tutorial for a demonstration of most of these features.
+- Numerical dictionaries
 
 # Installation
 
