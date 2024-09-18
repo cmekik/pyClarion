@@ -47,7 +47,6 @@ class KeySpace:
         return True
 
     def __setattr__(self, name: str, value: Any) -> None:
-        super().__setattr__(name, value)
         if name != "_parent_" and isinstance(value, KeySpace):
             key = Key(name)
             if key in self._members_:
@@ -58,9 +57,10 @@ class KeySpace:
             self._members_[key] = value
             value._name_ = key
             value._parent_ = self
+            self._internal_refs_ += 1
+        super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
-        super().__delattr__(name)
         key = Key(name)
         if key in self._members_: 
             if key in self._required_:
@@ -72,12 +72,14 @@ class KeySpace:
                 raise ValidationError(f"Key {name} has referents")
             del self._members_[key]
             self._unbind_(key)
+            self._internal_refs_ -= 1
             subspaces, keyspace = set(), self
             while keyspace._parent_ is not None:
                 subspaces.update(keyspace._subspaces_)
                 keyspace = keyspace._parent_
             for subspace in subspaces:
                 subspace.deletions += 1
+        super().__delattr__(name)
 
     def _bind_(self, *keys: str | Key) -> None:
         keys = tuple(Key(key) for key in keys)
@@ -90,7 +92,7 @@ class KeySpace:
         for r in range(2, N + 1):
             for m in combinations(indices, r):
                 product = ProductSpace(self, *(keys[i] for i in m))
-                self._products_.setdefault(keys, product)
+                self._products_.setdefault(tuple(keys[i] for i in m), product)
                 for ksp in product.keyspaces:
                     ksp._internal_refs_ += 1
 
