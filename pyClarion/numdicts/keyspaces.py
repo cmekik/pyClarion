@@ -13,7 +13,7 @@ class KeySpace:
     _internal_refs_: int
     _members_: dict[Key, "KeySpace"]
     _products_: dict[tuple[Key, ...], "ProductSpace"]
-    _subspaces_: WeakSet["Index"]
+    _indices_: WeakSet["Index"]
     _required_: frozenset[Key]
 
     def __init__(self):
@@ -21,7 +21,7 @@ class KeySpace:
         self._parent_ = None
         self._members_ = {}
         self._products_ = {}
-        self._subspaces_ = WeakSet()
+        self._indices_ = WeakSet()
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
             if isinstance(typ, type) and issubclass(typ, KeySpace):
@@ -64,13 +64,13 @@ class KeySpace:
             if key in self._required_:
                 raise ValidationError(f"Cannot remove required key '{name}'")
             keyspace = self._members_[key]
-            if self._members_[key]._subspaces_: 
+            if self._members_[key]._indices_: 
                 raise ValidationError(f"Key {name} has dependent subspaces")
             del self._members_[key]
             self._unbind_(key)
             subspaces, keyspace = set(), self
             while keyspace._parent_ is not None:
-                subspaces.update(keyspace._subspaces_)
+                subspaces.update(keyspace._indices_)
                 keyspace = keyspace._parent_
             for subspace in subspaces:
                 subspace.deletions += 1
@@ -174,7 +174,7 @@ class Index:
         self.deletions = 0
         self._trace = self._init_trace()
         for ksp in self._trace[2]:
-            ksp._subspaces_.add(self)
+            ksp._indices_.add(self)
 
     def _init_trace(self):
         keyspaces, parents = [], []
