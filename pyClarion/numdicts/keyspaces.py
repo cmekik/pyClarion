@@ -19,7 +19,6 @@ class KeySpace:
     def __init__(self):
         self._name_ = Key()
         self._parent_ = None
-        self._internal_refs_ = 0
         self._members_ = {}
         self._products_ = {}
         self._subspaces_ = WeakSet()
@@ -57,7 +56,6 @@ class KeySpace:
             self._members_[key] = value
             value._name_ = key
             value._parent_ = self
-            self._internal_refs_ += 1
         super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
@@ -68,11 +66,8 @@ class KeySpace:
             keyspace = self._members_[key]
             if self._members_[key]._subspaces_: 
                 raise ValidationError(f"Key {name} has dependent subspaces")
-            if 3 + keyspace._internal_refs_ < getrefcount(keyspace):
-                raise ValidationError(f"Key {name} has referents")
             del self._members_[key]
             self._unbind_(key)
-            self._internal_refs_ -= 1
             subspaces, keyspace = set(), self
             while keyspace._parent_ is not None:
                 subspaces.update(keyspace._subspaces_)
@@ -93,8 +88,6 @@ class KeySpace:
             for m in combinations(indices, r):
                 product = ProductSpace(self, *(keys[i] for i in m))
                 self._products_.setdefault(tuple(keys[i] for i in m), product)
-                for ksp in product.keyspaces:
-                    ksp._internal_refs_ += 1
 
     def _unbind_(self, *keys: str | Key) -> None:
         for product in list(self._products_):
@@ -108,8 +101,6 @@ class KeySpace:
                 else:
                     break
             else:
-                for ksp in self._products_[product].keyspaces:
-                    ksp._internal_refs_ -= 1
                 del self._products_[product]            
 
     def _iter_(self, h: int) -> Iterator[Key]:
@@ -127,6 +118,9 @@ class KeySpace:
                 yield from product._iter_(h)
 
     def __getattr__(self: Self, name: str) -> Self:
+        if name.startswith("_") and name.endswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'")
         new = type(self)()
         self.__setattr__(name, new)
         return new
