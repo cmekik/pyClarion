@@ -1,6 +1,5 @@
 from typing import get_type_hints, Any, Iterator, Self
 from itertools import combinations, product
-from sys import getrefcount
 from weakref import WeakSet
 
 from .exc import ValidationError
@@ -10,7 +9,6 @@ from .keys import Key, KeyForm
 class KeySpace:
     _name_: Key
     _parent_: "KeySpace | None"
-    _internal_refs_: int
     _members_: dict[Key, "KeySpace"]
     _products_: dict[tuple[Key, ...], "ProductSpace"]
     _indices_: WeakSet["Index"]
