@@ -8,8 +8,7 @@ from .exc import ValidationError
 
 
 def sig_cache[T: Callable](f: T) -> T:
-    new = cache(f)
-    return cast(T, new)
+    return cast(T, cache(f))
 
 
 class Key(tuple[tuple[str, int], ...]):
@@ -73,15 +72,18 @@ class Key(tuple[tuple[str, int], ...]):
     def __repr__(self) -> str:
         return f"Key({repr(str(self))})"
     
+    @sig_cache
     def __bool__(self) -> bool:
         return self != Key()
 
+    @sig_cache
     def __le__(self: Self, other) -> bool:
         if not isinstance(other, Key):
             return NotImplemented
         return bool(self.find_in(other))
 
     @property
+    @sig_cache
     def height(self) -> int:
         S, LVs = 1, []
         for i, (label, degree) in enumerate(self):
@@ -94,37 +96,8 @@ class Key(tuple[tuple[str, int], ...]):
     def size(self) -> int:
         return len(self) - 1
 
-    @property
-    def is_atomic(self) -> bool:
-        return len(self) == 2
-    
-    @property
-    def is_binding(self) -> bool:
-        return 2 < len(self) and self[0][1] == len(self) - 1
-
-    @property
-    def is_star(self) -> bool:
-        return all(degree < 2 for (_, degree) in self[1:])
-
-    @property
-    def is_path(self) -> bool:
-        return all(degree <= 2 for _, degree in self)
-
-    @property
-    def is_elementary(self) -> bool:
-        if len(self) < 2:
-            return False
-        S = 0
-        for (_, degree) in self:
-            if degree == 0:
-                return True
-            if 1 < degree:
-                children = [S + j + 1 for j in range(degree)]
-                return all([self[i][1] == 0 for i in children])
-            S += degree
-        assert False
-
-    def find_in(self: Self, other: "Key") -> list[tuple[int, ...]]:
+    @sig_cache
+    def find_in(self: Self, other: "Key") -> Sequence[tuple[int, ...]]:
         N_s, N_o = len(self), len(other)
         if N_o < N_s:
             return []
@@ -149,7 +122,7 @@ class Key(tuple[tuple[str, int], ...]):
         for m in matches:
             if len(m) == N_s:
                 result.append(tuple(m[i] for i in range(N_s)))
-        return result
+        return tuple(result)
 
     @sig_cache
     def cut(self: Self, n: int, m: Sequence[int] = ()) -> tuple[Self, Self]:
@@ -208,44 +181,6 @@ class Key(tuple[tuple[str, int], ...]):
             S += degree
         return super().__new__(type(self), result)
 
-    def split(self: Self) -> tuple[Self, Self]:
-        i, trunk, branches = 0, [], []
-        for i, (label, degree) in enumerate(self):
-            if 1 < degree:
-                trunk.append((label, 0))
-                branches.append(("", degree))
-                break
-            trunk.append((label, degree))
-        else:
-            branches.append(("", 0))
-        branches.extend(self[i + 1:])
-        cls = type(self)
-        return super().__new__(cls, trunk), super().__new__(cls, branches)
-    
-    def trunc(self, h: int) -> "Key":
-        S, L, LVs = 1, [], []
-        for i, (label, degree) in enumerate(self):
-            if len(LVs) < h:
-                L.append((label, degree))
-            if len(LVs) == h:
-                L.append((label, 0))
-            if len(LVs) > h:
-                break
-            if S == 1 or i == LVs[-1]:
-                LVs.append(S)
-            S += degree
-        cls = type(self)
-        return super().__new__(cls, L)
-
-    def replace(self, mapping: dict[str, str], start: int = 0):
-        result = []
-        for i, (label, degree) in enumerate(self):
-            if start <= i:
-                result.append((mapping.get(label, label), degree))
-            else:
-                result.append((label, degree))
-        return super().__new__(type(self), result)
-
 
 @dataclass(frozen=True)
 class KeyForm:
@@ -302,7 +237,9 @@ class KeyForm:
             S += degree
         return True
     
-    def __lt__(self: Self, other: Self) -> bool:
+    def __lt__(self: Self, other) -> bool:
+        if not isinstance(other, KeyForm):
+            return NotImplemented
         return self != other and self <= other
 
     @sig_cache

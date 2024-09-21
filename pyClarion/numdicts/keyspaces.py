@@ -27,18 +27,16 @@ class KeySpace:
         self._required_ = frozenset(self._members_)
 
     def __contains__(self, key: str | Key) -> bool:
-        k = Key(key)
-        keyspace = self
-        trunk, branches = k.split()
-        while trunk:
-            head, trunk = trunk.cut(1) 
+        k, keyspace = Key(key), self
+        while k and k[0][1] <= 1:
+            node, k = k.cut(1)
             try:
-                keyspace = keyspace._members_[head]
+                keyspace = keyspace._members_[node]
             except KeyError:
                 return False
-        if branches:
-            while branches.size:
-                branches, branch = branches.cut(0, (0,))
+        else:
+            while k.size:
+                k, branch = k.cut(0, (0,))
                 if branch not in keyspace:
                     return False
         return True
