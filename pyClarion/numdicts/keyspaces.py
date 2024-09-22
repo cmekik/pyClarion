@@ -1,4 +1,4 @@
-from typing import get_type_hints, Any, Iterator, Self
+from typing import get_type_hints, Any, Iterator
 from itertools import combinations, product
 from weakref import WeakSet
 
@@ -113,13 +113,35 @@ class KeySpace:
             for product in self._products_.values():
                 yield from product._iter_(h)
 
-    def __getattr__(self: Self, name: str) -> Self:
+    def __getattr__(self, name: str) -> "KeySpace":
         if name.startswith("_") and name.endswith("_"):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'")
         new = type(self)()
         self.__setattr__(name, new)
         return new
+
+
+def root(ksp: KeySpace) -> KeySpace:
+    ret = ksp
+    while ret._parent_ is not None:
+        ret = ret._parent_
+    return ret
+
+
+def path(ksp: KeySpace) -> Key:
+    ret = ksp._name_
+    while ksp._parent_ is not None:
+        ksp = ksp._parent_
+        assert len(ksp._name_) == 2
+        ret = ksp._name_.link(ret, 1)
+    return ret
+
+
+def parent(ksp: KeySpace) -> KeySpace:
+    if ksp._parent_ is None:
+        raise ValueError("Keyspace is root (has no parent)")
+    return ksp._parent_
 
 
 def bind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
