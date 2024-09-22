@@ -1,10 +1,11 @@
-from typing import Callable, Sequence, Mapping, Any
+from typing import Callable, Sequence, Mapping, Literal, LiteralString, Any
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
 from datetime import timedelta
 import heapq
 
+from .knowledge import Sort
 from ..numdicts import NumDict, Key, KeySpace
 
 
@@ -13,6 +14,8 @@ PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
 
 class Update:
     def apply(self) -> None:
+        ...
+    def affects(self, site: NumDict) -> bool:
         ...
 
 
@@ -27,6 +30,30 @@ class UpdateSite(Update):
             if self.reset: d.reset()
             d.update(self.data)
 
+    def affects(self, site: NumDict) -> bool:
+        return self.site is site
+
+
+@dataclass(slots=True)
+class UpdateSort(Update):
+    sort: Sort
+    mode: Literal["add", "rem"]
+    keys: tuple[LiteralString, ...]
+
+    def apply(self) -> None:
+        match self.mode:
+            case "add":
+                func = getattr
+            case "rem":
+                func = delattr
+            case _:
+                raise ValueError("Mode must be 'add' or 'rem'")
+        for name in self.keys:
+            func(self.sort, name)
+
+    def affects(self, site: NumDict) -> bool:
+        return site.i.depends_on(self.sort)
+    
 
 @dataclass(slots=True)
 class Event:
@@ -40,10 +67,7 @@ class Event:
         return NotImplemented
         
     def affects(self, site: NumDict):
-        for ud in self.updates:
-            if isinstance(ud, UpdateSite) and ud.site is site:
-                return True
-        return False
+        return any(ud.affects(site) for ud in self.updates)
 
 
 @dataclass(slots=True)
@@ -145,7 +169,5 @@ class Process:
     def resolve(self, event: Event) -> None:
         pass
 
-
-class Agent(Process):
     def breakpoint(self, dt: timedelta) -> None:
         self.system.schedule(self.breakpoint, dt=dt)
