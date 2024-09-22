@@ -47,6 +47,8 @@ class KeySpaceTestCase(unittest.TestCase):
         ksp.foo.bar; ksp.foo.baz; ksp.qux.xyz
         bind(ksp.foo.bar, ksp.foo.baz)
         bind(ksp.foo, ksp.qux)
+        l_0 = list(ksp._iter_(0))
+        self.assertTrue(l_0 == [])
         l_1 = list(ksp._iter_(1))
         self.assertTrue(l_1 == [Key("foo"), Key("qux"), Key("(foo,qux)")])
         l_2 = list(ksp._iter_(2))
