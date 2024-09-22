@@ -1,4 +1,4 @@
-from typing import get_type_hints, Any, Iterator
+from typing import get_type_hints, Any, Iterator, Type
 from itertools import combinations, product
 from weakref import WeakSet
 
@@ -56,12 +56,13 @@ class KeySpace:
 
     def __delattr__(self, name: str) -> None:
         key = Key(name)
+        if key in self._required_:
+            raise ValidationError(f"Cannot remove required key '{name}'")
+        if key in self._members_ and self._members_[key]._indices_: 
+            raise ValidationError(f"Key {name} has dependent subspaces")
+        super().__delattr__(name)
         if key in self._members_: 
-            if key in self._required_:
-                raise ValidationError(f"Cannot remove required key '{name}'")
             keyspace = self._members_[key]
-            if self._members_[key]._indices_: 
-                raise ValidationError(f"Key {name} has dependent subspaces")
             del self._members_[key]
             self._unbind_(key)
             subspaces, keyspace = set(), self
@@ -70,7 +71,6 @@ class KeySpace:
                 keyspace = keyspace._parent_
             for subspace in subspaces:
                 subspace.deletions += 1
-        super().__delattr__(name)
 
     def _bind_(self, *keys: str | Key) -> None:
         keys = tuple(Key(key) for key in keys)
@@ -102,7 +102,9 @@ class KeySpace:
     def _iter_(self, h: int) -> Iterator[Key]:
         if not self._members_:
             return
-        if h <= 1:
+        if h <= 0:
+            return
+        if h == 1:
             yield from self._members_
             for product in self._products_.values():
                 yield from product._iter_(h)
@@ -118,6 +120,29 @@ class KeySpace:
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'")
         new = type(self)()
+        self.__setattr__(name, new)
+        return new
+
+
+class GenericKeySpace[C: KeySpace](KeySpace):
+    
+    @property
+    def _child_type_(self) -> Type[C]:
+        raise NotImplementedError()
+ 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if (name != "_parent_" and isinstance(value, KeySpace) 
+            and not isinstance(value, self._child_type_)):
+            raise TypeError(f"Keyspace of type {type(self).__name__} "
+                f"expected subspace of type {self._child_type_.__name__} "
+                f"but got {type(value).__name__} instead")
+        super().__setattr__(name, value)
+
+    def __getattr__(self, name: str) -> C:
+        if name.startswith("_") and name.endswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'")
+        new = self._child_type_()
         self.__setattr__(name, new)
         return new
 
@@ -186,9 +211,9 @@ class ProductSpace:
 
 class Index:
 
-    def __init__(self, keyspace: KeySpace, keyform: KeyForm) -> None:
-        self.keyspace = keyspace
-        self.keyform = keyform 
+    def __init__(self, root: KeySpace, form: KeyForm) -> None:
+        self.root = root
+        self.keyform = form 
         self.deletions = 0
         self._trace = self._init_trace()
         for ksp in self._trace[2]:
@@ -199,7 +224,7 @@ class Index:
         leaves, hs, heights = [], iter(self.keyform.h), {}
         for i, (label, degree) in enumerate(self.keyform.k):
             if i == 0:
-                keyspaces.append(self.keyspace)
+                keyspaces.append(self.root)
                 parents.extend([-1, *([i] * degree)])
             else:
                 level = keyspaces[parents[i]]
@@ -219,7 +244,7 @@ class Index:
         return leaves, heights, keyspaces 
 
     def __contains__(self, key: Key) -> bool:
-        return key in self.keyform and key in self.keyspace
+        return key in self.keyform and key in self.root
 
     def __iter__(self) -> Iterator[Key]:
         leaves, heights, keyspaces = self._trace
@@ -230,3 +255,14 @@ class Index:
             for i, s in zip(reversed(leaves), reversed(suite)):
                 result = result.link(s, i, ())
             yield result
+
+    def depends_on(self, ksp: KeySpace) -> bool:
+        if root(ksp) != self.root:
+            raise ValueError("Incompatible keyspace: Non-identical roots")
+        key, i = path(ksp), 0
+        kf = KeyForm(key, (i,))
+        while key and not kf < self.keyform.k:
+            key, _ = key.cut(key.size)
+            i += 1
+            kf = KeyForm(key, (i,))
+        return bool(key)        
