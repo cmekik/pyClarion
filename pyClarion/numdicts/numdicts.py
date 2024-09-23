@@ -120,7 +120,7 @@ class NumDict:
             raise ValueError(f"Invalid mode flag: '{mode}'")
         invariant = True
         for d in others:
-            if d._i.keyspace != self._i.keyspace:
+            if d._i.root != self._i.root:
                 raise ValueError(f"Mismatched keyspaces")
             if not d._i.keyform <= self._i.keyform:
                 raise ValueError("Mismatched keyforms")
