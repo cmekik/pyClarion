@@ -100,7 +100,7 @@ def sum(
                 raise ValueError()
             mode = "self" if self._c == 0. or math.isnan(self._c) else "full"
             it = self.group(by, branch=b, mode=mode).items()
-            i = Index(self._i.keyspace, by)
+            i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
         case (others, None, None, bs):
             mode = "self" if math.isnan(self._c) else "match"
@@ -152,7 +152,7 @@ def mul(
                 raise ValueError()
             mode = "self" if self._c == 1. or math.isnan(self._c) else "full"
             it = self.group(by, branch=b, mode=mode).items()
-            i = Index(self._i.keyspace, by)
+            i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
         case (others, None, None, bs):
             mode = "self" if math.isnan(self._c) else "match"
@@ -202,7 +202,7 @@ def max(
                 raise ValueError()
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, branch=b, mode=mode).items()
-            i = Index(self._i.keyspace, by)
+            i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
         case (others, None, None, bs):
             mode = "self" if math.isnan(self._c) else "match"
@@ -244,7 +244,7 @@ def min(
                 raise ValueError()
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, branch=b, mode=mode).items()
-            i = Index(self._i.keyspace, by)
+            i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
         case (others, None, None, bs):
             mode = "self" if math.isnan(self._c) else "match"
