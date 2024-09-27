@@ -1,4 +1,4 @@
-from typing import get_type_hints, Any, Iterator, Type
+from typing import get_type_hints, Any, Iterator, Type, overload
 from itertools import combinations, product
 from weakref import WeakSet
 
@@ -211,7 +211,27 @@ class ProductSpace:
 
 class Index:
 
+    @overload
     def __init__(self, root: KeySpace, form: KeyForm) -> None:
+        ...
+
+    @overload
+    def __init__(self, 
+        root: KeySpace, 
+        form: Key | str, 
+        tup: tuple[int, ...]
+    ) -> None:
+        ...
+
+    def __init__(self, 
+        root: KeySpace, 
+        form: KeyForm | Key | str, 
+        tup: tuple[int, ...] | None = None
+    ) -> None:
+        if isinstance(form, (Key, str)):
+            if tup is None:
+                raise ValueError("No depth tuple passed in")
+            form = KeyForm(Key(form), tup)
         self.root = root
         self.keyform = form 
         self.deletions = 0
