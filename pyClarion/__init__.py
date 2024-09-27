@@ -1,4 +1,5 @@
-from .components import (Update, Event, UpdateSite, UpdateSort, Clock, Process)
+from .components import (Update, Event, UpdateSite, UpdateSort, Clock, Process, 
+    Simulation, Agent)
 from .numdicts import (ValidationError, Key, KeyForm, KeySpace, GenericKeySpace,
     Index, NumDict, root, path, parent, bind, unbind, numdict)
 
@@ -7,5 +8,6 @@ __all__ = [
     "ValidationError", "Key", "KeyForm", "KeySpace", "GenericKeySpace",
     "Index", "NumDict", "root", "path", "parent", "bind", "unbind", "numdict",
     # from components
-    "Update", "Event", "UpdateSite", "UpdateSort", "Clock", "Process"
+    "Update", "Event", "UpdateSite", "UpdateSort", "Clock", "Process", 
+    "Simulation", "Agent"
     ]
