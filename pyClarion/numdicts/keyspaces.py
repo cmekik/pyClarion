@@ -157,9 +157,9 @@ def root(ksp: KeySpace) -> KeySpace:
 def path(ksp: KeySpace) -> Key:
     ret = ksp._name_
     while ksp._parent_ is not None:
-        ksp = ksp._parent_
         assert len(ksp._name_) == 2
-        ret = ksp._name_.link(ret, 1)
+        ksp = ksp._parent_
+        ret = ksp._name_.link(ret, ksp._name_.size)
     return ret
 
 
