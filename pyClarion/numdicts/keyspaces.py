@@ -1,9 +1,9 @@
-from typing import get_type_hints, Any, Iterator, Type, overload
+from typing import get_type_hints, Any, Iterator, Type, overload, Self
 from itertools import combinations, product
 from weakref import WeakSet
 
 from .exc import ValidationError
-from .keys import Key, KeyForm
+from .keys import Key, KeyForm, sig_cache
 
 
 class KeySpace:
@@ -212,13 +212,33 @@ class ProductSpace:
 class Index:
 
     @overload
+    def __new__(cls: type[Self], root: KeySpace, form: KeyForm) -> Self:
+        ...
+
+    @overload
+    def __new__(cls: type[Self], 
+        root: KeySpace, 
+        form: KeyForm | Key | str, 
+        tup: tuple[int, ...]
+    ) -> Self:
+        ...
+
+    @sig_cache
+    def __new__(
+        cls: Type[Self], 
+        root: KeySpace, 
+        form: KeyForm | Key | str, 
+        tup: tuple[int, ...] | None = None) -> Self:
+        return super().__new__(cls)
+
+    @overload
     def __init__(self, root: KeySpace, form: KeyForm) -> None:
         ...
 
     @overload
     def __init__(self, 
         root: KeySpace, 
-        form: Key | str, 
+        form: KeyForm | Key | str, 
         tup: tuple[int, ...]
     ) -> None:
         ...
@@ -265,14 +285,6 @@ class Index:
 
     def __contains__(self, key: Key) -> bool:
         return key in self.keyform and key in self.root
-    
-    def __eq__(self, other) -> bool:
-        if isinstance(other, Index):
-            return self.root == other.root and self.keyform == other.keyform
-        return NotImplemented
-    
-    def __hash__(self) -> int:
-        return hash((self.root, self.keyform))
 
     def __iter__(self) -> Iterator[Key]:
         leaves, heights, keyspaces = self._trace
