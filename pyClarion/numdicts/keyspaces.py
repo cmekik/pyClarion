@@ -223,7 +223,7 @@ class Index:
     ) -> Self:
         ...
 
-    @sig_cache
+    @sig_cache # TODO: Make cache weak
     def __new__(
         cls: Type[Self], 
         root: KeySpace, 
