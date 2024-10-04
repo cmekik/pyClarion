@@ -3,6 +3,7 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
 from datetime import timedelta
+from inspect import ismethod
 import heapq
 
 from .knowledge import Sort
@@ -60,6 +61,16 @@ class Event:
     time: timedelta
     source: Callable
     updates: Sequence[Update]
+
+    def __repr__(self) -> str:
+
+        if ismethod(self.source) and isinstance(self.source.__self__, Process):
+            source = f"{self.source.__self__.name}.{self.source.__name__}"
+        else:
+            source = self.source.__qualname__        
+        return (f"<{self.__class__.__qualname__} "
+            f"source={source} time={repr(self.time)} "
+            f"at {hex(id(self))}>")
 
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
