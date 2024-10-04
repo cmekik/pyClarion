@@ -265,6 +265,14 @@ class Index:
 
     def __contains__(self, key: Key) -> bool:
         return key in self.keyform and key in self.root
+    
+    def __eq__(self, other) -> bool:
+        if isinstance(other, Index):
+            return self.root == other.root and self.keyform == other.keyform
+        return NotImplemented
+    
+    def __hash__(self) -> int:
+        return hash((self.root, self.keyform))
 
     def __iter__(self) -> Iterator[Key]:
         leaves, heights, keyspaces = self._trace
