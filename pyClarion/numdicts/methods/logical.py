@@ -98,7 +98,7 @@ def argmax(self, *, by: KeyForm, b: int) -> dict[nd.Key, nd.Key]:
 def argmax(
     self, *, by: KeyForm | None = None, b: int | None = None
 ) -> nd.Key | dict[nd.Key, nd.Key]:
-    it = self._d if math.isnan(self._c) else self._s
+    it = self._d if math.isnan(self._c) else self._i
     match (by, b):
         case (None, None):
             kmax, vmax = None, -math.inf
@@ -110,7 +110,7 @@ def argmax(
         case (by, b):
             assert by is not None
             kmax, vmax = {}, {}
-            for k in self._s:
+            for k in it:
                 group, v = by.reduce(k, b), self[k]
                 if vmax.setdefault(group, -math.inf) < v:
                     kmax[group] = k
@@ -133,7 +133,7 @@ def argmin(self, *, by: KeyForm, b: int) -> dict[nd.Key, nd.Key]:
 def argmin(
     self, *, by: KeyForm | None = None, b: int | None = None
 ) -> nd.Key | dict[nd.Key, nd.Key]:
-    it = self._d if math.isnan(self._c) else self._s
+    it = self._d if math.isnan(self._c) else self._i
     match (by, b):
         case (None, None):
             kmin, vmin = None, math.inf
