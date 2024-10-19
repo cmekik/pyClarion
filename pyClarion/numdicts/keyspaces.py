@@ -218,7 +218,7 @@ class Index:
     @overload
     def __new__(cls: type[Self], 
         root: KeySpace, 
-        form: KeyForm | Key | str, 
+        form: Key | str, 
         tup: tuple[int, ...]
     ) -> Self:
         ...
@@ -238,7 +238,7 @@ class Index:
     @overload
     def __init__(self, 
         root: KeySpace, 
-        form: KeyForm | Key | str, 
+        form: Key | str, 
         tup: tuple[int, ...]
     ) -> None:
         ...
