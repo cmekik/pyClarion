@@ -1,6 +1,6 @@
 from typing import Any, Self, Iterable, Sequence, Type, NoReturn, overload
 
-from ..numdicts import GenericKeySpace, KeySpace, Index, KeyForm, root, path
+from ..numdicts import GenericKeySpace, KeySpace, Index, root, path
 
 
 class Support(GenericKeySpace["Family"]):
@@ -30,9 +30,9 @@ class Sort(GenericKeySpace["Atom"]):
 
     def __rmatmul__(self, other):
         if isinstance(other, Atom):
-            return Dimension(other, self)
+            return Dimension.from_keyspaces(other, self)
         if isinstance(other, Sort):
-            return Dyads(other, self)
+            return Dyads.from_keyspaces(other, self)
         return NotImplemented
 
 
@@ -102,27 +102,33 @@ class Var:
 
 
 class Dimension(Index):
-    def __init__(self, atom: Atom, sort: Sort) -> None:
+
+    @classmethod
+    def from_keyspaces(cls, atom: Atom, sort: Sort):
         ksp = root(atom)
         if ksp != root(sort):
             raise ValueError("Mismatched keyspaces")
         ref = path(atom).link(path(sort), 0)
-        super().__init__(root(atom), KeyForm(ref, (0, 1)))
+        return cls(ksp, ref, (0, 1))
 
 
 class Dyads(Index):
-    def __init__(self, sort1: Sort, sort2: Sort) -> None:
+
+    @classmethod
+    def from_keyspaces(cls, sort1: Sort, sort2: Sort):
         ksp = root(sort1)
         if ksp != root(sort2):
             raise ValueError("Mismatched keyspaces")
         ref = path(sort1).link(path(sort2), 0)
-        super().__init__(ksp, KeyForm(ref, (1, 1)))
+        return cls(ksp, ref, (1, 1))
 
 
 class Triads(Index):
-    def __init__(self, sort1: Sort, sort2: Sort, sort3: Sort) -> None:
+
+    @classmethod
+    def from_keyspaces(cls, sort1: Sort, sort2: Sort, sort3: Sort):
         ksp = root(sort1)
         if ksp != root(sort2) or ksp != root(sort3):
             raise ValueError("Mismatched keyspaces")
         ref = path(sort1).link(path(sort2), 0).link(path(sort3), 0)
-        super().__init__(ksp, KeyForm(ref, (1, 1, 1)))
+        return cls(ksp, ref, (1, 1, 1))        
