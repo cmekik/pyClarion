@@ -1,4 +1,4 @@
-from typing import get_type_hints, Any, Iterator, Type, overload, Self
+from typing import get_type_hints, Any, Iterator, Type, overload, Self, cast
 from itertools import combinations, product
 from weakref import WeakSet
 
@@ -41,7 +41,7 @@ class KeySpace:
                     return False
         return True
     
-    def __getitem__(self, name: str):
+    def __getitem__(self, name: str) -> "KeySpace":
         if not name.isidentifier():
             raise ValueError(
                 f"Argument {repr(name)} is not a valid Python identifier")
@@ -135,7 +135,10 @@ class GenericKeySpace[C: KeySpace](KeySpace):
     @property
     def _child_type_(self) -> Type[C]:
         raise NotImplementedError()
- 
+
+    def __getitem__(self, name: str) -> C:
+        return cast(C, super().__getitem__(name))
+
     def __setattr__(self, name: str, value: Any) -> None:
         if (name != "_parent_" and isinstance(value, KeySpace) 
             and not isinstance(value, self._child_type_)):
