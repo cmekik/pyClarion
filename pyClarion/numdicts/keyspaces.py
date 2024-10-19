@@ -81,7 +81,7 @@ class KeySpace:
     def _bind_(self, *keys: str | Key) -> None:
         keys = tuple(Key(key) for key in keys)
         if any(key not in self._members_ for key in keys):
-            raise ValueError()
+            raise ValueError(f"Undefined child keys in sequence {keys}")
         N = len(keys)
         if N <= 1:
             return
@@ -265,8 +265,31 @@ class Index:
         self.keyform = form 
         self.deletions = 0
         self._trace = self._init_trace()
+        self._auto_bind()
         for ksp in self._trace[2]:
             ksp._indices_.add(self)
+
+    def _auto_bind(self):
+        keyspaces, parents = [], []
+        s = 0
+        for i, (label, degree) in enumerate(self.keyform.k):
+            if i == 0:
+                level = self.root
+                keyspaces.append(level)
+                parents.extend([-1, *([i] * degree)])
+            else:
+                level = keyspaces[parents[i]]
+                try:
+                    level = level._members_[Key(label)]
+                except IndexError as e:
+                    raise ValidationError(
+                        f"Key '{self.keyform.k}' not defined") from e
+                keyspaces.append(level)
+                parents.extend([i] * degree)
+            if 1 < degree:
+                children = [self.keyform.k[s + j + 1][0] for j in range(degree)]
+                level._bind_(*children)
+            s += degree
 
     def _init_trace(self):
         keyspaces, parents = [], []
