@@ -210,8 +210,11 @@ class NumDict:
         self._d.clear()
     
     @inplace
-    def update(self: Self, data: Mapping[Key, float]) -> None:
+    def update(
+        self: Self, 
+        data: Mapping[Key, SupportsFloat] | Mapping[str, SupportsFloat]
+    ) -> None:
         for k in data:
             if k not in self:
                 raise ValueError(f"Key '{k}' not a member")
-        self._d.update(data)
+        self._d.update({Key(k): float(v) for k, v in data.items()})
