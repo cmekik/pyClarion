@@ -144,12 +144,3 @@ class Triads(Index):
             raise ValueError("Mismatched keyspaces")
         ref = path(sort1).link(path(sort2), 0).link(path(sort3), 0)
         return cls(ksp, ref, (1, 1, 1))        
-
-
-magoo = Sort()
-magoo_var = Var(magoo)
-ch  = (
-    - magoo.a ** magoo.b 
-    + (magoo_var := Var(magoo)) ** magoo.d 
-    >>
-    + magoo.e ** magoo_var)
