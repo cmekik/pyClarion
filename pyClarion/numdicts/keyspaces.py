@@ -40,6 +40,12 @@ class KeySpace:
                 if branch not in keyspace:
                     return False
         return True
+    
+    def __getitem__(self, name: str):
+        if not name.isidentifier():
+            raise ValueError(
+                f"Argument {repr(name)} is not a valid Python identifier")
+        return getattr(self, name)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name != "_parent_" and isinstance(value, KeySpace):
