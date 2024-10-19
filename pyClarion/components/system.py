@@ -108,6 +108,11 @@ class Process:
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
 
+        def user_update(
+                self, *updates: Update, dt: timedelta = timedelta()
+            ) -> None:
+            self.schedule(self.user_update, *updates, dt=dt)
+
         def schedule(
             self, src: Callable, *uds: Update, dt: timedelta = timedelta()
         ) -> None:
