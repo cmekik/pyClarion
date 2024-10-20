@@ -36,6 +36,10 @@ class KeySpace:
             except KeyError:
                 return False
         else:
+            deg = k[0][1]
+            prod = tuple(Key(label) for label, _ in k[1:deg + 1])
+            if not prod in self._products_:
+                return False
             while k.size:
                 k, branch = k.cut(0, (0,))
                 if branch not in keyspace:
@@ -262,6 +266,8 @@ class Index:
             if tup is None:
                 raise ValueError("No depth tuple passed in")
             form = KeyForm(Key(form), tup)
+        if form.k not in root:
+            raise ValueError(f"Reference key '{form.k}' not a member of root")
         self.root = root
         self.keyform = form 
         self.deletions = 0
