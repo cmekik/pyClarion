@@ -18,9 +18,13 @@ class Key(tuple[tuple[str, int], ...]):
     def __new__(cls: Type[Self], s: Self | str = "") -> Self:
         if isinstance(s, cls):
             return s
-        assert isinstance(s, str)
+        if not isinstance(s, str):
+            raise TypeError(f"Expected str or {cls.__name__}, got "
+                f"{type(s).__name__} instead""")
         if any(c.isspace() for c in s):
             raise ValidationError("No spaces allowed")
+        if s == "":
+            return super().__new__(cls, (("", 0),))
         template = "{}" 
         atomic, compound = r"[^(),]+", r"[^(),]+(?:,[^(),]+)+"
         outer = fr"((?:)|(?:{atomic})|(?:\({compound}\)))"
@@ -32,6 +36,8 @@ class Key(tuple[tuple[str, int], ...]):
             if m is None:
                 raise ValidationError("Invalid key string")
             groups = m.groups()
+            if len(groups) == 1 and m.string == "":
+                raise ValidationError("Invalid key string")
             if len(groups) != len(cur):
                 raise ValidationError("Invalid key string")
             new_cur, new_template = [], []
