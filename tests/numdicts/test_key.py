@@ -134,6 +134,12 @@ class KeyFormPartialOrderingTestCase(unittest.TestCase):
                 self.assertFalse(kf1 <= kf2)
                 self.assertFalse(kf2 <= kf1)
 
+class KeyFormFromKeyTestCase(unittest.TestCase):
+
+   def test(self):
+    x = KeyForm(Key("(a,b):(c,)"), (1, 0))
+    y = KeyForm.from_key(Key("(a,b):(c,?)"))
+    self.assertEqual(x, y)
 
 @unittest.skip("Not Implemented")
 class KeyManipulationTestCase(unittest.TestCase):
@@ -162,3 +168,6 @@ class KeyFormTestCase(unittest.TestCase):
 
     def test_keyform_error_on_invalid_key_reduction(self):
         ...
+
+if __name__ == "__main__":
+    unittest.main()

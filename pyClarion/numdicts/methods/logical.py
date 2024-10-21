@@ -1,6 +1,6 @@
 import math
 from typing import TypeVar, overload
-from ..keys import KeyForm
+from ..keys import KeyForm, Key
 from .. import numdicts as nd
 
 
@@ -84,20 +84,20 @@ def valmin(self) -> float:
 
 
 @overload
-def argmax(self) -> nd.Key:
+def argmax(self) -> Key:
     ...
 
 @overload
-def argmax(self, *, by: KeyForm) -> dict[nd.Key, nd.Key]:
+def argmax(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
     ...
 
 @overload
-def argmax(self, *, by: KeyForm, b: int) -> dict[nd.Key, nd.Key]:
+def argmax(self, *, by: str | Key | KeyForm, b: int) -> dict[Key, Key]:
     ...
 
 def argmax(
-    self, *, by: KeyForm | None = None, b: int | None = None
-) -> nd.Key | dict[nd.Key, nd.Key]:
+    self, *, by: str | Key | KeyForm | None = None, b: int | None = None
+) -> Key | dict[Key, Key]:
     it = self._d if math.isnan(self._c) else self._i
     match (by, b):
         case (None, None):
@@ -109,6 +109,8 @@ def argmax(
             return kmax
         case (by, b):
             assert by is not None
+            if isinstance(by, (str, nd.Key)):
+                by = nd.KeyForm.from_key(nd.Key(by))
             kmax, vmax = {}, {}
             for k in it:
                 group, v = by.reduce(k, b), self[k]
@@ -123,16 +125,16 @@ def argmin(self) -> nd.Key:
     ...
 
 @overload
-def argmin(self, *, by: KeyForm) -> dict[nd.Key, nd.Key]:
+def argmin(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
     ...
 
 @overload
-def argmin(self, *, by: KeyForm, b: int) -> dict[nd.Key, nd.Key]:
+def argmin(self, *, by: str | Key | KeyForm, b: int) -> dict[Key, Key]:
     ...
 
 def argmin(
-    self, *, by: KeyForm | None = None, b: int | None = None
-) -> nd.Key | dict[nd.Key, nd.Key]:
+    self, *, by: str | Key | KeyForm | None = None, b: int | None = None
+) -> Key | dict[Key, Key]:
     it = self._d if math.isnan(self._c) else self._i
     match (by, b):
         case (None, None):
@@ -144,6 +146,8 @@ def argmin(
             return kmin
         case (by, b):
             assert by is not None
+            if isinstance(by, (str, nd.Key)):
+                by = nd.KeyForm.from_key(nd.Key(by))
             kmin, vmin = {}, {}
             for k in it:
                 group, v = by.reduce(k, b), self[k]

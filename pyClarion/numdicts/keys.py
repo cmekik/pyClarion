@@ -236,6 +236,8 @@ class KeyForm:
                 elif degree < degree_s:
                     return False
             if i in depths:
+                if 1 < degree and 0 < refs[i]:
+                    return False
                 depths.update({S + j: depths[i] + 1 for j in range(degree)})
                 refs.update({S + j: refs[i] for j in range(degree)})
                 if degree == 0 and depths[i] + next(it_h_o) < refs[i]:
@@ -282,3 +284,35 @@ class KeyForm:
                     trim.update({S + j for j in range(degree)})
             S += degree
         return tuple.__new__(Key, result)
+
+    @classmethod
+    @sig_cache
+    def from_key(cls: Type[Self], key: Key) -> Self:
+        leaves, indices, hs, S = [], {}, {}, 1
+        for i, (label, deg) in enumerate(key):
+            children = [key[S + j] for j in range(deg)]
+            if not (i == 0 or label.isidentifier() or label == "?"):
+                raise ValidationError(f"Unexpected label {repr(label)} in key, "
+                    "label must be a valid python identifier or '?'.")
+            elif label.isidentifier() and deg == 0:
+                leaves.append(i)
+                indices[i] = i
+                hs[i] = 0
+            elif label == "?" and deg == 0:
+                hs[indices[i]] += 1
+            elif any(label == "?" for label, _ in children):
+                if 1 < len(children):
+                    raise ValidationError("Wildcard '?' cannot have siblings")
+                if label.isidentifier():
+                    leaves.append(i)
+                    indices[i] = i
+                    hs[i] = 0
+                else:
+                    hs[indices[i]] += 1
+                for j in range(deg):
+                    indices[S + j] = indices[i]
+            S += deg
+        ref = key
+        for i in reversed(leaves):
+            ref, _ = ref.cut(i)
+        return cls(ref, tuple(hs[indices[i]] for i in leaves))

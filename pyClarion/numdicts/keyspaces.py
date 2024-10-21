@@ -1,17 +1,16 @@
-from typing import get_type_hints, Any, Iterator, Type, overload, Self, cast, ClassVar
-from itertools import combinations, product
-from contextlib import contextmanager
+from typing import get_type_hints, Any, Iterator, overload
+from itertools import product
 from weakref import WeakSet
+import warnings
 
 from .exc import ValidationError
-from .keys import Key, KeyForm, sig_cache
+from .keys import Key, KeyForm
 
 
 class KeySpace:
     _name_: Key
     _parent_: "KeySpace | None"
     _members_: dict[Key, "KeySpace"]
-    _products_: dict[tuple[Key, ...], "ProductSpace"]
     _indices_: WeakSet["Index"]
     _required_: frozenset[Key]
 
@@ -19,13 +18,15 @@ class KeySpace:
         self._name_ = Key()
         self._parent_ = None
         self._members_ = {}
-        self._products_ = {}
         self._indices_ = WeakSet()
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
             if isinstance(typ, type) and issubclass(typ, KeySpace):
                 setattr(self, name, typ())
         self._required_ = frozenset(self._members_)
+
+    def __iter__(self) -> Iterator[Key]:
+        yield from self._members_
 
     def __contains__(self, key: str | Key) -> bool:
         k, keyspace = Key(key), self
@@ -36,10 +37,6 @@ class KeySpace:
             except KeyError:
                 return False
         else:
-            deg = k[0][1]
-            prod = tuple(Key(label) for label, _ in k[1:deg + 1])
-            if not prod in self._products_:
-                return False
             while k.size:
                 k, branch = k.cut(0, (0,))
                 if branch not in keyspace:
@@ -51,6 +48,13 @@ class KeySpace:
             raise ValueError(
                 f"Argument {repr(name)} is not a valid Python identifier")
         return getattr(self, name)
+    
+    def __setitem__(self, name: str, value: Any) -> None:
+        if not isinstance(value, KeySpace):
+            raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
+                f"of type {KeySpace.__name__}, but got a value of type "
+                f"{type(value).__name__} instead")
+        setattr(self, name, value)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name != "_parent_" and isinstance(value, KeySpace):
@@ -75,88 +79,18 @@ class KeySpace:
         if key in self._members_: 
             keyspace = self._members_[key]
             del self._members_[key]
-            self._unbind_(key)
             subspaces, keyspace = set(), self
             while keyspace._parent_ is not None:
                 subspaces.update(keyspace._indices_)
                 keyspace = keyspace._parent_
             for subspace in subspaces:
-                subspace.deletions += 1
-
-    def _bind_(self, *keys: str | Key) -> None:
-        keys = tuple(Key(key) for key in keys)
-        if any(key not in self._members_ for key in keys):
-            raise ValueError(f"Undefined child keys in sequence {keys}")
-        N = len(keys)
-        if N <= 1:
-            return
-        indices = list(range(N))
-        for r in range(2, N + 1):
-            for m in combinations(indices, r):
-                product = ProductSpace(self, *(keys[i] for i in m))
-                self._products_.setdefault(tuple(keys[i] for i in m), product)
-
-    def _unbind_(self, *keys: str | Key) -> None:
-        for product in list(self._products_):
-            if len(product) < len(keys):
-                continue
-            it = iter(product)
-            for key_i in keys:
-                for key_j in it:
-                    if key_i == key_j:
-                        break
-                else:
-                    break
-            else:
-                del self._products_[product]            
-
-    def _iter_(self, h: int) -> Iterator[Key]:
-        if not self._members_:
-            return
-        if h <= 0:
-            return
-        if h == 1:
-            yield from self._members_
-            for product in self._products_.values():
-                yield from product._iter_(h)
-        else:
-            for key, keyspace in self._members_.items():
-                for suite in keyspace._iter_(h - 1):
-                    yield key.link(suite, 1)
-            for product in self._products_.values():
-                yield from product._iter_(h)
+                subspace.deletions += 1            
 
     def __getattr__(self, name: str) -> "KeySpace":
         if name.startswith("_") and name.endswith("_"):
             raise AttributeError(
                 f"'{type(self).__name__}' object has no attribute '{name}'")
         new = type(self)()
-        self.__setattr__(name, new)
-        return new
-
-
-class GenericKeySpace[C: KeySpace](KeySpace):
-    
-    @property
-    def _child_type_(self) -> Type[C]:
-        raise NotImplementedError()
-
-    def __getitem__(self, name: str) -> C:
-        return cast(C, super().__getitem__(name))
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if (name != "_parent_" and isinstance(value, KeySpace) 
-            and not isinstance(value, self._child_type_)):
-            raise TypeError(f"Keyspace of type {type(self).__name__} "
-                f"expected subspace of type {self._child_type_.__name__} "
-                f"but got {type(value).__name__} instead")
-        super().__setattr__(name, value)
-
-    def __getattr__(self, name: str) -> C:
-        if name.startswith("_") and name.endswith("_"):
-            raise AttributeError(
-                f"'{type(self).__name__}' object has no attribute '{name}'")
-        new = self._child_type_()
         self.__setattr__(name, new)
         return new
 
@@ -183,77 +117,44 @@ def parent(ksp: KeySpace) -> KeySpace:
     return ksp._parent_
 
 
+def _iter(ksp: KeySpace, h: int) -> Iterator[Key]:
+    if not ksp._members_:
+        return
+    if h <= 0:
+        return
+    if h == 1:
+        yield from ksp._members_
+    else:
+        for key, child in ksp._members_.items():
+            for suite in _iter(child, h - 1):
+                yield key.link(suite, 1)
+
+
 def bind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
-    parent = keyspace._parent_
-    if parent is None:
-        raise ValidationError("Cannot bind root keyspace")
-    if any(ksp._parent_ is not parent for ksp in keyspaces):
-        raise ValidationError("Bound keyspaces must have identical parents")
-    parent._bind_(keyspace._name_, *(ksp._name_ for ksp in keyspaces))
+    warnings.warn(
+        "Function 'bind()' is deprecated as explicit declaration of compound "
+        "keys is no longer required. This function does nothing but remains "
+        "available for backwards compatibility.", DeprecationWarning)
+    ...
 
 
 def unbind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
-    parent = keyspace._parent_
-    if parent is None:
-        raise ValidationError("Cannot bind root keyspace")
-    if any(ksp._parent_ is not parent for ksp in keyspaces):
-        raise ValidationError("Bound keyspaces must have identical parents")
-    parent._unbind_(keyspace._name_, *(ksp._name_ for ksp in keyspaces))
-
-
-class ProductSpace:
-    
-    def __init__(self, keyspace: KeySpace, *keys: Key) -> None:
-        self.keys = keys
-        self.keyspaces = [keyspace._members_[k] for k in keys]
-    
-    def _iter_(self, h: int):
-        if h <= 1:
-            k = Key()
-            for b in self.keys:
-                k = k.link(b, 0)
-            yield k
-        else:
-            its = [keyspace._iter_(h - 1) for keyspace in self.keyspaces]
-            suites = [list(it) for it in its]
-            for suite in product(*suites):
-                k = Key()
-                for b, s in zip(self.keys, suite):
-                    k = k.link(b.link(s, 1), 0)
-                yield k
+    warnings.warn(
+        "Function 'unbind()' is deprecated as explicit declaration of compound "
+        "keys is no longer required. This function does nothing but remains "
+        "available for backwards compatibility.", DeprecationWarning)
+    ...
     
 
 class Index:
 
     @overload
-    def __new__(cls: type[Self], root: KeySpace, form: KeyForm) -> Self:
+    def __init__(self, root: KeySpace, form: KeyForm | Key | str) -> None:
         ...
 
     @overload
-    def __new__(cls: type[Self], 
-        root: KeySpace, 
-        form: Key | str, 
-        tup: tuple[int, ...]
-    ) -> Self:
-        ...
-
-    @sig_cache # TODO: Make cache weak
-    def __new__(
-        cls: Type[Self], 
-        root: KeySpace, 
-        form: KeyForm | Key | str, 
-        tup: tuple[int, ...] | None = None) -> Self:
-        return super().__new__(cls)
-
-    @overload
-    def __init__(self, root: KeySpace, form: KeyForm) -> None:
-        ...
-
-    @overload
-    def __init__(self, 
-        root: KeySpace, 
-        form: Key | str, 
-        tup: tuple[int, ...]
+    def __init__(
+        self, root: KeySpace, form: Key | str, tup: tuple[int, ...]
     ) -> None:
         ...
 
@@ -262,53 +163,56 @@ class Index:
         form: KeyForm | Key | str, 
         tup: tuple[int, ...] | None = None
     ) -> None:
-        if isinstance(form, (Key, str)):
-            if tup is None:
-                raise ValueError("No depth tuple passed in")
+        if isinstance(form, (Key, str)) and tup is not None:
             form = KeyForm(Key(form), tup)
-        if form.k not in root:
-            raise ValueError(f"Reference key '{form.k}' not a member of root")
+        elif isinstance(form, (Key, str)):
+            form = KeyForm.from_key(Key(form))
+        elif not isinstance(form, KeyForm):
+            raise TypeError("Unexpected input to Index.")
+        leaves, heights, levels = self._init(root, form)
         self.root = root
         self.keyform = form 
         self.deletions = 0
-        self._trace = self._init_trace()
-        for ksp in self._trace[2]:
+        self._leaves = leaves
+        self._heights = heights
+        self._levels = levels
+        for ksp in self._levels:
             ksp._indices_.add(self)
 
-    def _init_trace(self):
+    @staticmethod
+    def _init(root: KeySpace, keyform: KeyForm):
         keyspaces, parents = [], []
-        leaves, hs, heights = [], iter(self.keyform.h), {}
-        for i, (label, degree) in enumerate(self.keyform.k):
+        leaves, hs, heights = [], iter(keyform.h), {}
+        for i, (label, degree) in enumerate(keyform.k):
             if i == 0:
-                keyspaces.append(self.root)
+                keyspaces.append(root)
                 parents.extend([-1, *([i] * degree)])
             else:
-                level = keyspaces[parents[i]]
-                try:
-                    level = level._members_[Key(label)]
-                except IndexError as e:
-                    raise ValidationError(
-                        f"Key '{self.keyform.k}' not defined") from e
+                level = keyspaces[parents[i]][label]
                 keyspaces.append(level)
                 parents.extend([i] * degree)
             if degree == 0:
-                try:
-                    heights[i] = next(hs)
-                except StopIteration as e:
-                    raise ValidationError("Too few height params") from e
+                heights[i] = next(hs)
                 leaves.append(i)
         return leaves, heights, keyspaces 
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Index):
+            return self.root is other.root and self.keyform == other.keyform
+        return NotImplemented
+    
+    def __hash__(self) -> int:
+        return hash((self.root, self.keyform))
 
     def __contains__(self, key: Key) -> bool:
         return key in self.keyform and key in self.root
 
     def __iter__(self) -> Iterator[Key]:
-        leaves, heights, keyspaces = self._trace
-        its = (keyspaces[i]._iter_(heights[i]) for i in leaves)
+        its = (_iter(self._levels[i], self._heights[i]) for i in self._leaves)
         suites = [list(it) for it in its]
         for suite in product(*suites):
             result = self.keyform.k
-            for i, s in zip(reversed(leaves), reversed(suite)):
+            for i, s in zip(reversed(self._leaves), reversed(suite)):
                 result = result.link(s, i, ())
             yield result
 

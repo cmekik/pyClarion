@@ -1,5 +1,7 @@
 import math
 from typing import TypeVar, Sequence, overload
+
+from ..keys import Key, KeyForm
 from ..keyspaces import Index
 from .. import numdicts as nd
 
@@ -72,11 +74,11 @@ def bound_min(self: D, *, x: float) -> D:
 
 
 @overload
-def sum(self: D, *, by: nd.KeyForm) -> D:
+def sum(self: D, *, by: str | Key | KeyForm) -> D:
     ...
 
 @overload
-def sum(self: D, *, by: nd.KeyForm, b: int) -> D:
+def sum(self: D, *, by: str | Key | KeyForm, b: int) -> D:
     ...
 
 @overload
@@ -90,10 +92,12 @@ def sum(self: D, *others: D, bs: Sequence[int | None]) -> D:
 def sum(
     self: D, 
     *others: D, 
-    by: nd.KeyForm | None = None,
+    by: str | Key | KeyForm | None = None,
     b: int | None = None,
     bs: Sequence[int | None] | None = None, 
 ) -> D:
+    if isinstance(by, (str, Key)):
+        by = KeyForm.from_key(Key(by))
     match (others, by, b, bs):
         case ((), by, b, None):
             if by is None or not by < self._i.keyform:
@@ -124,11 +128,11 @@ def sub(self: D, other: D, b: int | None = None) -> D:
 
 
 @overload
-def mul(self: D, *, by: nd.KeyForm) -> D:
+def mul(self: D, *, by: str | Key | KeyForm) -> D:
     ...
 
 @overload
-def mul(self: D, *, by: nd.KeyForm, b: int) -> D:
+def mul(self: D, *, by: str | Key | KeyForm, b: int) -> D:
     ...
 
 @overload
@@ -142,10 +146,12 @@ def mul(self: D, *others: D, bs: Sequence[int | None]) -> D:
 def mul(
     self: D, 
     *others: D, 
-    by: nd.KeyForm | None = None,
+    by: str | Key | KeyForm | None = None,
     b: int | None = None,
     bs: Sequence[int | None] | None = None
 ) -> D:
+    if isinstance(by, (str, Key)):
+        by = KeyForm.from_key(Key(by))
     match (others, by, b, bs):
         case ((), by, b, None):
             if by is None or not by < self._i.keyform:
@@ -174,11 +180,11 @@ def div(self: D, other: D, b: int | None = None) -> D:
 
 
 @overload
-def max(self: D, *, by: nd.KeyForm) -> D:
+def max(self: D, *, by: str | Key | KeyForm) -> D:
     ...
 
 @overload
-def max(self: D, *, by: nd.KeyForm, b: int) -> D:
+def max(self: D, *, by: str | Key | KeyForm, b: int) -> D:
     ...
 
 @overload
@@ -192,10 +198,12 @@ def max(self: D, *others: D, bs: Sequence[int | None]) -> D:
 def max(
     self: D, 
     *others: D, 
-    by: nd.KeyForm | None = None,
+    by: str | Key | KeyForm | None = None,
     b: int | None = None,
     bs: Sequence[int | None] | None = None
 ) -> D:
+    if isinstance(by, (str, Key)):
+        by = KeyForm.from_key(Key(by))
     match (others, by, b, bs):
         case ((), by, b, None):
             if by is None or not by < self._i.keyform:
@@ -216,11 +224,11 @@ def max(
 
 
 @overload
-def min(self: D, *, by: nd.KeyForm) -> D:
+def min(self: D, *, by: str | Key | KeyForm) -> D:
     ...
 
 @overload
-def min(self: D, *, by: nd.KeyForm, b: int) -> D:
+def min(self: D, *, by: str | Key | KeyForm, b: int) -> D:
     ...
 
 @overload
@@ -234,10 +242,12 @@ def min(self: D, *others: D, bs: Sequence[int | None]) -> D:
 def min(
     self: D, 
     *others: D, 
-    by: nd.KeyForm | None = None,
+    by: str | Key | KeyForm | None = None,
     b: int | None = None,
     bs: Sequence[int | None] | None = None
 ) -> D:
+    if isinstance(by, (str, Key)):
+        by = KeyForm.from_key(Key(by))
     match (others, by, b, bs):
         case ((), by, b, None):
             if by is None or not by < self._i.keyform:

@@ -1,24 +1,30 @@
-from typing import Any, Self, Iterable, Sequence, Type, NoReturn, overload
+from typing import Any, Self, Iterable, Sequence, NoReturn, overload
 
-from ..numdicts import GenericKeySpace, KeySpace, Index, root, path
-
-
-class Support(GenericKeySpace["Family"]):
-    @property
-    def _child_type_(self) -> Type["Family"]:
-        return Family
+from ..numdicts import KeySpace, Index, KeyForm, Key, root, path
 
 
-class Family(GenericKeySpace["Sort"]):
-    @property
-    def _child_type_(self) -> Type["Sort"]:
-        return Sort
+class Sort(KeySpace):
+    def __setitem__(self, name: str, value: Any) -> None:
+        if not isinstance(value, KeySpace):
+            raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
+                f"of type {Atom.__name__}, but got a value of type "
+                f"{type(value).__name__} instead")
+        setattr(self, name, value)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name != "_parent_" and isinstance(value, KeySpace):
+            if not isinstance(value, Atom):
+                raise TypeError(f"{type(self).__name__} object cannot have "
+                    f"child keyspace of type {type(value).__name__}")
+        super().__setattr__(name, value)
 
-class Sort(GenericKeySpace["Atom"]):
-    @property
-    def _child_type_(self) -> Type["Atom"]:
-        return Atom
+    def __getattr__(self, name: str) -> "Atom":
+        if name.startswith("_") and name.endswith("_"):
+            raise AttributeError(
+                f"'{type(self).__name__}' object has no attribute '{name}'")
+        new = Atom()
+        self.__setattr__(name, new)
+        return new
 
     @overload
     def __rmatmul__(self, other: "Atom") -> "Dimension":
@@ -30,25 +36,13 @@ class Sort(GenericKeySpace["Atom"]):
 
     def __rmatmul__(self, other):
         if isinstance(other, Atom):
-            return Dimension.from_keyspaces(other, self)
+            return Dimension(other, self)
         if isinstance(other, Sort):
-            return Dyads.from_keyspaces(other, self)
+            return Dyads(other, self)
         return NotImplemented
 
 
 class Atom(KeySpace):
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name != "_parent_" and isinstance(value, KeySpace):
-            raise TypeError(f"{type(self).__name__} object cannot have "
-                "child keyspace")
-        super().__setattr__(name, value)
-
-    def __getattr__(self, name: str) -> NoReturn:
-        raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'")
-
-    def __pos__(self: Self) -> Self:
-        return self
 
     def __pow__(self, other: "Atom | Var | Iterable[Atom]") -> "Chunk":
         if isinstance(other, (Atom, Var)):
@@ -65,9 +59,27 @@ class Atom(KeySpace):
 class Chunk(Atom):
     _dyads_: "dict[tuple[Atom | Var, Atom | Var], float]"
     
-    def __init__(self, dyads: "dict[tuple[Atom | Var, Atom | Var], float]") -> None:
+    def __init__(
+        self, dyads: "dict[tuple[Atom | Var, Atom | Var], float]"
+    ) -> None:
         super().__init__()
         self._dyads_ = dyads
+    #     self._init_vars_()
+
+    # def _init_vars_(self) -> None:
+    #     var_dict = {}
+    #     for dyad in self._dyads_:
+    #         for elt in dyad:
+    #             if not isinstance(elt, Var):
+    #                 continue
+    #             sort = var_dict.setdefault(elt.name, elt.sort)
+    #             if elt.sort is not sort:
+    #                 raise ValueError("Inconsistent var def")
+    #     for var, sort in var_dict.items():
+    #         self[var] = sort
+
+    # def __call__(self):
+    #     ...
 
     def __pos__(self: Self) -> Self:
         return self
@@ -109,38 +121,36 @@ class Rule(Atom):
 
 
 class Var:
-    def __init__(self, sort: Sort) -> None:
+    def __init__(self, name: str, sort: Sort) -> None:
+        self.name = name
         self.sort = sort
 
 
 class Dimension(Index):
 
-    @classmethod
-    def from_keyspaces(cls, atom: Atom, sort: Sort):
+    def __init__(self, atom: Atom, sort: Sort) -> None:
         ksp = root(atom)
         if ksp != root(sort):
             raise ValueError("Mismatched keyspaces")
-        ref = path(atom).link(path(sort), 0)
-        return cls(ksp, ref, (0, 1))
+        key = path(atom).link(path(sort).link(Key("?"), 1), 0)
+        super().__init__(ksp, KeyForm.from_key(key))
 
 
 class Dyads(Index):
 
-    @classmethod
-    def from_keyspaces(cls, sort1: Sort, sort2: Sort):
+    def __init__(self, sort1: Sort, sort2: Sort) -> None:
         ksp = root(sort1)
         if ksp != root(sort2):
             raise ValueError("Mismatched keyspaces")
         ref = path(sort1).link(path(sort2), 0)
-        return cls(ksp, ref, (1, 1))
+        super().__init__(ksp, ref, (1, 1))
 
 
 class Triads(Index):
 
-    @classmethod
-    def from_keyspaces(cls, sort1: Sort, sort2: Sort, sort3: Sort):
+    def __init__(self, sort1: Sort, sort2: Sort, sort3: Sort) -> None:
         ksp = root(sort1)
         if ksp != root(sort2) or ksp != root(sort3):
             raise ValueError("Mismatched keyspaces")
         ref = path(sort1).link(path(sort2), 0).link(path(sort3), 0)
-        return cls(ksp, ref, (1, 1, 1))        
+        super().__init__(ksp, ref, (1, 1, 1))        
