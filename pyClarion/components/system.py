@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isnan
 from datetime import timedelta
 from inspect import ismethod
+import warnings
 import heapq
 
 from .knowledge import Sort
@@ -103,10 +104,17 @@ class Process:
 
     @dataclass(slots=True)
     class System:
+        root: KeySpace = field(default_factory=KeySpace)
         clock: Clock = field(default_factory=Clock)
-        index: KeySpace = field(default_factory=KeySpace)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
+
+        @property
+        def index(self) -> KeySpace:
+            warnings.warn(
+                "System.index is deprecated; use system.root instead", 
+                DeprecationWarning)
+            return self.root
 
         def user_update(
                 self, *updates: Update, dt: timedelta = timedelta()
