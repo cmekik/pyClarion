@@ -1,4 +1,4 @@
-from typing import get_type_hints, Any, Iterator, overload
+from typing import get_type_hints, Any, Iterator, Type, ClassVar, overload
 from itertools import product
 from weakref import WeakSet
 import warnings
@@ -7,16 +7,19 @@ from .exc import ValidationError
 from .keys import Key, KeyForm
 
 
-class KeySpace:
+class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
     _name_: Key
-    _parent_: "KeySpace | None"
-    _members_: dict[Key, "KeySpace"]
+    _parent_: P | None = None
+    _ptype_: Type[P]
+    _mtype_: Type[T]
+    _members_: dict[Key, T]
     _indices_: WeakSet["Index"]
     _required_: frozenset[Key]
 
-    def __init__(self):
+    def __init__(self, ptype: Type[P], mtype: Type[T]):
         self._name_ = Key()
-        self._parent_ = None
+        self._ptype_ = ptype
+        self._mtype_ = mtype
         self._members_ = {}
         self._indices_ = WeakSet()
         cls = type(self)
@@ -25,10 +28,13 @@ class KeySpace:
                 setattr(self, name, typ())
         self._required_ = frozenset(self._members_)
 
-    def __iter__(self) -> Iterator[Key]:
-        yield from self._members_
+    def __iter__(self) -> Iterator[str]:
+        for k in self._members_:
+            yield k[1][0]
 
-    def __contains__(self, key: str | Key) -> bool:
+    def __contains__(self, key: "str | Key | KeySpaceBase") -> bool:
+        if isinstance(key, KeySpaceBase):
+            return key in self._members_.values()
         k, keyspace = Key(key), self
         while k and k[0][1] <= 1:
             node, k = k.cut(1)
@@ -42,36 +48,39 @@ class KeySpace:
                 if branch not in keyspace:
                     return False
         return True
+
+    def __getitem__(self, name: str) -> T:
+        if name.isidentifier():
+            return getattr(self, name)
+        raise ValueError(f"Argument {repr(name)} is not a Python identifier")
     
-    def __getitem__(self, name: str) -> "KeySpace":
-        if not name.isidentifier():
-            raise ValueError(
-                f"Argument {repr(name)} is not a valid Python identifier")
-        return getattr(self, name)
-    
-    def __setitem__(self, name: str, value: Any) -> None:
-        if not isinstance(value, KeySpace):
-            raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
-                f"of type {KeySpace.__name__}, but got a value of type "
-                f"{type(value).__name__} instead")
-        setattr(self, name, value)
+    def __setitem__(self, name: str, value: T) -> None:
+        if isinstance(value, self._mtype_):
+            setattr(self, name, value)
+        raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
+            f"of type {self._mtype_.__name__}, but got a value of type "
+            f"{type(value).__name__} instead")
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name != "_parent_" and isinstance(value, KeySpace):
-            key = Key(name)
-            if key in self._members_:
-                raise ValidationError(
-                    f"Cannot overwrite preexisting key '{name}'")
-            if value._parent_ is not None:
-                raise ValidationError(f"KeySpace already has parent")
+        if name == "_parent_":
+            if self._parent_ is not None:
+                raise ValidationError("Keyspace already has parent")
+            if not isinstance(value, self._ptype_):
+                raise TypeError()
+        elif isinstance(value, KeySpaceBase):
+            if (key := Key(name)) in self._members_:
+                raise ValidationError(f"Cannot replace existing key '{name}'")
+            if not isinstance(value, self._mtype_):
+                raise TypeError()
+            if not isinstance(self, value._ptype_):
+                raise TypeError()
             self._members_[key] = value
             value._name_ = key
             value._parent_ = self
         super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
-        key = Key(name)
-        if key in self._required_:
+        if (key := Key(name)) in self._required_:
             raise ValidationError(f"Cannot remove required key '{name}'")
         if key in self._members_ and self._members_[key]._indices_: 
             raise ValidationError(f"Key {name} has dependent subspaces")
@@ -84,7 +93,13 @@ class KeySpace:
                 subspaces.update(keyspace._indices_)
                 keyspace = keyspace._parent_
             for subspace in subspaces:
-                subspace.deletions += 1            
+                subspace.deletions += 1
+
+
+class KeySpace(KeySpaceBase["KeySpaceBase", "KeySpaceBase"]):
+
+    def __init__(self):
+        super().__init__(type(self), type(self))           
 
     def __getattr__(self, name: str) -> "KeySpace":
         if name.startswith("_") and name.endswith("_"):
@@ -95,14 +110,14 @@ class KeySpace:
         return new
 
 
-def root(ksp: KeySpace) -> KeySpace:
+def root(ksp: KeySpaceBase) -> KeySpaceBase:
     ret = ksp
     while ret._parent_ is not None:
         ret = ret._parent_
     return ret
 
 
-def path(ksp: KeySpace) -> Key:
+def path(ksp: KeySpaceBase) -> Key:
     ret = ksp._name_
     while ksp._parent_ is not None:
         assert len(ksp._name_) == 2
@@ -111,13 +126,13 @@ def path(ksp: KeySpace) -> Key:
     return ret
 
 
-def parent(ksp: KeySpace) -> KeySpace:
+def parent(ksp: KeySpaceBase) -> KeySpaceBase:
     if ksp._parent_ is None:
         raise ValueError("Keyspace is root (has no parent)")
     return ksp._parent_
 
 
-def _iter(ksp: KeySpace, h: int) -> Iterator[Key]:
+def _iter(ksp: KeySpaceBase, h: int) -> Iterator[Key]:
     if not ksp._members_:
         return
     if h <= 0:
@@ -146,20 +161,26 @@ def unbind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
     ...
     
 
-class Index:
+class Index[T: KeySpaceBase]:
+    root: T
+    keyform: KeyForm
+    deletions: int
+    _leaves: list[int]
+    _heights: dict[int, int]
+    _levels: list[KeySpaceBase]
 
     @overload
-    def __init__(self, root: KeySpace, form: KeyForm | Key | str) -> None:
+    def __init__(self, root: T, form: KeyForm | Key | str) -> None:
         ...
 
     @overload
     def __init__(
-        self, root: KeySpace, form: Key | str, tup: tuple[int, ...]
+        self, root: T, form: Key | str, tup: tuple[int, ...]
     ) -> None:
         ...
 
     def __init__(self, 
-        root: KeySpace, 
+        root: T, 
         form: KeyForm | Key | str, 
         tup: tuple[int, ...] | None = None
     ) -> None:
@@ -180,7 +201,8 @@ class Index:
             ksp._indices_.add(self)
 
     @staticmethod
-    def _init(root: KeySpace, keyform: KeyForm):
+    def _init(root: KeySpaceBase, keyform: KeyForm) \
+        -> tuple[list[int], dict[int, int], list[KeySpaceBase]]:
         keyspaces, parents = [], []
         leaves, hs, heights = [], iter(keyform.h), {}
         for i, (label, degree) in enumerate(keyform.k):
@@ -216,7 +238,7 @@ class Index:
                 result = result.link(s, i, ())
             yield result
 
-    def depends_on(self, ksp: KeySpace) -> bool:
+    def depends_on(self, ksp: KeySpaceBase) -> bool:
         if root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key, i = path(ksp), 0
