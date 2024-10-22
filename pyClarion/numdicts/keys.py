@@ -298,17 +298,22 @@ class KeyForm:
                 leaves.append(i)
                 indices[i] = i
                 hs[i] = 0
-            elif label == "?" and deg == 0:
-                hs[indices[i]] += 1
-            elif any(label == "?" for label, _ in children):
+            elif label.isidentifier() and any(lb == "?" for lb, _ in children):
                 if 1 < len(children):
                     raise ValidationError("Wildcard '?' cannot have siblings")
-                if label.isidentifier():
-                    leaves.append(i)
-                    indices[i] = i
-                    hs[i] = 0
-                else:
-                    hs[indices[i]] += 1
+                leaves.append(i)
+                indices[i] = i
+                hs[i] = 0
+                for j in range(deg):
+                    indices[S + j] = indices[i]
+            elif label == "?":
+                if 1 < len(children):
+                    raise ValidationError("Wildcard '?' can have at most one "
+                        "child node")
+                if any(lb != "?" for lb, _ in children):
+                    raise ValueError("Children of wildcard nodes must also be "
+                        "wildcard nodes.")
+                hs[indices[i]] += 1
                 for j in range(deg):
                     indices[S + j] = indices[i]
             S += deg
