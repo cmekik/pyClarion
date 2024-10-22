@@ -8,7 +8,7 @@ import warnings
 import heapq
 
 from .knowledge import Sort
-from ..numdicts import NumDict, Key, KeySpace
+from ..numdicts import NumDict, Key, KeySpaceBase, KeySpace
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
@@ -39,22 +39,17 @@ class UpdateSite(Update):
 @dataclass(slots=True)
 class UpdateSort(Update):
     sort: Sort
-    mode: Literal["add", "rem"]
-    keys: tuple[LiteralString, ...]
+    add: tuple[tuple[LiteralString, KeySpaceBase], ...] = ()
+    remove: tuple[LiteralString, ...] = ()
 
     def apply(self) -> None:
-        match self.mode:
-            case "add":
-                func = getattr
-            case "rem":
-                func = delattr
-            case _:
-                raise ValueError("Mode must be 'add' or 'rem'")
-        for name in self.keys:
-            func(self.sort, name)
+        for name, value in self.add:
+            self.sort[name] = value
+        for name in self.remove:
+            self.sort[name]
 
     def affects(self, site: NumDict) -> bool:
-        return site.i.depends_on(self.sort)
+        return site.i.depends_on(self.sort) and bool(self.add or self.remove)
     
 
 @dataclass(slots=True)
