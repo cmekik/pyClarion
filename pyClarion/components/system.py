@@ -27,6 +27,9 @@ class UpdateSite(Update):
     data: Mapping[Key, float] 
     reset: bool = True
 
+    def __bool__(self) -> bool:
+        return bool(self.reset or self.data)
+
     def apply(self) -> None:
         with self.site.mutable() as d:
             if self.reset: d.reset()
@@ -42,6 +45,9 @@ class UpdateSort(Update):
     add: tuple[tuple[LiteralString, KeySpaceBase], ...] = ()
     remove: tuple[LiteralString, ...] = ()
 
+    def __bool__(self) -> bool:
+        return bool(self.add or self.remove)
+
     def apply(self) -> None:
         for name, value in self.add:
             self.sort[name] = value
@@ -49,7 +55,7 @@ class UpdateSort(Update):
             self.sort[name]
 
     def affects(self, site: NumDict) -> bool:
-        return site.i.depends_on(self.sort) and bool(self.add or self.remove)
+        return site.i.depends_on(self.sort)
     
 
 @dataclass(slots=True)
