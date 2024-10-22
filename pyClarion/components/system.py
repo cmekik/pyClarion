@@ -89,8 +89,8 @@ class Clock:
     limit: timedelta = timedelta()
 
     def advance(self, timepoint: timedelta) -> None:
-        if timedelta() < self.limit and self.limit <= timepoint:
-            raise ValueError("Timepoint beyond time limit")
+        if timedelta() < self.limit and self.limit < timepoint:
+            raise StopIteration("Timepoint beyond time limit")
         if timepoint < self.time:
             raise ValueError("Timepoint precedes current time")
         self.time = timepoint
@@ -126,10 +126,6 @@ class Process:
             self, src: Callable, *uds: Update, dt: timedelta = timedelta()
         ) -> None:
             heapq.heappush(self.queue, self.clock.event(dt, src, *uds))
-
-        # def initialize(self) -> None:
-        #     for proc in self.procs:
-        #         proc.initialize()
 
         def advance(self) -> Event:
             event = heapq.heappop(self.queue)
@@ -187,9 +183,6 @@ class Process:
     
     def __exit__(self, exc_type, exc_value, traceback):
         PROCESS.reset(self.__tokens.pop())
-
-    # def initialize(self) -> None:
-    #     pass
 
     def resolve(self, event: Event) -> None:
         pass
