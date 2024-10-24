@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, Mapping, Literal, LiteralString, Any
+from typing import Callable, Sequence, Mapping, LiteralString, Any
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -7,8 +7,8 @@ from inspect import ismethod
 import warnings
 import heapq
 
-from .knowledge import Sort
-from ..numdicts import NumDict, Key, KeySpaceBase, KeySpace
+from .knowledge import Sort, Term
+from .numdicts import NumDict, Key, KeySpace
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
@@ -24,7 +24,7 @@ class Update:
 @dataclass(slots=True)
 class UpdateSite(Update):
     site: NumDict
-    data: Mapping[Key, float] 
+    data: dict[Key, float] 
     reset: bool = True
 
     def __bool__(self) -> bool:
@@ -40,9 +40,9 @@ class UpdateSite(Update):
 
 
 @dataclass(slots=True)
-class UpdateSort(Update):
-    sort: Sort
-    add: tuple[tuple[LiteralString, KeySpaceBase], ...] = ()
+class UpdateSort[C: Term](Update):
+    sort: Sort[C]
+    add: tuple[tuple[LiteralString, C], ...] = ()
     remove: tuple[LiteralString, ...] = ()
 
     def __bool__(self) -> bool:
@@ -56,6 +56,25 @@ class UpdateSort(Update):
 
     def affects(self, site: NumDict) -> bool:
         return site.i.depends_on(self.sort)
+    
+
+@dataclass(slots=True)
+class UpdateTerm(Update):
+    term: Term
+    add: tuple[tuple[LiteralString, Sort], ...] = ()
+    remove: tuple[LiteralString, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.add or self.remove)
+
+    def apply(self) -> None:
+        for name, value in self.add:
+            self.term[name] = value
+        for name in self.remove:
+            self.term[name]
+
+    def affects(self, site: NumDict) -> bool:
+        return site.i.depends_on(self.term)
     
 
 @dataclass(slots=True)
@@ -97,7 +116,7 @@ class Clock:
     
     def event(self, dt: timedelta, src: Callable, *uds: Update) -> Event:
         if dt < timedelta():
-            raise ValueError()
+            raise ValueError("Cannot schedule an event in the past.")
         return Event(self.time + dt, src, uds)
 
 

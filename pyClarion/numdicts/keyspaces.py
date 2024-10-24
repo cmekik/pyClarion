@@ -126,7 +126,7 @@ def path(ksp: KeySpaceBase) -> Key:
     return ret
 
 
-def parent(ksp: KeySpaceBase) -> KeySpaceBase:
+def parent[P: KeySpaceBase](ksp: KeySpaceBase[P, Any]) -> P:
     if ksp._parent_ is None:
         raise ValueError("Keyspace is root (has no parent)")
     return ksp._parent_
@@ -228,6 +228,9 @@ class Index[T: KeySpaceBase]:
 
     def __contains__(self, key: Key) -> bool:
         return key in self.keyform and key in self.root
+
+    def __len__(self) -> int:
+        return len(list(self))
 
     def __iter__(self) -> Iterator[Key]:
         its = (_iter(self._levels[i], self._heights[i]) for i in self._leaves)

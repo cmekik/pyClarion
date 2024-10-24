@@ -1,5 +1,5 @@
-from .components import (Update, Event, UpdateSite, UpdateSort, Clock, Process, 
-    Simulation, Agent)
+from .system import Update, Event, UpdateSite, UpdateSort, Clock, Process
+from .components import (Simulation, Agent)
 from .numdicts import (ValidationError, Key, KeyForm, KeySpaceBase, KeySpace,
     Index, NumDict, root, path, parent, bind, unbind, numdict)
 

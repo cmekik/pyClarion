@@ -1,35 +1,44 @@
-from typing import Self, Iterable, Type, Iterator, overload
+from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired
 from itertools import product
 
-from ..numdicts import KeySpaceBase, Index, KeyForm, Key, root, path
+from .numdicts import KeySpaceBase, Index, KeyForm, Key, root, path
 
 
-class Sort[C: "Term"](KeySpaceBase[KeySpaceBase, C]):
+class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
+    pass
+
+
+class Family(Branch[KeySpaceBase, "Sort"]):
+
+    def __init__(self) -> None:
+        super().__init__(KeySpaceBase, Sort)
+
+
+class Sort[C: "Term"](Branch[KeySpaceBase, C]):
 
     def __init__(self, mtype: Type[C]) -> None:
         super().__init__(KeySpaceBase, mtype)
 
-    @overload
-    def __rpow__(self, other: "Term") -> "Dimension":
-        ...
 
-    @overload
-    def __rpow__(self, other: "Sort") -> "Dyads":
-        ...
-
-    def __rpow__(self, other: "Term | Sort") -> "Dimension | Dyads":
-        if isinstance(other, Term):
-            return Dimension(other, self)
-        if isinstance(other, Sort):
-            return Dyads(other, self)
-        return NotImplemented
+class Atoms(Sort["Atom"]):
+    def __init__(self):
+        super().__init__(Atom)
 
 
-class Term(KeySpaceBase[Sort, Sort]):
+class Chunks(Sort["Chunk"]):
+    def __init__(self):
+        super().__init__(Chunk)
+
+
+class Rules(Sort["Rule"]):
+    def __init__(self):
+        super().__init__(Rule)
+
+
+class Term(Branch[Sort, Sort]):
 
     def __init__(self) -> None:
         super().__init__(Sort, Sort)
-        self._vars_ = {}
 
     def __pow__(self, other: "Term | Var | Iterable[Term]") -> "Chunk":
         if isinstance(other, (Term, Var)):
@@ -47,15 +56,29 @@ class Atom(Term):
     pass
 
 
-class Chunk(Term):
+class Compound(Term):
+    _vars_: dict
+    _instances_: list[Self]
+    _is_instance_: bool
+
+    def __init__(self, inst) -> None:
+        super().__init__()
+        self._vars_ = {}
+        self._instances_ = []
+        self._inst_ = inst
+
+
+class Chunk(Compound):
     _dyads_: "dict[tuple[Term | Var, Term | Var], float]"
     
     def __init__(
-        self, dyads: "dict[tuple[Term | Var, Term | Var], float]"
+        self, 
+        dyads: "dict[tuple[Term | Var, Term | Var], float]",
+        inst: bool = False
     ) -> None:
-        super().__init__()
+        super().__init__(inst)
         self._dyads_ = dyads
-        self._vars_ = self._collect_vars_(dyad for dyad in dyads)
+        self._vars_.update(self._collect_vars_(dyad for dyad in dyads))
 
     @staticmethod
     def _collect_vars_(dyads: "Iterable[tuple[Term | Var, Term | Var]]") \
@@ -101,13 +124,14 @@ class Chunk(Term):
         return NotImplemented
 
 
-class Rule(Term):
+class Rule(Compound):
     _chunks_ : dict[Chunk, float]
 
-    def __init__(self, chunks: dict[Chunk, float]):
-        super().__init__()
+    def __init__(self, chunks: dict[Chunk, float], inst: bool = False):
+        super().__init__(inst)
         self._chunks_ = chunks
-        self._vars_ = Chunk._collect_vars_(d for c in chunks for d in c._dyads_)
+        self._vars_.update(
+            Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
 
 
 class Var:
@@ -134,38 +158,75 @@ def valuations(term: Chunk | Rule) -> Iterator[dict[str, Term]]:
 def instantiate[T: Chunk | Rule](term: T, vals: dict[str, Term]) -> T:
     if isinstance(term, Rule):
         chunks = {instantiate(c, vals): w for c, w in term._chunks_.items()}
-        return type(term)(chunks)
+        return type(term)(chunks, inst=True)
     if isinstance(term, Chunk):
         dyads: dict[tuple[Term | Var, Term | Var], float] = {
             (t1(vals) if isinstance(t1, Var) else t1, 
              t2(vals) if isinstance(t2, Var) else t2): w 
             for (t1, t2), w in term._dyads_.items()}
-        return type(term)(dyads)
+        return type(term)(dyads, inst=True)
 
 
-class Dimension(Index):
-    term: Term
-    sort: Sort
-
-    def __init__(self, term: Term, sort: Sort) -> None:
-        ksp = root(term)
-        if ksp != root(sort):
-            raise ValueError("Mismatched keyspaces")
-        key = path(term).link(path(sort).link(Key("?"), 1), 0)
-        super().__init__(ksp, KeyForm.from_key(key))
-        self.term = term
-        self.sort = sort
+def standard_form(level: Branch) -> Key:
+    if isinstance(level, Term):
+        return Key(f"{path(level)}")
+    if isinstance(level, Sort):
+        return Key(f"{path(level)}:?")
+    elif isinstance(level, Family):
+        return Key(f"{path(level)}:?:?")
+    else:
+        raise TypeError()
 
 
-class Dyads(Index):
-    sort1: Sort
-    sort2: Sort
+class ByKwds(TypedDict):
+    by: KeyForm
+    b: NotRequired[int]
 
-    def __init__(self, sort1: Sort, sort2: Sort) -> None:
-        ksp = root(sort1)
-        if ksp != root(sort2):
-            raise ValueError("Mismatched keyspaces")
-        ref = path(sort1).link(path(sort2), 0)
-        super().__init__(ksp, ref, (1, 1))
-        self.sort1 = sort1 
-        self.sort2 = sort2
+
+class BranchedIndex(Index):
+    branches: tuple[Branch, ...]
+
+    def __init__(self, *branches: Branch) -> None:
+        root_ = root(branches[0])
+        if any(root(b) != root_ for b in branches):
+            raise ValueError("Mismatched keyspaces: Non identical roots")
+        key = Key()
+        for b in branches:
+            key = key.link(standard_form(b), 0)
+        super().__init__(root_, KeyForm.from_key(key))
+        self.branches = branches
+
+    def trunc(self, *directives: tuple[int, int]) -> KeyForm:
+        keys = {}
+        for i, n in directives:
+            k = standard_form(self.branches[i]) 
+            k, _ = k.cut(len(k) - n)
+            keys[i] = k
+        key = Key()
+        for i, branch in enumerate(self.branches):
+            key = key.link(keys.get(i, branch), 0)
+        return KeyForm.from_key(key)
+
+    def aggr(self, b: int) -> ByKwds:
+        branch = self.branches[b]
+        ret: ByKwds = {"by": KeyForm.from_key(standard_form(branch))}
+        matches = path(branch).find_in(self.keyform.k)
+        if 1 < len(matches):
+            bs = [m[1] for m in matches]
+            ret["b"] = bs.index(b)
+        return ret
+
+
+class Monads(BranchedIndex):
+    def __init__(self, b: Branch) -> None:
+        super().__init__(b)
+
+
+class Dyads(BranchedIndex):
+    def __init__(self, b1: Branch, b2: Branch) -> None:
+        super().__init__(b1, b2)
+
+
+class Triads(BranchedIndex):
+    def __init__(self, b1: Branch, b2: Branch, b3: Branch) -> None:
+        super().__init__(b1, b2, b3)
