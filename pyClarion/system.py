@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isnan
 from datetime import timedelta
 from inspect import ismethod
+from itertools import count
 import warnings
 import heapq
 
@@ -79,6 +80,7 @@ class UpdateTerm(Update):
 
 @dataclass(slots=True)
 class Event:
+    num: int
     time: timedelta
     source: Callable
     updates: Sequence[Update]
@@ -95,6 +97,8 @@ class Event:
 
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
+            if self.time == other.time:
+                return self.num < other.num
             return self.time < other.time
         return NotImplemented
         
@@ -106,6 +110,7 @@ class Event:
 class Clock:
     time: timedelta = timedelta()
     limit: timedelta = timedelta()
+    counter: count = field(default_factory=count)
 
     def advance(self, timepoint: timedelta) -> None:
         if timedelta() < self.limit and self.limit < timepoint:
@@ -117,7 +122,7 @@ class Clock:
     def event(self, dt: timedelta, src: Callable, *uds: Update) -> Event:
         if dt < timedelta():
             raise ValueError("Cannot schedule an event in the past.")
-        return Event(self.time + dt, src, uds)
+        return Event(next(self.counter), self.time + dt, src, uds)
 
 
 class Process:

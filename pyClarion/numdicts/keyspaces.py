@@ -14,7 +14,6 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
     _mtype_: Type[T]
     _members_: dict[Key, T]
     _indices_: WeakSet["Index"]
-    _required_: frozenset[Key]
 
     def __init__(self, ptype: Type[P], mtype: Type[T]):
         self._name_ = Key()
@@ -22,11 +21,6 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
         self._mtype_ = mtype
         self._members_ = {}
         self._indices_ = WeakSet()
-        cls = type(self)
-        for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, KeySpace):
-                setattr(self, name, typ())
-        self._required_ = frozenset(self._members_)
 
     def __iter__(self) -> Iterator[str]:
         for k in self._members_:
@@ -57,9 +51,10 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
     def __setitem__(self, name: str, value: T) -> None:
         if isinstance(value, self._mtype_):
             setattr(self, name, value)
-        raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
-            f"of type {self._mtype_.__name__}, but got a value of type "
-            f"{type(value).__name__} instead")
+        else:
+            raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
+                f"of type {self._mtype_.__name__}, but got a value of type "
+                f"{type(value).__name__} instead")
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name == "_parent_":
@@ -80,9 +75,7 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
         super().__setattr__(name, value)
 
     def __delattr__(self, name: str) -> None:
-        if (key := Key(name)) in self._required_:
-            raise ValidationError(f"Cannot remove required key '{name}'")
-        if key in self._members_ and self._members_[key]._indices_: 
+        if (key := Key(name)) in self._members_ and self._members_[key]._indices_: 
             raise ValidationError(f"Key {name} has dependent subspaces")
         super().__delattr__(name)
         if key in self._members_: 
@@ -99,7 +92,7 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
 class KeySpace(KeySpaceBase["KeySpaceBase", "KeySpaceBase"]):
 
     def __init__(self):
-        super().__init__(type(self), type(self))           
+        super().__init__(KeySpaceBase, KeySpaceBase)           
 
     def __getattr__(self, name: str) -> "KeySpace":
         if name.startswith("_") and name.endswith("_"):
@@ -245,9 +238,7 @@ class Index[T: KeySpaceBase]:
         if root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key, i = path(ksp), 0
-        kf = KeyForm(key, (i,))
-        while key and not kf < self.keyform.k:
-            key, _ = key.cut(key.size)
+        while key and not key < self.keyform.k:
+            key, _ = key.cut(key.size - 1)
             i += 1
-            kf = KeyForm(key, (i,))
         return bool(key)        

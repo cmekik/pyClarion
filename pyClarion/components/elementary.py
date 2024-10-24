@@ -163,7 +163,7 @@ class BottomUp(Process):
 
     def update(self, dt: timedelta = timedelta()) -> None:
         result = (self.weights
-            .mul(self.input)
+            .mul(self.input, bs=(1,))
             .max(by=self.max_by)
             .sum(**self.sum_by)
             .with_default(c=0.0))
@@ -174,7 +174,7 @@ class TopDown(Process):
     main: NumDict
     input: NumDict
     weights: NumDict
-    by: KeyForm
+    by: ByKwds
 
     def __init__(self, name: str, tl: Monads, bl: Dyads) -> None:
         super().__init__(name)
@@ -182,16 +182,16 @@ class TopDown(Process):
         self.main = numdict(bl, {}, c=0.0)
         self.input = numdict(tl, {}, c=0.0)
         self.weights = numdict(idx_w, {}, c=float("nan"))
-        self.by = idx_w.trunc((1, 1))
+        self.by = idx_w.aggr(1, 2)
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input) or event.affects(self.weights):
             self.update()
 
     def update(self, dt: timedelta = timedelta()) -> None:
-        cf = self.weights.mul(self.input)
-        pro = cf.max(by=self.by).bound_min(x=0.0).with_default(c=0.0) 
-        con = cf.min(by=self.by).bound_max(x=0.0).with_default(c=0.0)
+        cf = self.weights.mul(self.input, bs=(0,))
+        pro = cf.max(**self.by).bound_min(x=0.0).with_default(c=0.0) 
+        con = cf.min(**self.by).bound_max(x=0.0).with_default(c=0.0)
         result = pro.sum(con)
         self.system.schedule( 
             self.update, 

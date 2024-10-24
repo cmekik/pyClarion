@@ -42,7 +42,7 @@ class KeySpaceTestCase(unittest.TestCase):
         ksp = KeySpace()
         ksp.foo.bar; ksp.foo.baz; ksp.qux.xyz
         lst = list(ksp)
-        self.assertTrue(lst == [Key("foo"), Key("qux")])
+        self.assertTrue(lst == ["foo", "qux"])
 
 
 @unittest.skip("Not Implemented")

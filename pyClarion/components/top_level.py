@@ -37,10 +37,10 @@ class ChunkStore(Process):
         if event.source == self.bu.update:
             self.update()
         if event.affects(self.td.weights):
-            self.update_buw(event)
+            self.update_buw()
 
     def update(self, dt: timedelta = timedelta()) -> None:
-        result = self.ciw.mul(self.bu.main).max(**self.max_by)
+        result = self.ciw.mul(self.bu.main, bs=(0,)).max(**self.max_by)
         self.system.schedule(
             self.update,
             UpdateSite(self.main, result.d),
@@ -51,12 +51,14 @@ class ChunkStore(Process):
         ciw = {}; tdw = {}
         for chunk in chunks:
             chunk._instances_.extend(instantiations(chunk))
-            kc = k.link(Key(f"c{next(self.counter)}"), k.size)
-            new_chunks.append((kc, chunk))
+            name = chunk._descr_ or f"c{next(self.counter)}"
+            new_chunks.append((name, chunk))
+            kc = k.link(Key(name), k.size)
             if chunk._instances_:
                 for inst in chunk._instances_:
-                    ki = k.link(Key(f"c{next(self.counter)}"), k.size)
-                    new_chunks.append((ki, inst))
+                    name = f"c{next(self.counter)}"
+                    new_chunks.append((name, inst))
+                    ki = k.link(Key(name), k.size)
                     ciw[kc.link(ki, 0)] = 1.0
                     for (s1, s2), w in inst._dyads_.items():
                         assert isinstance(s1, Term) and isinstance(s2, Term)
@@ -75,12 +77,8 @@ class ChunkStore(Process):
             UpdateSite(self.td.weights, tdw, reset=False),
             dt=dt)
 
-    def update_buw(self, event: Event, dt: timedelta = timedelta()) -> None:
-        update = event.updates[1]
-        assert isinstance(update, UpdateSite)
-        assert update.site == self.td.weights
-        new = numdict(update.site.i, update.data, float("nan"))
-        weights = new.div(self.norm(new))
+    def update_buw(self, dt: timedelta = timedelta()) -> None:
+        weights = self.td.weights.div(self.norm(self.td.weights))
         self.system.schedule(
             self.update_buw, 
             UpdateSite(self.bu.weights, weights.d), 

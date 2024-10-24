@@ -1,7 +1,7 @@
-from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired
+from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired, get_type_hints
 from itertools import product
 
-from .numdicts import KeySpaceBase, Index, KeyForm, Key, root, path
+from .numdicts import KeySpaceBase, Index, KeyForm, Key, root, path, ValidationError
 
 
 class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
@@ -15,9 +15,19 @@ class Family(Branch[KeySpaceBase, "Sort"]):
 
 
 class Sort[C: "Term"](Branch[KeySpaceBase, C]):
+    _required_: frozenset[Key]
 
     def __init__(self, mtype: Type[C]) -> None:
         super().__init__(KeySpaceBase, mtype)
+        cls = type(self)
+        for name, typ in get_type_hints(cls).items():
+            if isinstance(typ, type) and issubclass(typ, Term):
+                setattr(self, name, typ())
+        self._required_ = frozenset(self._members_)
+
+    def __delattr__(self, name: str) -> None:
+        if Key(name) in self._required_:
+            raise ValidationError(f"Cannot remove required key '{name}'")
 
 
 class Atoms(Sort["Atom"]):
@@ -57,15 +67,24 @@ class Atom(Term):
 
 
 class Compound(Term):
+    _descr_: str
     _vars_: dict
     _instances_: list[Self]
     _is_instance_: bool
 
     def __init__(self, inst) -> None:
         super().__init__()
+        self._descr_ = ""
         self._vars_ = {}
         self._instances_ = []
         self._inst_ = inst
+
+    def __rxor__(self: Self, other: str) -> Self:
+        if not other.isidentifier():
+            ValueError("Compound term identifier must be a valid "
+                "python identifier")
+        self._descr_ = other
+        return self
 
 
 class Chunk(Compound):
@@ -146,6 +165,8 @@ class Var:
 
 
 def instantiations[T: Chunk | Rule](term: T) -> Iterator[T]:
+    if not term._vars_:
+        return
     for v in valuations(term):
         yield instantiate(term, v)
 
@@ -197,23 +218,25 @@ class BranchedIndex(Index):
         self.branches = branches
 
     def trunc(self, *directives: tuple[int, int]) -> KeyForm:
-        keys = {}
+        keys: dict[int, Key] = {}
         for i, n in directives:
             k = standard_form(self.branches[i]) 
-            k, _ = k.cut(len(k) - n)
+            k, _ = k.cut(k.size - n)
             keys[i] = k
         key = Key()
         for i, branch in enumerate(self.branches):
-            key = key.link(keys.get(i, branch), 0)
+            key = key.link(keys.get(i, standard_form(branch)), 0)
         return KeyForm.from_key(key)
 
-    def aggr(self, b: int) -> ByKwds:
-        branch = self.branches[b]
-        ret: ByKwds = {"by": KeyForm.from_key(standard_form(branch))}
-        matches = path(branch).find_in(self.keyform.k)
-        if 1 < len(matches):
-            bs = [m[1] for m in matches]
-            ret["b"] = bs.index(b)
+    def aggr(self, *bs: int) -> ByKwds:
+        branches = [branch for i, branch in enumerate(self.branches) if i in bs]
+        k = Key()
+        for b in branches:
+            k = k.link(standard_form(b), 0)
+        ret: ByKwds = {"by": KeyForm.from_key(k)}
+        matches = ret["by"].k.find_in(self.keyform.k)
+        bbs = [m[1:1 + len(bs)] for m in matches]
+        ret["b"] = bbs.index(tuple(b + 1 for b in bs))
         return ret
 
 
