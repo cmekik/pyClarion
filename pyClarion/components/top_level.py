@@ -1,3 +1,4 @@
+from typing import TypedDict, LiteralString
 from itertools import count
 from datetime import timedelta
 
@@ -5,6 +6,45 @@ from ..numdicts import Key, NumDict, numdict, path
 from ..knowledge import Family, Term, Chunks, Rules, Chunk, Rule, Monads, Dyads, instantiations, ByKwds
 from ..system import Process, UpdateSite, UpdateSort, Event
 from .elementary import TopDown, BottomUp
+
+
+class ChunkWeights(TypedDict):
+    ciw: dict[Key, float]
+    tdw: dict[Key, float]
+
+
+def compile_chunk(chunk: Chunk, k: Key, counter: count) \
+    -> tuple[str, ChunkWeights]:
+    ciw = {}; tdw = {}
+    chunk._instances_.extend(instantiations(chunk))
+    name = chunk._descr_ or f"c{next(counter)}"
+    if not chunk._instances_:
+        kc = k.link(Key(name), k.size)
+        ciw[kc.link(kc, 0)] = 1.0
+        for (s1, s2), w in chunk._dyads_.items():
+            assert isinstance(s1, Term) and isinstance(s2, Term)
+            kw = kc.link(path(s1), 0).link(path(s2), 0)
+            tdw[kw] = w 
+    return name, ChunkWeights(ciw=ciw, tdw=tdw)
+
+
+def compile_chunks(*chunks: Chunk, sort: Chunks, counter: count) \
+    -> tuple[list[tuple[LiteralString, Chunk]], ChunkWeights]:
+    new_chunks = []; k = path(sort)
+    ciw = {}; tdw = {}
+    for chunk in chunks:
+        name, d_ws = compile_chunk(chunk, k, counter)
+        new_chunks.append((name, chunk))
+        ciw.update(d_ws["ciw"]); tdw.update(d_ws["tdw"])
+        if chunk._instances_:
+            kc = k.link(Key(name), k.size)
+            for inst in chunk._instances_:
+                name, d_ws = compile_chunk(inst, k, counter)
+                new_chunks.append((name, inst))
+                ciw.update(d_ws["ciw"]); tdw.update(d_ws["tdw"])
+                ki = k.link(Key(name), k.size)
+                ciw[kc.link(ki, 0)] = 1.0
+    return new_chunks, ChunkWeights(ciw=ciw, tdw=tdw)
 
 
 class ChunkStore(Process):
@@ -47,34 +87,15 @@ class ChunkStore(Process):
             dt=dt)
         
     def compile(self, *chunks: Chunk, dt: timedelta = timedelta()) -> None:
-        new_chunks = []; k = path(self.chunks)
-        ciw = {}; tdw = {}
-        for chunk in chunks:
-            chunk._instances_.extend(instantiations(chunk))
-            name = chunk._descr_ or f"c{next(self.counter)}"
-            new_chunks.append((name, chunk))
-            kc = k.link(Key(name), k.size)
-            if chunk._instances_:
-                for inst in chunk._instances_:
-                    name = f"c{next(self.counter)}"
-                    new_chunks.append((name, inst))
-                    ki = k.link(Key(name), k.size)
-                    ciw[kc.link(ki, 0)] = 1.0
-                    for (s1, s2), w in inst._dyads_.items():
-                        assert isinstance(s1, Term) and isinstance(s2, Term)
-                        kw = ki.link(path(s1), 0).link(path(s2), 0)
-                        tdw[kw] = w
-            else:
-                ciw[kc.link(kc, 0)] = 1.0
-                for (s1, s2), w in chunk._dyads_.items():
-                    assert isinstance(s1, Term) and isinstance(s2, Term)
-                    kw = kc.link(path(s1), 0).link(path(s2), 0)
-                    tdw[kw] = w
+        new, d_ws = compile_chunks(
+            *chunks, 
+            sort=self.chunks, 
+            counter=self.counter)
         self.system.schedule(
             self.compile, 
-            UpdateSort(self.chunks, add=tuple(new_chunks)),
-            UpdateSite(self.ciw, ciw, reset=False), 
-            UpdateSite(self.td.weights, tdw, reset=False),
+            UpdateSort(self.chunks, add=tuple(new)),
+            UpdateSite(self.ciw, d_ws["ciw"], reset=False), 
+            UpdateSite(self.td.weights, d_ws["tdw"], reset=False),
             dt=dt)
 
     def update_buw(self, dt: timedelta = timedelta()) -> None:
@@ -98,6 +119,7 @@ class ChunkStore(Process):
 #         super().__init__(name)
 #         self.rules = Rules()
 #         family[name] = self.rules
+#         self.counter = count()
 #         with self:
 #             self.lhs = ChunkStore(f"{name}_l", family, bl)
 #             self.rhs = ChunkStore(f"{name}_r", family, bl)
@@ -116,3 +138,25 @@ class ChunkStore(Process):
 #             self.update,
 #             UpdateSite(self.main, result.d),
 #             dt=dt)
+
+#     def compile(self, *rules: Rule, dt: timedelta = timedelta()) -> None:
+#         new_rules = []; k = path(self.rules)
+#         conditions = []; actions = []
+#         riw = {}
+#         for rule in rules:
+#             rule._instances_.extend(instantiations(rule))
+#             name = rule._descr_ or f"r{next(self.counter)}"
+#             new_rules.append((name, rule))
+#             kr = k.link(Key(name), k.size)
+#             if rule._instances_:
+#                 for inst in rule._instances_:
+#                     name = f"r{next(self.counter)}"
+#                     new_rules.append((name, inst))
+#                     ki = k.link(Key(name), k.size)
+#                     riw[kr.link(ki, 0)] = 1.0
+#                     conditions.extend(inst._chunks_)
+#                     actions.append(conditions.pop())
+#             else:
+#                 conditions.extend(rule._chunks_)
+#                 actions.append(conditions.pop())
+            

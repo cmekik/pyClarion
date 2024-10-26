@@ -1,7 +1,7 @@
 import unittest
 
 from pyClarion import Agent
-from pyClarion.knowledge import Family, Atoms, Atom, Dyads
+from pyClarion.knowledge import Family, Atoms, Atom, Dyads, Var
 from pyClarion.components.elementary import Input
 from pyClarion.components.top_level import ChunkStore
 
@@ -55,6 +55,44 @@ class ChunkStoreTestCase(unittest.TestCase):
         while agent.system.queue:
             agent.system.advance()        
         ...
+
+    def test_rule_store(self):
+        class Heading(Atoms):
+            left: Atom
+            right: Atom
+            up: Atom
+            down: Atom
+        class IO(Atoms):
+            food: Atom
+            danger: Atom
+            move: Atom
+
+        s = Family()
+        io = IO()
+        heading = Heading() 
+        s.io = io; s.heading = heading
+
+        H = Var("H", heading)
+
+        rules = [
+            "avoid_danger" ^
+            + io.danger ** H
+            >>
+            - io.move ** H,
+
+            "approach_food" ^
+            + io.food ** H
+            >>
+            + io.move ** H]
+        
+        with Agent("agent") as agent:
+            root = agent.system.root; root.s = s
+            bl = Dyads(root.s, root.s)
+            input = Input("input", bl)
+            # store = RuleStore("rules", root.s, bl)
+            # store.lhs.bu.input = input.main
+
+
 
 if __name__ == "__main__":
     unittest.main()
