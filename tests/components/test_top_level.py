@@ -32,7 +32,7 @@ class ChunkStoreTestCase(unittest.TestCase):
             root = agent.system.root; root.s = s
             bl = Dyads(root.s, root.s) 
             input = Input("input", bl)
-            store = ChunkStore("store", root.s, bl)
+            store = ChunkStore("store", root.s, root.s)
             store.bu.input = input.main
         
         store.compile(

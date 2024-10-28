@@ -103,7 +103,8 @@ class Key(tuple[tuple[str, int], ...]):
         return len(self) - 1
 
     @sig_cache
-    def find_in(self: Self, other: "Key") -> Sequence[tuple[int, ...]]:
+    def find_in(self: Self, other: "Key", wc: str | None = None) \
+        -> Sequence[tuple[int, ...]]:
         N_s, N_o = len(self), len(other)
         if N_o < N_s:
             return []
@@ -115,13 +116,14 @@ class Key(tuple[tuple[str, int], ...]):
             for i_m, (match, Z_s) in enumerate(zip(matches, Zs)):
                 i_s = N_s - len(match) - 1
                 label_s, degree_s = self[i_s]
-                if label_o == label_s:
+                if label_s == wc or label_o == label_s:
                     Z_s += degree_s 
                     req = {match[N_s - Z_s + j] for j in range(degree_s)}
                     if req.issubset(children):
                         match[i_s] = i_o
                         Zs[i_m] = Z_s
-            if len(self) - 1 <= i_o and label_o == self[N_s - 1][0]:
+            if len(self) - 1 <= i_o \
+                and (self[N_s - 1][0] == wc or label_o == self[N_s - 1][0]):
                 matches.appendleft({N_s - 1: i_o})
                 Zs.appendleft(0)
         result = []
@@ -204,87 +206,58 @@ class KeyForm:
                 h.popleft()
             except IndexError as e:
                 raise ValueError("Height vector too short") from e
-
-    def __contains__(self: Self, key: Key) -> bool:
-        try:
-            return key == self.reduce(key, None)
-        except ValueError:
+            
+    def __contains__(self, obj) -> bool:
+        if not isinstance(obj, Key):
+            return NotImplemented
+        ref = self.as_key()
+        if len(obj) != len(ref):
             return False
-        
-    def __eq__(self: Self, other) -> bool:
+        return bool(ref.find_in(obj, wc="?"))
+    
+    def __eq__(self, other) -> bool:
         if not isinstance(other, KeyForm):
             return NotImplemented
         return self.k == other.k and self.h == other.h
 
-    def __le__(self: Self, other: Self) -> bool:
-        matches = self.k.find_in(other.k)
-        if len(matches) < 1:
-            return False
-        match, it_h_s, it_h_o = matches[0], iter(self.h), iter(other.h)
-        S, depths, refs = 1, {}, {}
-        for i, (label, degree) in enumerate(other.k):
-            try:
-                i_s = match.index(i)
-            except ValueError:
-                pass
-            else:
-                label_s, degree_s = self.k[i_s]
-                assert label_s == label
-                if degree_s == 0:
-                    depths[i] = 0
-                    refs[i] = next(it_h_s)
-                elif degree < degree_s:
-                    return False
-            if i in depths:
-                if 1 < degree and 0 < refs[i]:
-                    return False
-                depths.update({S + j: depths[i] + 1 for j in range(degree)})
-                refs.update({S + j: refs[i] for j in range(degree)})
-                if degree == 0 and depths[i] + next(it_h_o) < refs[i]:
-                    return False
-            S += degree
-        return True
-    
-    def __lt__(self: Self, other) -> bool:
-        if not isinstance(other, KeyForm):
-            return NotImplemented
+    def __lt__(self, other) -> bool:
         return self != other and self <= other
 
-    @sig_cache
-    def reduce(self, key: Key, branch: int | None) -> Key:
-        matches = self.k.find_in(key)
-        if not matches:
-            raise ValueError(f"Key '{key}' does not match")
-        if branch is None and 1 < len(matches):
-            raise ValueError(
-                f"Key '{key}' contains multiple matches but no branch given")
-        match = matches[0 if branch is None else branch]
-        S, result, it_h, trim, heights = 1, [], iter(self.h), set(), {}
-        for i, (label, degree) in enumerate(key):
-            try:
-                i_s = match.index(i)
-            except ValueError:
-                pass
-            else:
-                degree_s = self.k[i_s][1]
-                result.append((label, degree_s or degree))
-                if degree_s == 0:
-                    h = next(it_h) - 1
-                    heights.update({S + j: h for j in range(degree)})
-                    trim.update({S + j for j in range(degree)})
-            if i in trim:
-                h = heights[i]
-                if h == 0:
-                    result.append((label, 0))
-                else:
-                    if degree == 0:
-                        raise ValueError(f"Expected node {i} to have height")
-                    result.append((label, degree))
-                    heights.update({S + j: h - 1 for j in range(degree)})
-                    trim.update({S + j for j in range(degree)})
-            S += degree
-        return tuple.__new__(Key, result)
+    def __le__(self, other) -> bool:
+        if not isinstance(other, KeyForm):
+            return NotImplemented
+        k1 = self.as_key(); k2 = other.as_key()
+        return bool(k1.find_in(k2, wc="?"))
 
+    def reductor(self, other: "KeyForm", b: int | None = None) \
+        -> Callable[[Key], Key]:
+        k1 = self.as_key(); k2 = other.as_key()
+        if not self <= other:
+            raise ValueError(f"Keyform {k1} cannot match keys from {k2}")
+        matches = k1.find_in(k2, wc="?")
+        if 1 < len(matches) and b is None:
+            raise ValueError(f"Keyform {k1} has multiple matches to {k2}")
+        indices = matches[0] if b is None else matches[b]
+        cuts = []; S = 1
+        for i, (_, deg) in enumerate(k2):
+            m = tuple(j for j in range(deg) if S + j not in indices)
+            if m:
+                cuts.append((i, m))
+            S += deg 
+        def reduce(key: Key) -> Key:
+            for i, m in reversed(cuts):
+                key, _ = key.cut(i, m)
+            return key
+        return reduce
+
+    @sig_cache
+    def as_key(self) -> Key:
+        k = self.k; it = reversed(self.h)
+        for i in range(len(k) - 1, -1, -1):
+            if k[i][1] == 0:
+                k = k.link(Key(":".join(["?"] * next(it))), i)
+        return k
+    
     @classmethod
     @sig_cache
     def from_key(cls: Type[Self], key: Key) -> Self:

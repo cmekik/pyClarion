@@ -3,8 +3,8 @@ from datetime import timedelta
 from math import exp
 
 from ..system import Process, UpdateSite, Event
-from ..knowledge import Family, Atoms, Atom, Monads, Dyads, Triads, Chunk, Var, ByKwds
-from ..numdicts import Key, KeyForm, NumDict, numdict, path
+from ..knowledge import Family, Chunks, Atoms, Atom, Monads, Dyads, Triads, Chunk, Var, ByKwds
+from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
 
 
 class Simulation(Process):
@@ -146,16 +146,18 @@ class BottomUp(Process):
     input: NumDict
     weights: NumDict
     max_by: KeyForm
-    sum_by: ByKwds
 
-    def __init__(self, name: str, tl: Monads, bl: Dyads) -> None:
+    def __init__(self, name: str, tl: Chunks, bl: Family) -> None:
         super().__init__(name)
-        idx_w = Triads(*tl.branches, *bl.branches)
-        self.main = numdict(tl, {}, c=0.0)
-        self.input = numdict(bl, {}, c=0.0)
+        root = self.system.root
+        kt = path(tl); kb = path(bl)
+        idx_m = Index(root, kt, (1,))
+        idx_i = Index(root, kb.link(kb, 0), (2, 2))
+        idx_w = Index(root, kt.link(kb, 0).link(kb, 0), (2, 2, 1))
+        self.main = numdict(idx_m, {}, c=0.0)
+        self.input = numdict(idx_i, {}, c=0.0)
         self.weights = numdict(idx_w, {}, c=float("nan"))
-        self.max_by = idx_w.trunc((2, 1))
-        self.sum_by = idx_w.aggr(0)
+        self.max_by = KeyForm(kt.link(kb, 0).link(kb, 0), (2, 1, 1))
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input) or event.affects(self.weights):
@@ -165,7 +167,7 @@ class BottomUp(Process):
         result = (self.weights
             .mul(self.input, bs=(1,))
             .max(by=self.max_by)
-            .sum(**self.sum_by)
+            .sum(by=self.main.i.keyform)
             .with_default(c=0.0))
         self.system.schedule(self.update, UpdateSite(self.main, result.d), dt=dt)
 
@@ -176,13 +178,19 @@ class TopDown(Process):
     weights: NumDict
     by: ByKwds
 
-    def __init__(self, name: str, tl: Monads, bl: Dyads) -> None:
+    def __init__(self, name: str, tl: Chunks, bl: Family) -> None:
         super().__init__(name)
-        idx_w = Triads(*tl.branches, *bl.branches)
-        self.main = numdict(bl, {}, c=0.0)
-        self.input = numdict(tl, {}, c=0.0)
+        root = self.system.root
+        kt = path(tl); kb = path(bl)
+        idx_m = Index(root, kb.link(kb, 0), (2, 2))
+        idx_i = Index(root, kt, (1,))
+        idx_w = Index(root, kt.link(kb, 0).link(kb, 0), (2, 2, 1))
+        self.main = numdict(idx_m, {}, c=0.0)
+        self.input = numdict(idx_i, {}, c=0.0)
         self.weights = numdict(idx_w, {}, c=float("nan"))
-        self.by = idx_w.aggr(1, 2)
+        self.by = ByKwds(
+            by=self.main.i.keyform, 
+            b=0 if parent(tl) != bl else 1)
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input) or event.affects(self.weights):

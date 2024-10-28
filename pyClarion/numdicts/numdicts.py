@@ -45,7 +45,7 @@ class NumDict:
         if _v: 
             for key in d:
                 if key not in i:
-                    raise ValueError()
+                    raise ValueError(f"Key {key} not a member of index")
         self._i = i
         self._d = d 
         self._c = c
@@ -118,14 +118,14 @@ class NumDict:
     ) -> Iterator[tuple[Key, list[float]]]:
         if mode not in ("self", "match", "full"):
             raise ValueError(f"Invalid mode flag: '{mode}'")
-        invariant = True
-        for d in others:
+        invariant = True; reductors = []
+        for i, d in enumerate(others):
             if d._i.root != self._i.root:
                 raise ValueError(f"Mismatched keyspaces")
-            if not d._i.keyform <= self._i.keyform:
-                raise ValueError("Mismatched keyforms")
             if d._i.keyform != self._i.keyform:
                 invariant = False
+            b = branches[i] if branches is not None else None
+            reductors.append(d._i.keyform.reductor(self._i.keyform, b))
         if branches is None:
             branches = tuple(None for _ in others)
         match mode:
@@ -141,8 +141,8 @@ class NumDict:
                 raise ValueError()
         for k in it:
             data = [self[k]]
-            for d, b in zip(others, branches):
-                data.append(d[d._i.keyform.reduce(k, b)])
+            for d, reduce in zip(others, reductors):
+                data.append(d[reduce(k)])
             yield k, data
 
     def group(
@@ -153,8 +153,7 @@ class NumDict:
     ) -> dict[Key, list[float]]:
         if mode not in ("self", "full"):
             raise ValueError(f"Invalid mode flag: '{mode}'")
-        if not kf <= self._i.keyform:
-            raise ValueError() 
+        reduce = kf.reductor(self._i.keyform, branch)
         items: dict[Key, list[float]] = {}
         match mode:
             case "self":
@@ -162,7 +161,7 @@ class NumDict:
             case "full":
                 it = self._i
         for k in it:
-            items.setdefault(kf.reduce(k, branch), []).append(self[k])
+            items.setdefault(reduce(k), []).append(self[k])
         return items
 
     def _iter(self: Self, *others: Self) -> Iterator[Key]:

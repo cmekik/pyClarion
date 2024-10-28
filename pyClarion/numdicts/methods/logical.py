@@ -111,9 +111,10 @@ def argmax(
             assert by is not None
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
+            reduce = by.reductor(self.i.keyform, b)
             kmax, vmax = {}, {}
             for k in it:
-                group, v = by.reduce(k, b), self[k]
+                group, v = reduce(k), self[k]
                 if vmax.setdefault(group, -math.inf) < v:
                     kmax[group] = k
                     vmax[group] = v
@@ -148,9 +149,10 @@ def argmin(
             assert by is not None
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
+            reduce = by.reductor(self.i.keyform, b)
             kmin, vmin = {}, {}
             for k in it:
-                group, v = by.reduce(k, b), self[k]
+                group, v = reduce(k), self[k]
                 if v < vmin.setdefault(group, math.inf):
                     kmin[group] = k
                     vmin[group] = v
