@@ -43,8 +43,8 @@ class UpdateSite(Update):
 @dataclass(slots=True)
 class UpdateSort[C: Term](Update):
     sort: Sort[C]
-    add: tuple[tuple[LiteralString, C], ...] = ()
-    remove: tuple[LiteralString, ...] = ()
+    add: tuple[tuple[str, C], ...] = ()
+    remove: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(self.add or self.remove)
@@ -62,8 +62,8 @@ class UpdateSort[C: Term](Update):
 @dataclass(slots=True)
 class UpdateTerm(Update):
     term: Term
-    add: tuple[tuple[LiteralString, Sort], ...] = ()
-    remove: tuple[LiteralString, ...] = ()
+    add: tuple[tuple[str, Sort], ...] = ()
+    remove: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(self.add or self.remove)

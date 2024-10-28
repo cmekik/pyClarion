@@ -8,7 +8,7 @@ from .keys import Key, KeyForm
 
 
 class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
-    _name_: Key
+    _name_: str
     _parent_: P | None = None
     _ptype_: Type[P]
     _mtype_: Type[T]
@@ -16,7 +16,7 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
     _indices_: WeakSet["Index"]
 
     def __init__(self, ptype: Type[P], mtype: Type[T]):
-        self._name_ = Key()
+        self._name_ = ""
         self._ptype_ = ptype
         self._mtype_ = mtype
         self._members_ = {}
@@ -62,6 +62,8 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
                 raise ValidationError("Keyspace already has parent")
             if not isinstance(value, self._ptype_):
                 raise TypeError()
+        elif name.startswith("_") and name.endswith("_"):
+            pass
         elif isinstance(value, KeySpaceBase):
             if (key := Key(name)) in self._members_:
                 raise ValidationError(f"Cannot replace existing key '{name}'")
@@ -70,7 +72,7 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
             if not isinstance(self, value._ptype_):
                 raise TypeError()
             self._members_[key] = value
-            value._name_ = key
+            value._name_ = name
             value._parent_ = self
         super().__setattr__(name, value)
 
@@ -111,11 +113,12 @@ def root(ksp: KeySpaceBase) -> KeySpaceBase:
 
 
 def path(ksp: KeySpaceBase) -> Key:
-    ret = ksp._name_
+    ret = Key(ksp._name_); key = ret
     while ksp._parent_ is not None:
-        assert len(ksp._name_) == 2
+        assert len(key) == 2
         ksp = ksp._parent_
-        ret = ksp._name_.link(ret, ksp._name_.size)
+        key = Key(ksp._name_)
+        ret = key.link(ret, key.size)
     return ret
 
 

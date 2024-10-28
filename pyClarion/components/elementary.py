@@ -147,17 +147,17 @@ class BottomUp(Process):
     weights: NumDict
     max_by: KeyForm
 
-    def __init__(self, name: str, tl: Chunks, bl: Family) -> None:
+    def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
-        kt = path(tl); kb = path(bl)
+        kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
         idx_m = Index(root, kt, (1,))
-        idx_i = Index(root, kb.link(kb, 0), (2, 2))
-        idx_w = Index(root, kt.link(kb, 0).link(kb, 0), (2, 2, 1))
+        idx_i = Index(root, kb1.link(kb2, 0), (2, 2))
+        idx_w = Index(root, kt.link(kb1, 0).link(kb2, 0), (2, 2, 1))
         self.main = numdict(idx_m, {}, c=0.0)
         self.input = numdict(idx_i, {}, c=0.0)
         self.weights = numdict(idx_w, {}, c=float("nan"))
-        self.max_by = KeyForm(kt.link(kb, 0).link(kb, 0), (2, 1, 1))
+        self.max_by = KeyForm(kt.link(kb1, 0).link(kb2, 0), (2, 1, 1))
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input) or event.affects(self.weights):
@@ -178,19 +178,19 @@ class TopDown(Process):
     weights: NumDict
     by: ByKwds
 
-    def __init__(self, name: str, tl: Chunks, bl: Family) -> None:
+    def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
-        kt = path(tl); kb = path(bl)
-        idx_m = Index(root, kb.link(kb, 0), (2, 2))
+        kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
+        idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
         idx_i = Index(root, kt, (1,))
-        idx_w = Index(root, kt.link(kb, 0).link(kb, 0), (2, 2, 1))
+        idx_w = Index(root, kt.link(kb1, 0).link(kb2, 0), (2, 2, 1))
         self.main = numdict(idx_m, {}, c=0.0)
         self.input = numdict(idx_i, {}, c=0.0)
         self.weights = numdict(idx_w, {}, c=float("nan"))
         self.by = ByKwds(
             by=self.main.i.keyform, 
-            b=0 if parent(tl) != bl else 1)
+            b=0 if parent(tl) != bl1 else 1)
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input) or event.affects(self.weights):

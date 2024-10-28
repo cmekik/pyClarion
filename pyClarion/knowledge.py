@@ -1,5 +1,6 @@
 from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired, get_type_hints
-from itertools import product
+from weakref import WeakValueDictionary
+from itertools import product, count
 
 from .numdicts import KeySpaceBase, Index, KeyForm, Key, root, path, ValidationError
 
@@ -36,13 +37,19 @@ class Atoms(Sort["Atom"]):
 
 
 class Chunks(Sort["Chunk"]):
+    _counter_: count
+
     def __init__(self):
         super().__init__(Chunk)
+        self._counter_ = count()
 
 
 class Rules(Sort["Rule"]):
+    _counter_: count
+
     def __init__(self):
         super().__init__(Rule)
+        self._counter_ = count()
 
 
 class Term(Branch[Sort, Sort]):
@@ -69,15 +76,15 @@ class Atom(Term):
 class Compound(Term):
     _descr_: str
     _vars_: dict
-    _instances_: list[Self]
-    _is_instance_: bool
+    _instances_: WeakValueDictionary[str, Self]
+    _template_: Self | None
 
-    def __init__(self, inst) -> None:
+    def __init__(self, template: Self | None = None) -> None:
         super().__init__()
         self._descr_ = ""
         self._vars_ = {}
-        self._instances_ = []
-        self._inst_ = inst
+        self._instances_ = WeakValueDictionary()
+        self._template_ = template
 
     def __rxor__(self: Self, other: str) -> Self:
         if not other.isidentifier():
@@ -93,9 +100,9 @@ class Chunk(Compound):
     def __init__(
         self, 
         dyads: "dict[tuple[Term | Var, Term | Var], float]",
-        inst: bool = False
+        template: Self | None = None
     ) -> None:
-        super().__init__(inst)
+        super().__init__(template)
         self._dyads_ = dyads
         self._vars_.update(self._collect_vars_(dyad for dyad in dyads))
 
@@ -139,15 +146,17 @@ class Chunk(Compound):
 
     def __rshift__(self, other: "Chunk") -> "Rule":
         if isinstance(other, Chunk):
-            return Rule({other: 1.0, self: 1.0})
+            return Rule({self: 1.0, other: 1.0})
         return NotImplemented
 
 
 class Rule(Compound):
     _chunks_ : dict[Chunk, float]
 
-    def __init__(self, chunks: dict[Chunk, float], inst: bool = False):
-        super().__init__(inst)
+    def __init__(
+        self, chunks: dict[Chunk, float], template: Self | None = None
+    ) -> None:
+        super().__init__(template)
         self._chunks_ = chunks
         self._vars_.update(
             Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
@@ -179,13 +188,144 @@ def valuations(term: Chunk | Rule) -> Iterator[dict[str, Term]]:
 def instantiate[T: Chunk | Rule](term: T, vals: dict[str, Term]) -> T:
     if isinstance(term, Rule):
         chunks = {instantiate(c, vals): w for c, w in term._chunks_.items()}
-        return type(term)(chunks, inst=True)
+        return type(term)(chunks, term)
     if isinstance(term, Chunk):
         dyads: dict[tuple[Term | Var, Term | Var], float] = {
             (t1(vals) if isinstance(t1, Var) else t1, 
              t2(vals) if isinstance(t2, Var) else t2): w 
             for (t1, t2), w in term._dyads_.items()}
-        return type(term)(dyads, inst=True)
+        return type(term)(dyads, term)
+    raise TypeError()
+
+
+class ChunkData(TypedDict):
+    ciw: dict[Key, float]
+    tdw: dict[Key, float]
+
+
+class RuleData(TypedDict):
+    riw: dict[Key, float]
+    lhw: dict[Key, float]
+    rhw: dict[Key, float]
+    lhs: ChunkData
+    rhs: ChunkData
+
+
+def compile_chunk(chunk: Chunk, sort: Chunks) -> ChunkData:
+    if not chunk._name_:
+        raise ValueError("Cannot compile unnamed chunk")
+    ciw = {}; tdw = {}; k = path(sort)
+    kc = k.link(Key(chunk._name_), k.size)
+    if chunk._template_ is None:
+        ciw[kc.link(kc, 0)] = 1.0
+    else:
+        if not chunk._template_._name_:
+            raise ValueError("Cannot compile instance chunk with unnamed "
+                "template")
+        chunk._template_._instances_[chunk._name_] = chunk
+        kt = k.link(Key(chunk._template_._name_), k.size)
+        ciw[kt.link(kc, 0)] = 1.0
+    if not chunk._vars_:
+        for (s1, s2), w in chunk._dyads_.items():
+            assert isinstance(s1, Term) and isinstance(s2, Term)
+            kw = kc.link(path(s1), 0).link(path(s2), 0)
+            tdw[kw] = w 
+    return ChunkData(ciw=ciw, tdw=tdw)
+
+
+def compile_chunks(*chunks: Chunk, sort: Chunks) \
+    -> tuple[list[Chunk], ChunkData]:
+    new_chunks = []; chunk_data = ChunkData(ciw={}, tdw={})
+    for chunk in chunks:
+        chunk._name_ = chunk._name_ or f"c{next(sort._counter_)}"
+        data = compile_chunk(chunk, sort)
+        new_chunks.append(chunk)
+        chunk_data["ciw"].update(data["ciw"]) 
+        chunk_data["tdw"].update(data["tdw"])
+        for inst in instantiations(chunk):
+            inst._name_ = inst._name_ or f"c{next(sort._counter_)}" 
+            _data = compile_chunk(inst, sort)
+            new_chunks.append(inst)
+            chunk_data["ciw"].update(_data["ciw"])
+            chunk_data["tdw"].update(_data["tdw"])
+    return new_chunks, chunk_data
+
+
+def compile_rule(rule: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) -> RuleData:
+    riw = {}; lhw = {}; rhw = {}; k = path(sort)
+    kr = k.link(Key(rule._name_), k.size)
+    if rule._template_ is None:
+        riw[kr.link(kr, 0)] = 1.0
+    else:
+        if not rule._template_._name_:
+            raise ValueError("Cannot compile instance chunk with unnamed "
+                "template")
+        rule._template_._instances_[rule._name_] = rule
+        kt = k.link(Key(rule._template_._name_), k.size)
+        riw[kt.link(kr, 0)] = 1.0
+    ret = RuleData(
+        riw=riw, lhw=lhw, rhw=rhw, 
+        lhs=ChunkData(ciw={}, tdw={}),
+        rhs=ChunkData(ciw={}, tdw={}))
+    chunks, weights = zip(*rule._chunks_.items())
+    if rule._vars_:
+        for chunk in chunks[:-1]:
+            chunk._name_ = chunk._name_ or f"c{next(lhs._counter_)}"
+            data = compile_chunk(chunk, lhs)
+            ret["lhs"]["ciw"].update(data["ciw"])
+            ret["lhs"]["tdw"].update(data["tdw"])
+        chunk = chunks[-1]
+        chunk._name_ = chunk._name_ or f"c{next(rhs._counter_)}"
+        data = compile_chunk(chunk, rhs)
+        ret["rhs"]["ciw"].update(data["ciw"])
+        ret["rhs"]["tdw"].update(data["tdw"])
+    else:
+        _, lhs_data = compile_chunks(*chunks[:-1], sort=lhs)
+        _, rhs_data = compile_chunks(chunks[-1], sort=rhs)
+        k_lhs = path(lhs); k_rhs = path(rhs)
+        for c, w in zip(chunks[:-1], weights[:-1]):
+            kc = k_lhs.link(Key(c._name_), k_lhs.size)
+            lhw[kr.link(kc, 0)] = w
+        c, w = chunks[-1], weights[-1]
+        kc = k_rhs.link(Key(c._name_), k_rhs.size)
+        rhw[kr.link(kc, 0)] = w
+        ret["lhs"]["ciw"].update(lhs_data["ciw"])
+        ret["lhs"]["tdw"].update(lhs_data["tdw"])
+        ret["rhs"]["ciw"].update(rhs_data["ciw"])
+        ret["rhs"]["tdw"].update(rhs_data["tdw"])
+    return ret
+
+
+def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
+    -> tuple[list[Rule], RuleData]:
+    new_rules = []
+    rule_data = RuleData(
+        riw={}, lhw={}, rhw={}, 
+        lhs=ChunkData(ciw={}, tdw={}), 
+        rhs=ChunkData(ciw={}, tdw={}))
+    for rule in rules:
+        rule._name_ = rule._name_ or f"r{next(sort._counter_)}"
+        data = compile_rule(rule, sort, lhs, rhs)
+        new_rules.append(rule)
+        rule_data["riw"].update(data["riw"])
+        rule_data["lhw"].update(data["lhw"])
+        rule_data["rhw"].update(data["rhw"])
+        rule_data["lhs"]["ciw"].update(data["lhs"]["ciw"])
+        rule_data["lhs"]["tdw"].update(data["lhs"]["tdw"])
+        rule_data["rhs"]["ciw"].update(data["rhs"]["ciw"])
+        rule_data["rhs"]["tdw"].update(data["rhs"]["tdw"])
+        for inst in instantiations(rule):
+            inst._name_ = inst._name_ or f"r{next(sort._counter_)}" 
+            _data = compile_rule(inst, sort, lhs, rhs)
+            new_rules.append(inst)
+            rule_data["riw"].update(_data["riw"])
+            rule_data["lhw"].update(_data["lhw"])
+            rule_data["rhw"].update(_data["rhw"])
+            rule_data["lhs"]["ciw"].update(_data["lhs"]["ciw"])
+            rule_data["lhs"]["tdw"].update(_data["lhs"]["tdw"])
+            rule_data["rhs"]["ciw"].update(_data["rhs"]["ciw"])
+            rule_data["rhs"]["tdw"].update(_data["rhs"]["tdw"])
+    return new_rules, rule_data
 
 
 def standard_form(level: Branch) -> Key:
