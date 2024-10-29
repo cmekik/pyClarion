@@ -3,7 +3,7 @@ from datetime import timedelta
 from ..numdicts import Index, NumDict, numdict, path, root
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, ByKwds)
-from ..system import Process, UpdateSite, UpdateSort, Event
+from ..system import Process, UpdateSite, UpdateSort, Event, Priority
 from .elementary import TopDown, BottomUp
 
 
@@ -42,27 +42,36 @@ class ChunkStore(Process):
         if event.affects(self.td.weights):
             self.update_buw()
 
-    def update(self, dt: timedelta = timedelta()) -> None:
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         result = self.ciw.mul(self.bu.main, bs=(0,)).max(**self.max_by)
         self.system.schedule(self.update, 
             UpdateSite(self.main, result.d),
-            dt=dt)
+            dt=dt, priority=priority)
         
-    def compile(self, *chunks: Chunk, dt: timedelta = timedelta()) -> None:
+    def compile(self, *chunks: Chunk, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.LEARNING
+    ) -> None:
         new, data = compile_chunks(*chunks, sort=self.chunks)
         self.system.schedule(
             self.compile, 
             UpdateSort(self.chunks, add=tuple((c._name_, c) for c in new)),
             UpdateSite(self.ciw, data["ciw"], reset=False), 
             UpdateSite(self.td.weights, data["tdw"], reset=False),
-            dt=dt)
+            dt=dt, priority=priority)
 
-    def update_buw(self, dt: timedelta = timedelta()) -> None:
+    def update_buw(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.LEARNING
+    ) -> None:
         weights = self.td.weights.div(self.norm(self.td.weights))
         self.system.schedule(
             self.update_buw, 
             UpdateSite(self.bu.weights, weights.d), 
-            dt=dt)
+            dt=dt, priority=priority)
 
 
 class RuleStore(Process):
@@ -100,11 +109,17 @@ class RuleStore(Process):
         if event.affects(self.lhs.bu.main):
             self.update()
 
-    def update(self, dt: timedelta = timedelta()):
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         main = self.lhw.mul(self.lhs.bu.main).max(by=self.main.i.keyform, b=0)
-        self.system.schedule(self.update, UpdateSite(self.main, main.d), dt=dt)
+        self.system.schedule(self.update, UpdateSite(self.main, main.d), 
+            dt=dt, priority=priority)
 
-    def compile(self, *rules: Rule, dt: timedelta = timedelta()) -> None:
+    def compile(self, *rules: Rule, 
+        dt: timedelta = timedelta(),
+        priority: int = Priority.LEARNING) -> None:
         new, data = compile_rules(*rules, 
             sort=self.rules, lhs=self.lhs.chunks, rhs=self.rhs.chunks)
         lhs = []; rhs = []
@@ -123,4 +138,4 @@ class RuleStore(Process):
             UpdateSite(self.riw, data["riw"], reset=False),
             UpdateSite(self.lhw, data["lhw"], reset=False),
             UpdateSite(self.rhw, data["rhw"], reset=False),
-            dt=dt)
+            dt=dt, priority=priority)

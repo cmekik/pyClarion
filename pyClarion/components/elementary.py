@@ -2,7 +2,7 @@ from typing import Any
 from datetime import timedelta
 from math import exp
 
-from ..system import Process, UpdateSite, Event
+from ..system import Process, UpdateSite, Event, Priority
 from ..knowledge import Family, Chunks, Atoms, Atom, Monads, Dyads, Triads, Chunk, Var, ByKwds
 from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
 
@@ -25,7 +25,10 @@ class Input(Process):
             raise ValueError()
         self.main = numdict(index, {}, 0.0)
 
-    def send(self, d: Chunk, dt: timedelta = timedelta()) -> None:
+    def send(self, d: Chunk, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         data = {}
         for (t1, t2), weight in d._dyads_.items():
             if isinstance(t1, Var) or isinstance(t2, Var):
@@ -34,7 +37,8 @@ class Input(Process):
             if key not in self.main.i:
                 raise ValueError(f"Unexpected dimension-value pair {key}")
             data[key] = weight
-        self.system.schedule(self.send, UpdateSite(self.main, data), dt=dt)
+        self.system.schedule(self.send, UpdateSite(self.main, data), 
+            dt=dt, priority=priority)
 
 
 class Choice(Process):
@@ -87,7 +91,7 @@ class Choice(Process):
             self.select,
             UpdateSite(self.main, {v: 1.0 for v in choices.values()}),
             UpdateSite(self.sample, sample.d),
-            dt=timedelta(milliseconds=rt))
+            dt=timedelta(milliseconds=rt), priority=Priority.CHOICE)
 
 
 class Pool(Process):
@@ -130,7 +134,10 @@ class Pool(Process):
             or any(event.affects(site) for site in self.inputs.values())):
             self.update()
 
-    def update(self, dt: timedelta = timedelta()) -> None:
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         inputs = [d.scale(x=self.params[k]) for k, d in self.inputs.items()]
         zeros = numdict(self.main.i, {}, 0.0) 
         pro = zeros.max(*inputs)
@@ -138,7 +145,7 @@ class Pool(Process):
         self.system.schedule(
             self.update, 
             UpdateSite(self.main, pro.sum(con).d),
-            dt=dt)
+            dt=dt, priority=priority)
 
 
 class BottomUp(Process):    
@@ -160,16 +167,22 @@ class BottomUp(Process):
         self.max_by = KeyForm(kt.link(kb1, 0).link(kb2, 0), (2, 1, 1))
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input) or event.affects(self.weights):
+        if event.affects(self.input): 
             self.update()
+        if event.affects(self.weights):
+            self.update(priority=Priority.LEARNING)
 
-    def update(self, dt: timedelta = timedelta()) -> None:
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         result = (self.weights
             .mul(self.input, bs=(1,))
             .max(by=self.max_by)
             .sum(by=self.main.i.keyform)
             .with_default(c=0.0))
-        self.system.schedule(self.update, UpdateSite(self.main, result.d), dt=dt)
+        self.system.schedule(self.update, UpdateSite(self.main, result.d), 
+            dt=dt, priority=priority)
 
 
 class TopDown(Process):    
@@ -193,10 +206,15 @@ class TopDown(Process):
             b=0 if parent(tl) != bl1 else 1)
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input) or event.affects(self.weights):
+        if event.affects(self.input):
             self.update()
+        if event.affects(self.weights):
+            self.update(priority=Priority.LEARNING)
 
-    def update(self, dt: timedelta = timedelta()) -> None:
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
         cf = self.weights.mul(self.input, bs=(0,))
         pro = cf.max(**self.by).bound_min(x=0.0).with_default(c=0.0) 
         con = cf.min(**self.by).bound_max(x=0.0).with_default(c=0.0)
@@ -204,4 +222,4 @@ class TopDown(Process):
         self.system.schedule( 
             self.update, 
             UpdateSite(self.main, result.d),
-            dt=dt)
+            dt=dt, priority=priority)

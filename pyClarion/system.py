@@ -5,6 +5,7 @@ from math import isnan
 from datetime import timedelta
 from inspect import ismethod
 from itertools import count
+from enum import IntEnum
 import warnings
 import heapq
 
@@ -78,12 +79,19 @@ class UpdateTerm(Update):
         return site.i.depends_on(self.term)
     
 
+class Priority(IntEnum):
+    LEARNING = 96
+    PROPAGATION = 64
+    CHOICE = 32
+
+
 @dataclass(slots=True)
 class Event:
-    num: int
     time: timedelta
     source: Callable
     updates: Sequence[Update]
+    priority: int
+    number: int
 
     def __repr__(self) -> str:
 
@@ -98,7 +106,9 @@ class Event:
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
             if self.time == other.time:
-                return self.num < other.num
+                if self.priority == other.priority:
+                    return self.number < other.number
+                return self.priority > other.priority
             return self.time < other.time
         return NotImplemented
         
@@ -119,10 +129,11 @@ class Clock:
             raise ValueError("Timepoint precedes current time")
         self.time = timepoint
     
-    def event(self, dt: timedelta, src: Callable, *uds: Update) -> Event:
+    def event(self, dt: timedelta, src: Callable, *uds: Update, priority: int) \
+        -> Event:
         if dt < timedelta():
             raise ValueError("Cannot schedule an event in the past.")
-        return Event(next(self.counter), self.time + dt, src, uds)
+        return Event(self.time + dt, src, uds, priority, next(self.counter))
 
 
 class Process:
@@ -146,10 +157,12 @@ class Process:
             ) -> None:
             self.schedule(self.user_update, *updates, dt=dt)
 
-        def schedule(
-            self, src: Callable, *uds: Update, dt: timedelta = timedelta()
+        def schedule(self, src: Callable, *uds: Update, 
+            dt: timedelta = timedelta(), 
+            priority: int = Priority.PROPAGATION
         ) -> None:
-            heapq.heappush(self.queue, self.clock.event(dt, src, *uds))
+            heapq.heappush(self.queue, 
+                self.clock.event(dt, src, *uds, priority=priority))
 
         def advance(self) -> Event:
             event = heapq.heappop(self.queue)

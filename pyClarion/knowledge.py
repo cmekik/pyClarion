@@ -17,6 +17,7 @@ class Family(Branch[KeySpaceBase, "Sort"]):
 
 class Sort[C: "Term"](Branch[KeySpaceBase, C]):
     _required_: frozenset[Key]
+    _vars_: dict[str, "Var"]
 
     def __init__(self, mtype: Type[C]) -> None:
         super().__init__(KeySpaceBase, mtype)
@@ -25,6 +26,10 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
             if isinstance(typ, type) and issubclass(typ, Term):
                 setattr(self, name, typ())
         self._required_ = frozenset(self._members_)
+        self._vars_ = {}
+
+    def __call__(self, name: str) -> "Var":
+        return self._vars_.setdefault(name, Var(name, self))
 
     def __delattr__(self, name: str) -> None:
         if Key(name) in self._required_:
@@ -36,20 +41,22 @@ class Atoms(Sort["Atom"]):
         super().__init__(Atom)
 
 
-class Chunks(Sort["Chunk"]):
+class Compounds[C: "Compound"](Sort[C]):
     _counter_: count
 
+    def __init__(self, mtype: Type[C]) -> None:
+        super().__init__(mtype)
+        self._counter_ = count()
+
+
+class Chunks(Compounds["Chunk"]):
     def __init__(self):
         super().__init__(Chunk)
-        self._counter_ = count()
 
 
-class Rules(Sort["Rule"]):
-    _counter_: count
-
+class Rules(Compounds["Rule"]):
     def __init__(self):
         super().__init__(Rule)
-        self._counter_ = count()
 
 
 class Term(Branch[Sort, Sort]):

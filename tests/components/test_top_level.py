@@ -59,6 +59,7 @@ class ChunkStoreTestCase(unittest.TestCase):
 
     def test_rule_store(self):
         class Heading(Atoms):
+            nil: Atom
             left: Atom
             right: Atom
             up: Atom
@@ -73,18 +74,16 @@ class ChunkStoreTestCase(unittest.TestCase):
         heading = Heading() 
         s.io = io; s.heading = heading
 
-        H = Var("H", heading)
-
         rules = [
             "avoid_danger" ^
-            + io.danger ** H
+            + io.danger ** heading("H")
             >>
-            - io.move ** H,
+            - io.move ** heading("H"),
 
             "approach_food" ^
-            + io.food ** H
+            + io.food ** heading("H")
             >>
-            + io.move ** H]
+            + io.move ** heading("H")]
         
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s
@@ -94,7 +93,7 @@ class ChunkStoreTestCase(unittest.TestCase):
             store.lhs.bu.input = input.main
 
         store.compile(*rules)
-        input.send(+ io.danger ** heading.up, dt=timedelta(milliseconds=1))
+        input.send(+ io.danger ** heading.up)
 
         while agent.system.queue:
             agent.system.advance()
