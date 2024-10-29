@@ -38,21 +38,6 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
             raise ValidationError(f"Cannot remove required key '{name}'")
 
 
-class Atoms(Sort["Atom"]):
-    def __init__(self):
-        super().__init__(Atom)
-
-
-class Chunks(Sort["Chunk"]):
-    def __init__(self):
-        super().__init__(Chunk)
-
-
-class Rules(Sort["Rule"]):
-    def __init__(self):
-        super().__init__(Rule)
-
-
 class Term(Branch[Sort, Sort]):
 
     def __init__(self) -> None:
@@ -176,6 +161,25 @@ class Var:
         if (value := valuation[self.name]) in self.sort:
             return value
         raise ValueError()
+
+
+class Atoms(Sort["Atom"]):
+    def __init__(self):
+        super().__init__(Atom)
+
+
+class Chunks(Sort[Chunk]):
+    NIL: Chunk
+
+    def __init__(self):
+        super().__init__(Chunk)
+
+
+class Rules(Sort[Rule]):
+    NIL: Rule 
+
+    def __init__(self):
+        super().__init__(Rule)
 
 
 def instantiations[T: Chunk | Rule](term: T) -> Iterator[T]:

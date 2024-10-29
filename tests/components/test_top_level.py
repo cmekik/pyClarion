@@ -87,7 +87,7 @@ class ChunkStoreTestCase(unittest.TestCase):
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s
             input = Input("input", root.s, root.s)
-            store = RuleStore("rules", root.s, root.s, root.s)
+            store = RuleStore("rules", root.s, root.s, root.s, root.s, root.s)
             store.lhs.bu.input = input.main
 
         store.compile(*rules)

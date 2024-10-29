@@ -1,6 +1,5 @@
 from typing import Any
 from datetime import timedelta
-from math import exp
 
 from ..system import Process, UpdateSite, Event, Priority
 from ..knowledge import Family, Chunks, Atoms, Atom, Chunk, Var, ByKwds

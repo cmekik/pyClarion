@@ -8,6 +8,42 @@ from ..system import Process, UpdateSite, UpdateSort, Event, Priority
 from .elementary import TopDown, BottomUp
 
 
+class Associations(Process):
+    main: NumDict
+    input: NumDict
+    weights: NumDict
+    sum_by: ByKwds
+
+    def __init__(self, name: str, input: Chunks, output: Chunks) -> None:
+        super().__init__(name)
+        root = self.system.root
+        if not root == get_root(input) == get_root(output):
+            raise ValueError("Mismatched root keyspaces")
+        k0 = path(input); k1 = path(output)
+        idx_m = Index(root, k0, (1,))
+        idx_i = Index(root, k1, (1,))
+        idx_w = Index(root, k1.link(k0, 0), (1, 1))
+        self.main = numdict(idx_m, {}, 0.0)
+        self.input = numdict(idx_i, {}, 0.0)
+        self.weights = numdict(idx_w, {}, 0.0)
+        self.by = ByKwds(by=idx_m.keyform, b=1)
+
+    def resolve(self, event: Event) -> None:
+        if event.affects(self.input):
+            self.update()
+        if event.affects(self.weights):
+            self.update(priority=Priority.LEARNING)
+
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        output = self.weights.mul(self.input).sum(**self.sum_by)
+        self.system.schedule(self.update, 
+            UpdateSite(self.main, output.d), 
+            dt=dt, priority=priority)
+
+
 class ChunkStore(Process):
     chunks: Chunks
     main: NumDict
@@ -49,7 +85,7 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        result = self.ciw.mul(self.bu.main, bs=(0,)).max(**self.max_by)
+        result = self.ciw.mul(self.bu.main, bs=(1,)).max(**self.max_by)
         self.system.schedule(self.update, 
             UpdateSite(self.main, result.d),
             dt=dt, priority=priority)
@@ -86,16 +122,24 @@ class RuleStore(Process):
     lhw: NumDict
     rhw: NumDict
 
-    def __init__(self, name: str, tl: Family, bl1: Family, bl2: Family) -> None:
+    def __init__(self, 
+        name: str, 
+        tl: Family, 
+        bli0: Family, 
+        bli1: Family, 
+        blo0: Family, 
+        blo1: Family
+    ) -> None:
         super().__init__(name)
         root = self.system.root
-        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
+        if not root == get_root(tl) == get_root(bli0) == get_root(bli1) \
+            == get_root(blo0) == get_root(blo1):
             raise ValueError("Mismatched root keyspaces")
         self.rules = Rules()
         tl[name] = self.rules
         with self:
-            self.lhs = ChunkStore(f"{name}_l", tl, bl1, bl2)
-            self.rhs = ChunkStore(f"{name}_r", tl, bl1, bl2)
+            self.lhs = ChunkStore(f"{name}_l", tl, bli0, bli1)
+            self.rhs = ChunkStore(f"{name}_r", tl, blo0, blo1)
         kr = path(self.rules)
         k_lhs = path(self.lhs.chunks)
         k_rhs = path(self.rhs.chunks)
@@ -116,7 +160,7 @@ class RuleStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        main = self.lhw.mul(self.lhs.bu.main).max(by=self.main.i.keyform, b=0)
+        main = self.lhw.mul(self.lhs.main).max(by=self.main.i.keyform, b=0)
         self.system.schedule(self.update, UpdateSite(self.main, main.d), 
             dt=dt, priority=priority)
 
