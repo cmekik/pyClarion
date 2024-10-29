@@ -3,7 +3,7 @@ from datetime import timedelta
 from math import exp
 
 from ..system import Process, UpdateSite, Event, Priority
-from ..knowledge import Family, Chunks, Atoms, Atom, Monads, Dyads, Triads, Chunk, Var, ByKwds
+from ..knowledge import Family, Chunks, Atoms, Atom, Chunk, Var, ByKwds
 from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
 
 
@@ -18,12 +18,12 @@ class Agent(Process):
 class Input(Process):
     main: NumDict
 
-    def __init__(self, name: str, index: Dyads) -> None:
+    def __init__(self, name: str, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
-        if index.root is not root:
-            raise ValueError()
-        self.main = numdict(index, {}, 0.0)
+        kb1 = path(bl1); kb2 = path(bl2)
+        idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
+        self.main = numdict(idx_m, {}, 0.0)
 
     def send(self, d: Chunk, 
         dt: timedelta = timedelta(), 
@@ -57,25 +57,31 @@ class Choice(Process):
     def __init__(
         self, 
         name: str, 
-        index: Monads | Dyads,
+        pfam: Family,
+        fam1: Family,
+        fam2: Family | None = None,
         *,
         sd: float = 1.0,
         lf: float = 0.0
     ) -> None:
         super().__init__(name)
         root = self.system.root
-        if index.root is not root:
-            raise ValueError()
-        if "p" not in root: 
-            root.p = Family()
-        self.p = type(self).Params(); root.p[name] = self.p
-        self.params = numdict(Monads(self.p), 
+        if fam2 is None:
+            index = Index(root, path(fam1), (2,))
+            by = KeyForm(path(fam1), (0,))
+        else:
+            k1 = path(fam1); k2 = path(fam2)
+            index = Index(root, k1.link(k2, 0), (2, 2))
+            by = KeyForm(k1.link(k2, 0), (2, 1))
+        self.p = type(self).Params(); pfam[name] = self.p
+        idx_p = Index(root, path(self.p), (1,))
+        self.params = numdict(idx_p, 
             {path(self.p.sd): sd, path(self.p.lf): lf}, float("nan"))
         self.main = numdict(index, {}, 0.0)
         self.input = numdict(index, {}, 0.0)
         self.bias = numdict(index, {}, 0.0)
         self.sample = numdict(index, {}, float("nan"))
-        self.by = index.trunc((0, 1) if isinstance(index, Monads) else (1, 1))
+        self.by = by
 
     def poll(self) -> dict[Key, Key]:
         return self.main.argmax(by=self.by)
@@ -103,15 +109,22 @@ class Pool(Process):
     params: NumDict
     inputs: dict[Key, NumDict]
 
-    def __init__(self, name: str, index: Monads | Dyads) -> None:
+    def __init__(self, 
+        name: str,         
+        pfam: Family,
+        fam1: Family,
+        fam2: Family | None = None
+    ) -> None:
         super().__init__(name)
         root = self.system.root
-        if index.root is not root:
-            raise ValueError()
-        if "p" not in root: 
-            root.p = Family() 
-        self.p = type(self).Params(); root.p[name] = self.p
-        self.params = numdict(Monads(self.p), {}, c=float("nan"))
+        if fam2 is None:
+            index = Index(root, path(fam1), (2,))
+        else:
+            k1 = path(fam1); k2 = path(fam2)
+            index = Index(root, k1.link(k2, 0), (2, 2))
+        self.p = type(self).Params(); pfam[name] = self.p
+        idx_p = Index(root, path(self.p), (1,))
+        self.params = numdict(idx_p, {}, c=float("nan"))
         self.main = numdict(index, {}, c=0.0)
         self.inputs = {}
 

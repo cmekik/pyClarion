@@ -2,7 +2,7 @@ import unittest
 from datetime import timedelta
 
 from pyClarion import Agent
-from pyClarion.knowledge import Family, Atoms, Atom, Dyads, Var
+from pyClarion.knowledge import Family, Atoms, Atom
 from pyClarion.components.elementary import Input
 from pyClarion.components.top_level import ChunkStore, RuleStore
 
@@ -31,8 +31,7 @@ class ChunkStoreTestCase(unittest.TestCase):
 
         with Agent("a") as agent:
             root = agent.system.root; root.s = s
-            bl = Dyads(root.s, root.s) 
-            input = Input("input", bl)
+            input = Input("input", root.s, root.s)
             store = ChunkStore("store", root.s, root.s, root.s)
             store.bu.input = input.main
         
@@ -87,8 +86,7 @@ class ChunkStoreTestCase(unittest.TestCase):
         
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s
-            bl = Dyads(root.s, root.s)
-            input = Input("input", bl)
+            input = Input("input", root.s, root.s)
             store = RuleStore("rules", root.s, root.s, root.s)
             store.lhs.bu.input = input.main
 
