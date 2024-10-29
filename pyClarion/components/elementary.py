@@ -92,18 +92,19 @@ class Choice(Process):
     def poll(self) -> dict[Key, Key]:
         return self.main.argmax(by=self.by)
 
-    def select(self) -> None:
+    def select(self, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.CHOICE
+    ) -> None:
         input = self.bias.sum(self.input)
         sd = numdict(self.main.i, {}, c=self.params[path(self.p.sd)])
         sample = input.normalvariate(sd)
         choices = sample.argmax(by=self.by)
-        rt = (self.params[path(self.p.lf)] 
-            * exp(-sample.max(by=self.by).valmin()))
         self.system.schedule(
             self.select,
             UpdateSite(self.main, {v: 1.0 for v in choices.values()}),
             UpdateSite(self.sample, sample.d),
-            dt=timedelta(milliseconds=rt), priority=Priority.CHOICE)
+            dt=dt, priority=priority)
 
 
 class Pool(Process):
