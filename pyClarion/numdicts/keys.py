@@ -78,11 +78,16 @@ class Key(tuple[tuple[str, int], ...]):
     def __repr__(self) -> str:
         return f"Key({repr(str(self))})"
     
-    @sig_cache
     def __bool__(self) -> bool:
         return self != Key()
 
-    @sig_cache
+    def __lt__(self, other) -> bool:
+        if not isinstance(other, Key):
+            return NotImplemented
+        if tuple(self) == tuple(other):
+            return False
+        return self <= other
+
     def __le__(self: Self, other) -> bool:
         if not isinstance(other, Key):
             return NotImplemented

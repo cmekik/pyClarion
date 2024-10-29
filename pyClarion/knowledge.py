@@ -2,7 +2,7 @@ from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired, get_t
 from weakref import WeakValueDictionary
 from itertools import product, count
 
-from .numdicts import KeySpaceBase, Index, KeyForm, Key, root, path, ValidationError
+from .numdicts import KeySpaceBase, KeyForm, Key, path, ValidationError
 
 
 class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
@@ -17,6 +17,7 @@ class Family(Branch[KeySpaceBase, "Sort"]):
 
 class Sort[C: "Term"](Branch[KeySpaceBase, C]):
     _required_: frozenset[Key]
+    _counter_: count
     _vars_: dict[str, "Var"]
 
     def __init__(self, mtype: Type[C]) -> None:
@@ -26,6 +27,7 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
             if isinstance(typ, type) and issubclass(typ, Term):
                 setattr(self, name, typ())
         self._required_ = frozenset(self._members_)
+        self._counter_ = count()
         self._vars_ = {}
 
     def __call__(self, name: str) -> "Var":
@@ -41,20 +43,12 @@ class Atoms(Sort["Atom"]):
         super().__init__(Atom)
 
 
-class Compounds[C: "Compound"](Sort[C]):
-    _counter_: count
-
-    def __init__(self, mtype: Type[C]) -> None:
-        super().__init__(mtype)
-        self._counter_ = count()
-
-
-class Chunks(Compounds["Chunk"]):
+class Chunks(Sort["Chunk"]):
     def __init__(self):
         super().__init__(Chunk)
 
 
-class Rules(Compounds["Rule"]):
+class Rules(Sort["Rule"]):
     def __init__(self):
         super().__init__(Rule)
 
@@ -106,9 +100,10 @@ class Chunk(Compound):
     
     def __init__(
         self, 
-        dyads: "dict[tuple[Term | Var, Term | Var], float]",
+        dyads: "dict[tuple[Term | Var, Term | Var], float] | None" = None,
         template: Self | None = None
     ) -> None:
+        dyads = dyads or {}
         super().__init__(template)
         self._dyads_ = dyads
         self._vars_.update(self._collect_vars_(dyad for dyad in dyads))
@@ -161,8 +156,11 @@ class Rule(Compound):
     _chunks_ : dict[Chunk, float]
 
     def __init__(
-        self, chunks: dict[Chunk, float], template: Self | None = None
+        self, 
+        chunks: dict[Chunk, float] | None = None, 
+        template: Self | None = None
     ) -> None:
+        chunks = chunks or {}
         super().__init__(template)
         self._chunks_ = chunks
         self._vars_.update(
@@ -333,17 +331,6 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
             rule_data["rhs"]["ciw"].update(_data["rhs"]["ciw"])
             rule_data["rhs"]["tdw"].update(_data["rhs"]["tdw"])
     return new_rules, rule_data
-
-
-def standard_form(level: Branch) -> Key:
-    if isinstance(level, Term):
-        return Key(f"{path(level)}")
-    if isinstance(level, Sort):
-        return Key(f"{path(level)}:?")
-    elif isinstance(level, Family):
-        return Key(f"{path(level)}:?:?")
-    else:
-        raise TypeError()
 
 
 class ByKwds(TypedDict):

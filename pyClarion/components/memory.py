@@ -1,0 +1,109 @@
+from datetime import timedelta
+
+from ..system import Process, UpdateSite, UpdateSort, Priority, Event
+from ..knowledge import Family, Sort, Atoms, Atom
+from ..numdicts import Key, Index, NumDict, path, numdict
+from ..numdicts import root as get_root
+
+
+class BaseLevel(Process):
+    class Params(Atoms):
+        th: Atom
+        sc: Atom
+        de: Atom
+    
+    e: Atoms
+    p: Params
+    unit: timedelta
+    main: NumDict
+    input: NumDict
+    times: NumDict
+    decay: NumDict
+    scale: NumDict
+    weights: NumDict
+    params: NumDict
+    
+    def __init__(self, 
+        name: str, 
+        pfam: Family, 
+        efam: Family, 
+        sort: Sort, 
+        *, 
+        unit: timedelta = timedelta(milliseconds=1),
+        th: float = 0.0, 
+        sc: float = 1.0, 
+        de: float = 0.5
+    ) -> None:
+        super().__init__(name)
+        root = self.system.root
+        if not root == get_root(pfam) == get_root(sort) == get_root(efam):
+            raise ValueError("Mismatched root keyspaces")
+        if efam == pfam:
+            raise ValueError("pfam and efam must be distinct")
+        self.p = type(self).Params(); pfam[name] = self.p
+        self.e = Atoms(); efam[name] = self.e
+        k = path(sort); ke = path(self.e)
+        idx_m = Index(root, k, (1,))
+        idx_t = Index(root, ke.link(k, 0), (1, 1))
+        idx_p = Index(root, path(self.p), (1,))
+        idx_e = Index(root, ke, (1,))
+        self.unit = unit
+        self.main = numdict(idx_m, {}, 0.0)
+        self.input = numdict(idx_m, {}, 0.0)
+        self.times = numdict(idx_e, {}, float("nan"))
+        self.decay = numdict(idx_e, {}, float("nan"))
+        self.scale = numdict(idx_e, {}, float("nan"))
+        self.weights = numdict(idx_t, {}, 0.0)
+        self.params = numdict(idx_p, 
+            {path(self.p.th): th, path(self.p.sc): sc, path(self.p.de): de}, 
+            float("nan"))
+
+    def resolve(self, event: Event) -> None:
+        if event.affects(self.input):
+            self.invoke(event)
+
+    def invoke(self,
+        event: Event, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.LEARNING
+    ) -> None:
+        ke = path(self.e); name = f"e{next(self.e._counter_)}"
+        key = ke.link(Key(name), ke.size)
+        invoked = []; th = self.params[path(self.p.th)]
+        for ud in (ud for ud in event.updates if ud.affects(self.input)):
+            if isinstance(ud, UpdateSite):
+                for k, v in ud.data.items():
+                    if th < v:
+                        invoked.append(key.link(k, 0))
+            if isinstance(ud, UpdateSort):
+                for _, term in ud.add:
+                    invoked.append(key.link(path(term), 0))
+        time = self.system.clock.time / self.unit
+        sc = self.params[path(self.p.sc)]; de = self.params[path(self.p.de)]
+        self.system.schedule(self.invoke, 
+            UpdateSort(self.e, add=((name, Atom()),)),
+            UpdateSite(self.times, {key: time}, reset=False),
+            UpdateSite(self.scale, {key: sc}, reset=False),
+            UpdateSite(self.decay, {key: de}, reset=False),
+            UpdateSite(self.weights, {k: 1.0 for k in invoked}, reset=False),
+            dt=dt, priority=priority)
+
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.LEARNING
+    ) -> None:
+        time = self.system.clock.time / self.unit
+        terms = (self.times
+            .neg()
+            .shift(x=time)
+            .div(self.scale)
+            .log()
+            .mul(self.decay.neg())
+            .exp())
+        blas = (self.weights
+            .mul(terms)
+            .sum(by=self.main.i.keyform)
+            .with_default(c=0.0))
+        self.system.schedule(self.update, 
+            UpdateSite(self.main, blas.d), 
+            dt=dt, priority=priority)
