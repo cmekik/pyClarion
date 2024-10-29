@@ -5,6 +5,7 @@ from math import exp
 from ..system import Process, UpdateSite, Event, Priority
 from ..knowledge import Family, Chunks, Atoms, Atom, Chunk, Var, ByKwds
 from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
+from ..numdicts import root as get_root
 
 
 class Simulation(Process):
@@ -21,6 +22,8 @@ class Input(Process):
     def __init__(self, name: str, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
+        if not root == get_root(bl1) == get_root(bl2):
+            raise ValueError("Mismatched root keyspaces")
         kb1 = path(bl1); kb2 = path(bl2)
         idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
         self.main = numdict(idx_m, {}, 0.0)
@@ -66,6 +69,9 @@ class Choice(Process):
     ) -> None:
         super().__init__(name)
         root = self.system.root
+        if root != get_root(fam1) \
+            or fam2 is not None and root != get_root(fam2):
+            raise ValueError("Mismatched root keyspace")
         if fam2 is None:
             index = Index(root, path(fam1), (2,))
             by = KeyForm(path(fam1), (0,))
@@ -117,6 +123,9 @@ class Pool(Process):
     ) -> None:
         super().__init__(name)
         root = self.system.root
+        if not root == get_root(pfam) == get_root(fam1) \
+            or fam2 is not None and root != get_root(fam2):
+            raise ValueError("Mismatched root keyspaces")
         if fam2 is None:
             index = Index(root, path(fam1), (2,))
         else:
@@ -170,6 +179,8 @@ class BottomUp(Process):
     def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
+        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
+            raise ValueError("Mismatched root keyspaces")
         kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
         idx_m = Index(root, kt, (1,))
         idx_i = Index(root, kb1.link(kb2, 0), (2, 2))
@@ -207,6 +218,8 @@ class TopDown(Process):
     def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
+        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
+            raise ValueError("Mismatched root keyspaces")
         kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
         idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
         idx_i = Index(root, kt, (1,))

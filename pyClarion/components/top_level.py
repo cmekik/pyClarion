@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-from ..numdicts import Index, NumDict, numdict, path, root
+from ..numdicts import Index, NumDict, numdict, path
+from ..numdicts import root as get_root
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, ByKwds)
 from ..system import Process, UpdateSite, UpdateSort, Event, Priority
@@ -18,6 +19,8 @@ class ChunkStore(Process):
     def __init__(self, name: str, tl: Family, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
         root = self.system.root
+        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
+            raise ValueError("Mismatched root keyspaces")
         self.chunks = Chunks()
         tl[name] = self.chunks; kt = path(self.chunks)
         idx_m = Index(root, kt, (1,))
@@ -85,9 +88,9 @@ class RuleStore(Process):
 
     def __init__(self, name: str, tl: Family, bl1: Family, bl2: Family) -> None:
         super().__init__(name)
-        root_ = self.system.root
-        if not root_ == root(tl) == root(bl1) == root(bl2):
-            raise ValueError("Mismatched keyspace roots.")
+        root = self.system.root
+        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
+            raise ValueError("Mismatched root keyspaces")
         self.rules = Rules()
         tl[name] = self.rules
         with self:
@@ -96,10 +99,10 @@ class RuleStore(Process):
         kr = path(self.rules)
         k_lhs = path(self.lhs.chunks)
         k_rhs = path(self.rhs.chunks)
-        idx_m = Index(root_, kr, (1,))
-        idx_i = Index(root_, kr.link(kr, 0), (1, 1))
-        idx_lhs = Index(root_, kr.link(k_lhs, 0), (1, 1))
-        idx_rhs = Index(root_, kr.link(k_rhs, 0), (1, 1))
+        idx_m = Index(root, kr, (1,))
+        idx_i = Index(root, kr.link(kr, 0), (1, 1))
+        idx_lhs = Index(root, kr.link(k_lhs, 0), (1, 1))
+        idx_rhs = Index(root, kr.link(k_rhs, 0), (1, 1))
         self.main = numdict(idx_m, {}, c=0.0)
         self.riw = numdict(idx_i, {}, c=float("nan"))
         self.lhw = numdict(idx_lhs, {}, c=float("nan"))
