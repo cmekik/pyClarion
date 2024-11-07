@@ -2,9 +2,10 @@ import unittest
 from datetime import timedelta
 
 from pyClarion import Agent
-from pyClarion.knowledge import Family, Atoms, Atom
+from pyClarion.knowledge import Family, Atoms, Atom, Actions
 from pyClarion.components.elementary import Input
 from pyClarion.components.top_level import ChunkStore, RuleStore
+from pyClarion.components.rules import FixedRules
 
 
 class ChunkStoreTestCase(unittest.TestCase):
@@ -56,6 +57,9 @@ class ChunkStoreTestCase(unittest.TestCase):
             agent.system.advance()        
         ...
 
+
+class RuleStoreTestCase(unittest.TestCase):
+
     def test_rule_store(self):
         class Heading(Atoms):
             nil: Atom
@@ -97,6 +101,51 @@ class ChunkStoreTestCase(unittest.TestCase):
             agent.system.advance()
         ...
 
+
+class FixedRuleTestCase(unittest.TestCase):
+
+    def test_rule_store(self):
+        class Heading(Actions):
+            nil: Atom
+            left: Atom
+            right: Atom
+            up: Atom
+            down: Atom
+        class IO(Atoms):
+            food: Atom
+            danger: Atom
+            move: Atom
+
+        s = Family()
+        io = IO()
+        heading = Heading() 
+        s.io = io; s.heading = heading
+
+        rules = [
+            "avoid_danger" ^
+            + io.danger ** heading("H")
+            >>
+            - io.move ** heading("H"),
+
+            "approach_food" ^
+            + io.food ** heading("H")
+            >>
+            + io.move ** heading("H")]
+        
+        with Agent("agent") as agent:
+            root = agent.system.root; root.s = s; root.p = Family()
+            input = Input("input", root.s, root.s)
+            frs = FixedRules("frs", root.p, root.s, root.s, root.s, root.s, root.s, sd=1e-4)
+            frs.store.lhs.bu.input = input.main
+
+        frs.store.compile(*rules)
+        input.send(+ io.danger ** heading.up)
+        frs.trigger()
+
+        event = None
+        while agent.system.queue:
+            event = agent.system.advance()
+        ...
 
 
 if __name__ == "__main__":

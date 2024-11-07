@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, Mapping, LiteralString, Any
+from typing import Callable, Sequence, Mapping, LiteralString, Any, Type
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -80,9 +80,12 @@ class UpdateTerm(Update):
     
 
 class Priority(IntEnum):
+    MAX = 128
+    CHOICE = 112
     LEARNING = 96
     PROPAGATION = 64
-    CHOICE = 32
+    DEFERRED = 32
+    MIN = 0
 
 
 @dataclass(slots=True)
@@ -112,8 +115,12 @@ class Event:
             return self.time < other.time
         return NotImplemented
         
-    def affects(self, site: NumDict):
-        return any(ud.affects(site) for ud in self.updates)
+    def affects(self, 
+        site: NumDict, 
+        ud_type: Type[Update] | tuple[Type[Update], ...] | None = None
+    ) -> bool:
+        return any(ud.affects(site) for ud in self.updates 
+            if ud_type is None or isinstance(ud, ud_type))
 
 
 @dataclass(slots=True)

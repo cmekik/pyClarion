@@ -29,10 +29,10 @@ class Associations(Process):
         self.by = ByKwds(by=idx_m.keyform, b=1)
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input):
-            self.update()
         if event.affects(self.weights):
             self.update(priority=Priority.LEARNING)
+        elif event.affects(self.input):
+            self.update(priority=Priority.PROPAGATION)
 
     def update(self, 
         dt: timedelta = timedelta(), 
@@ -76,9 +76,9 @@ class ChunkStore(Process):
             .shift(x=1.0))
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.bu.main):
+        if event.source == self.bu.update:
             self.update()
-        if event.affects(self.td.weights):
+        if event.source == self.compile:
             self.update_buw()
 
     def update(self, 
@@ -153,14 +153,17 @@ class RuleStore(Process):
         self.rhw = numdict(idx_rhs, {}, c=float("nan"))
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.lhs.bu.main):
+        if event.source == self.lhs.bu.update:
             self.update()
+        if event.source == self.compile:
+            self.lhs.update_buw()
+            self.rhs.update_buw()
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        main = self.lhw.mul(self.lhs.main).max(by=self.main.i.keyform, b=0)
+        main = self.lhw.mul(self.lhs.bu.main).max(by=self.main.i.keyform)
         self.system.schedule(self.update, UpdateSite(self.main, main.d), 
             dt=dt, priority=priority)
 

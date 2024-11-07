@@ -2,7 +2,7 @@ from typing import Any
 from datetime import timedelta
 
 from ..system import Process, UpdateSite, Event, Priority
-from ..knowledge import Family, Chunks, Atoms, Atom, Chunk, Var, ByKwds
+from ..knowledge import Family, Sort, Chunks, Atoms, Atom, Chunk, Var, ByKwds
 from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
 from ..numdicts import root as get_root
 
@@ -60,24 +60,27 @@ class Choice(Process):
         self, 
         name: str, 
         pfam: Family,
-        fam1: Family,
-        fam2: Family | None = None,
+        branch1: Family | Sort,
+        branch2: Family | None = None,
         *,
         sd: float = 1.0,
         lf: float = 0.0
     ) -> None:
         super().__init__(name)
         root = self.system.root
-        if root != get_root(fam1) \
-            or fam2 is not None and root != get_root(fam2):
+        if root != get_root(branch1) \
+            or branch2 is not None and root != get_root(branch2):
             raise ValueError("Mismatched root keyspace")
-        if fam2 is None:
-            index = Index(root, path(fam1), (2,))
-            by = KeyForm(path(fam1), (0,))
+        if branch2 is None:
+            h = (1,) if isinstance(branch1, Sort) else (2,)
+            index = Index(root, path(branch1), h)
+            by = KeyForm(path(branch1), (0,))
         else:
-            k1 = path(fam1); k2 = path(fam2)
-            index = Index(root, k1.link(k2, 0), (2, 2))
-            by = KeyForm(k1.link(k2, 0), (2, 1))
+            k1 = path(branch1); k2 = path(branch2)
+            h = (2, 1) if isinstance(branch1, Sort) else (2, 2)
+            b = (2, 0) if isinstance(branch1, Sort) else (2, 1)
+            index = Index(root, k1.link(k2, 0), h)
+            by = KeyForm(k1.link(k2, 0), b)
         self.p = type(self).Params(); pfam[name] = self.p
         idx_p = Index(root, path(self.p), (1,))
         self.params = numdict(idx_p, 
@@ -152,8 +155,9 @@ class Pool(Process):
         return self.inputs[path(self.p[name])]
         
     def resolve(self, event: Event) -> None:
-        if (event.affects(self.params) 
-            or any(event.affects(site) for site in self.inputs.values())):
+        if (event.affects(self.params, ud_type=UpdateSite) 
+            or any(event.affects(site, ud_type=UpdateSite) 
+                for site in self.inputs.values())):
             self.update()
 
     def update(self, 
@@ -191,10 +195,8 @@ class BottomUp(Process):
         self.max_by = KeyForm(kt.link(kb1, 0).link(kb2, 0), (2, 1, 1))
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input): 
+        if event.affects(self.input, ud_type=UpdateSite):
             self.update()
-        if event.affects(self.weights):
-            self.update(priority=Priority.LEARNING)
 
     def update(self, 
         dt: timedelta = timedelta(), 
@@ -232,10 +234,8 @@ class TopDown(Process):
             b=0 if parent(tl) != bl1 else 1)
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input):
+        if event.affects(self.input, ud_type=UpdateSite):
             self.update()
-        if event.affects(self.weights):
-            self.update(priority=Priority.LEARNING)
 
     def update(self, 
         dt: timedelta = timedelta(), 

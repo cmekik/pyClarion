@@ -9,12 +9,6 @@ class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
     pass
 
 
-class Family(Branch[KeySpaceBase, "Sort"]):
-
-    def __init__(self) -> None:
-        super().__init__(KeySpaceBase, Sort)
-
-
 class Sort[C: "Term"](Branch[KeySpaceBase, C]):
     _required_: frozenset[Key]
     _counter_: count
@@ -36,6 +30,12 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
     def __delattr__(self, name: str) -> None:
         if Key(name) in self._required_:
             raise ValidationError(f"Cannot remove required key '{name}'")
+
+
+class Family[S: "Sort"](Branch[KeySpaceBase, S]):
+
+    def __init__(self, sort: Type[S] = Sort) -> None:
+        super().__init__(KeySpaceBase, sort)
 
 
 class Term(Branch[Sort, Sort]):
@@ -163,23 +163,32 @@ class Var:
         raise ValueError()
 
 
-class Atoms(Sort["Atom"]):
+class Atoms(Sort[Atom]):
     def __init__(self):
         super().__init__(Atom)
 
 
 class Chunks(Sort[Chunk]):
-    NIL: Chunk
+    nil: Chunk
 
     def __init__(self):
         super().__init__(Chunk)
 
 
 class Rules(Sort[Rule]):
-    NIL: Rule 
+    nil: Rule 
 
     def __init__(self):
         super().__init__(Rule)
+
+
+class Actions(Atoms):
+    nil: Atom
+
+
+class ActionFamily[S: Actions](Family[S]):
+    def __init__(self, sort: Type[S] = Actions) -> None:
+        super().__init__(sort)
 
 
 def instantiations[T: Chunk | Rule](term: T) -> Iterator[T]:

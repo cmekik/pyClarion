@@ -69,15 +69,15 @@ class BaseLevel(Process):
     ) -> None:
         ke = path(self.e); name = f"e{next(self.e._counter_)}"
         key = ke.link(Key(name), ke.size)
-        invoked = []; th = self.params[path(self.p.th)]
+        invoked = set(); th = self.params[path(self.p.th)]
         for ud in (ud for ud in event.updates if ud.affects(self.input)):
             if isinstance(ud, UpdateSite):
                 for k, v in ud.data.items():
                     if th < v:
-                        invoked.append(key.link(k, 0))
+                        invoked.add(key.link(k, 0))
             if isinstance(ud, UpdateSort):
                 for _, term in ud.add:
-                    invoked.append(key.link(path(term), 0))
+                    invoked.add(key.link(path(term), 0))
         time = self.system.clock.time / self.unit
         sc = self.params[path(self.p.sc)]; de = self.params[path(self.p.de)]
         self.system.schedule(self.invoke, 
