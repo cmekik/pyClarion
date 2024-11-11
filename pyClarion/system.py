@@ -214,11 +214,11 @@ class Process:
             if not isinstance(old, NumDict):
                 pass
             if not isinstance(value, NumDict):
-                raise TypeError()
+                raise TypeError("Process site must be of type NumDict")
             if old.i != value.i:
-                raise ValueError()
+                raise ValueError("Incompatible index in site assignment")
             if not (isnan(old.c) and isnan(value.c) or old.c == value.c):
-                raise ValueError()
+                raise ValueError("Incompatible default value in site assignment")
         super().__setattr__(name, value)
 
     def __enter__(self):
