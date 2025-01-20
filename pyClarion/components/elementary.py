@@ -75,10 +75,12 @@ class Choice(Process):
             h = (1,) if isinstance(branch1, Sort) else (2,)
             index = Index(root, path(branch1), h)
             by = KeyForm(path(branch1), (0,))
+        elif not isinstance(branch2, Family):
+            raise TypeError("Arg branch2 must be an instance of Family")
         else:
             k1 = path(branch1); k2 = path(branch2)
             h = (2, 1) if isinstance(branch1, Sort) else (2, 2)
-            b = (2, 0) if isinstance(branch1, Sort) else (2, 1)
+            b = (1, 1) if isinstance(branch1, Sort) else (2, 1)
             index = Index(root, k1.link(k2, 0), h)
             by = KeyForm(k1.link(k2, 0), b)
         self.p = type(self).Params(); pfam[name] = self.p
