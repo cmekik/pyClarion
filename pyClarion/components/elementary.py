@@ -205,7 +205,7 @@ class BottomUp(Process):
         priority: int = Priority.PROPAGATION
     ) -> None:
         result = (self.weights
-            .mul(self.input, bs=(1,))
+            .mul(self.input, bs=(2,))
             .max(by=self.max_by)
             .sum(by=self.main.i.keyform)
             .with_default(c=0.0))
