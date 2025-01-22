@@ -112,28 +112,31 @@ class Key(tuple[tuple[str, int], ...]):
         -> Sequence[tuple[int, ...]]:
         N_s, N_o = len(self), len(other)
         if N_o < N_s:
-            return []
-        Z_o, matches, Zs = 0, deque(), deque()
-        for i_o, (label_o, degree_o) in enumerate(reversed(other)):
-            i_o = N_o - i_o - 1
-            Z_o += degree_o
-            children = {N_o - Z_o + j for j in range(degree_o)}
-            for i_m, (match, Z_s) in enumerate(zip(matches, Zs)):
-                i_s = N_s - len(match) - 1
-                label_s, degree_s = self[i_s]
-                if label_s == wc or label_o == label_s:
-                    Z_s += degree_s 
-                    req = {match[N_s - Z_s + j] for j in range(degree_s)}
-                    if req.issubset(children):
-                        match[i_s] = i_o
-                        Zs[i_m] = Z_s
-            if len(self) - 1 <= i_o \
-                and (self[N_s - 1][0] == wc or label_o == self[N_s - 1][0]):
-                matches.appendleft({N_s - 1: i_o})
-                Zs.appendleft(0)
+            return ()
+        if other.height < self.height:
+            return ()
+        matches = []
+        for i_s in range(N_s - 1, -1, -1):
+            new_matches = []
+            for i_o in range(N_o - N_s + i_s, i_s - 1, -1):
+                (l_s, d_s), (l_o, d_o) = self[i_s], other[i_o]
+                if l_s != wc and l_o != l_s:
+                    continue
+                if i_s == N_s - 1:
+                    new_matches.append({i_s: i_o})
+                    continue
+                S = sum(deg for _, deg in other[:i_o])
+                children = {S + j + 1 for j in range(d_o)}
+                for m in matches:
+                    if m[i_s + 1] <= i_o:
+                        continue
+                    if len(children.intersection(m.values())) != d_s:
+                        continue
+                    new_matches.append({i_s: i_o, **m})
+            matches = new_matches
         result = []
         for m in matches:
-            if len(m) == N_s:
+            if m[0] == 0:
                 result.append(tuple(m[i] for i in range(N_s)))
         return tuple(result)
 
