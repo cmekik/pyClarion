@@ -108,8 +108,11 @@ class Key(tuple[tuple[str, int], ...]):
         return len(self) - 1
 
     @sig_cache
-    def find_in(self: Self, other: "Key", wc: str | None = None) \
-        -> Sequence[tuple[int, ...]]:
+    def find_in(
+        self: Self, 
+        other: "Key", 
+        crit: Callable[[str, str], bool] = str.__eq__
+    ) -> Sequence[tuple[int, ...]]:
         N_s, N_o = len(self), len(other)
         if N_o < N_s:
             return ()
@@ -120,7 +123,7 @@ class Key(tuple[tuple[str, int], ...]):
             new_matches = []
             for i_o in range(N_o - N_s + i_s, i_s - 1, -1):
                 (l_s, d_s), (l_o, d_o) = self[i_s], other[i_o]
-                if l_s != wc and l_o != l_s:
+                if not crit(l_s, l_o): 
                     continue
                 if i_s == N_s - 1:
                     new_matches.append({i_s: i_o})
@@ -134,11 +137,7 @@ class Key(tuple[tuple[str, int], ...]):
                         continue
                     new_matches.append({i_s: i_o, **m})
             matches = new_matches
-        result = []
-        for m in matches:
-            if m[0] == 0:
-                result.append(tuple(m[i] for i in range(N_s)))
-        return tuple(result)
+        return tuple(tuple(m[i] for i in range(N_s)) for m in reversed(matches))
 
     @sig_cache
     def cut(self: Self, n: int, m: Sequence[int] = ()) -> tuple[Self, Self]:
@@ -221,7 +220,7 @@ class KeyForm:
         ref = self.as_key()
         if len(obj) != len(ref):
             return False
-        return bool(ref.find_in(obj, wc="?"))
+        return bool(ref.find_in(obj, crit=self._crit))
     
     def __eq__(self, other) -> bool:
         if not isinstance(other, KeyForm):
@@ -235,14 +234,14 @@ class KeyForm:
         if not isinstance(other, KeyForm):
             return NotImplemented
         k1 = self.as_key(); k2 = other.as_key()
-        return bool(k1.find_in(k2, wc="?"))
+        return bool(k1.find_in(k2, crit=self._crit))
 
     def reductor(self, other: "KeyForm", b: int | None = None) \
         -> Callable[[Key], Key]:
         k1 = self.as_key(); k2 = other.as_key()
         if not self <= other:
             raise ValueError(f"Keyform {k1} cannot match keys from {k2}")
-        matches = k1.find_in(k2, wc="?")
+        matches = k1.find_in(k2, crit=self._crit)
         if 1 < len(matches) and b is None:
             raise ValueError(f"Keyform {k1} has multiple matches to {k2}")
         indices = matches[0] if b is None else matches[b]
@@ -302,3 +301,9 @@ class KeyForm:
         for i in reversed(leaves):
             ref, _ = ref.cut(i)
         return cls(ref, tuple(hs[indices[i]] for i in leaves))
+
+    @staticmethod    
+    def _crit(__1: str, __2: str) -> bool:
+        if __1 == "?":
+            return True
+        return __1 == __2
