@@ -22,21 +22,21 @@ class Input(Process):
 
     def __init__(self, 
         name: str, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort
+        d: Family | Sort | Atom, 
+        v: Family | Sort
     ) -> None:
         super().__init__(name)
-        self.system.check_root(b, f)
-        idx_b = self.system.get_index(keyform(b))
-        idx_f = self.system.get_index(keyform(f))
-        self.main = numdict(idx_b * idx_f, {}, 0.0)
+        self.system.check_root(d, v)
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        self.main = numdict(idx_d * idx_v, {}, 0.0)
 
-    def send(self, d: Chunk, 
+    def send(self, c: Chunk, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
         data = {}
-        for (t1, t2), weight in d._dyads_.items():
+        for (t1, t2), weight in c._dyads_.items():
             if isinstance(t1, Var) or isinstance(t2, Var):
                 raise TypeError("Var not allowed in input chunk.")
             key = path(t1).link(path(t2), 0)    
@@ -91,21 +91,21 @@ class ChoiceBL(ChoiceBase):
         self, 
         name: str, 
         p: Family,
-        b: Family | Sort | Atom,
-        f: Family | Sort,
+        d: Family | Sort | Atom,
+        v: Family | Sort,
         *,
         sd: float = 1.0
     ) -> None:
         super().__init__(name, p, sd=sd)
-        self.system.check_root(b, f)
-        idx_b = self.system.get_index(keyform(b))
-        idx_f = self.system.get_index(keyform(f))
-        index = idx_b * idx_f
+        self.system.check_root(d, v)
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        index = idx_d * idx_v
         self.main = numdict(index, {}, 0.0)
         self.input = numdict(index, {}, 0.0)
         self.bias = numdict(index, {}, 0.0)
         self.sample = numdict(index, {}, float("nan"))
-        self.by = keyform(b) * keyform(f, trunc=1)
+        self.by = keyform(d) * keyform(v, trunc=1)
 
 
 class ChoiceTL(ChoiceBase):
@@ -201,18 +201,18 @@ class BottomUp(Process):
     def __init__(self, 
         name: str, 
         c: Chunks, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort
+        d: Family | Sort | Atom, 
+        v: Family | Sort
     ) -> None:
         super().__init__(name)
-        self.system.check_root(c, b, f)
+        self.system.check_root(c, d, v)
         idx_c = self.system.get_index(keyform(c))
-        idx_b = self.system.get_index(keyform(b))
-        idx_f = self.system.get_index(keyform(f))
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
         self.main = numdict(idx_c, {}, c=0.0)
-        self.input = numdict(idx_b * idx_f, {}, c=0.0)
-        self.weights = numdict(idx_c * idx_b * idx_f, {}, c=float("nan"))
-        self.max_by = ByKwds(by=keyform(c) * keyform(b) * keyform(f, trunc=1))
+        self.input = numdict(idx_d * idx_v, {}, c=0.0)
+        self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan"))
+        self.max_by = ByKwds(by=keyform(c) * keyform(d) * keyform(v, trunc=1))
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):
@@ -240,21 +240,21 @@ class TopDown(Process):
     def __init__(self, 
         name: str, 
         c: Chunks, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort
+        d: Family | Sort | Atom, 
+        v: Family | Sort
     ) -> None:
         super().__init__(name)
-        self.system.check_root(c, b, f)
+        self.system.check_root(c, d, v)
         idx_c = self.system.get_index(keyform(c))
-        idx_b = self.system.get_index(keyform(b))
-        idx_f = self.system.get_index(keyform(f))
-        self.main = numdict(idx_b * idx_f, {}, c=0.0)
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        self.main = numdict(idx_d * idx_v, {}, c=0.0)
         self.input = numdict(idx_c, {}, c=0.0)
-        self.weights = numdict(idx_c * idx_b * idx_f, {}, c=float("nan")) 
+        self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan")) 
         self.by = ByKwds(
-            by=keyform(b) * keyform(f), 
-            b=0 if not keyform(b) <= keyform(c) 
-                else 1 if not keyform(f) <= keyform(b) 
+            by=keyform(d) * keyform(v), 
+            b=0 if not keyform(d) <= keyform(c) 
+                else 1 if not keyform(v) <= keyform(d) 
                 else 2)
 
     def resolve(self, event: Event) -> None:

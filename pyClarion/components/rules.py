@@ -18,16 +18,14 @@ class FixedRules(Process):
         name: str, 
         p: Family,
         t: Family, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort, 
-        b_out: Family | Sort | Atom | None = None, 
-        f_out: Family | Sort | None = None,
+        d: Family | Sort | Atom, 
+        v: Family | Sort,
         *,
         sd: float = 1.0
     ) -> None:
         super().__init__(name)
         with self:
-            self.store = RuleStore(f"{name}_st", t, b, f, b_out, f_out)
+            self.store = RuleStore(f"{name}_st", t, d, v)
             self.choice = ChoiceTL(f"{name}_ch", p, self.store.rules, sd=sd)
         self.lhs = self.store.lhs
         self.rhs = self.store.rhs

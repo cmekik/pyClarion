@@ -55,19 +55,19 @@ class ChunkStore(Process):
     def __init__(self, 
         name: str, 
         t: Family, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort
+        d: Family | Sort | Atom, 
+        v: Family | Sort
     ) -> None:
         super().__init__(name)
-        self.system.check_root(t, b, f)
+        self.system.check_root(t, d, v)
         self.chunks = Chunks(); t[name] = self.chunks
         index = self.system.get_index(keyform(self.chunks))
         self.main = numdict(index, {}, c=0.0)
         self.ciw = numdict(index * index, {}, c=float("nan"))
         self.max_by = ByKwds(by=keyform(self.chunks), b=0)
         with self:
-            self.td = TopDown(f"{name}_td", self.chunks, b, f)
-            self.bu = BottomUp(f"{name}_bu", self.chunks, b, f)
+            self.td = TopDown(f"{name}_td", self.chunks,  d, v)
+            self.bu = BottomUp(f"{name}_bu", self.chunks, d, v)
 
     def norm(self, d: NumDict) -> NumDict:
         return (d
@@ -126,19 +126,15 @@ class RuleStore(Process):
     def __init__(self, 
         name: str, 
         t: Family, 
-        b: Family | Sort | Atom, 
-        f: Family | Sort, 
-        b_out: Family | Sort | Atom | None = None, 
-        f_out: Family | Sort | None = None
+        d: Family | Sort | Atom, 
+        v: Family | Sort, 
     ) -> None:
-        b_out = b if b_out is None else b_out
-        f_out = f if f_out is None else f_out
         super().__init__(name)
-        self.system.check_root(t, b, f, b_out, f_out)
+        self.system.check_root(t, d, v)
         self.rules = Rules(); t[name] = self.rules
         with self:
-            self.lhs = ChunkStore(f"{name}_l", t, b, f)
-            self.rhs = ChunkStore(f"{name}_r", t, b_out, f_out)
+            self.lhs = ChunkStore(f"{name}_l", t, d, v)
+            self.rhs = ChunkStore(f"{name}_r", t, d, v)
         idx_r = self.system.get_index(keyform(self.rules))
         idx_lhs = self.system.get_index(keyform(self.lhs.chunks))
         idx_rhs = self.system.get_index(keyform(self.rhs.chunks))
