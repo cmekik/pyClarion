@@ -1,9 +1,8 @@
 from datetime import timedelta
 
 from ..system import Process, UpdateSite, UpdateSort, Priority, Event
-from ..knowledge import Family, Sort, Atoms, Atom
-from ..numdicts import Key, Index, NumDict, path, numdict
-from ..numdicts import root as get_root
+from ..knowledge import Family, Sort, Atoms, Atom, keyform
+from ..numdicts import Key, NumDict, path, numdict
 
 
 class BaseLevel(Process):
@@ -25,9 +24,9 @@ class BaseLevel(Process):
     
     def __init__(self, 
         name: str, 
-        pfam: Family, 
-        efam: Family, 
-        sort: Sort, 
+        p: Family, 
+        e: Family, 
+        s: Sort, 
         *, 
         unit: timedelta = timedelta(milliseconds=1),
         th: float = 0.0, 
@@ -35,25 +34,21 @@ class BaseLevel(Process):
         de: float = 0.5
     ) -> None:
         super().__init__(name)
-        root = self.system.root
-        if not root == get_root(pfam) == get_root(sort) == get_root(efam):
-            raise ValueError("Mismatched root keyspaces")
-        if efam == pfam:
-            raise ValueError("pfam and efam must be distinct")
-        self.p = type(self).Params(); pfam[name] = self.p
-        self.e = Atoms(); efam[name] = self.e
-        k = path(sort); ke = path(self.e)
-        idx_m = Index(root, k, (1,))
-        idx_t = Index(root, ke.link(k, 0), (1, 1))
-        idx_p = Index(root, path(self.p), (1,))
-        idx_e = Index(root, ke, (1,))
+        self.system.check_root(p, e, s)
+        if e == p:
+            raise ValueError("Args p and e must be distinct")
+        self.p = type(self).Params(); p[name] = self.p
+        self.e = Atoms(); e[name] = self.e
+        idx_p = self.system.get_index(keyform(self.p))
+        idx_e = self.system.get_index(keyform(self.e))
+        idx_s = self.system.get_index(keyform(s))
         self.unit = unit
-        self.main = numdict(idx_m, {}, 0.0)
-        self.input = numdict(idx_m, {}, 0.0)
+        self.main = numdict(idx_s, {}, 0.0)
+        self.input = numdict(idx_s, {}, 0.0)
         self.times = numdict(idx_e, {}, float("nan"))
         self.decay = numdict(idx_e, {}, float("nan"))
         self.scale = numdict(idx_e, {}, float("nan"))
-        self.weights = numdict(idx_t, {}, 0.0)
+        self.weights = numdict(idx_e * idx_s, {}, 0.0)
         self.params = numdict(idx_p, 
             {path(self.p.th): th, path(self.p.sc): sc, path(self.p.de): de}, 
             float("nan"))

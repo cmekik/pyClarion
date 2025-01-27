@@ -2,9 +2,8 @@ from typing import Any
 from datetime import timedelta
 
 from ..system import Process, UpdateSite, Event, Priority
-from ..knowledge import Family, Sort, Chunks, Atoms, Atom, Chunk, Var, ByKwds
-from ..numdicts import Key, KeyForm, Index, NumDict, numdict, path, parent
-from ..numdicts import root as get_root
+from ..knowledge import Family, Sort, Chunks, Atoms, Atom, Chunk, Var, ByKwds, keyform
+from ..numdicts import Key, KeyForm, NumDict, numdict, path
 
 
 class Simulation(Process):
@@ -18,14 +17,16 @@ class Agent(Process):
 class Input(Process):
     main: NumDict
 
-    def __init__(self, name: str, bl1: Family, bl2: Family) -> None:
+    def __init__(self, 
+        name: str, 
+        b: Family | Sort | Atom, 
+        f: Family | Sort
+    ) -> None:
         super().__init__(name)
-        root = self.system.root
-        if not root == get_root(bl1) == get_root(bl2):
-            raise ValueError("Mismatched root keyspaces")
-        kb1 = path(bl1); kb2 = path(bl2)
-        idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
-        self.main = numdict(idx_m, {}, 0.0)
+        self.system.check_root(b, f)
+        idx_b = self.system.get_index(keyform(b))
+        idx_f = self.system.get_index(keyform(f))
+        self.main = numdict(idx_b * idx_f, {}, 0.0)
 
     def send(self, d: Chunk, 
         dt: timedelta = timedelta(), 
@@ -43,10 +44,9 @@ class Input(Process):
             dt=dt, priority=priority)
 
 
-class Choice(Process):
+class ChoiceBase(Process):
     class Params(Atoms):
         sd: Atom
-        lf: Atom
 
     p: Params
     by: KeyForm
@@ -56,42 +56,14 @@ class Choice(Process):
     sample: NumDict
     params: NumDict
 
-    def __init__(
-        self, 
-        name: str, 
-        pfam: Family,
-        branch1: Family | Sort,
-        branch2: Family | None = None,
-        *,
-        sd: float = 1.0,
-        lf: float = 0.0
-    ) -> None:
+    def __init__(self, name: str, p: Family, *, sd: float = 1.0) -> None:
         super().__init__(name)
-        root = self.system.root
-        if root != get_root(branch1) \
-            or branch2 is not None and root != get_root(branch2):
-            raise ValueError("Mismatched root keyspace")
-        if branch2 is None:
-            h = (1,) if isinstance(branch1, Sort) else (2,)
-            index = Index(root, path(branch1), h)
-            by = KeyForm(path(branch1), (0,))
-        elif not isinstance(branch2, Family):
-            raise TypeError("Arg branch2 must be an instance of Family")
-        else:
-            k1 = path(branch1); k2 = path(branch2)
-            h = (2, 1) if isinstance(branch1, Sort) else (2, 2)
-            b = (1, 1) if isinstance(branch1, Sort) else (2, 1)
-            index = Index(root, k1.link(k2, 0), h)
-            by = KeyForm(k1.link(k2, 0), b)
-        self.p = type(self).Params(); pfam[name] = self.p
-        idx_p = Index(root, path(self.p), (1,))
-        self.params = numdict(idx_p, 
-            {path(self.p.sd): sd, path(self.p.lf): lf}, float("nan"))
-        self.main = numdict(index, {}, 0.0)
-        self.input = numdict(index, {}, 0.0)
-        self.bias = numdict(index, {}, 0.0)
-        self.sample = numdict(index, {}, float("nan"))
-        self.by = by
+        self.system.check_root(p)
+        self.p = type(self).Params(); p[name] = self.p
+        self.params = numdict(
+            i=self.system.get_index(keyform(self.p)), 
+            d={path(self.p.sd): sd}, 
+            c=float("nan"))
 
     def poll(self) -> dict[Key, Key]:
         return self.main.argmax(by=self.by)
@@ -111,90 +83,133 @@ class Choice(Process):
             dt=dt, priority=priority)
 
 
-class Pool(Process):
-    class Params(Atoms):
-        pass
-
-    p: Params
-    main: NumDict
-    params: NumDict
-    inputs: dict[Key, NumDict]
-
-    def __init__(self, 
-        name: str,         
-        pfam: Family,
-        fam1: Family,
-        fam2: Family | None = None
+class ChoiceBL(ChoiceBase):
+    def __init__(
+        self, 
+        name: str, 
+        p: Family,
+        b: Family | Sort | Atom,
+        f: Family | Sort,
+        *,
+        sd: float = 1.0
     ) -> None:
-        super().__init__(name)
-        root = self.system.root
-        if not root == get_root(pfam) == get_root(fam1) \
-            or fam2 is not None and root != get_root(fam2):
-            raise ValueError("Mismatched root keyspaces")
-        if fam2 is None:
-            index = Index(root, path(fam1), (2,))
-        else:
-            k1 = path(fam1); k2 = path(fam2)
-            index = Index(root, k1.link(k2, 0), (2, 2))
-        self.p = type(self).Params(); pfam[name] = self.p
-        idx_p = Index(root, path(self.p), (1,))
-        self.params = numdict(idx_p, {}, c=float("nan"))
-        self.main = numdict(index, {}, c=0.0)
-        self.inputs = {}
+        super().__init__(name, p, sd=sd)
+        self.system.check_root(b, f)
+        idx_b = self.system.get_index(keyform(b))
+        idx_f = self.system.get_index(keyform(f))
+        index = idx_b * idx_f
+        self.main = numdict(index, {}, 0.0)
+        self.input = numdict(index, {}, 0.0)
+        self.bias = numdict(index, {}, 0.0)
+        self.sample = numdict(index, {}, float("nan"))
+        self.by = keyform(b) * keyform(f, trunc=1)
 
-    def __setitem__(self, name: str, site: Any) -> None:
-        if not isinstance(site, NumDict):
-            raise TypeError()
-        if not self.main.i.keyform <= site.i.keyform:
-            raise ValueError()
-        self.p[name] = Atom()
-        key = path(self.p[name])
-        self.inputs[key] = site
-        with self.params.mutable():
-            self.params[key] = 1.0
 
-    def __getitem__(self, name: str) -> NumDict:
-        return self.inputs[path(self.p[name])]
+class ChoiceTL(ChoiceBase):
+    def __init__(
+        self, 
+        name: str, 
+        p: Family,
+        t: Family | Sort,
+        *,
+        sd: float = 1.0
+    ) -> None:
+        super().__init__(name, p, sd=sd)
+        self.system.check_root(t)
+        index = self.system.get_index(keyform(t))
+        self.main = numdict(index, {}, 0.0)
+        self.input = numdict(index, {}, 0.0)
+        self.bias = numdict(index, {}, 0.0)
+        self.sample = numdict(index, {}, float("nan"))
+        self.by = keyform(t, trunc=1)
+
+
+# class Pool(Process):
+#     class Params(Atoms):
+#         pass
+
+#     p: Params
+#     main: NumDict
+#     params: NumDict
+#     inputs: dict[Key, NumDict]
+
+#     def __init__(self, 
+#         name: str,         
+#         pfam: Family,
+#         fam1: Family,
+#         fam2: Family | None = None
+#     ) -> None:
+#         super().__init__(name)
+#         root = self.system.root
+#         if not root == get_root(pfam) == get_root(fam1) \
+#             or fam2 is not None and root != get_root(fam2):
+#             raise ValueError("Mismatched root keyspaces")
+#         if fam2 is None:
+#             index = Index(root, path(fam1), (2,))
+#         else:
+#             k1 = path(fam1); k2 = path(fam2)
+#             index = Index(root, k1.link(k2, 0), (2, 2))
+#         self.p = type(self).Params(); pfam[name] = self.p
+#         idx_p = Index(root, path(self.p), (1,))
+#         self.params = numdict(idx_p, {}, c=float("nan"))
+#         self.main = numdict(index, {}, c=0.0)
+#         self.inputs = {}
+
+#     def __setitem__(self, name: str, site: Any) -> None:
+#         if not isinstance(site, NumDict):
+#             raise TypeError()
+#         if not self.main.i.keyform <= site.i.keyform:
+#             raise ValueError()
+#         self.p[name] = Atom()
+#         key = path(self.p[name])
+#         self.inputs[key] = site
+#         with self.params.mutable():
+#             self.params[key] = 1.0
+
+#     def __getitem__(self, name: str) -> NumDict:
+#         return self.inputs[path(self.p[name])]
         
-    def resolve(self, event: Event) -> None:
-        if (event.affects(self.params, ud_type=UpdateSite) 
-            or any(event.affects(site, ud_type=UpdateSite) 
-                for site in self.inputs.values())):
-            self.update()
+#     def resolve(self, event: Event) -> None:
+#         if (event.affects(self.params, ud_type=UpdateSite) 
+#             or any(event.affects(site, ud_type=UpdateSite) 
+#                 for site in self.inputs.values())):
+#             self.update()
 
-    def update(self, 
-        dt: timedelta = timedelta(), 
-        priority: int = Priority.PROPAGATION
-    ) -> None:
-        inputs = [d.scale(x=self.params[k]) for k, d in self.inputs.items()]
-        zeros = numdict(self.main.i, {}, 0.0) 
-        pro = zeros.max(*inputs)
-        con = zeros.min(*inputs)
-        self.system.schedule(
-            self.update, 
-            UpdateSite(self.main, pro.sum(con).d),
-            dt=dt, priority=priority)
+#     def update(self, 
+#         dt: timedelta = timedelta(), 
+#         priority: int = Priority.PROPAGATION
+#     ) -> None:
+#         inputs = [d.scale(x=self.params[k]) for k, d in self.inputs.items()]
+#         zeros = numdict(self.main.i, {}, 0.0) 
+#         pro = zeros.max(*inputs)
+#         con = zeros.min(*inputs)
+#         self.system.schedule(
+#             self.update, 
+#             UpdateSite(self.main, pro.sum(con).d),
+#             dt=dt, priority=priority)
 
 
 class BottomUp(Process):    
     main: NumDict
     input: NumDict
     weights: NumDict
-    max_by: KeyForm
+    max_by: ByKwds
 
-    def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
+    def __init__(self, 
+        name: str, 
+        c: Chunks, 
+        b: Family | Sort | Atom, 
+        f: Family | Sort
+    ) -> None:
         super().__init__(name)
-        root = self.system.root
-        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
-            raise ValueError("Mismatched root keyspaces")
-        kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
-        idx_m = Index(root, kt, (1,))
-        idx_i = Index(root, kb1.link(kb2, 0), (2, 2))
-        idx_w = Index(root, kt.link(kb1, 0).link(kb2, 0), (2, 2, 1))
-        self.main = numdict(idx_m, {}, c=0.0)
-        self.input = numdict(idx_i, {}, c=0.0)
-        self.weights = numdict(idx_w, {}, c=float("nan"))
-        self.max_by = KeyForm(kt.link(kb1, 0).link(kb2, 0), (2, 1, 1))
+        self.system.check_root(c, b, f)
+        idx_c = self.system.get_index(keyform(c))
+        idx_b = self.system.get_index(keyform(b))
+        idx_f = self.system.get_index(keyform(f))
+        self.main = numdict(idx_c, {}, c=0.0)
+        self.input = numdict(idx_b * idx_f, {}, c=0.0)
+        self.weights = numdict(idx_c * idx_b * idx_f, {}, c=float("nan"))
+        self.max_by = ByKwds(by=keyform(c) * keyform(b) * keyform(f, trunc=1))
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):
@@ -206,7 +221,7 @@ class BottomUp(Process):
     ) -> None:
         result = (self.weights
             .mul(self.input, bs=(2,))
-            .max(by=self.max_by)
+            .max(**self.max_by)
             .sum(by=self.main.i.keyform)
             .with_default(c=0.0))
         self.system.schedule(self.update, UpdateSite(self.main, result.d), 
@@ -219,21 +234,25 @@ class TopDown(Process):
     weights: NumDict
     by: ByKwds
 
-    def __init__(self, name: str, tl: Chunks, bl1: Family, bl2: Family) -> None:
+    def __init__(self, 
+        name: str, 
+        c: Chunks, 
+        b: Family | Sort | Atom, 
+        f: Family | Sort
+    ) -> None:
         super().__init__(name)
-        root = self.system.root
-        if not root == get_root(tl) == get_root(bl1) == get_root(bl2):
-            raise ValueError("Mismatched root keyspaces")
-        kt = path(tl); kb1 = path(bl1); kb2 = path(bl2)
-        idx_m = Index(root, kb1.link(kb2, 0), (2, 2))
-        idx_i = Index(root, kt, (1,))
-        idx_w = Index(root, kt.link(kb1, 0).link(kb2, 0), (2, 2, 1))
-        self.main = numdict(idx_m, {}, c=0.0)
-        self.input = numdict(idx_i, {}, c=0.0)
-        self.weights = numdict(idx_w, {}, c=float("nan"))
+        self.system.check_root(c, b, f)
+        idx_c = self.system.get_index(keyform(c))
+        idx_b = self.system.get_index(keyform(b))
+        idx_f = self.system.get_index(keyform(f))
+        self.main = numdict(idx_b * idx_f, {}, c=0.0)
+        self.input = numdict(idx_c, {}, c=0.0)
+        self.weights = numdict(idx_c * idx_b * idx_f, {}, c=float("nan")) 
         self.by = ByKwds(
-            by=self.main.i.keyform, 
-            b=0 if parent(tl) != bl1 else 1)
+            by=keyform(b) * keyform(f), 
+            b=0 if not keyform(b) <= keyform(c) 
+                else 1 if not keyform(f) <= keyform(b) 
+                else 2)
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):

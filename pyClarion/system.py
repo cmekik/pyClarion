@@ -10,7 +10,8 @@ import warnings
 import heapq
 
 from .knowledge import Sort, Term
-from .numdicts import NumDict, Key, KeySpace
+from .numdicts import NumDict, Key, KeyForm, KeySpace, Index, KeySpaceBase
+from .numdicts import root as get_root
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
@@ -152,12 +153,14 @@ class Process:
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
 
-        @property
-        def index(self) -> KeySpace:
-            warnings.warn(
-                "System.index is deprecated; use system.root instead", 
-                DeprecationWarning)
-            return self.root
+        def check_root(self, *keyspaces: KeySpaceBase) -> None:
+            for keyspace in keyspaces:
+                if self.root == get_root(keyspace):
+                    continue
+                raise ValueError(f"Root of {keyspace} does not match system")
+
+        def get_index(self, form: KeyForm | Key | str) -> Index:
+            return Index(self.root, form)
 
         def user_update(
                 self, *updates: Update, dt: timedelta = timedelta()

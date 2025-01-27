@@ -1,34 +1,34 @@
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, UpdateSite
-from ..knowledge import Family 
+from ..knowledge import Family, Sort, Atom
 from ..numdicts import NumDict, numdict
-from .elementary import Choice
+from .elementary import ChoiceTL
 from .top_level import RuleStore, ChunkStore
 
 
 class FixedRules(Process):
     main: NumDict
     store: RuleStore
-    choice: Choice
+    choice: ChoiceTL
     lhs: ChunkStore
     rhs: ChunkStore
 
     def __init__(self, 
         name: str, 
         p: Family,
-        tl: Family, 
-        bli0: Family, 
-        bli1: Family, 
-        blo0: Family, 
-        blo1: Family,
+        t: Family, 
+        b: Family | Sort | Atom, 
+        f: Family | Sort, 
+        b_out: Family | Sort | Atom | None = None, 
+        f_out: Family | Sort | None = None,
         *,
-        sd: float = 1.0,
-        lf: float = 0.0
+        sd: float = 1.0
     ) -> None:
         super().__init__(name)
-        self.store = RuleStore(f"{name}_st", tl, bli0, bli1, blo0, blo1)
-        self.choice = Choice(f"{name}_ch", p, self.store.rules, sd=sd, lf=lf)
+        with self:
+            self.store = RuleStore(f"{name}_st", t, b, f, b_out, f_out)
+            self.choice = ChoiceTL(f"{name}_ch", p, self.store.rules, sd=sd)
         self.lhs = self.store.lhs
         self.rhs = self.store.rhs
         self.main = numdict(self.store.main.i, {}, 0.0)
