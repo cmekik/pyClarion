@@ -11,7 +11,10 @@ class Simulation(Process):
 
 
 class Agent(Process):
-    pass
+    def __init__(self, name: str, **families: Family) -> None:
+        super().__init__(name)
+        for name, family in families.items():
+            self.system.root[name] = family
 
 
 class Input(Process):
