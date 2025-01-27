@@ -349,3 +349,18 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
 class ByKwds(TypedDict):
     by: KeyForm
     b: NotRequired[int]
+
+
+def keyform(branch: Branch, *, trunc: int = 0) -> KeyForm:
+    match branch:
+        case Atom():
+            k, h = path(branch), 0 - trunc
+        case Sort():
+            k, h = path(branch), 1 - trunc
+        case Family():
+            k, h = path(branch), 2 - trunc
+        case _:
+            raise TypeError()
+    if h < 0:
+        raise ValueError("Truncation too deep")
+    return KeyForm(k, (h,))
