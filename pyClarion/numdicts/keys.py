@@ -235,7 +235,10 @@ class KeyForm:
             return NotImplemented
         k1 = self.as_key(); k2 = other.as_key()
         return bool(k1.find_in(k2, crit=self._crit))
-
+    
+    def __mul__(self: Self, other: Self) -> "KeyForm":
+        return KeyForm.from_key(self.as_key().link(other.as_key(), 0))
+        
     def reductor(self, other: "KeyForm", b: int | None = None) \
         -> Callable[[Key], Key]:
         k1 = self.as_key(); k2 = other.as_key()
@@ -267,7 +270,8 @@ class KeyForm:
     
     @classmethod
     @sig_cache
-    def from_key(cls: Type[Self], key: Key) -> Self:
+    def from_key(cls: Type[Self], key: Key | str) -> Self:
+        key = Key(key)
         leaves, indices, hs, S = [], {}, {}, 1
         for i, (label, deg) in enumerate(key):
             children = [key[S + j] for j in range(deg)]

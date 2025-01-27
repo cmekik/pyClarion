@@ -141,20 +141,11 @@ def _iter(ksp: KeySpaceBase, h: int) -> Iterator[Key]:
                 yield key.link(suite, 1)
 
 
-def bind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
-    warnings.warn(
-        "Function 'bind()' is deprecated as explicit declaration of compound "
-        "keys is no longer required. This function does nothing but remains "
-        "available for backwards compatibility.", DeprecationWarning)
-    ...
-
-
-def unbind(keyspace: KeySpace, *keyspaces: KeySpace) -> None:
-    warnings.warn(
-        "Function 'unbind()' is deprecated as explicit declaration of compound "
-        "keys is no longer required. This function does nothing but remains "
-        "available for backwards compatibility.", DeprecationWarning)
-    ...
+def bind(__1: Key, __2: Key, *__others: Key) -> Key:
+    ret = __1.link(__2, 0)
+    for __i in __others:
+        ret = ret.link(__i, 0)
+    return ret
     
 
 class Index[T: KeySpaceBase]:
@@ -236,6 +227,9 @@ class Index[T: KeySpaceBase]:
             for i, s in zip(reversed(self._leaves), reversed(suite)):
                 result = result.link(s, i, ())
             yield result
+
+    def __mul__(self, other: "Index") -> "Index":
+        return Index(self.root, self.keyform * other.keyform)
 
     def depends_on(self, ksp: KeySpaceBase) -> bool:
         if root(ksp) != self.root:
