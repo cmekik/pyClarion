@@ -6,6 +6,7 @@ from datetime import timedelta
 from inspect import ismethod
 from itertools import count
 from enum import IntEnum
+import logging
 import warnings
 import heapq
 
@@ -106,6 +107,20 @@ class Event:
         return (f"<{self.__class__.__qualname__} "
             f"source={source} time={repr(self.time)} "
             f"at {hex(id(self))}>")
+    
+    def describe(self) -> str:
+        if ismethod(self.source) and isinstance(self.source.__self__, Process):
+            source = f"{self.source.__self__.name}.{self.source.__name__}"
+        else:
+            source = self.source.__qualname__
+        days = self.time.days
+        hours = self.time.seconds % 86400
+        minutes = self.time.seconds % 3600 
+        seconds = self.time.seconds % 60
+        centiseconds = int(self.time.microseconds / 10000)
+        time = (f"{days:02d}:{hours:02d}:{minutes:02d}:"
+            f"{seconds:02d}:{centiseconds:02d}")
+        return f"{time} {self.priority} {self.number} {source}"
 
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
@@ -137,11 +152,16 @@ class Clock:
             raise ValueError("Timepoint precedes current time")
         self.time = timepoint
     
-    def event(self, dt: timedelta, src: Callable, *uds: Update, priority: int) \
-        -> Event:
+    def event(self, 
+        dt: timedelta, 
+        src: Callable, 
+        *uds: Update, 
+        priority: int
+    ) -> Event:
         if dt < timedelta():
             raise ValueError("Cannot schedule an event in the past.")
-        return Event(self.time + dt, src, uds, priority, next(self.counter))
+        t = self.time + dt
+        return Event(t, src, uds, priority, next(self.counter))
 
 
 class Process:
@@ -152,6 +172,10 @@ class Process:
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
+        logger: logging.Logger = field(init=False)
+
+        def __post_init__(self) -> None:
+            self.logger = logging.getLogger(__name__)
 
         def check_root(self, *keyspaces: KeySpaceBase) -> None:
             for keyspace in keyspaces:
@@ -169,7 +193,7 @@ class Process:
 
         def schedule(self, src: Callable, *uds: Update, 
             dt: timedelta = timedelta(), 
-            priority: int = Priority.PROPAGATION
+            priority: int = Priority.PROPAGATION,
         ) -> None:
             heapq.heappush(self.queue, 
                 self.clock.event(dt, src, *uds, priority=priority))
@@ -184,6 +208,7 @@ class Process:
                         f"Update scheduled by {event.source.__qualname__} at "
                         f"{event.time} failed") from e
             self.clock.advance(event.time)
+            self.logger.info(event.describe())
             for proc in self.procs:
                 proc.resolve(event)
             return event

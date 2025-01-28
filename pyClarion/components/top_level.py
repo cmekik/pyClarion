@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from ..numdicts import NumDict, numdict
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
-    compile_chunks, compile_rules, ByKwds, keyform, Sort, Atom)
+    compile_chunks, compile_rules, ByKwds, keyform, Sort, Atom, describe)
 from ..system import Process, UpdateSite, UpdateSort, Event, Priority
 from .elementary import TopDown, BottomUp
 
@@ -43,7 +43,18 @@ class ChunkStore(Process):
         if event.source == self.bu.update:
             self.update()
         if event.source == self.compile:
+            self.log_compilation(event)
             self.update_buw()
+
+    def log_compilation(self, event: Event) -> None:
+        if event.source != self.compile:
+            raise ValueError()
+        assert isinstance(event.updates[0], UpdateSort)
+        assert event.updates[0].sort is self.chunks
+        data = [f"    Added the following new chunk(s)"]
+        for _, c in event.updates[0].add:
+            data.append(describe(c).replace("\n", "\n    "))
+        self.system.logger.info("\n    ".join(data))
 
     def update(self, 
         dt: timedelta = timedelta(), 
@@ -110,8 +121,19 @@ class RuleStore(Process):
         if event.source == self.lhs.bu.update:
             self.update()
         if event.source == self.compile:
+            self.log_compilation(event)
             self.lhs.update_buw()
             self.rhs.update_buw()
+
+    def log_compilation(self, event: Event) -> None:
+        if event.source != self.compile:
+            raise ValueError()
+        assert isinstance(event.updates[2], UpdateSort)
+        assert event.updates[2].sort is self.rules
+        data = [f"    Added the following new rule(s)"]
+        for _, c in event.updates[2].add:
+            data.append(describe(c).replace("\n", "\n    "))
+        self.system.logger.info("\n    ".join(data))
 
     def update(self, 
         dt: timedelta = timedelta(), 
