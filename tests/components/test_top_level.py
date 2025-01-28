@@ -91,7 +91,7 @@ class RuleStoreTestCase(unittest.TestCase):
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s
             input = Input("input", root.s, root.s)
-            store = RuleStore("rules", root.s, root.s, root.s, root.s, root.s)
+            store = RuleStore("rules", root.s, root.s, root.s)
             store.lhs.bu.input = input.main
 
         store.compile(*rules)
@@ -135,7 +135,7 @@ class FixedRuleTestCase(unittest.TestCase):
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s; root.p = Family()
             input = Input("input", root.s, root.s)
-            frs = FixedRules("frs", root.p, root.s, root.s, root.s, root.s, root.s, sd=1e-4)
+            frs = FixedRules("frs", root.p, root.s, root.s, root.s, sd=1e-4)
             frs.store.lhs.bu.input = input.main
 
         frs.store.compile(*rules)
@@ -143,8 +143,19 @@ class FixedRuleTestCase(unittest.TestCase):
         frs.trigger()
 
         event = None
+        import pprint
         while agent.system.queue:
             event = agent.system.advance()
+            print("Event:", event.source.__qualname__, f"(# {event.number})")
+            print("Input (BL):")
+            pprint.pprint(input.main.d)
+            print("Input (TL):")
+            pprint.pprint(frs.lhs.bu.main.d)
+            print("Output (TL):")
+            pprint.pprint(frs.choice.main.d)
+            print("Output (BL):")
+            pprint.pprint(frs.rhs.td.main.d)
+            print()
         ...
 
 
