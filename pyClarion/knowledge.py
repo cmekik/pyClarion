@@ -364,3 +364,73 @@ def keyform(branch: Branch, *, trunc: int = 0) -> KeyForm:
     if h < 0:
         raise ValueError("Truncation too deep")
     return KeyForm(k, (h,))
+
+
+def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:
+    if isinstance(d, Term):
+        key = path(d)
+        s_d = ".".join([label for label, _ in key[-2:]]) 
+    else:
+        s_d = f"{d.sort._name_}('{d.name}')"
+    if isinstance(v, Term):
+        key = path(v)
+        s_v = ".".join([label for label, _ in key[-2:]]) 
+    else:
+        s_v = f"{v.sort._name_}('{v.name}')"
+    sign = "+" if w >= 0 else "-"
+    if abs(w) == 1.0:
+        return f"{sign} {s_d} ** {s_v}"
+    else:           
+        return f"{sign}{abs(w)} * {s_d} ** {s_v}"
+
+
+def describe_chunk(chunk: Chunk):
+    key = path(chunk)
+    descr = chunk._descr_
+    instances = chunk._instances_
+    template = chunk._template_
+    dyads = chunk._dyads_
+    data = [f"chunk {key}"]
+    if descr:
+        data.append(f"'''{descr}'''")
+    if instances:
+        data.append(f"Abstract chunk with {len(instances)} instances")
+    if template:
+        data.append(f"Instance of chunk {path(template)}")
+    for (d, v), w in dyads.items():
+        data.append(describe_dyad(d, v, w))
+    if not dyads:
+        data.append("Empty chunk")
+    return "\n    ".join(data)
+
+
+def describe_rule(rule: Rule):
+    key = path(rule)
+    descr = rule._descr_
+    instances = rule._instances_
+    template = rule._template_
+    chunks = rule._chunks_
+    data = [f"rule {key}"]
+    if descr:
+        data.append(f"'''{descr}'''")
+    if instances:
+        data.append(f"Abstract rule with {len(instances)} instances")
+    if template:
+        data.append(f"Instance of rule {path(template)}")
+    for c in chunks:
+        data.append(describe_chunk(c).replace("\n", "\n    "))
+    if chunks:
+        data.insert(-1, ">>")
+    else:
+        data.append("Empty rule")
+    return "\n    ".join(data)
+
+
+def describe(knowledge: Chunk | Rule) -> str:
+    match knowledge:
+        case Chunk():
+            return describe_chunk(knowledge)
+        case Rule():
+            return describe_rule(knowledge)
+        case _:
+            raise TypeError()
