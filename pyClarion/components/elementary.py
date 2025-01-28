@@ -127,69 +127,121 @@ class ChoiceTL(ChoiceBase):
         self.by = keyform(t, trunc=1)
 
 
-# class Pool(Process):
-#     class Params(Atoms):
-#         pass
+class PoolBase(Process):
+    class Params(Atoms):
+        pass
 
-#     p: Params
-#     main: NumDict
-#     params: NumDict
-#     inputs: dict[Key, NumDict]
+    p: Params
+    main: NumDict
+    params: NumDict
+    inputs: dict[Key, NumDict]
 
-#     def __init__(self, 
-#         name: str,         
-#         pfam: Family,
-#         fam1: Family,
-#         fam2: Family | None = None
-#     ) -> None:
-#         super().__init__(name)
-#         root = self.system.root
-#         if not root == get_root(pfam) == get_root(fam1) \
-#             or fam2 is not None and root != get_root(fam2):
-#             raise ValueError("Mismatched root keyspaces")
-#         if fam2 is None:
-#             index = Index(root, path(fam1), (2,))
-#         else:
-#             k1 = path(fam1); k2 = path(fam2)
-#             index = Index(root, k1.link(k2, 0), (2, 2))
-#         self.p = type(self).Params(); pfam[name] = self.p
-#         idx_p = Index(root, path(self.p), (1,))
-#         self.params = numdict(idx_p, {}, c=float("nan"))
-#         self.main = numdict(index, {}, c=0.0)
-#         self.inputs = {}
+    def __init__(self, name: str, p: Family) -> None:
+        super().__init__(name)
+        self.system.check_root(p)
+        self.p = type(self).Params(); p[name] = self.p
+        idx_p = self.system.get_index(keyform(self.p))
+        self.params = numdict(idx_p, {}, c=float("nan"))
+        self.inputs = {}
 
-#     def __setitem__(self, name: str, site: Any) -> None:
-#         if not isinstance(site, NumDict):
-#             raise TypeError()
-#         if not self.main.i.keyform <= site.i.keyform:
-#             raise ValueError()
-#         self.p[name] = Atom()
-#         key = path(self.p[name])
-#         self.inputs[key] = site
-#         with self.params.mutable():
-#             self.params[key] = 1.0
+    def __setitem__(self, name: str, site: Any) -> None:
+        if not isinstance(site, NumDict):
+            raise TypeError()
+        if not self.main.i.keyform <= site.i.keyform:
+            raise ValueError()
+        self.p[name] = Atom()
+        key = path(self.p[name])
+        self.inputs[key] = site
+        with self.params.mutable():
+            self.params[key] = 1.0
 
-#     def __getitem__(self, name: str) -> NumDict:
-#         return self.inputs[path(self.p[name])]
+    def __getitem__(self, name: str) -> NumDict:
+        return self.inputs[path(self.p[name])]
         
-#     def resolve(self, event: Event) -> None:
-#         if (event.affects(self.params, ud_type=UpdateSite) 
-#             or any(event.affects(site, ud_type=UpdateSite) 
-#                 for site in self.inputs.values())):
-#             self.update()
+    def resolve(self, event: Event) -> None:
+        if (event.affects(self.params, ud_type=UpdateSite) 
+            or any(event.affects(site, ud_type=UpdateSite) 
+                for site in self.inputs.values())):
+            self.update()
 
-#     def update(self, 
-#         dt: timedelta = timedelta(), 
-#         priority: int = Priority.PROPAGATION
-#     ) -> None:
-#         inputs = [d.scale(x=self.params[k]) for k, d in self.inputs.items()]
-#         zeros = numdict(self.main.i, {}, 0.0) 
-#         pro = zeros.max(*inputs)
-#         con = zeros.min(*inputs)
-#         self.system.schedule(
-#             self.update, 
-#             UpdateSite(self.main, pro.sum(con).d),
-#             dt=dt, priority=priority)
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        inputs = [d.scale(x=self.params[k]) for k, d in self.inputs.items()]
+        zeros = numdict(self.main.i, {}, 0.0) 
+        pro = zeros.max(*inputs)
+        con = zeros.min(*inputs)
+        self.system.schedule(
+            self.update, 
+            UpdateSite(self.main, pro.sum(con).d),
+            dt=dt, priority=priority)
+
+
+class PoolBL(PoolBase):
+    def __init__(self, 
+        name: str, 
+        p: Family, 
+        d: Family | Sort | Atom, 
+        v: Family | Sort
+    ) -> None:
+        super().__init__(name, p)
+        self.system.check_root(d, v)
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        self.main = numdict(idx_d * idx_v, {}, 0.0)
+
+
+class PoolTL(PoolBase):
+    def __init__(self, name: str, p: Family, t: Family | Sort) -> None:
+        super().__init__(name, p)
+        self.system.check_root(t)
+        idx_t = self.system.get_index(keyform(t))
+        self.main = numdict(idx_t, {}, 0.0)
+
+
+class AssociationsBase(Process):
+    main: NumDict
+    input: NumDict
+    weights: NumDict
+    sum_by: ByKwds
+
+    def resolve(self, event: Event) -> None:
+        if event.affects(self.weights):
+            self.update(priority=Priority.LEARNING)
+        elif event.affects(self.input):
+            self.update(priority=Priority.PROPAGATION)
+
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        output = self.weights.mul(self.input).sum(**self.sum_by)
+        self.system.schedule(self.update, 
+            UpdateSite(self.main, output.d), 
+            dt=dt, priority=priority)
+
+
+class ChunkAssociations(AssociationsBase):
+    main: NumDict
+    input: NumDict
+    weights: NumDict
+    sum_by: ByKwds
+
+    def __init__(self, 
+        name: str, 
+        t_in: Chunks, 
+        t_out: Chunks | None = None
+    ) -> None:
+        t_out = t_in if t_out is None else t_out
+        super().__init__(name)
+        self.system.check_root(t_in, t_out)
+        idx_in = self.system.get_index(keyform(t_in))
+        idx_out = self.system.get_index(keyform(t_out))
+        self.main = numdict(idx_out, {}, 0.0)
+        self.input = numdict(idx_in, {}, 0.0)
+        self.weights = numdict(idx_in * idx_out, {}, 0.0)
+        self.by = ByKwds(by=keyform(t_out), b=1)
 
 
 class BottomUp(Process):    

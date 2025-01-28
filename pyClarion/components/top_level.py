@@ -1,47 +1,10 @@
 from datetime import timedelta
 
-from ..numdicts import Index, NumDict, numdict, path
-from ..numdicts import root as get_root
+from ..numdicts import NumDict, numdict
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, ByKwds, keyform, Sort, Atom)
 from ..system import Process, UpdateSite, UpdateSort, Event, Priority
 from .elementary import TopDown, BottomUp
-
-
-# class Associations(Process):
-#     main: NumDict
-#     input: NumDict
-#     weights: NumDict
-#     sum_by: ByKwds
-
-#     def __init__(self, name: str, input: Chunks, output: Chunks) -> None:
-#         super().__init__(name)
-#         root = self.system.root
-#         if not root == get_root(input) == get_root(output):
-#             raise ValueError("Mismatched root keyspaces")
-#         k0 = path(input); k1 = path(output)
-#         idx_m = Index(root, k0, (1,))
-#         idx_i = Index(root, k1, (1,))
-#         idx_w = Index(root, k1.link(k0, 0), (1, 1))
-#         self.main = numdict(idx_m, {}, 0.0)
-#         self.input = numdict(idx_i, {}, 0.0)
-#         self.weights = numdict(idx_w, {}, 0.0)
-#         self.by = ByKwds(by=idx_m.keyform, b=1)
-
-#     def resolve(self, event: Event) -> None:
-#         if event.affects(self.weights):
-#             self.update(priority=Priority.LEARNING)
-#         elif event.affects(self.input):
-#             self.update(priority=Priority.PROPAGATION)
-
-#     def update(self, 
-#         dt: timedelta = timedelta(), 
-#         priority: int = Priority.PROPAGATION
-#     ) -> None:
-#         output = self.weights.mul(self.input).sum(**self.sum_by)
-#         self.system.schedule(self.update, 
-#             UpdateSite(self.main, output.d), 
-#             dt=dt, priority=priority)
 
 
 class ChunkStore(Process):
