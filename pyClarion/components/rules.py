@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, UpdateSite
-from ..knowledge import Family, Sort, Atom
+from ..knowledge import Family, Sort, Atom, Rule, describe
 from ..numdicts import NumDict, numdict
 from .elementary import ChoiceTL
 from .top_level import RuleStore, ChunkStore
@@ -37,6 +37,18 @@ class FixedRules(Process):
             self.choice.select()
         if event.source == self.choice.select:
             self.update(dt=self.compute_rt())
+        if event.source == self.update:
+            self.log_update()
+
+    def log_update(self):
+        rule = self.system.root
+        for name, _ in self.choice.main.argmax()[1:]:
+            rule = rule[name]
+        assert isinstance(rule, Rule)
+        message = "\n    ".join([
+            "    Fired the following rule", 
+            describe(rule).replace("\n", "\n    ")])
+        self.system.logger.info(message)
 
     def compute_rt(self) -> timedelta:
         return timedelta(milliseconds=50)

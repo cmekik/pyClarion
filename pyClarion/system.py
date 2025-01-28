@@ -172,10 +172,7 @@ class Process:
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
-        logger: logging.Logger = field(init=False)
-
-        def __post_init__(self) -> None:
-            self.logger = logging.getLogger(__name__)
+        logger: logging.Logger = logging.getLogger(__name__)
 
         def check_root(self, *keyspaces: KeySpaceBase) -> None:
             for keyspace in keyspaces:
