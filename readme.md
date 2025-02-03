@@ -6,7 +6,7 @@ The primary resource for the implementation is Ron Sun's [*Anatomy of the Mind*]
 
 # Key Features
 
-- Convenient and modular agent assembly
+- Convenient and modular model assembly
 - A simple language for initializing explicit knowledge  
 - Numerical dictionaries
 

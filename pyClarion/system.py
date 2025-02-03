@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, Mapping, LiteralString, Any, Type
+from typing import Callable, Sequence, ClassVar, LiteralString, Any, Type
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -114,13 +114,13 @@ class Event:
         else:
             source = self.source.__qualname__
         days = self.time.days
-        hours = self.time.seconds % 86400
-        minutes = self.time.seconds % 3600 
+        hours = (self.time.seconds // 86400) % 24
+        minutes = (self.time.seconds // 3600) % 60 
         seconds = self.time.seconds % 60
         centiseconds = int(self.time.microseconds / 10000)
-        time = (f"{days:02d}:{hours:02d}:{minutes:02d}:"
-            f"{seconds:02d}:{centiseconds:02d}")
-        return f"{time} {self.priority} {self.number} {source}"
+        time = (f"{days:#06x} {hours:02d}:{minutes:02d}:"
+            f"{seconds:02d}.{centiseconds:02d}")
+        return f"event {time} {self.priority:03d} {self.number} {source}"
 
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
@@ -210,12 +210,13 @@ class Process:
                 proc.resolve(event)
             return event
 
+    lax: ClassVar[tuple[str, ...]] = ()
     name: str
     system: System
     __tokens: list[Token]
 
     def __init__(self, name: str) -> None:
-        if not name.isidentifier():
+        if not all(s.isidentifier() for s in name.split(".")):
             raise ValueError("Process name must be a valid Python identifier")
         try:
             sup = PROCESS.get()
@@ -230,6 +231,10 @@ class Process:
         self.__tokens = []
         self.system.procs.append(self)
 
+    def __repr__(self) -> str:
+        return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"
+
+
     def __setattr__(self, name: str, value: Any) -> None:
         try:
             old = getattr(self, name)
@@ -240,7 +245,7 @@ class Process:
                 pass
             if not isinstance(value, NumDict):
                 raise TypeError("Process site must be of type NumDict")
-            if old.i != value.i:
+            if old.i != value.i and name not in self.lax or old.i < value.i:
                 raise ValueError("Incompatible index in site assignment")
             if not (isnan(old.c) and isnan(value.c) or old.c == value.c):
                 raise ValueError("Incompatible default value in site assignment")

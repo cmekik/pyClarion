@@ -1,23 +1,23 @@
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, UpdateSite
-from ..knowledge import Family, Sort, Atom, Rule, describe
-from ..numdicts import NumDict, numdict
+from ..knowledge import Family, Sort, Atom, Rule, describe, keyform
+from ..numdicts import NumDict, numdict, crawl, KeyForm
 from .elementary import ChoiceTL
-from .top_level import RuleStore, ChunkStore
+from .top_level import RuleStore
 
 
 class FixedRules(Process):
     main: NumDict
-    store: RuleStore
+    rules: RuleStore
     choice: ChoiceTL
-    lhs: ChunkStore
-    rhs: ChunkStore
+    by: KeyForm
 
     def __init__(self, 
         name: str, 
         p: Family,
-        t: Family, 
+        r: Family,
+        c: Family, 
         d: Family | Sort | Atom, 
         v: Family | Sort,
         *,
@@ -25,12 +25,11 @@ class FixedRules(Process):
     ) -> None:
         super().__init__(name)
         with self:
-            self.store = RuleStore(f"{name}_st", t, d, v)
-            self.choice = ChoiceTL(f"{name}_ch", p, self.store.rules, sd=sd)
-        self.lhs = self.store.lhs
-        self.rhs = self.store.rhs
-        self.main = numdict(self.store.main.i, {}, 0.0)
-        self.choice.input = self.store.main
+            self.rules = RuleStore(f"{name}.rules", r, c, d, v)
+            self.choice = ChoiceTL(f"{name}.choice", p, self.rules.rules, sd=sd)
+        self.main = numdict(self.rules.main.i, {}, 0.0)
+        self.by = keyform(d) * keyform(v, trunc=1)
+        self.choice.input = self.rules.main
 
     def resolve(self, event: Event) -> None:
         if event.source == self.trigger:
@@ -41,9 +40,7 @@ class FixedRules(Process):
             self.log_update()
 
     def log_update(self):
-        rule = self.system.root
-        for name, _ in self.choice.main.argmax()[1:]:
-            rule = rule[name]
+        rule = crawl(self.system.root, self.choice.main.argmax())
         assert isinstance(rule, Rule)
         message = "\n    ".join([
             "    Fired the following rule", 
@@ -63,13 +60,13 @@ class FixedRules(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        choice = (self.store.riw
+        choice = (self.rules.riw
             .mul(self.choice.main, bs=(1,))
             .sum(by=self.main.i.keyform, b=0))
-        input_td = (self.store.rhw
+        input_td = (self.rules.rhw
             .mul(self.choice.main)
-            .sum(by=self.store.rhs.td.input.i.keyform))
+            .sum(by=self.rules.rhs.td.input.i.keyform))
         self.system.schedule(self.update, 
             UpdateSite(self.main, choice.d),
-            UpdateSite(self.store.rhs.td.input, input_td.d),
+            UpdateSite(self.rules.rhs.td.input, input_td.d),
             dt=dt, priority=priority)

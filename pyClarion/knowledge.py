@@ -1,4 +1,5 @@
-from typing import Self, Iterable, Type, Iterator, TypedDict, NotRequired, get_type_hints
+from typing import (Self, Iterable, Type, Iterator, TypedDict, NotRequired, 
+    get_type_hints, overload, Sequence)
 from weakref import WeakValueDictionary
 from itertools import product, count
 
@@ -9,12 +10,29 @@ class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
     pass
 
 
+class Term(Branch["Sort", "Sort"]):
+
+    def __init__(self) -> None:
+        super().__init__(Sort, Sort)
+
+    def __pow__(self, other: "Term | Var | Iterable[Term]") -> "Chunk":
+        if isinstance(other, (Term, Var)):
+            return Chunk({(self, other): 1.0})
+        else:
+            return Chunk({(self, atom): 1.0 for atom in other})
+
+    def __rpow__(self, other: "Term | Var") -> "Chunk":
+        if isinstance(other, (Term, Var)):
+            return Chunk({(other, self): 1.0})
+        return NotImplemented
+
+
 class Sort[C: "Term"](Branch[KeySpaceBase, C]):
     _required_: frozenset[Key]
     _counter_: count
     _vars_: dict[str, "Var"]
 
-    def __init__(self, mtype: Type[C]) -> None:
+    def __init__(self, mtype: Type[C] = Term) -> None:
         super().__init__(KeySpaceBase, mtype)
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
@@ -33,26 +51,15 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
 
 
 class Family[S: "Sort"](Branch[KeySpaceBase, S]):
+    _required_: frozenset[Key]
 
     def __init__(self, sort: Type[S] = Sort) -> None:
         super().__init__(KeySpaceBase, sort)
-
-
-class Term(Branch[Sort, Sort]):
-
-    def __init__(self) -> None:
-        super().__init__(Sort, Sort)
-
-    def __pow__(self, other: "Term | Var | Iterable[Term]") -> "Chunk":
-        if isinstance(other, (Term, Var)):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})
-
-    def __rpow__(self, other: "Term | Var") -> "Chunk":
-        if isinstance(other, (Term, Var)):
-            return Chunk({(other, self): 1.0})
-        return NotImplemented
+        cls = type(self)
+        for name, typ in get_type_hints(cls).items():
+            if isinstance(typ, type) and issubclass(typ, Sort):
+                setattr(self, name, typ())
+        self._required_ = frozenset(self._members_)
 
 
 class Atom(Term):
@@ -182,20 +189,26 @@ class Rules(Sort[Rule]):
         super().__init__(Rule)
 
 
-class Actions(Atoms):
-    nil: Atom
+@overload
+def instantiations(
+    term: Chunk, caches: Sequence[dict[frozenset[str], Chunk]]
+) -> Iterator[Chunk]:
+    ...
+
+@overload
+def instantiations(
+    term: Rule, caches: Sequence[dict[frozenset[str], Chunk]]
+) -> Iterator[Rule]:
+    ...
 
 
-class ActionFamily[S: Actions](Family[S]):
-    def __init__(self, sort: Type[S] = Actions) -> None:
-        super().__init__(sort)
-
-
-def instantiations[T: Chunk | Rule](term: T) -> Iterator[T]:
+def instantiations(
+    term: Chunk | Rule, caches: Sequence[dict[frozenset[str], Chunk]]
+) -> Iterator[Chunk | Rule]:
     if not term._vars_:
         return
     for v in valuations(term):
-        yield instantiate(term, v)
+        yield instantiate(term, v, caches)
 
 
 def valuations(term: Chunk | Rule) -> Iterator[dict[str, Term]]:
@@ -203,16 +216,44 @@ def valuations(term: Chunk | Rule) -> Iterator[dict[str, Term]]:
         yield {lb: sp[v] for v, (lb, sp) in zip(vals, term._vars_.items())}
 
 
-def instantiate[T: Chunk | Rule](term: T, vals: dict[str, Term]) -> T:
+@overload
+def instantiate(
+    term: Chunk,
+    vals: dict[str, Term], 
+    caches: Sequence[dict[frozenset[str], Chunk]]    
+) -> Chunk:
+    ...
+
+@overload
+def instantiate(
+    term: Rule, 
+    vals: dict[str, Term], 
+    caches: Sequence[dict[frozenset[str], Chunk]]
+) -> Rule:
+    ...
+
+def instantiate(
+    term: Chunk | Rule, 
+    vals: dict[str, Term], 
+    caches: Sequence[dict[frozenset[str], Chunk]]
+) -> Chunk | Rule:
     if isinstance(term, Rule):
-        chunks = {instantiate(c, vals): w for c, w in term._chunks_.items()}
+        items = term._chunks_.items()
+        chunks = {instantiate(c, vals, [cache]) if c._vars_ else c: w 
+            for (c, w), cache in zip(items, caches, strict=True)}
         return type(term)(chunks, term)
     if isinstance(term, Chunk):
-        dyads: dict[tuple[Term | Var, Term | Var], float] = {
-            (t1(vals) if isinstance(t1, Var) else t1, 
-             t2(vals) if isinstance(t2, Var) else t2): w 
-            for (t1, t2), w in term._dyads_.items()}
-        return type(term)(dyads, term)
+        if len(caches) != 1:
+            raise ValueError(f"Expected only one cache, got {len(caches)}")
+        cache, = caches
+        try:
+            return cache[frozenset(term._vars_)]
+        except KeyError:
+            dyads: dict[tuple[Term | Var, Term | Var], float] = {
+                (t1(vals) if isinstance(t1, Var) else t1, 
+                t2(vals) if isinstance(t2, Var) else t2): w 
+                for (t1, t2), w in term._dyads_.items()}
+            return type(term)(dyads, term)
     raise TypeError()
 
 
@@ -260,7 +301,7 @@ def compile_chunks(*chunks: Chunk, sort: Chunks) \
         new_chunks.append(chunk)
         chunk_data["ciw"].update(data["ciw"]) 
         chunk_data["tdw"].update(data["tdw"])
-        for inst in instantiations(chunk):
+        for inst in instantiations(chunk, [{}]):
             inst._name_ = inst._name_ or f"c{next(sort._counter_)}" 
             _data = compile_chunk(inst, sort)
             new_chunks.append(inst)
@@ -332,7 +373,8 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
         rule_data["lhs"]["tdw"].update(data["lhs"]["tdw"])
         rule_data["rhs"]["ciw"].update(data["rhs"]["ciw"])
         rule_data["rhs"]["tdw"].update(data["rhs"]["tdw"])
-        for inst in instantiations(rule):
+        caches = [{} for _ in rule._chunks_]
+        for inst in instantiations(rule, caches):
             inst._name_ = inst._name_ or f"r{next(sort._counter_)}" 
             _data = compile_rule(inst, sort, lhs, rhs)
             new_rules.append(inst)
@@ -343,6 +385,8 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
             rule_data["lhs"]["tdw"].update(_data["lhs"]["tdw"])
             rule_data["rhs"]["ciw"].update(_data["rhs"]["ciw"])
             rule_data["rhs"]["tdw"].update(_data["rhs"]["tdw"])
+            for cache, chunk in zip(caches, inst._chunks_):
+                cache[frozenset(chunk._vars_)] = chunk
     return new_rules, rule_data
 
 

@@ -44,7 +44,7 @@ class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
         return True
 
     def __getitem__(self, name: str) -> T:
-        if name.isidentifier():
+        if all(s.isidentifier() for s in name.split(".")):
             return getattr(self, name)
         raise ValueError(f"Argument {repr(name)} is not a Python identifier")
     
@@ -128,6 +128,15 @@ def parent[P: KeySpaceBase](ksp: KeySpaceBase[P, Any]) -> P:
     return ksp._parent_
 
 
+def crawl(keyspace: KeySpaceBase, path: str | Key) -> KeySpaceBase:
+    key = Key(path)
+    if any(1 < deg for _, deg in key):
+        raise ValueError(f"Key {key} is not a path")
+    for label, _ in key[1:]:
+        keyspace = keyspace[label]
+    return keyspace 
+
+
 def _iter(ksp: KeySpaceBase, h: int) -> Iterator[Key]:
     if not ksp._members_:
         return
@@ -209,7 +218,12 @@ class Index[T: KeySpaceBase]:
         if isinstance(other, Index):
             return self.root is other.root and self.keyform == other.keyform
         return NotImplemented
-    
+
+    def __lt__(self, other: Any) -> bool:
+        if isinstance(other, Index):
+            return self.root is other.root and self.keyform < other.keyform
+        return NotImplemented
+
     def __hash__(self) -> int:
         return hash((self.root, self.keyform))
 
@@ -217,15 +231,21 @@ class Index[T: KeySpaceBase]:
         return key in self.keyform and key in self.root
 
     def __len__(self) -> int:
-        return len(list(self))
+        l = 0
+        for _ in self:
+            l += 1
+        return l
 
     def __iter__(self) -> Iterator[Key]:
         its = (_iter(self._levels[i], self._heights[i]) for i in self._leaves)
         suites = [list(it) for it in its]
+        for l in suites: 
+            if not l: l.append(Key()) # ensures suite not empty when h=0
         for suite in product(*suites):
             result = self.keyform.k
             for i, s in zip(reversed(self._leaves), reversed(suite)):
-                result = result.link(s, i, ())
+                if s:
+                    result = result.link(s, i, ())
             yield result
 
     def __mul__(self, other: "Index") -> "Index":

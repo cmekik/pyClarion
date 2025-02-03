@@ -1,8 +1,9 @@
-from typing import Any
+from typing import Any, ClassVar
 from datetime import timedelta
 
 from ..system import Process, UpdateSite, Event, Priority
-from ..knowledge import Family, Sort, Chunks, Atoms, Atom, Chunk, Var, ByKwds, keyform
+from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
+    ByKwds, keyform)
 from ..numdicts import Key, KeyForm, NumDict, numdict, path
 
 
@@ -17,7 +18,7 @@ class Agent(Process):
             self.system.root[name] = family
 
 
-class Input(Process):
+class InputBL(Process):
     main: NumDict
 
     def __init__(self, 
@@ -45,11 +46,41 @@ class Input(Process):
             data[key] = weight
         self.system.schedule(self.send, UpdateSite(self.main, data), 
             dt=dt, priority=priority)
+        
+
+class InputTL(Process):
+    main: NumDict
+
+    def __init__(self, 
+        name: str, 
+        t: Family | Sort
+    ) -> None:
+        super().__init__(name)
+        self.system.check_root(t)
+        idx_t = self.system.get_index(keyform(t))
+        self.main = numdict(idx_t, {}, 0.0)
+
+    def send(self, d: dict[Term | Key, float], 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        data = {}
+        for k, v in d.items():
+            if isinstance(k, Term):
+                self.system.check_root(k)
+                k = path(k)
+            if k not in self.main.i:
+                raise ValueError(f"Unexpected key {k}")
+            data[k] = v
+        self.system.schedule(self.send, UpdateSite(self.main, data), 
+            dt=dt, priority=priority)
 
 
 class ChoiceBase(Process):
     class Params(Atoms):
         sd: Atom
+
+    lax: ClassVar[tuple[str, ...]] = ("input",)
 
     p: Params
     by: KeyForm
@@ -222,7 +253,7 @@ class AssociationsBase(Process):
             dt=dt, priority=priority)
 
 
-class ChunkAssociations(AssociationsBase):
+class ChunkAssocs(AssociationsBase):
     main: NumDict
     input: NumDict
     weights: NumDict
@@ -230,18 +261,18 @@ class ChunkAssociations(AssociationsBase):
 
     def __init__(self, 
         name: str, 
-        t_in: Chunks, 
-        t_out: Chunks | None = None
+        c_in: Chunks, 
+        c_out: Chunks | None = None
     ) -> None:
-        t_out = t_in if t_out is None else t_out
+        c_out = c_in if c_out is None else c_out
         super().__init__(name)
-        self.system.check_root(t_in, t_out)
-        idx_in = self.system.get_index(keyform(t_in))
-        idx_out = self.system.get_index(keyform(t_out))
+        self.system.check_root(c_in, c_out)
+        idx_in = self.system.get_index(keyform(c_in))
+        idx_out = self.system.get_index(keyform(c_out))
         self.main = numdict(idx_out, {}, 0.0)
         self.input = numdict(idx_in, {}, 0.0)
         self.weights = numdict(idx_in * idx_out, {}, 0.0)
-        self.by = ByKwds(by=keyform(t_out), b=1)
+        self.by = ByKwds(by=keyform(c_out), b=1)
 
 
 class BottomUp(Process):    

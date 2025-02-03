@@ -78,9 +78,6 @@ class NumDict:
     def c(self) -> float:
         return self._c
 
-    def __repr__(self) -> str:
-        return f"<{type(self).__name__} at {hex(id(self))}>"
-
     def __len__(self) -> int:
         return len(tuple(self._i))
 
@@ -100,6 +97,22 @@ class NumDict:
                 return self._c
             else:
                 raise KeyError(f"Key '{k}' not a member") from e
+
+    def __repr__(self) -> str:
+        return (f"<{type(self).__qualname__} {self.i.keyform.as_key()} "
+            f"c={self.c} at {hex(id(self))}>")
+    
+    def __str__(self) -> str:
+        data = [f"{type(self).__qualname__} {self.i.keyform.as_key()} c={self.c}"]
+        width = 0
+        for k in self.d:
+            width = max(width, len(str(k)))
+        for k, v in self.d.items():
+            data.append(f"{str(k):<{width}} {v}")
+        return "\n    ".join(data)
+
+    def copy(self: Self) -> Self:
+        return type(self)(self._i, self.d, self._c)
 
     def pipe[**P](
         self: Self, 

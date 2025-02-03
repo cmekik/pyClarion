@@ -18,20 +18,20 @@ class ChunkStore(Process):
 
     def __init__(self, 
         name: str, 
-        t: Family, 
+        c: Family, 
         d: Family | Sort | Atom, 
         v: Family | Sort
     ) -> None:
         super().__init__(name)
-        self.system.check_root(t, d, v)
-        self.chunks = Chunks(); t[name] = self.chunks
+        self.system.check_root(c, d, v)
+        self.chunks = Chunks(); c[name] = self.chunks
         index = self.system.get_index(keyform(self.chunks))
         self.main = numdict(index, {}, c=0.0)
         self.ciw = numdict(index * index, {}, c=float("nan"))
         self.max_by = ByKwds(by=keyform(self.chunks), b=0)
         with self:
-            self.td = TopDown(f"{name}_td", self.chunks,  d, v)
-            self.bu = BottomUp(f"{name}_bu", self.chunks, d, v)
+            self.td = TopDown(f"{name}.td", self.chunks,  d, v)
+            self.bu = BottomUp(f"{name}.bu", self.chunks, d, v)
 
     def norm(self, d: NumDict) -> NumDict:
         return (d
@@ -103,16 +103,17 @@ class RuleStore(Process):
 
     def __init__(self, 
         name: str, 
-        t: Family, 
+        r: Family,
+        c: Family, 
         d: Family | Sort | Atom, 
         v: Family | Sort, 
     ) -> None:
         super().__init__(name)
-        self.system.check_root(t, d, v)
-        self.rules = Rules(); t[name] = self.rules
+        self.system.check_root(r, d, v)
+        self.rules = Rules(); r[name] = self.rules
         with self:
-            self.lhs = ChunkStore(f"{name}_l", t, d, v)
-            self.rhs = ChunkStore(f"{name}_r", t, d, v)
+            self.lhs = ChunkStore(f"{name}.lhs", c, d, v)
+            self.rhs = ChunkStore(f"{name}.rhs", c, d, v)
         idx_r = self.system.get_index(keyform(self.rules))
         idx_lhs = self.system.get_index(keyform(self.lhs.chunks))
         idx_rhs = self.system.get_index(keyform(self.rhs.chunks))
@@ -159,10 +160,20 @@ class RuleStore(Process):
         for rule in new:
             chunks = list(rule._chunks_)
             lhs.extend(chunks[:-1]); rhs.append(chunks[-1])
+        seen_lhs, add_lhs = set(), []
+        for c in lhs:
+            if c not in seen_lhs:
+                add_lhs.append((c._name_, c))
+                seen_lhs.add(c)
+        seen_rhs, add_rhs = set(), []
+        for c in rhs:
+            if c not in seen_rhs:
+                add_rhs.append((c._name_, c))
+                seen_rhs.add(c)
         self.system.schedule(
             self.compile, 
-            UpdateSort(self.lhs.chunks, add=tuple((c._name_, c) for c in lhs)),
-            UpdateSort(self.rhs.chunks, add=tuple((c._name_, c) for c in rhs)),
+            UpdateSort(self.lhs.chunks, add=tuple(add_lhs)),
+            UpdateSort(self.rhs.chunks, add=tuple(add_rhs)),
             UpdateSort(self.rules, add=tuple((r._name_, r) for r in new)),
             UpdateSite(self.lhs.ciw, data["lhs"]["ciw"], reset=False),
             UpdateSite(self.rhs.ciw, data["rhs"]["ciw"], reset=False), 

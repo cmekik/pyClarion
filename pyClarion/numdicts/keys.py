@@ -195,6 +195,24 @@ class Key(tuple[tuple[str, int], ...]):
             result.append(node)
             S += degree
         return super().__new__(type(self), result)
+    
+    @sig_cache
+    def split(self) -> Sequence["Key"]:
+        cutpoint, deg = len(self), 0
+        for i, (_, deg) in enumerate(self):
+            if 1 < deg:
+                cutpoint = i
+                deg = deg
+                break
+        else:
+            return self,
+        trunk, branches = self.cut(cutpoint)
+        splits = []
+        for _ in range(deg):
+            branches, branch = branches.cut(0, (0,))
+            splits.append(branch)
+        suites = (path for split in splits for path in split.split())
+        return tuple(trunk.link(path, cutpoint) for path in suites)
 
 
 @dataclass(frozen=True)
@@ -275,14 +293,15 @@ class KeyForm:
         leaves, indices, hs, S = [], {}, {}, 1
         for i, (label, deg) in enumerate(key):
             children = [key[S + j] for j in range(deg)]
-            if not (i == 0 or label.isidentifier() or label == "?"):
+            dot_sep_id = all(s.isidentifier() for s in label.split("."))
+            if not (i == 0 or dot_sep_id or label == "?"):
                 raise ValidationError(f"Unexpected label {repr(label)} in key, "
                     "label must be a valid python identifier or '?'.")
-            elif label.isidentifier() and deg == 0:
+            elif dot_sep_id and deg == 0:
                 leaves.append(i)
                 indices[i] = i
                 hs[i] = 0
-            elif label.isidentifier() and any(lb == "?" for lb, _ in children):
+            elif dot_sep_id and any(lb == "?" for lb, _ in children):
                 if 1 < len(children):
                     raise ValidationError("Wildcard '?' cannot have siblings")
                 leaves.append(i)
