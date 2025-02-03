@@ -24,13 +24,15 @@ class InputBL(Process):
     def __init__(self, 
         name: str, 
         d: Family | Sort | Atom, 
-        v: Family | Sort
+        v: Family | Sort,
+        *,
+        c: float = 0.0
     ) -> None:
         super().__init__(name)
         self.system.check_root(d, v)
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = numdict(idx_d * idx_v, {}, 0.0)
+        self.main = numdict(idx_d * idx_v, {}, c)
 
     def send(self, c: Chunk, 
         dt: timedelta = timedelta(), 
@@ -53,12 +55,14 @@ class InputTL(Process):
 
     def __init__(self, 
         name: str, 
-        t: Family | Sort
+        t: Family | Sort,
+        *,
+        c: float = 0.0
     ) -> None:
         super().__init__(name)
         self.system.check_root(t)
         idx_t = self.system.get_index(keyform(t))
-        self.main = numdict(idx_t, {}, 0.0)
+        self.main = numdict(idx_t, {}, c)
 
     def send(self, d: dict[Term | Key, float], 
         dt: timedelta = timedelta(), 
