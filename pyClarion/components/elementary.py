@@ -18,51 +18,22 @@ class Agent(Process):
             self.system.root[name] = family
 
 
-class InputBL(Process):
+class Input(Process):
     main: NumDict
-
-    def __init__(self, 
-        name: str, 
-        d: Family | Sort | Atom, 
-        v: Family | Sort,
-        *,
-        c: float = 0.0
-    ) -> None:
-        super().__init__(name)
-        self.system.check_root(d, v)
-        idx_d = self.system.get_index(keyform(d))
-        idx_v = self.system.get_index(keyform(v))
-        self.main = numdict(idx_d * idx_v, {}, c)
-
-    def send(self, c: Chunk, 
-        dt: timedelta = timedelta(), 
-        priority: int = Priority.PROPAGATION
-    ) -> None:
-        data = {}
-        for (t1, t2), weight in c._dyads_.items():
-            if isinstance(t1, Var) or isinstance(t2, Var):
-                raise TypeError("Var not allowed in input chunk.")
-            key = path(t1).link(path(t2), 0)    
-            if key not in self.main.i:
-                raise ValueError(f"Unexpected dimension-value pair {key}")
-            data[key] = weight
-        self.system.schedule(self.send, UpdateSite(self.main, data), 
-            dt=dt, priority=priority)
-        
-
-class InputTL(Process):
-    main: NumDict
+    reset: bool
 
     def __init__(self, 
         name: str, 
         t: Family | Sort,
         *,
-        c: float = 0.0
+        c: float = 0.0,
+        reset: bool = True
     ) -> None:
         super().__init__(name)
         self.system.check_root(t)
         idx_t = self.system.get_index(keyform(t))
         self.main = numdict(idx_t, {}, c)
+        self.reset = reset
 
     def send(self, d: dict[Term | Key, float], 
         dt: timedelta = timedelta(), 
@@ -76,8 +47,49 @@ class InputTL(Process):
             if k not in self.main.i:
                 raise ValueError(f"Unexpected key {k}")
             data[k] = v
-        self.system.schedule(self.send, UpdateSite(self.main, data), 
+        self.system.schedule(self.send, 
+            UpdateSite(self.main, data, reset=self.reset), 
             dt=dt, priority=priority)
+        
+
+class InputBL(Process):
+    main: NumDict
+    reset: bool
+
+    def __init__(self, 
+        name: str, 
+        d: Family | Sort | Atom, 
+        v: Family | Sort,
+        *,
+        c: float = 0.0,
+        reset: bool = True
+    ) -> None:
+        super().__init__(name)
+        self.system.check_root(d, v)
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        self.main = numdict(idx_d * idx_v, {}, c)
+        self.reset = reset
+
+    def send(self, c: Chunk, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        data = {}
+        for (t1, t2), weight in c._dyads_.items():
+            if isinstance(t1, Var) or isinstance(t2, Var):
+                raise TypeError("Var not allowed in input chunk.")
+            key = path(t1).link(path(t2), 0)    
+            if key not in self.main.i:
+                raise ValueError(f"Unexpected dimension-value pair {key}")
+            data[key] = weight
+        self.system.schedule(self.send, 
+            UpdateSite(self.main, data, self.reset), 
+            dt=dt, priority=priority)
+
+
+class InputTL(Input):
+    pass
 
 
 class ChoiceBase(Process):

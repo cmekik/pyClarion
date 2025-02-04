@@ -25,6 +25,12 @@ def abs(self: D) -> D:
     return type(self)(self._i, d, c, False)
 
 
+def inv(self: D) -> D:
+    d = {k: 1 / v for k, v in self._d.items()} 
+    c = 1 / self._c    
+    return type(self)(self._i, d, c, False)
+
+
 def log(self: D) -> D:
     d = {k: math.log(v) for k, v in self._d.items()}
     c = math.log(self._c)    
@@ -33,7 +39,7 @@ def log(self: D) -> D:
 
 def log1p(self: D) -> D:
     d = {k: math.log1p(v) for k, v in self._d.items()}
-    c = math.log(self._c)    
+    c = math.log1p(self._c)    
     return type(self)(self._i, d, c, False)
 
 
@@ -44,8 +50,8 @@ def exp(self: D) -> D:
 
 
 def expm1(self: D) -> D:
-    d = {k: math.exp(v) for k, v in self._d.items()}
-    c = math.exp(self._c)    
+    d = {k: math.expm1(v) for k, v in self._d.items()}
+    c = math.expm1(self._c)    
     return type(self)(self._i, d, c, False)
 
 

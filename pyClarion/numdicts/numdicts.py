@@ -21,7 +21,7 @@ def numdict(
 class NumDict:
     from .methods.logical import (isfinite, isnan, isinf, isclose, gt, gte, lt, 
         lte, with_default, valmax, valmin, argmax, argmin)
-    from .methods.arithmetic import (neg, abs, log, log1p, exp, expm1, 
+    from .methods.arithmetic import (neg, inv, abs, log, log1p, exp, expm1, 
         bound_max, bound_min, shift, scale, sum, sub, mul, div, max, min)
     from .methods.stochastic import (stduniformvariate, normalvariate, 
         lognormvariate, vonmisesvariate, expovariate, gammavariate, 
