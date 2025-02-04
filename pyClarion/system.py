@@ -245,6 +245,9 @@ class Process:
                 pass
             if not isinstance(value, NumDict):
                 raise TypeError("Process site must be of type NumDict")
+            if old.d:
+                raise ValueError(f"Site '{name}' of process {self.name} "
+                    "contains data")
             if old.i != value.i and name not in self.lax or old.i < value.i:
                 raise ValueError("Incompatible index in site assignment")
             if not (isnan(old.c) and isnan(value.c) or old.c == value.c):
