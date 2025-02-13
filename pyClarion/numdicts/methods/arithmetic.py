@@ -13,6 +13,10 @@ _max = max
 _min = min
 
 
+def eye(self: D) -> D:
+    return self
+
+
 def neg(self: D) -> D:
     d = {k: -v for k, v in self._d.items()} 
     c = -self._c
@@ -43,6 +47,12 @@ def log1p(self: D) -> D:
     return type(self)(self._i, d, c, False)
 
 
+def logit(self: D) -> D:
+    d = {k: math.log(v) - math.log1p(-v) for k, v in self._d.items()}
+    c = math.log(self._c) - math.log1p(-self.c)
+    return type(self)(self._i, d, c, False)
+
+
 def exp(self: D) -> D:
     d = {k: math.exp(v) for k, v in self._d.items()}
     c = math.exp(self._c)    
@@ -55,6 +65,24 @@ def expm1(self: D) -> D:
     return type(self)(self._i, d, c, False)
 
 
+def expit(self: D) -> D:
+    d = {k: (exp_v := math.exp(v)) / (1 + exp_v) if v < 0 
+        else 1 / (1 + math.exp(-v)) for k, v in self._d.items()}
+    c = ((exp_c := math.exp(self._c)) / (1 + exp_c) if self._c < 0 
+        else 1 / (1 + math.exp(-self._c)))
+    return type(self)(self._i, d, c, False)
+
+
+def tanh(self: D) -> D:
+    d = {k: math.tanh(v) for k, v in self._d.items()}
+    c = math.tanh(self._c)
+    return type(self)(self._i, d, c, False)
+
+
+def const(self: D, *, c: float = 1.0) -> D:
+    return type(self)(self._i, {}, c, False)
+
+
 def shift(self: D, *, x: float) -> D:
     d = {k: v + x for k, v in self._d.items()}
     c = self._c + x  
@@ -64,6 +92,12 @@ def shift(self: D, *, x: float) -> D:
 def scale(self: D, *, x: float) -> D:
     d = {k: v * x for k, v in self._d.items()}
     c = self._c * x
+    return type(self)(self._i, d, c, False)
+
+
+def pow(self: D, *, x: float) -> D:
+    d = {k: math.pow(v, x) for k, v in self._d.items()}
+    c = math.pow(self._c, x)
     return type(self)(self._i, d, c, False)
 
 
