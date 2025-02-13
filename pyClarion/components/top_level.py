@@ -1,7 +1,7 @@
 from datetime import timedelta
 import logging
 
-from ..numdicts import NumDict, numdict
+from ..numdicts import NumDict, numdict, KeyForm
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, ByKwds, keyform, Sort, Atom, describe)
 from ..system import Process, UpdateSite, UpdateSort, Event, Priority
@@ -14,7 +14,7 @@ class ChunkStore(Process):
     ciw: NumDict
     td: TopDown
     bu: BottomUp
-    max_by: ByKwds
+    max_by: KeyForm
 
     def __init__(self, 
         name: str, 
@@ -28,7 +28,7 @@ class ChunkStore(Process):
         index = self.system.get_index(keyform(self.chunks))
         self.main = numdict(index, {}, c=0.0)
         self.ciw = numdict(index * index, {}, c=float("nan"))
-        self.max_by = ByKwds(by=keyform(self.chunks), b=0)
+        self.max_by = keyform(self.chunks) * keyform(self.chunks).agg 
         with self:
             self.td = TopDown(f"{name}.td", self.chunks,  d, v)
             self.bu = BottomUp(f"{name}.bu", self.chunks, d, v)
@@ -36,8 +36,8 @@ class ChunkStore(Process):
     def norm(self, d: NumDict) -> NumDict:
         return (d
             .abs()
-            .max(**self.bu.max_by)
-            .sum(by=self.bu.main.i.keyform) # This is probably buggy
+            .max(by=self.bu.max_by)
+            .sum(by=self.bu.sum_by)
             .shift(x=1.0))
 
     def resolve(self, event: Event) -> None:
@@ -64,7 +64,7 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        result = self.ciw.mul(self.bu.main, bs=(1,)).max(**self.max_by)
+        result = self.ciw.mul(self.bu.main, bs=(1,)).max(by=self.max_by)
         self.system.schedule(self.update, 
             UpdateSite(self.main, result.d),
             dt=dt, priority=priority)

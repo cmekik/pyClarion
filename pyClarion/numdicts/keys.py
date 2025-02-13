@@ -266,9 +266,16 @@ class KeyForm:
         if 1 < len(matches) and b is None:
             raise ValueError(f"Keyform {k1} has multiple matches to {k2}")
         indices = matches[0] if b is None else matches[b]
+        agg = set(); S = 1
+        for i, (label, deg) in enumerate(k1):
+            if label == "*" or i in agg:
+                agg.add(i)
+                agg.update((S + j for j in range(deg)))
+            S += deg
         cuts = []; S = 1
         for i, (_, deg) in enumerate(k2):
-            m = tuple(j for j in range(deg) if S + j not in indices)
+            m = tuple(j for j in range(deg) 
+                if S + j not in indices or S + j in agg)
             if m:
                 cuts.append((i, m))
             S += deg 
@@ -286,6 +293,20 @@ class KeyForm:
                 k = k.link(Key(":".join(["?"] * next(it))), i)
         return k
     
+    @property
+    @sig_cache
+    def agg(self: Self) -> Self:
+        k = self.k
+        seq = [(label, deg) if i == 0 else ("*", deg) 
+            for i, (label, deg) in enumerate(k)]
+        k_new = tuple.__new__(type(k), seq)        
+        return type(self)(k_new, self.h)
+    
+    @property
+    @sig_cache
+    def strip(self: Self) -> Self:
+        return type(self).from_key(self.reductor(self)(self.as_key()))
+
     @classmethod
     @sig_cache
     def from_key(cls: Type[Self], key: Key | str) -> Self:
@@ -293,7 +314,7 @@ class KeyForm:
         leaves, indices, hs, S = [], {}, {}, 1
         for i, (label, deg) in enumerate(key):
             children = [key[S + j] for j in range(deg)]
-            dot_sep_id = all(s.isidentifier() for s in label.split("."))
+            dot_sep_id = all(s.isidentifier() for s in label.split(".")) or label == "*"
             if not (i == 0 or dot_sep_id or label == "?"):
                 raise ValidationError(f"Unexpected label {repr(label)} in key, "
                     "label must be a valid python identifier or '?'.")
@@ -327,6 +348,6 @@ class KeyForm:
 
     @staticmethod    
     def _crit(__1: str, __2: str) -> bool:
-        if __1 == "?":
+        if __1 == "?" or __1 == "*":
             return True
         return __1 == __2

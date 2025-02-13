@@ -186,6 +186,7 @@ class Index[T: KeySpaceBase]:
             form = KeyForm.from_key(Key(form))
         elif not isinstance(form, KeyForm):
             raise TypeError("Unexpected input to Index.")
+        form = form.strip # make sure the form contains no placeholders
         leaves, heights, levels = self._init(root, form)
         self.root = root
         self.keyform = form 

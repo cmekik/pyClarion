@@ -251,7 +251,7 @@ class AssociationsBase(Process):
     main: NumDict
     input: NumDict
     weights: NumDict
-    sum_by: ByKwds
+    sum_by: KeyForm
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.weights):
@@ -263,7 +263,7 @@ class AssociationsBase(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        output = self.weights.mul(self.input).sum(**self.sum_by)
+        output = self.weights.mul(self.input).sum(by=self.sum_by)
         self.system.schedule(self.update, 
             UpdateSite(self.main, output.d), 
             dt=dt, priority=priority)
@@ -273,7 +273,7 @@ class ChunkAssocs(AssociationsBase):
     main: NumDict
     input: NumDict
     weights: NumDict
-    sum_by: ByKwds
+    sum_by: KeyForm
 
     def __init__(self, 
         name: str, 
@@ -288,14 +288,15 @@ class ChunkAssocs(AssociationsBase):
         self.main = numdict(idx_out, {}, 0.0)
         self.input = numdict(idx_in, {}, 0.0)
         self.weights = numdict(idx_in * idx_out, {}, 0.0)
-        self.by = ByKwds(by=keyform(c_out), b=1)
+        self.by = keyform(c_in).agg * keyform(c_out)
 
 
 class BottomUp(Process):    
     main: NumDict
     input: NumDict
     weights: NumDict
-    max_by: ByKwds
+    sum_by: KeyForm
+    max_by: KeyForm
 
     def __init__(self, 
         name: str, 
@@ -311,7 +312,8 @@ class BottomUp(Process):
         self.main = numdict(idx_c, {}, c=0.0)
         self.input = numdict(idx_d * idx_v, {}, c=0.0)
         self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan"))
-        self.max_by = ByKwds(by=keyform(c) * keyform(d) * keyform(v, trunc=1))
+        self.sum_by = keyform(c) * keyform(d).agg * keyform(v, trunc=1).agg
+        self.max_by = keyform(c) * keyform(d) * keyform(v, trunc=1)
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):
@@ -323,8 +325,8 @@ class BottomUp(Process):
     ) -> None:
         result = (self.weights
             .mul(self.input, bs=(2,))
-            .max(**self.max_by)
-            .sum(by=self.main.i.keyform)
+            .max(by=self.max_by)
+            .sum(by=self.sum_by)
             .with_default(c=0.0))
         self.system.schedule(self.update, UpdateSite(self.main, result.d), 
             dt=dt, priority=priority)
@@ -334,7 +336,7 @@ class TopDown(Process):
     main: NumDict
     input: NumDict
     weights: NumDict
-    by: ByKwds
+    by: KeyForm
 
     def __init__(self, 
         name: str, 
@@ -350,11 +352,7 @@ class TopDown(Process):
         self.main = numdict(idx_d * idx_v, {}, c=0.0)
         self.input = numdict(idx_c, {}, c=0.0)
         self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan")) 
-        self.by = ByKwds(
-            by=keyform(d) * keyform(v), 
-            b=0 if not keyform(d) <= keyform(c) 
-                else 1 if not keyform(v) <= keyform(d) 
-                else 2)
+        self.by = keyform(c).agg * keyform(d) * keyform(v)         
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):
@@ -365,8 +363,8 @@ class TopDown(Process):
         priority: int = Priority.PROPAGATION
     ) -> None:
         cf = self.weights.mul(self.input, bs=(0,))
-        pro = cf.max(**self.by).bound_min(x=0.0).with_default(c=0.0) 
-        con = cf.min(**self.by).bound_max(x=0.0).with_default(c=0.0)
+        pro = cf.max(by=self.by).bound_min(x=0.0).with_default(c=0.0) 
+        con = cf.min(by=self.by).bound_max(x=0.0).with_default(c=0.0)
         result = pro.sum(con)
         self.system.schedule( 
             self.update, 
