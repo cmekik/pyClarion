@@ -114,11 +114,11 @@ def bound_min(self: D, *, x: float) -> D:
 
 
 @overload
-def sum(self: D, *, by: str | Key | KeyForm) -> D:
+def sum(self: D) -> D:
     ...
 
 @overload
-def sum(self: D, *, by: str | Key | KeyForm, b: int) -> D:
+def sum(self: D, *, by: KeyForm) -> D:
     ...
 
 @overload
@@ -126,53 +126,54 @@ def sum(self: D, *others: D) -> D:
     ...
 
 @overload
-def sum(self: D, *others: D, bs: Sequence[int | None]) -> D:
+def sum(self: D, *others: D, by: KeyForm | Sequence[KeyForm | None]) -> D:
     ...
 
 def sum(
     self: D, 
     *others: D, 
-    by: str | Key | KeyForm | None = None,
-    b: int | None = None,
-    bs: Sequence[int | None] | None = None, 
+    by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
-    if isinstance(by, (str, Key)):
-        by = KeyForm.from_key(Key(by))
-    match (others, by, b, bs):
-        case ((), by, b, None):
-            if by is None or not by < self._i.keyform:
-                raise ValueError()
+    match (others, by):
+        case ((), by) if by is None or isinstance(by, KeyForm):
+            if by is None:
+                by = self._i.keyform.agg
+            if not by < self._i.keyform:
+                raise ValueError(f"Keyform {by.as_key()} cannot reduce "
+                    f"{self._i.keyform.as_key()}")
             mode = "self" if self._c == 0. or math.isnan(self._c) else "full"
-            it = self.group(by, branch=b, mode=mode).items()
+            it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
-        case (others, None, None, bs):
+        case ((), by):
+            raise TypeError("Expected arg by of type KeyForm")
+        case (others, by):
             mode = "self" if math.isnan(self._c) else "match"
-            it = self.collect(*others, branches=bs, mode=mode)
+            it = self.collect(*others, branches=by, mode=mode)
             i = self._i
             c = math.fsum((self._c, *(other._c for other in others)))
         case _:
-            raise ValueError()
+            assert False
     d = {k: math.fsum(vs) for k, vs in it}
     return type(self)(i, d, c, False)
 
 
-def sub(self: D, other: D, b: int | None = None) -> D:
+def sub(self: D, other: D, *, by: KeyForm | None = None) -> D:
     if not other._i.keyform <= self._i.keyform:
         raise ValueError()
     mode = "self" if math.isnan(self._c) else "match"
-    it = self.collect(other, branches=(b,), mode=mode)
+    it = self.collect(other, branches=(by,), mode=mode)
     d = {k: v1 - v2 for k, (v1, v2) in it}
     c = self._c - other._c
     return type(self)(self._i, d, c, False)
 
 
 @overload
-def mul(self: D, *, by: str | Key | KeyForm) -> D:
+def mul(self: D) -> D:
     ...
 
 @overload
-def mul(self: D, *, by: str | Key | KeyForm, b: int) -> D:
+def mul(self: D, *, by: KeyForm) -> D:
     ...
 
 @overload
@@ -180,51 +181,52 @@ def mul(self: D, *others: D) -> D:
     ...
 
 @overload
-def mul(self: D, *others: D, bs: Sequence[int | None]) -> D:
+def mul(self: D, *others: D, by: KeyForm | Sequence[KeyForm | None]) -> D:
     ...
 
 def mul(
     self: D, 
     *others: D, 
-    by: str | Key | KeyForm | None = None,
-    b: int | None = None,
-    bs: Sequence[int | None] | None = None
+    by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
-    if isinstance(by, (str, Key)):
-        by = KeyForm.from_key(Key(by))
-    match (others, by, b, bs):
-        case ((), by, b, None):
-            if by is None or not by < self._i.keyform:
-                raise ValueError()
+    match (others, by):
+        case ((), by) if by is None or isinstance(by, KeyForm):
+            if by is None:
+                by = self._i.keyform.agg
+            if not by < self._i.keyform:
+                raise ValueError(f"Keyform {by.as_key()} cannot reduce "
+                    f"{self._i.keyform.as_key()}")
             mode = "self" if self._c == 1. or math.isnan(self._c) else "full"
-            it = self.group(by, branch=b, mode=mode).items()
+            it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
-        case (others, None, None, bs):
+        case ((), by):
+            raise TypeError("Expected arg by of type KeyForm")
+        case (others, by):
             mode = "self" if math.isnan(self._c) else "match"
-            it = self.collect(*others, branches=bs, mode=mode)
+            it = self.collect(*others, branches=by, mode=mode)
             i = self._i
             c = math.prod((self._c, *(other._c for other in others)))
         case _:
-            raise ValueError()
+            assert False
     d = {k: math.prod(vs) for k, vs in it}
     return type(self)(i, d, c, False)
 
 
-def div(self: D, other: D, b: int | None = None) -> D:
+def div(self: D, other: D, *, by: KeyForm | None = None) -> D:
     mode = "self" if math.isnan(self._c) else "match"
-    it = self.collect(other, branches=(b,), mode=mode)
+    it = self.collect(other, branches=(by,), mode=mode)
     d = {k: v1 / v2 for k, (v1, v2) in it}
     c = self._c / other._c
     return type(self)(self._i, d, c, False)
 
 
 @overload
-def max(self: D, *, by: str | Key | KeyForm) -> D:
+def max(self: D) -> D:
     ...
 
 @overload
-def max(self: D, *, by: str | Key | KeyForm, b: int) -> D:
+def max(self: D, *, by: KeyForm) -> D:
     ...
 
 @overload
@@ -232,43 +234,44 @@ def max(self: D, *others: D) -> D:
     ...
 
 @overload
-def max(self: D, *others: D, bs: Sequence[int | None]) -> D:
+def max(self: D, *others: D, by: KeyForm | Sequence[KeyForm | None]) -> D:
     ...
 
 def max(
     self: D, 
     *others: D, 
-    by: str | Key | KeyForm | None = None,
-    b: int | None = None,
-    bs: Sequence[int | None] | None = None
+    by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
-    if isinstance(by, (str, Key)):
-        by = KeyForm.from_key(Key(by))
-    match (others, by, b, bs):
-        case ((), by, b, None):
-            if by is None or not by < self._i.keyform:
-                raise ValueError()
+    match (others, by):
+        case ((), by) if by is None or isinstance(by, KeyForm):
+            if by is None:
+                by = self._i.keyform.agg
+            if not by < self._i.keyform:
+                raise ValueError(f"Keyform {by.as_key()} cannot reduce "
+                    f"{self._i.keyform.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
-            it = self.group(by, branch=b, mode=mode).items()
+            it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
-        case (others, None, None, bs):
+        case ((), by):
+            raise TypeError("Expected arg by of type KeyForm")
+        case (others, by):
             mode = "self" if math.isnan(self._c) else "match"
-            it = self.collect(*others, branches=bs, mode=mode)
+            it = self.collect(*others, branches=by, mode=mode)
             i = self._i
             c = _max((self._c, *(other._c for other in others)))
         case _:
-            raise ValueError()
+            assert False
     d = {k: _max(vs) for k, vs in it}
     return type(self)(i, d, c, False)
 
 
 @overload
-def min(self: D, *, by: str | Key | KeyForm) -> D:
+def min(self: D) -> D:
     ...
 
 @overload
-def min(self: D, *, by: str | Key | KeyForm, b: int) -> D:
+def min(self: D, *, by: KeyForm) -> D:
     ...
 
 @overload
@@ -276,32 +279,33 @@ def min(self: D, *others: D) -> D:
     ...
 
 @overload
-def min(self: D, *others: D, bs: Sequence[int | None]) -> D:
+def min(self: D, *others: D, by: KeyForm | Sequence[KeyForm | None]) -> D:
     ...
 
 def min(
     self: D, 
     *others: D, 
-    by: str | Key | KeyForm | None = None,
-    b: int | None = None,
-    bs: Sequence[int | None] | None = None
+    by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
-    if isinstance(by, (str, Key)):
-        by = KeyForm.from_key(Key(by))
-    match (others, by, b, bs):
-        case ((), by, b, None):
-            if by is None or not by < self._i.keyform:
-                raise ValueError()
+    match (others, by):
+        case ((), by) if by is None or isinstance(by, KeyForm):
+            if by is None:
+                by = self._i.keyform.agg
+            if not by < self._i.keyform:
+                raise ValueError(f"Keyform {by.as_key()} cannot reduce "
+                    f"{self._i.keyform.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
-            it = self.group(by, branch=b, mode=mode).items()
+            it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
-        case (others, None, None, bs):
+        case ((), by):
+            raise TypeError("Expected arg by of type KeyForm")
+        case (others, by):
             mode = "self" if math.isnan(self._c) else "match"
-            it = self.collect(*others, branches=bs, mode=mode)
+            it = self.collect(*others, branches=by, mode=mode)
             i = self._i
             c = _min((self._c, *(other._c for other in others)))
         case _:
-            raise ValueError()
+            assert False
     d = {k: _min(vs) for k, vs in it}
     return type(self)(i, d, c, False)

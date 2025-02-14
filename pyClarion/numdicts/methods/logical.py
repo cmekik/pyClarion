@@ -91,27 +91,22 @@ def argmax(self) -> Key:
 def argmax(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
     ...
 
-@overload
-def argmax(self, *, by: str | Key | KeyForm, b: int) -> dict[Key, Key]:
-    ...
-
 def argmax(
-    self, *, by: str | Key | KeyForm | None = None, b: int | None = None
+    self, *, by: str | Key | KeyForm | None = None
 ) -> Key | dict[Key, Key]:
     it = self._d if math.isnan(self._c) else self._i
-    match (by, b):
-        case (None, None):
+    match by:
+        case None:
             kmax, vmax = None, -math.inf
             for k in self:
                 if self[k] > vmax:
                     kmax, vmax = k, self[k] 
             assert kmax is not None 
             return kmax
-        case (by, b):
-            assert by is not None
+        case by:
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
-            reduce = by.reductor(self.i.keyform, b)
+            reduce = by.reductor(self.i.keyform)
             kmax, vmax = {}, {}
             for k in it:
                 group, v = reduce(k), self[k]
@@ -129,27 +124,22 @@ def argmin(self) -> nd.Key:
 def argmin(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
     ...
 
-@overload
-def argmin(self, *, by: str | Key | KeyForm, b: int) -> dict[Key, Key]:
-    ...
-
 def argmin(
-    self, *, by: str | Key | KeyForm | None = None, b: int | None = None
+    self, *, by: str | Key | KeyForm | None = None
 ) -> Key | dict[Key, Key]:
     it = self._d if math.isnan(self._c) else self._i
-    match (by, b):
-        case (None, None):
+    match by:
+        case None:
             kmin, vmin = None, math.inf
             for k in it:
                 if self[k] < vmin:
                     kmin, vmin = k, self[k] 
             assert kmin is not None
             return kmin
-        case (by, b):
-            assert by is not None
+        case by:
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
-            reduce = by.reductor(self.i.keyform, b)
+            reduce = by.reductor(self.i.keyform)
             kmin, vmin = {}, {}
             for k in it:
                 group, v = reduce(k), self[k]

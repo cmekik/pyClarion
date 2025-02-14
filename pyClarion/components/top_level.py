@@ -28,6 +28,7 @@ class ChunkStore(Process):
         index = self.system.get_index(keyform(self.chunks))
         self.main = numdict(index, {}, c=0.0)
         self.ciw = numdict(index * index, {}, c=float("nan"))
+        self.mul_by = keyform(self.chunks).agg * keyform(self.chunks)
         self.max_by = keyform(self.chunks) * keyform(self.chunks).agg 
         with self:
             self.td = TopDown(f"{name}.td", self.chunks,  d, v)
@@ -64,7 +65,9 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        result = self.ciw.mul(self.bu.main, bs=(1,)).max(by=self.max_by)
+        result = (self.ciw
+            .mul(self.bu.main, by=self.mul_by)
+            .max(by=self.max_by))
         self.system.schedule(self.update, 
             UpdateSite(self.main, result.d),
             dt=dt, priority=priority)

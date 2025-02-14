@@ -128,20 +128,24 @@ class NumDict:
         self: Self, 
         *others: Self,
         mode: Literal["self", "match", "full"],
-        branches: Sequence[int | None] | None = None
+        branches: Sequence[KeyForm | None] | KeyForm | None = None
     ) -> Iterator[tuple[Key, list[float]]]:
         if mode not in ("self", "match", "full"):
-            raise ValueError(f"Invalid mode flag: '{mode}'")
+            raise ValueError(f"Invalid mode flag: '{mode}'")    
+        if (branches is not None and not isinstance(branches, KeyForm) 
+            and len(branches) != len(others)):
+            raise ValueError(f"len(branches) != len(others)")
         invariant = True; reductors = []
         for i, d in enumerate(others):
             if d._i.root != self._i.root:
                 raise ValueError(f"Mismatched keyspaces")
             if d._i.keyform != self._i.keyform:
                 invariant = False
-            b = branches[i] if branches is not None else None
-            reductors.append(d._i.keyform.reductor(self._i.keyform, b))
-        if branches is None:
-            branches = tuple(None for _ in others)
+            kf = self._i.keyform
+            if branches is not None:
+                branch = branches if isinstance(branches, KeyForm) else branches[i]
+                kf = branch if branch is not None else kf 
+            reductors.append(d._i.keyform.reductor(kf))
         match mode:
             case "self":
                 it = self._iter()
@@ -162,12 +166,11 @@ class NumDict:
     def group(
         self,
         kf: KeyForm,
-        branch: int | None = None, 
         mode: Literal["self", "full"] = "full"
     ) -> dict[Key, list[float]]:
         if mode not in ("self", "full"):
             raise ValueError(f"Invalid mode flag: '{mode}'")
-        reduce = kf.reductor(self._i.keyform, branch)
+        reduce = kf.reductor(self._i.keyform)
         items: dict[Key, list[float]] = {}
         match mode:
             case "self":

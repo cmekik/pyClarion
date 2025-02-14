@@ -28,7 +28,8 @@ class FixedRules(Process):
             self.rules = RuleStore(f"{name}.rules", r, c, d, v)
             self.choice = ChoiceTL(f"{name}.choice", p, self.rules.rules, sd=sd)
         self.main = numdict(self.rules.main.i, {}, 0.0)
-        self.by = keyform(d) * keyform(v, trunc=1)
+        self.mul_by = keyform(self.rules.rules).agg * keyform(self.rules.rules)
+        self.sum_by = keyform(self.rules.rules) * keyform(self.rules.rules).agg
         self.choice.input = self.rules.main
 
     def resolve(self, event: Event) -> None:
@@ -61,8 +62,8 @@ class FixedRules(Process):
         priority: int = Priority.PROPAGATION
     ) -> None:
         choice = (self.rules.riw
-            .mul(self.choice.main, bs=(1,))
-            .sum(by=self.main.i.keyform, b=0))
+            .mul(self.choice.main, by=self.mul_by)
+            .sum(by=self.sum_by))
         input_td = (self.rules.rhw
             .mul(self.choice.main)
             .sum(by=self.rules.rhs.td.input.i.keyform))

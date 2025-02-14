@@ -295,6 +295,7 @@ class BottomUp(Process):
     main: NumDict
     input: NumDict
     weights: NumDict
+    mul_by: KeyForm
     sum_by: KeyForm
     max_by: KeyForm
 
@@ -312,6 +313,7 @@ class BottomUp(Process):
         self.main = numdict(idx_c, {}, c=0.0)
         self.input = numdict(idx_d * idx_v, {}, c=0.0)
         self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan"))
+        self.mul_by = keyform(c).agg * keyform(d) * keyform(v)
         self.sum_by = keyform(c) * keyform(d).agg * keyform(v, trunc=1).agg
         self.max_by = keyform(c) * keyform(d) * keyform(v, trunc=1)
 
@@ -324,7 +326,7 @@ class BottomUp(Process):
         priority: int = Priority.PROPAGATION
     ) -> None:
         result = (self.weights
-            .mul(self.input, bs=(2,))
+            .mul(self.input, by=self.mul_by)
             .max(by=self.max_by)
             .sum(by=self.sum_by)
             .with_default(c=0.0))
@@ -336,7 +338,8 @@ class TopDown(Process):
     main: NumDict
     input: NumDict
     weights: NumDict
-    by: KeyForm
+    mul_by: KeyForm
+    maxmin_by: KeyForm
 
     def __init__(self, 
         name: str, 
@@ -352,7 +355,8 @@ class TopDown(Process):
         self.main = numdict(idx_d * idx_v, {}, c=0.0)
         self.input = numdict(idx_c, {}, c=0.0)
         self.weights = numdict(idx_c * idx_d * idx_v, {}, c=float("nan")) 
-        self.by = keyform(c).agg * keyform(d) * keyform(v)         
+        self.mul_by = keyform(c) * keyform(d).agg * keyform(v).agg
+        self.maxmin_by = keyform(c).agg * keyform(d) * keyform(v)         
 
     def resolve(self, event: Event) -> None:
         if event.affects(self.input, ud_type=UpdateSite):
@@ -362,9 +366,9 @@ class TopDown(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        cf = self.weights.mul(self.input, bs=(0,))
-        pro = cf.max(by=self.by).bound_min(x=0.0).with_default(c=0.0) 
-        con = cf.min(by=self.by).bound_max(x=0.0).with_default(c=0.0)
+        cf = self.weights.mul(self.input, by=self.mul_by)
+        pro = cf.max(by=self.maxmin_by).bound_min(x=0.0).with_default(c=0.0) 
+        con = cf.min(by=self.maxmin_by).bound_max(x=0.0).with_default(c=0.0)
         result = pro.sum(con)
         self.system.schedule( 
             self.update, 
