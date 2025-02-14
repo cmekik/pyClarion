@@ -1,5 +1,5 @@
-from typing import (Self, Iterable, Type, Iterator, TypedDict, NotRequired, 
-    get_type_hints, overload, Sequence)
+from typing import (Self, Iterable, Type, Iterator, TypedDict, get_type_hints, 
+    overload, Sequence)
 from weakref import WeakValueDictionary
 from itertools import product, count
 
@@ -388,11 +388,6 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
             for cache, chunk in zip(caches, inst._chunks_):
                 cache[frozenset(chunk._vars_)] = chunk
     return new_rules, rule_data
-
-
-class ByKwds(TypedDict):
-    by: KeyForm
-    b: NotRequired[int]
 
 
 def keyform(branch: Branch, *, trunc: int = 0) -> KeyForm:

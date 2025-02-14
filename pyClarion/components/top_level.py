@@ -3,7 +3,7 @@ import logging
 
 from ..numdicts import NumDict, numdict, KeyForm
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
-    compile_chunks, compile_rules, ByKwds, keyform, Sort, Atom, describe)
+    compile_chunks, compile_rules, keyform, Sort, Atom, describe)
 from ..system import Process, UpdateSite, UpdateSort, Event, Priority
 from .elementary import TopDown, BottomUp
 
