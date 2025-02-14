@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from ..system import Process, UpdateSite, Event, Priority
 from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
-    ByKwds, keyform)
+    keyform)
 from ..numdicts import Key, KeyForm, NumDict, numdict, path
 
 
