@@ -100,11 +100,11 @@ class NumDict:
                 raise KeyError(f"Key '{k}' not a member") from e
 
     def __repr__(self) -> str:
-        return (f"<{type(self).__qualname__} {self.i.keyform.as_key()} "
+        return (f"<{type(self).__qualname__} '{self.i.keyform.as_key()}' "
             f"c={self.c} at {hex(id(self))}>")
     
     def __str__(self) -> str:
-        data = [f"{type(self).__qualname__} {self.i.keyform.as_key()} c={self.c}"]
+        data = [f"{type(self).__qualname__} '{self.i.keyform.as_key()}' c={self.c}"]
         width = 0
         for k in self.d:
             width = max(width, len(str(k)))

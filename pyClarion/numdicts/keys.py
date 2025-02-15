@@ -257,15 +257,14 @@ class KeyForm:
     def __mul__(self: Self, other: Self) -> "KeyForm":
         return KeyForm.from_key(self.as_key().link(other.as_key(), 0))
         
-    def reductor(self, other: "KeyForm", b: int | None = None) \
-        -> Callable[[Key], Key]:
+    def reductor(self, other: "KeyForm") -> Callable[[Key], Key]:
         k1 = self.as_key(); k2 = other.as_key()
         if not self <= other:
             raise ValueError(f"Keyform {k1} cannot match keys from {k2}")
         matches = k1.find_in(k2, crit=self._crit)
-        if 1 < len(matches) and b is None:
+        if 1 < len(matches):
             raise ValueError(f"Keyform {k1} has multiple matches to {k2}")
-        indices = matches[0] if b is None else matches[b]
+        indices, = matches
         agg = set(); S = 1
         for i, (label, deg) in enumerate(k1):
             if label == "*" or i in agg:
@@ -314,7 +313,7 @@ class KeyForm:
         leaves, indices, hs, S = [], {}, {}, 1
         for i, (label, deg) in enumerate(key):
             children = [key[S + j] for j in range(deg)]
-            dot_sep_id = all(s.isidentifier() for s in label.split(".")) or label == "*"
+            dot_sep_id = all(s.isidentifier() for s in label.split(".")) or label == "*" or label == ""
             if not (i == 0 or dot_sep_id or label == "?"):
                 raise ValidationError(f"Unexpected label {repr(label)} in key, "
                     "label must be a valid python identifier or '?'.")

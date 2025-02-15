@@ -135,9 +135,13 @@ def sum(
     by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
     match (others, by):
-        case ((), by) if by is None or isinstance(by, KeyForm):
-            if by is None:
-                by = self._i.keyform.agg
+        case ((), None):
+            by = self._i.keyform.agg
+            mode = "self" if self._c == 0. or math.isnan(self._c) else "full"
+            it = ()
+            i = Index(self._i.root, by)
+            c = math.fsum(self.group(by, mode=mode).get(Key(), (self._c,)))
+        case ((), by) if isinstance(by, KeyForm):
             if not by < self._i.keyform:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
                     f"{self._i.keyform.as_key()}")
@@ -190,9 +194,13 @@ def mul(
     by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
     match (others, by):
-        case ((), by) if by is None or isinstance(by, KeyForm):
-            if by is None:
-                by = self._i.keyform.agg
+        case ((), None):
+            by = self._i.keyform.agg
+            mode = "self" if self._c == 1. or math.isnan(self._c) else "full"
+            it = ()
+            i = Index(self._i.root, by)
+            c = math.prod(self.group(by, mode=mode).get(Key(), (self.c,)))
+        case ((), by) if isinstance(by, KeyForm):
             if not by < self._i.keyform:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
                     f"{self._i.keyform.as_key()}")
@@ -243,13 +251,17 @@ def max(
     by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
     match (others, by):
-        case ((), by) if by is None or isinstance(by, KeyForm):
-            if by is None:
-                by = self._i.keyform.agg
+        case ((), None):
+            by = self._i.keyform.agg
+            mode = "self" if self._c == float("-inf") or math.isnan(self._c) else "full"
+            it = ()
+            i = Index(self._i.root, by)
+            c = _max(self.group(by, mode=mode).get(Key(), (self.c,)))
+        case ((), by) if isinstance(by, KeyForm):
             if not by < self._i.keyform:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
                     f"{self._i.keyform.as_key()}")
-            mode = "self" if math.isnan(self._c) else "full"
+            mode = "self" if self._c == float("-inf") or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
@@ -288,13 +300,19 @@ def min(
     by: KeyForm | Sequence[KeyForm | None] | None = None,
 ) -> D:
     match (others, by):
+        case ((), None):
+            by = self._i.keyform.agg
+            mode = "self" if self._c == float("inf") or math.isnan(self._c) else "full"
+            it = ()
+            i = Index(self._i.root, by)
+            c = _min(self.group(by, mode=mode).get(Key(), (self.c,)))
         case ((), by) if by is None or isinstance(by, KeyForm):
             if by is None:
                 by = self._i.keyform.agg
             if not by < self._i.keyform:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
                     f"{self._i.keyform.as_key()}")
-            mode = "self" if math.isnan(self._c) else "full"
+            mode = "self" if self._c == float("inf") or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
             c = self._c if mode == "self" else float("nan")
