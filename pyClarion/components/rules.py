@@ -1,14 +1,14 @@
 from datetime import timedelta
 
-from ..system import Process, Event, Priority, UpdateSite
+from ..system import Process, Event, Priority, Site
 from ..knowledge import Family, Sort, Atom, Rule, describe, keyform
-from ..numdicts import NumDict, numdict, crawl, KeyForm
+from ..numdicts import crawl, KeyForm
 from .elementary import ChoiceTL
 from .top_level import RuleStore
 
 
 class FixedRules(Process):
-    main: NumDict
+    main: Site
     rules: RuleStore
     choice: ChoiceTL
     by: KeyForm
@@ -27,7 +27,7 @@ class FixedRules(Process):
         with self:
             self.rules = RuleStore(f"{name}.rules", r, c, d, v)
             self.choice = ChoiceTL(f"{name}.choice", p, self.rules.rules, sd=sd)
-        self.main = numdict(self.rules.main.i, {}, 0.0)
+        self.main = Site(self.rules.main.index, {}, 0.0)
         self.mul_by = keyform(self.rules.rules).agg * keyform(self.rules.rules)
         self.sum_by = keyform(self.rules.rules) * keyform(self.rules.rules).agg
         self.choice.input = self.rules.main
@@ -41,7 +41,7 @@ class FixedRules(Process):
             self.log_update()
 
     def log_update(self):
-        rule = crawl(self.system.root, self.choice.main.argmax())
+        rule = crawl(self.system.root, self.choice.main[0].argmax())
         assert isinstance(rule, Rule)
         message = "\n    ".join([
             "    Fired the following rule", 
@@ -61,13 +61,16 @@ class FixedRules(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        choice = (self.rules.riw
-            .mul(self.choice.main, by=self.mul_by)
-            .sum(by=self.sum_by))
-        input_td = (self.rules.rhw
-            .mul(self.choice.main)
-            .sum(by=self.rules.rhs.td.input.i.keyform))
+        choice = self.choice.main[0]
+        main = (self.rules.riw[0]
+            .mul(choice, by=self.mul_by)
+            .sum(by=self.sum_by)
+            .with_default(c=self.main.const))
+        td_input = (self.rules.rhw[0]
+            .mul(choice)
+            .sum(by=self.rules.rhs.td.input.index.keyform)
+            .with_default(c=self.rules.rhs.td.input.const))
         self.system.schedule(self.update, 
-            UpdateSite(self.main, choice.d),
-            UpdateSite(self.rules.rhs.td.input, input_td.d),
+            self.main.update(main),
+            self.rules.rhs.td.input.update(td_input),
             dt=dt, priority=priority)

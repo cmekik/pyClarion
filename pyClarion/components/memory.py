@@ -1,8 +1,8 @@
 from datetime import timedelta
 
-from ..system import Process, UpdateSite, UpdateSort, Priority, Event
+from ..system import Process, UpdateSort, Priority, Event, Site
 from ..knowledge import Family, Sort, Atoms, Atom, keyform
-from ..numdicts import Key, NumDict, path, numdict
+from ..numdicts import Key, path
 
 
 class BaseLevel(Process):
@@ -14,13 +14,13 @@ class BaseLevel(Process):
     e: Atoms
     p: Params
     unit: timedelta
-    main: NumDict
-    input: NumDict
-    times: NumDict
-    decay: NumDict
-    scale: NumDict
-    weights: NumDict
-    params: NumDict
+    main: Site
+    input: Site
+    times: Site
+    decay: Site
+    scale: Site
+    weights: Site
+    params: Site
     
     def __init__(self, 
         name: str, 
@@ -43,18 +43,18 @@ class BaseLevel(Process):
         idx_e = self.system.get_index(keyform(self.e))
         idx_s = self.system.get_index(keyform(s))
         self.unit = unit
-        self.main = numdict(idx_s, {}, 0.0)
-        self.input = numdict(idx_s, {}, 0.0)
-        self.times = numdict(idx_e, {}, float("nan"))
-        self.decay = numdict(idx_e, {}, float("nan"))
-        self.scale = numdict(idx_e, {}, float("nan"))
-        self.weights = numdict(idx_e * idx_s, {}, 0.0)
-        self.params = numdict(idx_p, 
+        self.main = Site(idx_s, {}, 0.0)
+        self.input = Site(idx_s, {}, 0.0)
+        self.times = Site(idx_e, {}, float("nan"))
+        self.decay = Site(idx_e, {}, float("nan"))
+        self.scale = Site(idx_e, {}, float("nan"))
+        self.weights = Site(idx_e * idx_s, {}, 0.0)
+        self.params = Site(idx_p, 
             {path(self.p.th): th, path(self.p.sc): sc, path(self.p.de): de}, 
             float("nan"))
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input):
+        if self.input.affected_by(event):
             self.invoke(event)
 
     def invoke(self,
@@ -64,23 +64,24 @@ class BaseLevel(Process):
     ) -> None:
         ke = path(self.e); name = f"e{next(self.e._counter_)}"
         key = ke.link(Key(name), ke.size)
-        invoked = set(); th = self.params[path(self.p.th)]
-        for ud in (ud for ud in event.updates if ud.affects(self.input)):
-            if isinstance(ud, UpdateSite):
-                for k, v in ud.data.items():
-                    if th < v:
+        invoked = set(); th = self.params[0][path(self.p.th)]
+        for ud in (ud for ud in event.updates if self.input.affected_by(ud)):
+            if isinstance(ud, Site.Update):
+                for k in ud.data:
+                    if th < ud.data[k]:
                         invoked.add(key.link(k, 0))
             if isinstance(ud, UpdateSort):
                 for _, term in ud.add:
                     invoked.add(key.link(path(term), 0))
         time = self.system.clock.time / self.unit
-        sc = self.params[path(self.p.sc)]; de = self.params[path(self.p.de)]
+        sc = self.params[0][path(self.p.sc)] 
+        de = self.params[0][path(self.p.de)]
         self.system.schedule(self.invoke, 
             UpdateSort(self.e, add=((name, Atom()),)),
-            UpdateSite(self.times, {key: time}, reset=False),
-            UpdateSite(self.scale, {key: sc}, reset=False),
-            UpdateSite(self.decay, {key: de}, reset=False),
-            UpdateSite(self.weights, {k: 1.0 for k in invoked}, reset=False),
+            self.times.update({key: time}, Site.write_inplace),
+            self.scale.update({key: sc}, Site.write_inplace),
+            self.decay.update({key: de}, Site.write_inplace),
+            self.weights.update({k: 1.0 for k in invoked}, Site.write_inplace),
             dt=dt, priority=priority)
 
     def update(self, 
@@ -88,17 +89,17 @@ class BaseLevel(Process):
         priority: int = Priority.LEARNING
     ) -> None:
         time = self.system.clock.time / self.unit
-        terms = (self.times
+        terms = (self.times[0]
             .neg()
             .shift(x=time)
-            .div(self.scale)
+            .div(self.scale[0])
             .log()
-            .mul(self.decay.neg())
+            .mul(self.decay[0].neg())
             .exp())
-        blas = (self.weights
+        blas = (self.weights[0]
             .mul(terms)
-            .sum(by=self.main.i.keyform)
+            .sum(by=self.main.index.keyform)
             .with_default(c=0.0))
         self.system.schedule(self.update, 
-            UpdateSite(self.main, blas.d), 
+            self.main.update(blas.d), 
             dt=dt, priority=priority)

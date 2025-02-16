@@ -4,14 +4,14 @@ import logging
 from ..numdicts import NumDict, numdict, KeyForm
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, keyform, Sort, Atom, describe)
-from ..system import Process, UpdateSite, UpdateSort, Event, Priority
+from ..system import Process, UpdateSort, Event, Priority, Site
 from .elementary import TopDown, BottomUp
 
 
 class ChunkStore(Process):
     chunks: Chunks
-    main: NumDict
-    ciw: NumDict
+    main: Site
+    ciw: Site
     td: TopDown
     bu: BottomUp
     max_by: KeyForm
@@ -26,8 +26,8 @@ class ChunkStore(Process):
         self.system.check_root(c, d, v)
         self.chunks = Chunks(); c[name] = self.chunks
         index = self.system.get_index(keyform(self.chunks))
-        self.main = numdict(index, {}, c=0.0)
-        self.ciw = numdict(index * index, {}, c=float("nan"))
+        self.main = Site(index, {}, c=0.0)
+        self.ciw = Site(index * index, {}, c=float("nan"))
         self.mul_by = keyform(self.chunks).agg * keyform(self.chunks)
         self.max_by = keyform(self.chunks) * keyform(self.chunks).agg 
         with self:
@@ -65,11 +65,12 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        result = (self.ciw
-            .mul(self.bu.main, by=self.mul_by)
-            .max(by=self.max_by))
+        main = (self.ciw[0]
+            .mul(self.bu.main[0], by=self.mul_by)
+            .max(by=self.max_by)
+            .with_default(c=self.main.const))
         self.system.schedule(self.update, 
-            UpdateSite(self.main, result.d),
+            self.main.update(main),
             dt=dt, priority=priority)
         
     def compile(self, *chunks: Chunk, 
@@ -80,18 +81,18 @@ class ChunkStore(Process):
         self.system.schedule(
             self.compile, 
             UpdateSort(self.chunks, add=tuple((c._name_, c) for c in new)),
-            UpdateSite(self.ciw, data["ciw"], reset=False), 
-            UpdateSite(self.td.weights, data["tdw"], reset=False),
+            self.ciw.update(data["ciw"], Site.write_inplace),
+            self.td.weights.update(data["tdw"], Site.write_inplace),
             dt=dt, priority=priority)
 
     def update_buw(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> None:
-        weights = self.td.weights.div(self.norm(self.td.weights))
+        weights = self.td.weights[0].div(self.norm(self.td.weights[0]))
         self.system.schedule(
             self.update_buw, 
-            UpdateSite(self.bu.weights, weights.d), 
+            self.bu.weights.update(weights),
             dt=dt, priority=priority)
 
 
@@ -99,10 +100,10 @@ class RuleStore(Process):
     rules: Rules
     lhs: ChunkStore
     rhs: ChunkStore
-    main: NumDict
-    riw: NumDict
-    lhw: NumDict
-    rhw: NumDict
+    main: Site
+    riw: Site
+    lhw: Site
+    rhw: Site
 
     def __init__(self, 
         name: str, 
@@ -120,10 +121,10 @@ class RuleStore(Process):
         idx_r = self.system.get_index(keyform(self.rules))
         idx_lhs = self.system.get_index(keyform(self.lhs.chunks))
         idx_rhs = self.system.get_index(keyform(self.rhs.chunks))
-        self.main = numdict(idx_r, {}, c=0.0)
-        self.riw = numdict(idx_r * idx_r, {}, c=float("nan"))
-        self.lhw = numdict(idx_r * idx_lhs, {}, c=float("nan"))
-        self.rhw = numdict(idx_r * idx_rhs, {}, c=float("nan"))
+        self.main = Site(idx_r, {}, c=0.0)
+        self.riw = Site(idx_r * idx_r, {}, c=float("nan"))
+        self.lhw = Site(idx_r * idx_lhs, {}, c=float("nan"))
+        self.rhw = Site(idx_r * idx_rhs, {}, c=float("nan"))
 
     def resolve(self, event: Event) -> None:
         if event.source == self.lhs.bu.update:
@@ -150,8 +151,12 @@ class RuleStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        main = self.lhw.mul(self.lhs.bu.main).max(by=self.main.i.keyform)
-        self.system.schedule(self.update, UpdateSite(self.main, main.d), 
+        main = (self.lhw[0]
+            .mul(self.lhs.bu.main[0])
+            .max(by=self.main.index.keyform)
+            .with_default(c=self.main.const))
+        self.system.schedule(self.update, 
+            self.main.update(main), 
             dt=dt, priority=priority)
 
     def compile(self, *rules: Rule, 
@@ -178,11 +183,11 @@ class RuleStore(Process):
             UpdateSort(self.lhs.chunks, add=tuple(add_lhs)),
             UpdateSort(self.rhs.chunks, add=tuple(add_rhs)),
             UpdateSort(self.rules, add=tuple((r._name_, r) for r in new)),
-            UpdateSite(self.lhs.ciw, data["lhs"]["ciw"], reset=False),
-            UpdateSite(self.rhs.ciw, data["rhs"]["ciw"], reset=False), 
-            UpdateSite(self.lhs.td.weights, data["lhs"]["tdw"], reset=False), 
-            UpdateSite(self.rhs.td.weights, data["rhs"]["tdw"], reset=False),
-            UpdateSite(self.riw, data["riw"], reset=False),
-            UpdateSite(self.lhw, data["lhw"], reset=False),
-            UpdateSite(self.rhw, data["rhw"], reset=False),
+            self.lhs.ciw.update(data["lhs"]["ciw"], Site.write_inplace),
+            self.rhs.ciw.update(data["rhs"]["ciw"], Site.write_inplace), 
+            self.lhs.td.weights.update(data["lhs"]["tdw"], Site.write_inplace), 
+            self.rhs.td.weights.update(data["rhs"]["tdw"], Site.write_inplace),
+            self.riw.update(data["riw"], Site.write_inplace),
+            self.lhw.update(data["lhw"], Site.write_inplace),
+            self.rhw.update(data["rhw"], Site.write_inplace),
             dt=dt, priority=priority)

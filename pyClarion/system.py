@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, ClassVar, LiteralString, Any, Type
+from typing import Callable, Sequence, ClassVar, Any, Type
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -6,41 +6,24 @@ from datetime import timedelta
 from inspect import ismethod
 from itertools import count
 from enum import IntEnum
+from collections import deque
+from weakref import WeakSet
 import logging
 import warnings
 import heapq
 
 from .knowledge import Sort, Term
-from .numdicts import NumDict, Key, KeyForm, KeySpace, Index, KeySpaceBase
+from .numdicts import NumDict, Key, KeyForm, KeySpace, Index, KeySpaceBase, numdict
 from .numdicts import root as get_root
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
 
 
+
 class Update:
     def apply(self) -> None:
         ...
-    def affects(self, site: NumDict) -> bool:
-        ...
-
-
-@dataclass(slots=True)
-class UpdateSite(Update):
-    site: NumDict
-    data: dict[Key, float] 
-    reset: bool = True
-
-    def __bool__(self) -> bool:
-        return bool(self.reset or self.data)
-
-    def apply(self) -> None:
-        with self.site.mutable() as d:
-            if self.reset: d.reset()
-            d.update(self.data)
-
-    def affects(self, site: NumDict) -> bool:
-        return self.site is site
 
 
 @dataclass(slots=True)
@@ -60,25 +43,6 @@ class UpdateSort[C: Term](Update):
 
     def affects(self, site: NumDict) -> bool:
         return site.i.depends_on(self.sort)
-    
-
-@dataclass(slots=True)
-class UpdateTerm(Update):
-    term: Term
-    add: tuple[tuple[str, Sort], ...] = ()
-    remove: tuple[str, ...] = ()
-
-    def __bool__(self) -> bool:
-        return bool(self.add or self.remove)
-
-    def apply(self) -> None:
-        for name, value in self.add:
-            self.term[name] = value
-        for name in self.remove:
-            self.term[name]
-
-    def affects(self, site: NumDict) -> bool:
-        return site.i.depends_on(self.term)
     
 
 class Priority(IntEnum):
@@ -130,13 +94,6 @@ class Event:
                 return self.priority > other.priority
             return self.time < other.time
         return NotImplemented
-        
-    def affects(self, 
-        site: NumDict, 
-        ud_type: Type[Update] | tuple[Type[Update], ...] | None = None
-    ) -> bool:
-        return any(ud.affects(site) for ud in self.updates 
-            if ud_type is None or isinstance(ud, ud_type))
 
 
 @dataclass(slots=True)
@@ -241,17 +198,20 @@ class Process:
         except AttributeError:
             pass
         else:
-            if not isinstance(old, NumDict):
+            if not isinstance(old, Site):
                 pass
-            if not isinstance(value, NumDict):
-                raise TypeError("Process site must be of type NumDict")
-            if old.d:
+            if not isinstance(value, Site):
+                raise TypeError("Process site assigned object of wrong type")
+            if any(d.d for d in old.data):
                 raise ValueError(f"Site '{name}' of process {self.name} "
                     "contains data")
-            if old.i != value.i and name not in self.lax or old.i < value.i:
+            if old.index != value.index and name not in self.lax \
+                or old.index < value.index:
                 raise ValueError("Incompatible index in site assignment")
-            if not (isnan(old.c) and isnan(value.c) or old.c == value.c):
+            if not (isnan(old.const) and isnan(value.const) \
+                or old.const == value.const):
                 raise ValueError("Incompatible default value in site assignment")
+            value.procs.add(self)
         super().__setattr__(name, value)
 
     def __enter__(self):
@@ -266,3 +226,82 @@ class Process:
 
     def breakpoint(self, dt: timedelta) -> None:
         self.system.schedule(self.breakpoint, dt=dt)
+
+
+class Site:
+    @dataclass(slots=True)
+    class Update(Update):
+        site: "Site"
+        data: NumDict | dict[Key, float]
+        method: Callable[["Site", NumDict, int], None]
+        index: int
+        
+        def __init__(self, 
+            site: "Site", 
+            data: NumDict | dict[Key, float], 
+            method: Callable[["Site", NumDict, int], None],
+            index: int
+        ) -> None:
+            self.site = site
+            self.data = data
+            self.method = method
+            self.index = index
+        
+        def apply(self) -> None:
+            data = self.data
+            if not isinstance(data, NumDict):
+                data = self.site.new(data)
+            self.method(self.site, data, self.index)
+
+    procs: WeakSet[Process]
+    index: Index
+    const: float
+    data: deque[NumDict]
+
+    def __init__(self, i: Index, d: dict, c: float, l: int = 0):
+        l = 0 if l < 0 else l
+        self.procs = WeakSet()
+        self.index = i
+        self.const = c
+        self.data = deque(
+            [numdict(i, d, c) for _ in range((l + 1))], 
+            maxlen=l + 1)
+
+    def __getitem__(self, i: int) -> NumDict:
+        return self.data[i]
+    
+    def new(self, d: dict) -> NumDict:
+        return numdict(self.index, d, self.const)
+
+    def push(self, data: NumDict, index: int = 0) -> None:
+        if index != 0:
+            raise ValueError("Site.push() only operates on index 0")
+        self.data.appendleft(data)
+
+    def add_inplace(self, data: NumDict, index: int = 0) -> None:
+        self.data[index] = self.data[index].sum(data)
+
+    def write_inplace(self, data: NumDict, index: int = 0) -> None:
+        with self.data[index].mutable():
+            self.data[index].update(data.d)
+
+    def update(self, 
+        data: NumDict | dict[Key, float], 
+        method: Callable[["Site", NumDict, int], None] = push,
+        index: int = 0
+    ) -> Update:
+        if isinstance(data, NumDict) and data.i != self.index:
+            raise ValueError("Index of data numdict does not match site")
+        if isinstance(data, NumDict) and \
+            not (isnan(data.c) and isnan(self.const) or data.c == self.const):
+            raise ValueError(f"Default constant {data.c} of data does not "
+                f"match site {self.const}")
+        return Site.Update(self, data, method, index)
+    
+    def affected_by(self, *updates) -> bool:
+        for ud in updates:
+            if isinstance(ud, Site.Update) and self is ud.site:
+                return True
+            if isinstance(ud, UpdateSort) and self.index.depends_on(ud.sort):
+                return True
+        return False

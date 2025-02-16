@@ -1,10 +1,10 @@
-from typing import Callable, Sequence, Self, overload, cast
+from typing import Callable, Self, cast
 from datetime import timedelta
 from enum import Flag, auto
 
-from ..system import Process, Event, UpdateSite, Priority, PROCESS
+from ..system import Process, Event, Priority, PROCESS, Site
 from ..knowledge import keyform, Family, Sort, Atoms, Atom
-from ..numdicts import NumDict, numdict, KeyForm, path
+from ..numdicts import NumDict, KeyForm, path
 
 
 def sq_err(est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
@@ -73,7 +73,7 @@ class SGD(Optimizer):
 
     sites: list["LayerBase"]
     p: Params
-    params: NumDict
+    params: Site
     
     def __init__(self, 
         name: str, 
@@ -86,7 +86,7 @@ class SGD(Optimizer):
         self.system.check_root(p)
         self.p = type(self).Params(); p[name] = self.p
         self.sites = []
-        self.params = numdict(
+        self.params = Site(
             i=self.system.get_index(keyform(self.p)), 
             d={path(self.p.lr): lr, path(self.p.sd): sd}, 
             c=float("nan"))
@@ -100,34 +100,36 @@ class SGD(Optimizer):
     ) -> None:
         if not self.sites:
             return
-        lr = self.params[path(self.p.lr)]
-        sd = self.params[path(self.p.sd)]
+        lr = self.params[0][path(self.p.lr)]
+        sd = self.params[0][path(self.p.sd)]
         uds = []
         for layer in self.sites:
             if Train.BIAS in layer.train:
-                new_bias = (layer.bias
-                    .sub(layer.grad_bias
-                        .normalvariate(layer.grad_wsum.abs().scale(x=sd))
-                        .scale(x=lr)))
-                uds.append(UpdateSite(layer.bias, new_bias.d))
-                uds.append(UpdateSite(layer.grad_bias, {}))
+                bias = (layer.bias[-1]
+                    .sub(layer.grad_bias[-1]
+                        .normalvariate(layer.grad_wsum[-1].abs().scale(x=sd))
+                        .scale(x=lr))
+                    .with_default(c=layer.bias.const))
+                uds.append(layer.bias.update(bias))
+                uds.append(layer.grad_bias.update({}))
             if Train.WEIGHTS in layer.train:
-                new_weights = (layer.weights
-                    .sub(layer.grad_weights
-                        .normalvariate(layer.grad_wsum.abs().scale(x=sd))
-                        .scale(x=lr)))
-                uds.append(UpdateSite(layer.weights, new_weights.d))
-                uds.append(UpdateSite(layer.grad_weights, {}))
+                weights = (layer.weights[-1]
+                    .sub(layer.grad_weights[-1]
+                        .normalvariate(layer.grad_wsum[-1].abs().scale(x=sd))
+                        .scale(x=lr))
+                    .with_default(c=layer.weights.const))
+                uds.append(layer.weights.update(weights))
+                uds.append(layer.grad_weights.update({}))
         self.system.schedule(self.update, *uds, dt=dt, priority=priority)
 
 
 class SupervisionBase(Backprop):
     cost: Cost
-    main: NumDict
-    error: NumDict
-    input: NumDict
-    target: NumDict
-    mask: NumDict
+    main: Site
+    error: Site
+    input: Site
+    target: Site
+    mask: Site
 
     def __init__(self, name: str, cost: Cost = sq_err) -> None:
         super().__init__(name)
@@ -145,11 +147,12 @@ class SupervisionBase(Backprop):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
     ) -> None:
-        error = self.grad(self.cost)(self.input, self.target, self.mask.exp())
-        main = self.cost(self.input, self.target, self.mask.exp())
+        exp_mask = self.mask[0].exp()
+        error = self.grad(self.cost)(self.input[0], self.target[0], exp_mask)
+        main = self.cost(self.input[0], self.target[0], exp_mask)
         self.system.schedule(self.update, 
-            UpdateSite(self.main, main.d), 
-            UpdateSite(self.error, error.d), 
+            self.main.update(main), 
+            self.error.update(error), 
             dt=dt, priority=priority)
     
 
@@ -163,24 +166,24 @@ class SupervisionBL(SupervisionBase):
         self.system.check_root(d, v)
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = numdict(idx_d * idx_v, {}, c=0.0)
-        self.error = numdict(idx_d * idx_v, {}, c=0.0)
-        self.input = numdict(idx_d * idx_v, {}, c=0.0)
-        self.target = numdict(idx_d * idx_v, {}, c=0.0)
-        self.mask = numdict(idx_d * idx_v, {}, c=0.0)
+        self.main = Site(idx_d * idx_v, {}, c=0.0)
+        self.error = Site(idx_d * idx_v, {}, c=0.0)
+        self.input = Site(idx_d * idx_v, {}, c=0.0)
+        self.target = Site(idx_d * idx_v, {}, c=0.0)
+        self.mask = Site(idx_d * idx_v, {}, c=0.0)
 
 
 class LayerBase(Backprop):
-    main: NumDict
-    wsum: NumDict
-    input: NumDict
-    error: NumDict
-    back: NumDict
-    weights: NumDict
-    bias: NumDict
-    grad_weights: NumDict
-    grad_bias: NumDict
-    grad_wsum: NumDict
+    main: Site
+    wsum: Site
+    input: Site
+    error: Site
+    back: Site
+    weights: Site
+    bias: Site
+    grad_weights: Site
+    grad_bias: Site
+    grad_wsum: Site
     f: Activation
     fw_by: KeyForm
     bw_by: KeyForm
@@ -210,43 +213,43 @@ class LayerBase(Backprop):
         return NotImplemented
 
     def resolve(self, event: Event) -> None:
-        if event.affects(self.input):
+        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        if self.input.affected_by(*updates):
             self.forward()
-        if event.affects(self.error):
+        if self.error.affected_by(*updates):
             self.backward()
 
     def forward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
-        wsum = (self.weights
-            .mul(self.input, by=self.fw_by)
+        wsum = (self.weights[0]
+            .mul(self.input[0], by=self.fw_by)
             .sum(by=self.bw_by)
-            .sum(self.bias))
+            .sum(self.bias[0]))
         main = self.f(wsum)            
         self.system.schedule(self.forward, 
-            UpdateSite(self.wsum, wsum.d), 
-            UpdateSite(self.main, main.d), 
+            self.wsum.update(wsum), 
+            self.main.update(main), 
             dt=dt, priority=priority)
         
     def backward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
-        grad_wsum = self.error.mul(self.grad(self.f)(self.wsum))
-        grad_bias = self.grad_bias.sum(grad_wsum)
-        grad_weights = (self.grad_weights
-            .sum(self.weights
-                .const()
-                .mul(self.input, grad_wsum, by=(self.fw_by, self.bw_by))))
-        back = (self.weights
+        grad_wsum = self.error[-1].mul(self.grad(self.f)(self.wsum[-1]))
+        grad_bias = grad_wsum
+        grad_weights = (self.weights[-1]
+            .const()
+            .mul(self.input[-1], grad_wsum, by=(self.fw_by, self.bw_by)))
+        back = (self.weights[-1]
             .mul(grad_bias, by=self.bw_by)
             .sum(by=self.fw_by)) 
         self.system.schedule(self.backward,
-            UpdateSite(self.back, back.d),
-            UpdateSite(self.grad_weights, grad_weights.d),
-            UpdateSite(self.grad_bias, grad_bias.d),
-            UpdateSite(self.grad_wsum, grad_wsum.d),
+            self.back.update(back),
+            self.grad_wsum.update(grad_wsum),
+            self.grad_bias.update(grad_bias, Site.add_inplace, -1),
+            self.grad_weights.update(grad_weights, Site.add_inplace, -1),
             dt=dt, priority=priority)
 
 
@@ -263,16 +266,16 @@ class Layer(LayerBase):
         self.system.check_root(h_in, h_out)
         idx_in = self.system.get_index(keyform(h_in))
         idx_out = self.system.get_index(keyform(h_out))
-        self.main = numdict(idx_out, {}, 0.0)
-        self.wsum = numdict(idx_out, {}, 0.0)
-        self.error = numdict(idx_out, {}, 0.0)
-        self.input = numdict(idx_in, {}, 0.0)
-        self.back = numdict(idx_in, {}, 0.0)
-        self.weights = numdict(idx_in * idx_out, {}, 0.0)
-        self.bias = numdict(idx_out, {}, 0.0)
-        self.grad_weights = numdict(idx_in * idx_out, {}, 0.0)
-        self.grad_bias = numdict(idx_out, {}, 0.0)
-        self.grad_wsum = numdict(idx_out, {}, 0.0)
+        self.main = Site(idx_out, {}, 0.0)
+        self.wsum = Site(idx_out, {}, 0.0)
+        self.error = Site(idx_out, {}, 0.0)
+        self.input = Site(idx_in, {}, 0.0)
+        self.back = Site(idx_in, {}, 0.0)
+        self.weights = Site(idx_in * idx_out, {}, 0.0)
+        self.bias = Site(idx_out, {}, 0.0)
+        self.grad_weights = Site(idx_in * idx_out, {}, 0.0)
+        self.grad_bias = Site(idx_out, {}, 0.0)
+        self.grad_wsum = Site(idx_out, {}, 0.0)
         self.fw_by = keyform(h_in).agg * keyform(h_out)
         self.bw_by = keyform(h_in) * keyform(h_out).agg
 
@@ -292,16 +295,16 @@ class InputLayerBL(LayerBase):
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
         idx_h = self.system.get_index(keyform(h))
-        self.main = numdict(idx_h, {}, 0.0)
-        self.wsum = numdict(idx_h, {}, 0.0)
-        self.error = numdict(idx_h, {}, 0.0)
-        self.input = numdict(idx_d * idx_v, {}, 0.0)
-        self.back = numdict(idx_d * idx_v, {}, 0.0)
-        self.weights = numdict(idx_d * idx_v * idx_h, {}, 0.0)
-        self.bias = numdict(idx_h, {}, 0.0)
-        self.grad_weights = numdict(idx_d * idx_v * idx_h, {}, 0.0)
-        self.grad_bias = numdict(idx_h, {}, 0.0)
-        self.grad_wsum = numdict(idx_h, {}, 0.0)
+        self.main = Site(idx_h, {}, 0.0)
+        self.wsum = Site(idx_h, {}, 0.0)
+        self.error = Site(idx_h, {}, 0.0)
+        self.input = Site(idx_d * idx_v, {}, 0.0)
+        self.back = Site(idx_d * idx_v, {}, 0.0)
+        self.weights = Site(idx_d * idx_v * idx_h, {}, 0.0)
+        self.bias = Site(idx_h, {}, 0.0)
+        self.grad_weights = Site(idx_d * idx_v * idx_h, {}, 0.0)
+        self.grad_bias = Site(idx_h, {}, 0.0)
+        self.grad_wsum = Site(idx_h, {}, 0.0)
         self.fw_by = keyform(d) * keyform(v) * keyform(h).agg
         self.bw_by = keyform(d).agg * keyform(v).agg * keyform(h)
 
@@ -321,15 +324,15 @@ class OutputLayerBL(LayerBase):
         idx_h = self.system.get_index(keyform(h))
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = numdict(idx_d * idx_v, {}, 0.0)
-        self.wsum = numdict(idx_d * idx_v, {}, 0.0)
-        self.error = numdict(idx_d * idx_v, {}, 0.0)
-        self.input = numdict(idx_h, {}, 0.0)
-        self.back = numdict(idx_h, {}, 0.0)
-        self.weights = numdict(idx_h * idx_d * idx_v, {}, 0.0)
-        self.bias = numdict(idx_d * idx_v, {}, 0.0)
-        self.grad_weights = numdict(idx_h * idx_d * idx_v, {}, 0.0)
-        self.grad_bias = numdict(idx_d * idx_v, {}, 0.0)
-        self.grad_wsum = numdict(idx_d * idx_v, {}, 0.0)
+        self.main = Site(idx_d * idx_v, {}, 0.0)
+        self.wsum = Site(idx_d * idx_v, {}, 0.0)
+        self.error = Site(idx_d * idx_v, {}, 0.0)
+        self.input = Site(idx_h, {}, 0.0)
+        self.back = Site(idx_h, {}, 0.0)
+        self.weights = Site(idx_h * idx_d * idx_v, {}, 0.0)
+        self.bias = Site(idx_d * idx_v, {}, 0.0)
+        self.grad_weights = Site(idx_h * idx_d * idx_v, {}, 0.0)
+        self.grad_bias = Site(idx_d * idx_v, {}, 0.0)
+        self.grad_wsum = Site(idx_d * idx_v, {}, 0.0)
         self.fw_by = keyform(h) * keyform(d).agg * keyform(v).agg
         self.bw_by = keyform(h).agg * keyform(d) * keyform(v)
