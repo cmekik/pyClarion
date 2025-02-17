@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, ClassVar, Any, Type
+from typing import Callable, Sequence, ClassVar, Any, Iterator
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -196,23 +196,26 @@ class Process:
         try:
             old = getattr(self, name)
         except AttributeError:
-            pass
-        else:
-            if not isinstance(old, Site):
-                pass
-            if not isinstance(value, Site):
-                raise TypeError("Process site assigned object of wrong type")
-            if any(d.d for d in old.data):
-                raise ValueError(f"Site '{name}' of process {self.name} "
-                    "contains data")
-            if old.index != value.index and name not in self.lax \
-                or old.index < value.index:
-                raise ValueError("Incompatible index in site assignment")
-            if not (isnan(old.const) and isnan(value.const) \
-                or old.const == value.const):
-                raise ValueError("Incompatible default value in site assignment")
-            value.procs.add(self)
-        super().__setattr__(name, value)
+            super().__setattr__(name, value)
+            return
+        if not isinstance(old, Site):
+            super().__setattr__(name, value)
+            return
+        if not isinstance(value, Site):
+            raise TypeError("Process site assigned object of wrong type")
+        if any(d.d for d in old.data):
+            raise ValueError(f"Site '{name}' of process {self.name} "
+                "contains data")
+        if old.index != value.index and name not in self.lax \
+            or old.index < value.index:
+            raise ValueError("Incompatible index in site assignment")
+        if not (isnan(old.const) and isnan(value.const) \
+            or old.const == value.const):
+            raise ValueError("Incompatible default value in site assignment")
+        if len(old.data) != len(value.data) and name not in self.lax:
+            raise ValueError("Incompatible lag values")
+        value.procs.add(self)
+        super().__setattr__(name, value)        
 
     def __enter__(self):
         self.__tokens.append(PROCESS.set(self))
@@ -258,7 +261,7 @@ class Site:
     const: float
     data: deque[NumDict]
 
-    def __init__(self, i: Index, d: dict, c: float, l: int = 0):
+    def __init__(self, i: Index, d: dict, c: float, l: int = 0) -> None:
         l = 0 if l < 0 else l
         self.procs = WeakSet()
         self.index = i
@@ -266,6 +269,12 @@ class Site:
         self.data = deque(
             [numdict(i, d, c) for _ in range((l + 1))], 
             maxlen=l + 1)
+
+    def __iter__(self) -> Iterator[NumDict]:
+        yield from self.data
+
+    def __len__(self) -> int:
+        return len(self.data)
 
     def __getitem__(self, i: int) -> NumDict:
         return self.data[i]

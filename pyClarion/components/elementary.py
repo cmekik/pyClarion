@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, overload
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, Site
@@ -24,15 +24,16 @@ class Input(Process):
 
     def __init__(self, 
         name: str, 
-        t: Family | Sort,
+        d: Family | Sort,
         *,
         c: float = 0.0,
-        reset: bool = True
+        reset: bool = True,
+        lags: int = 0
     ) -> None:
         super().__init__(name)
-        self.system.check_root(t)
-        idx_t = self.system.get_index(keyform(t))
-        self.main = Site(idx_t, {}, c)
+        self.system.check_root(d)
+        idx_t = self.system.get_index(keyform(d))
+        self.main = Site(idx_t, {}, c, lags)
         self.reset = reset
 
     def send(self, d: dict[Term | Key, float], 
@@ -68,13 +69,14 @@ class InputBL(Process):
         v: Family | Sort,
         *,
         c: float = 0.0,
-        reset: bool = True
+        reset: bool = True,
+        lags: int = 0
     ) -> None:
         super().__init__(name)
         self.system.check_root(d, v)
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = Site(idx_d * idx_v, {}, c)
+        self.main = Site(idx_d * idx_v, {}, c, lags)
         self.reset = reset
 
     def send(self, c: Chunk, 
