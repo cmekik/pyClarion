@@ -73,6 +73,18 @@ def expit(self: D) -> D:
     return type(self)(self._i, d, c, False)
 
 
+def cosh(self: D) -> D:
+    d = {k: math.cosh(v) for k, v in self._d.items()}
+    c = math.cosh(self._c)
+    return type(self)(self._i, d, c, False)
+
+
+def sinh(self: D) -> D:
+    d = {k: math.sinh(v) for k, v in self._d.items()}
+    c = math.sinh(self._c)
+    return type(self)(self._i, d, c, False)
+
+
 def tanh(self: D) -> D:
     d = {k: math.tanh(v) for k, v in self._d.items()}
     c = math.tanh(self._c)

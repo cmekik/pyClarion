@@ -1,7 +1,8 @@
 from typing import Callable
 from datetime import timedelta
 
-from .base import ErrorSignal, Cost, sq_err
+from .base import ErrorSignal, Cost
+from .costs import LeastSquares
 from ..base import DualRepMixin, ParamMixin, D, V, DV
 from ..elementary import Choice
 from ...system import Site, Priority, Event, PROCESS
@@ -18,10 +19,9 @@ class Supervised(DualRepMixin, ErrorSignal):
     def __init__(self, 
         name: str, 
         s: V | DV, 
-        cost: Cost = sq_err
+        cost: Cost = LeastSquares()
     ) -> None:
         super().__init__(name)
-        type(self).check_grad(cost)
         index, = self._init_indexes(s)
         self.cost = cost
         self.main = Site(index, {}, c=0.0)
@@ -34,7 +34,7 @@ class Supervised(DualRepMixin, ErrorSignal):
         priority: Priority = Priority.LEARNING
     ) -> None:
         exp_mask = self.mask[0].exp()
-        main = self.grad(self.cost)(self.input[0], self.target[0], exp_mask)
+        main = self.cost.grad(self.input[0], self.target[0], exp_mask)
         self.system.schedule(self.update, 
             self.main.update(main), 
             dt=dt, priority=priority)

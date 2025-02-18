@@ -22,8 +22,9 @@ class NumDict:
     from .methods.logical import (isfinite, isnan, isinf, isclose, gt, gte, lt, 
         lte, with_default, valmax, valmin, argmax, argmin)
     from .methods.arithmetic import (eye, neg, inv, abs, log, log1p, logit, exp, 
-        expm1, expit, tanh, bound_max, bound_min, const, shift, scale, pow, sum, 
-        sub, mul, div, max, min)
+        expm1, expit, cosh, sinh, tanh, bound_max, bound_min, const, shift, 
+        scale, pow, sum, sub, mul, div, max, min)
+    from .methods.statistical import (mean, stdev, variance, pstdev, pvariance)
     from .methods.stochastic import (stduniformvariate, normalvariate, 
         lognormvariate, vonmisesvariate, expovariate, gammavariate, 
         paretovariate, logisticvariate, gumbelvariate)

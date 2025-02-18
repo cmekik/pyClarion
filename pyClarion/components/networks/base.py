@@ -1,4 +1,4 @@
-from typing import Callable, cast, ClassVar, Self
+from typing import Self
 from datetime import timedelta
 from enum import Flag, auto
 
@@ -8,27 +8,6 @@ from ...knowledge import Family, Atoms
 from ...numdicts import NumDict, KeyForm
 
 
-def sq_err(est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-    return est.sub(tgt).pow(x=2).mul(mask).scale(x=.5)
-
-
-def grad_sq_err(est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-    return est.sub(tgt).mul(mask)
-
-
-def sech_sq(d: NumDict) -> NumDict:
-    return d.const().sub(d.tanh().pow(x=2.0))
-
-
-def expit_grad(d: NumDict) -> NumDict:
-    expit = d.expit()
-    return expit.mul(expit.const().sub(expit))
-
-
-Activation = Callable[[NumDict], NumDict]
-Cost = Callable[[NumDict, NumDict, NumDict], NumDict]
-
-
 class Train(Flag):
     NIL = 0
     WEIGHTS = auto()
@@ -36,34 +15,28 @@ class Train(Flag):
     ALL = WEIGHTS | BIAS
 
 
-class Backprop(Process):
-    GRADFUNCS: ClassVar[dict[Activation | Cost, Activation | Cost]] = {
-        NumDict.eye: NumDict.const,
-        NumDict.exp: NumDict.exp,
-        NumDict.log: NumDict.inv,
-        NumDict.tanh: sech_sq,
-        NumDict.expit: expit_grad,
-        sq_err: grad_sq_err
-    }
+class Activation:
 
-    @classmethod
-    def grad[T: Activation | Cost](cls, f: T) -> T:
-        return cast(T, cls.GRADFUNCS[f])
+    def __call__(self, d: NumDict) -> NumDict:
+        raise NotImplementedError()
+    
+    def grad(self, d: NumDict) -> NumDict:
+        raise NotImplementedError()
+    
+    def scale(self, layer: "Layer") -> float:
+        raise NotImplementedError()
+    
 
-    @classmethod
-    def register[T: Activation | Cost](cls, f: T, g: T) -> None:
-        cls.GRADFUNCS[f] = g    
+class Cost:
 
-    @classmethod
-    def check_grad(cls, f: Activation | Cost) -> None:
-        try:
-            cls.GRADFUNCS[f]
-        except KeyError as e:
-            raise ValueError(f"Activation {f} has no "
-                "registered derivative") from e
+    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        raise NotImplementedError()
+    
+    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        raise NotImplementedError()
 
 
-class Layer(DualRepMixin, Backprop):
+class Layer(DualRepMixin, Process):
 
     main: Site
     wsum: Site
@@ -74,7 +47,7 @@ class Layer(DualRepMixin, Backprop):
     bias: Site
     grad_weights: Site
     grad_bias: Site
-    f: Activation
+    afunc: Activation | None
     train: Train
     fw_by: KeyForm
     bw_by: KeyForm
@@ -84,7 +57,7 @@ class Layer(DualRepMixin, Backprop):
         s1: V | DV,
         s2: V | DV | None = None,
         *, 
-        f: Activation = NumDict.eye, 
+        afunc: Activation | None = None, 
         l: int = 0,
         train: Train = Train.ALL
     ) -> None:
@@ -92,7 +65,7 @@ class Layer(DualRepMixin, Backprop):
         super().__init__(name)
         idx_in, idx_out = self._init_indexes(s1, s2)
         self._connect_to_learning_rule()
-        self.f = f
+        self.afunc = afunc
         self.train = train
         self.main = Site(idx_out, {}, 0.0, l)
         self.input = Site(idx_in, {}, 0.0, l)
@@ -137,7 +110,9 @@ class Layer(DualRepMixin, Backprop):
             .mul(self.input[0], by=self.fw_by)
             .sum(by=self.bw_by)
             .sum(self.bias[0]))
-        main = self.f(wsum)            
+        main = wsum
+        if self.afunc:
+            main = self.afunc(wsum)            
         self.system.schedule(self.forward, 
             self.wsum.update(wsum), 
             self.main.update(main), 
@@ -149,7 +124,9 @@ class Layer(DualRepMixin, Backprop):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
-        grad_wsum = self.error[0].mul(self.grad(self.f)(self.wsum[-1]))
+        grad_wsum = self.error[0]
+        if self.afunc:
+            grad_wsum = grad_wsum.mul(self.afunc.grad(self.wsum[-1]))
         grad_bias = grad_wsum
         grad_weights = (self.weights[-1].const()
             .mul(self.input[-1], grad_wsum, by=(self.fw_by, self.bw_by)))
@@ -184,7 +161,7 @@ class Optimizer[P: Atoms](ParamMixin, Process):
         raise NotImplementedError()
     
 
-class ErrorSignal(Backprop):
+class ErrorSignal(Process):
     main: Site
 
     def __rrshift__(self: Self, other: Layer) -> Self:

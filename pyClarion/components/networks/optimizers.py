@@ -33,22 +33,26 @@ class SGD(Optimizer):
         l2 = self.params[0][path(self.p.l2)]
         uds = []
         for layer in self.layers:
+            if layer.afunc:
+                scale = sd * layer.afunc.scale(layer) 
+            else: 
+                scale = sd / (1 + len(layer.input))
             if Train.BIAS in layer.train:
                 bias_sd = (layer.grad_bias[-1]
-                    .pow(x=2).sum().neg().exp().scale(x=sd))
-                d_bias = (layer.grad_bias[0]
-                    .normalvariate(bias_sd)
-                    .with_default(c=layer.bias.const)
+                    .pvariance().neg().exp()
+                    .scale(x=scale))
+                d_bias = (layer.grad_bias[-1]
+                    .normalvariate(bias_sd, c=layer.bias.const)
                     .sum(layer.bias[-1].scale(x=l2))
                     .scale(x=-lr)) # don't miss the minus sign here
                 uds.append(layer.bias.update(d_bias, Site.add_inplace))
                 uds.append(layer.grad_bias.update({}))
             if Train.WEIGHTS in layer.train:
                 weights_sd = (layer.grad_weights[-1]
-                    .pow(x=2).sum().neg().exp().scale(x=sd))
+                    .pvariance().neg().exp()
+                    .scale(x=scale))
                 d_weights = (layer.grad_weights[0]
-                    .normalvariate(weights_sd)
-                    .with_default(c=layer.weights.const)
+                    .normalvariate(weights_sd, c=layer.weights.const)
                     .sum(layer.weights[-1].scale(x=l2))
                     .scale(x=-lr))  # don't miss the minus sign here
                 uds.append(layer.weights.update(d_weights, Site.add_inplace))

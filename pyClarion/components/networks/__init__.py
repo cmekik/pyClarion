@@ -1,18 +1,22 @@
 from typing import Type, Sequence, Self, Any, Callable
 from datetime import timedelta
 
-from .base import Backprop, Layer, Optimizer, ErrorSignal, Activation, Cost, Train
+from .base import Layer, Optimizer, ErrorSignal, Activation, Cost, Train
+from .costs import LeastSquares
+from .activations import Tanh
 from .errors import TDError, Supervised
 from .optimizers import SGD
 
 from ..base import D, V, DV
 from ...system import Process, Event, Site, Priority
-from ...knowledge import Family, Sort, Atoms, Atom
+from ...knowledge import Family, Atoms, Atom
 from ...numdicts import NumDict
 
 
 __all__ = [
-    "Train", "Backprop", "Layer", "Optimizer", "Activation", "Cost",
+    "Train", "Layer", "Optimizer", "Activation", "Cost",
+    "LeastSquares",
+    "Tanh",
     "Supervised", "TDError",
     "SGD", 
     "MLP", "IDN"
@@ -43,7 +47,7 @@ class MLP(Process):
         s2: V | DV | None = None,
         layers: Sequence[int] = (),
         optimizer: Type[Optimizer] = SGD, 
-        f: Activation = NumDict.eye,
+        afunc: Activation | None = None,
         l: int = 0,
         **kwargs: Any
     ) -> None:
@@ -53,17 +57,17 @@ class MLP(Process):
         self.optimizer = optimizer(f"{name}.optimizer", p, **kwargs)
         with self.optimizer:
             if not layers:
-                self.ilayer = Layer(f"{name}.layer", s1, s2, f=f, l=l)
+                self.ilayer = Layer(f"{name}.layer", s1, s2, afunc=afunc, l=l)
                 self.olayer = self.ilayer
             else:
                 hs = []
                 for i, n in enumerate(layers):
                     hs.append(self._mk_hidden_nodes(h, i, n))
-                self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], f=f, l=l)
+                self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], afunc=afunc, l=l)
                 hi = hs[0]
                 layer = self.ilayer 
                 for i, ho in enumerate(hs[1:]):
-                    layer = layer >> Layer(f"{name}.l{i}", hi, ho, f=f, l=l)
+                    layer = layer >> Layer(f"{name}.l{i}", hi, ho, afunc=afunc, l=l)
                     self.layers.append(layer)
                     hi = ho
                 self.olayer = layer >> Layer(f"{name}.olayer", hi, s2, l=l)
@@ -128,13 +132,13 @@ class IDN(MLP):
         s2: V | DV | None = None,
         layers: Sequence[int] = (),
         optimizer: Type[Optimizer] = SGD,
-        f: Activation = NumDict.eye,
+        afunc: Activation | None = None,
         func: Callable[[TDError], NumDict] = TDError.qmax,
         gamma: float = .3,
         l: int = 1,
         **kwargs: Any
     ) -> None:
-        super().__init__(name, p, h, s1, s2, layers, optimizer, f, l, **kwargs)
+        super().__init__(name, p, h, s1, s2, layers, optimizer, afunc, l, **kwargs)
         self.error = self >> TDError(f"{name}.error", 
             p, r, func=func, gamma=gamma, l=l)
         

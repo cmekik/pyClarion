@@ -8,8 +8,8 @@ from .components import (Environment, Agent, Input, Input, Choice,
     #ChunkAssocs, 
     TopDown, BottomUp, ChunkStore, 
     RuleStore, FixedRules, BaseLevel,
-    Backprop, Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
-    TDError, SGD, MLP, IDN, Train)
+    Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
+    TDError, SGD, MLP, IDN, Train, LeastSquares, Tanh)
 
 __all__ = [
     # from numdicts
@@ -26,8 +26,8 @@ __all__ = [
     "Pool", #"ChunkAssocs", 
     "TopDown", "BottomUp", 
     "ChunkStore", "RuleStore", "FixedRules", "BaseLevel",
-    "Backprop", "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
-    "Supervised", "TDError",
+    "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
+    "Supervised", "TDError", "LeastSquares", "Tanh",
     "SGD", 
     "MLP", "IDN", "Train"
 ]
