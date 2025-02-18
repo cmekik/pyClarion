@@ -1,13 +1,30 @@
 from typing import Callable
 from datetime import timedelta
 
-from .base import ErrorSignal, Cost
-from .costs import LeastSquares
+from .base import ErrorSignal
 from ..base import DualRepMixin, ParamMixin, D, V, DV
 from ..elementary import Choice
 from ...system import Site, Priority, Event, PROCESS
 from ...knowledge import Family, Atoms, Atom, Term
 from ...numdicts import NumDict, path, Key
+
+
+class Cost:
+
+    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        raise NotImplementedError()
+    
+    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        raise NotImplementedError()
+
+
+class LeastSquares(Cost):
+
+    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        return est.sub(tgt).pow(x=2).mul(mask)
+    
+    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        return est.sub(tgt).mul(mask)
 
 
 class Supervised(DualRepMixin, ErrorSignal):
@@ -54,10 +71,17 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
     action: Site
     params: Site
 
-    def sarsa(self) -> NumDict:
+    def qnext(self) -> NumDict:
         return (self.main.new({})
             .sum(self.qvals[0].mul(self.action[0]).sum())
             .with_default(c=0.0))
+
+    def qexpected(self) -> NumDict:
+        sd = self.choice.params[0][path(self.choice.p.sd)]
+        pvec = self.qvals[0].scale(x=sd).exp()
+        pvec = pvec.div(pvec.sum())
+        expected_q = pvec.mul(self.qvals[0]).sum()
+        return self.main.new({}).sum(expected_q).with_default(c=0.0)
 
     def qmax(self) -> NumDict:
         return (self.main.new({})

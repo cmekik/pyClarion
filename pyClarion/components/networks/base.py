@@ -25,15 +25,6 @@ class Activation:
     
     def scale(self, layer: "Layer") -> float:
         raise NotImplementedError()
-    
-
-class Cost:
-
-    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        raise NotImplementedError()
-    
-    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        raise NotImplementedError()
 
 
 class Layer(DualRepMixin, Process):

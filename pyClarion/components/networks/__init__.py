@@ -1,10 +1,9 @@
 from typing import Type, Sequence, Self, Any, Callable
 from datetime import timedelta
 
-from .base import Layer, Optimizer, ErrorSignal, Activation, Cost, Train
-from .costs import LeastSquares
+from .base import Layer, Optimizer, ErrorSignal, Activation, Train
 from .activations import Tanh
-from .errors import TDError, Supervised
+from .errors import TDError, Supervised, LeastSquares, Cost
 from .optimizers import SGD
 
 from ..base import D, V, DV
