@@ -3,9 +3,13 @@ from .numdicts import (ValidationError, Key, KeyForm, KeySpaceBase, KeySpace,
 from .system import Update, Event, UpdateSort, Clock, Process
 from .knowledge import (Branch, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
     Atoms, Chunks, Rules, keyform, compile_chunks, compile_rules, describe)
-from .components import (Simulation, Agent, Input, InputBL, InputTL, ChoiceBL, 
-    ChoiceTL, PoolBL, PoolTL, ChunkAssocs, TopDown, BottomUp, ChunkStore, 
-    RuleStore, FixedRules, BaseLevel)
+from .components import (Environment, Agent, Input, Input, Choice, 
+    Pool, 
+    #ChunkAssocs, 
+    TopDown, BottomUp, ChunkStore, 
+    RuleStore, FixedRules, BaseLevel,
+    Backprop, Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
+    TDError, SGD, MLP, IDN, Train)
 
 __all__ = [
     # from numdicts
@@ -18,8 +22,12 @@ __all__ = [
     "Atoms", "Chunks", "Rules", "keyform", "compile_chunks", "compile_rules", 
     "describe",
     # from components
-    "Simulation", "Agent", "Input", "InputBL", "InputTL", "ChoiceBL", 
-    "ChoiceTL", "PoolBL", "PoolTL", "ChunkAssocs", 
+    "Environment", "Agent", "Input", "Choice",
+    "Pool", #"ChunkAssocs", 
     "TopDown", "BottomUp", 
-    "ChunkStore", "RuleStore", "FixedRules", "BaseLevel"
+    "ChunkStore", "RuleStore", "FixedRules", "BaseLevel",
+    "Backprop", "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
+    "Supervised", "TDError",
+    "SGD", 
+    "MLP", "IDN", "Train"
 ]

@@ -1,9 +1,9 @@
 from datetime import timedelta
 
+from .base import Optimizer, Train
 from ...system import Priority, Site
 from ...knowledge import Family, Atoms, Atom
 from ...numdicts import path
-from .base import Optimizer, Backprop
 
 
 class SGD(Optimizer):
@@ -33,20 +33,24 @@ class SGD(Optimizer):
         l2 = self.params[0][path(self.p.l2)]
         uds = []
         for layer in self.layers:
-            if Backprop.Train.BIAS in layer.train:
-                bias = (layer.grad_bias[0]
-                    .sub(layer.bias[-1].scale(x=l2))
-                    .normalvariate(layer.grad_bias[0].abs().scale(x=sd))
-                    .scale(x=lr)
-                    .with_default(c=layer.bias.const))
-                uds.append(layer.bias.update(bias, Site.add_inplace))
+            if Train.BIAS in layer.train:
+                bias_sd = (layer.grad_bias[-1]
+                    .pow(x=2).sum().neg().exp().scale(x=sd))
+                d_bias = (layer.grad_bias[0]
+                    .normalvariate(bias_sd)
+                    .with_default(c=layer.bias.const)
+                    .sum(layer.bias[-1].scale(x=l2))
+                    .scale(x=-lr)) # don't miss the minus sign here
+                uds.append(layer.bias.update(d_bias, Site.add_inplace))
                 uds.append(layer.grad_bias.update({}))
-            if Backprop.Train.WEIGHTS in layer.train:
-                weights = (layer.grad_weights[0]
-                    .sub(layer.weights[-1].scale(x=l2))
-                    .normalvariate(layer.grad_weights[0].abs().scale(x=sd))
-                    .scale(x=lr)
-                    .with_default(c=layer.weights.const))
-                uds.append(layer.weights.update(weights, Site.add_inplace))
+            if Train.WEIGHTS in layer.train:
+                weights_sd = (layer.grad_weights[-1]
+                    .pow(x=2).sum().neg().exp().scale(x=sd))
+                d_weights = (layer.grad_weights[0]
+                    .normalvariate(weights_sd)
+                    .with_default(c=layer.weights.const)
+                    .sum(layer.weights[-1].scale(x=l2))
+                    .scale(x=-lr))  # don't miss the minus sign here
+                uds.append(layer.weights.update(d_weights, Site.add_inplace))
                 uds.append(layer.grad_weights.update({}))
         self.system.schedule(self.update, *uds, dt=dt, priority=priority)

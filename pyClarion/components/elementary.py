@@ -1,112 +1,101 @@
-from typing import Any, ClassVar, overload
+from typing import Any, ClassVar
 from datetime import timedelta
 
+from .base import V, DV, DualRepMixin, ParamMixin
 from ..system import Process, Event, Priority, Site
 from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
     keyform)
 from ..numdicts import Key, KeyForm, numdict, path
 
 
-class Simulation(Process):
-    pass
+class Environment(Process):
+    """
+    A simulation environment.
+    
+    Initializes shared keyspaces for multi-agent simulations.
+    """
 
-
-class Agent(Process):
     def __init__(self, name: str, **families: Family) -> None:
         super().__init__(name)
         for name, family in families.items():
             self.system.root[name] = family
 
 
-class Input(Process):
+class Agent(Process):
+    """
+    A simulated agent.
+    
+    Initializes keyspaces specific to an agent.
+    """
+
+    def __init__(self, name: str, **families: Family) -> None:
+        super().__init__(name)
+        for name, family in families.items():
+            self.system.root[name] = family
+
+
+class Input(DualRepMixin, Process):
+    """
+    An input receiver process.
+    
+    Receives activations from external sources.
+    """
+
     main: Site
     reset: bool
 
     def __init__(self, 
         name: str, 
-        d: Family | Sort,
+        s: V | DV,
         *,
         c: float = 0.0,
         reset: bool = True,
         lags: int = 0
     ) -> None:
         super().__init__(name)
-        self.system.check_root(d)
-        idx_t = self.system.get_index(keyform(d))
-        self.main = Site(idx_t, {}, c, lags)
+        index, = self._init_indexes(s) 
+        self.main = Site(index, {}, c, lags)
         self.reset = reset
 
-    def send(self, d: dict[Term | Key, float], 
+    def send(self, d: dict[Term | Key, float] | Chunk, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        data = {}
-        for k, v in d.items():
-            if isinstance(k, Term):
-                self.system.check_root(k)
-                k = path(k)
-            if k not in self.main.index:
-                raise ValueError(f"Unexpected key {k}")
-            data[k] = v
-        if self.reset:
-            main = self.main.new(data)
-        else:
-            main = self.main[0].copy()
-            with main.mutable():
-                main.update(data)
+        data = self._parse_input(d)
+        method = Site.push if self.reset else Site.write_inplace
         self.system.schedule(self.send, 
-            self.main.update(main), 
-            dt=dt, priority=priority)
-        
-
-class InputBL(Process):
-    main: Site
-    reset: bool
-
-    def __init__(self, 
-        name: str, 
-        d: Family | Sort | Atom, 
-        v: Family | Sort,
-        *,
-        c: float = 0.0,
-        reset: bool = True,
-        lags: int = 0
-    ) -> None:
-        super().__init__(name)
-        self.system.check_root(d, v)
-        idx_d = self.system.get_index(keyform(d))
-        idx_v = self.system.get_index(keyform(v))
-        self.main = Site(idx_d * idx_v, {}, c, lags)
-        self.reset = reset
-
-    def send(self, c: Chunk, 
-        dt: timedelta = timedelta(), 
-        priority: int = Priority.PROPAGATION
-    ) -> None:
-        data = {}
-        for (t1, t2), weight in c._dyads_.items():
-            if isinstance(t1, Var) or isinstance(t2, Var):
-                raise TypeError("Var not allowed in input chunk.")
-            key = path(t1).link(path(t2), 0)    
-            if key not in self.main.index:
-                raise ValueError(f"Unexpected dimension-value pair {key}")
-            data[key] = weight
-        if self.reset:
-            main = self.main.new(data)
-        else:
-            main = self.main[0].copy()
-            with main.mutable():
-                main.update(data)
-        self.system.schedule(self.send, 
-            self.main.update(main),
+            self.main.update(data, method), 
             dt=dt, priority=priority)
 
+    def _parse_input(self, d: dict[Term | Key, float] | Chunk) \
+        -> dict[Key, float]:
+        data = {}
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if isinstance(k, Term):
+                    self.system.check_root(k)
+                    k = path(k)
+                if k not in self.main.index:
+                    raise ValueError(f"Unexpected key {k}")
+                data[k] = v
+        if isinstance(d, Chunk):
+            for (t1, t2), weight in d._dyads_.items():
+                if isinstance(t1, Var) or isinstance(t2, Var):
+                    raise TypeError("Var not allowed in input chunk.")
+                key = path(t1).link(path(t2), 0)    
+                if key not in self.main.index:
+                    raise ValueError(f"Unexpected dimension-value pair {key}")
+                data[key] = weight
+        return data
 
-class InputTL(Input):
-    pass
 
+class Choice(ParamMixin, DualRepMixin, Process):
+    """
+    A choice process.
+    
+    Makes discrete stochastic decisions based on activation strengths.
+    """
 
-class ChoiceBase(Process):
     class Params(Atoms):
         sd: Atom
 
@@ -120,14 +109,30 @@ class ChoiceBase(Process):
     sample: Site
     params: Site
 
-    def __init__(self, name: str, p: Family, *, sd: float = 1.0) -> None:
+    def __init__(self, 
+        name: str, 
+        p: Family, 
+        s: V | DV, 
+        *, 
+        sd: float = 1.0
+    ) -> None:
         super().__init__(name)
         self.system.check_root(p)
-        self.p = type(self).Params(); p[name] = self.p
-        self.params = Site(
-            i=self.system.get_index(keyform(self.p)), 
-            d={path(self.p.sd): sd}, 
-            c=float("nan"))
+        index, = self._init_indexes(s)
+        self.p, self.params = self._init_params(p, type(self).Params, sd=sd)
+        self.main = Site(index, {}, 0.0)
+        self.input = Site(index, {}, 0.0)
+        self.bias = Site(index, {}, 0.0)
+        self.sample = Site(index, {}, float("nan"))
+        self.by = self._init_by(s)
+
+    @staticmethod
+    def _init_by(s: V | DV) -> KeyForm:
+        match s:
+            case (d, v):
+                return keyform(d) * keyform(v, trunc=1)
+            case s:
+                return keyform(s, trunc=1)
 
     def poll(self) -> dict[Key, Key]:
         return self.main[0].argmax(by=self.by)
@@ -147,48 +152,13 @@ class ChoiceBase(Process):
             dt=dt, priority=priority)
 
 
-class ChoiceBL(ChoiceBase):
-    def __init__(
-        self, 
-        name: str, 
-        p: Family,
-        d: Family | Sort | Atom,
-        v: Family | Sort,
-        *,
-        sd: float = 1.0
-    ) -> None:
-        super().__init__(name, p, sd=sd)
-        self.system.check_root(d, v)
-        idx_d = self.system.get_index(keyform(d))
-        idx_v = self.system.get_index(keyform(v))
-        index = idx_d * idx_v
-        self.main = Site(index, {}, 0.0)
-        self.input = Site(index, {}, 0.0)
-        self.bias = Site(index, {}, 0.0)
-        self.sample = Site(index, {}, float("nan"))
-        self.by = keyform(d) * keyform(v, trunc=1)
+class Pool(ParamMixin, DualRepMixin, Process):
+    """
+    An activation pooling process.
 
+    Combines activation strengths from multiple sources.
+    """
 
-class ChoiceTL(ChoiceBase):
-    def __init__(
-        self, 
-        name: str, 
-        p: Family,
-        t: Family | Sort,
-        *,
-        sd: float = 1.0
-    ) -> None:
-        super().__init__(name, p, sd=sd)
-        self.system.check_root(t)
-        index = self.system.get_index(keyform(t))
-        self.main = Site(index, {}, 0.0)
-        self.input = Site(index, {}, 0.0)
-        self.bias = Site(index, {}, 0.0)
-        self.sample = Site(index, {}, float("nan"))
-        self.by = keyform(t, trunc=1)
-
-
-class PoolBase(Process):
     class Params(Atoms):
         pass
 
@@ -197,12 +167,13 @@ class PoolBase(Process):
     params: Site
     inputs: dict[Key, Site]
 
-    def __init__(self, name: str, p: Family) -> None:
+    def __init__(self, name: str, p: Family, s: V | DV) -> None:
         super().__init__(name)
-        self.system.check_root(p)
-        self.p = type(self).Params(); p[name] = self.p
-        idx_p = self.system.get_index(keyform(self.p))
-        self.params = Site(idx_p, {}, c=float("nan"))
+        index, = self._init_indexes(s)
+        psort, psite = self._init_params(p, type(self).Params)
+        self.p = psort
+        self.params = psite
+        self.main = Site(index, {}, 0.0)
         self.inputs = {}
 
     def __setitem__(self, name: str, site: Any) -> None:
@@ -242,67 +213,51 @@ class PoolBase(Process):
             dt=dt, priority=priority)
 
 
-class PoolBL(PoolBase):
-    def __init__(self, 
-        name: str, 
-        p: Family, 
-        d: Family | Sort | Atom, 
-        v: Family | Sort
-    ) -> None:
-        super().__init__(name, p)
-        self.system.check_root(d, v)
-        idx_d = self.system.get_index(keyform(d))
-        idx_v = self.system.get_index(keyform(v))
-        self.main = Site(idx_d * idx_v, {}, 0.0)
+# # class AssociationsBase(Process):
+# #     main: Site
+# #     input: Site
+# #     weights: Site
+# #     sum_by: KeyForm
+
+# #     def resolve(self, event: Event) -> None:
+# #         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+# #         if self.input.affected_by(*updates):
+# #             self.update()
+
+# #     def update(self, 
+# #         dt: timedelta = timedelta(), 
+# #         priority: int = Priority.PROPAGATION
+# #     ) -> None:
+# #         main = self.weights[0].mul(self.input[0]).sum(by=self.sum_by)
+# #         self.system.schedule(self.update, 
+# #             self.main.update(main), 
+# #             dt=dt, priority=priority)
 
 
-class PoolTL(PoolBase):
-    def __init__(self, name: str, p: Family, t: Family | Sort) -> None:
-        super().__init__(name, p)
-        self.system.check_root(t)
-        idx_t = self.system.get_index(keyform(t))
-        self.main = Site(idx_t, {}, 0.0)
+# class ChunkAssocs(AssociationsBase):
+#     def __init__(self, 
+#         name: str, 
+#         c_in: Chunks, 
+#         c_out: Chunks | None = None
+#     ) -> None:
+#         c_out = c_in if c_out is None else c_out
+#         super().__init__(name)
+#         self.system.check_root(c_in, c_out)
+#         idx_in = self.system.get_index(keyform(c_in))
+#         idx_out = self.system.get_index(keyform(c_out))
+#         self.main = Site(idx_out, {}, 0.0)
+#         self.input = Site(idx_in, {}, 0.0)
+#         self.weights = Site(idx_in * idx_out, {}, 0.0)
+#         self.by = keyform(c_in).agg * keyform(c_out)
 
 
-class AssociationsBase(Process):
-    main: Site
-    input: Site
-    weights: Site
-    sum_by: KeyForm
+class BottomUp(Process):
+    """
+    A bottom-up activation process.
 
-    def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
-        if self.input.affected_by(*updates):
-            self.update()
+    Propagates activations from the bottom level to the top level.
+    """
 
-    def update(self, 
-        dt: timedelta = timedelta(), 
-        priority: int = Priority.PROPAGATION
-    ) -> None:
-        main = self.weights[0].mul(self.input[0]).sum(by=self.sum_by)
-        self.system.schedule(self.update, 
-            self.main.update(main), 
-            dt=dt, priority=priority)
-
-
-class ChunkAssocs(AssociationsBase):
-    def __init__(self, 
-        name: str, 
-        c_in: Chunks, 
-        c_out: Chunks | None = None
-    ) -> None:
-        c_out = c_in if c_out is None else c_out
-        super().__init__(name)
-        self.system.check_root(c_in, c_out)
-        idx_in = self.system.get_index(keyform(c_in))
-        idx_out = self.system.get_index(keyform(c_out))
-        self.main = Site(idx_out, {}, 0.0)
-        self.input = Site(idx_in, {}, 0.0)
-        self.weights = Site(idx_in * idx_out, {}, 0.0)
-        self.by = keyform(c_in).agg * keyform(c_out)
-
-
-class BottomUp(Process):    
     main: Site
     input: Site
     weights: Site
@@ -348,6 +303,12 @@ class BottomUp(Process):
 
 
 class TopDown(Process):    
+    """
+    A top-down activation process.
+
+    Propagates activations from the top level to the bottom level.
+    """
+
     main: Site
     input: Site
     weights: Site

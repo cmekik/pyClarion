@@ -1,64 +1,72 @@
-from typing import Type, Sequence, Self, Any
+from typing import Type, Sequence, Self, Any, Callable
 from datetime import timedelta
 
-from .base import LayerBase, Optimizer, Activation
+from .base import Backprop, Layer, Optimizer, ErrorSignal, Activation, Cost, Train
+from .errors import TDError, Supervised
 from .optimizers import SGD
-from .errors import ErrorSignal
-from .layers import SingleLayer, InputLayer, OutputLayer, Layer
-from ..elementary import ChoiceBL
+
+from ..base import D, V, DV
 from ...system import Process, Event, Site, Priority
 from ...knowledge import Family, Sort, Atoms, Atom
 from ...numdicts import NumDict
 
 
+__all__ = [
+    "Train", "Backprop", "Layer", "Optimizer", "Activation", "Cost",
+    "Supervised", "TDError",
+    "SGD", 
+    "MLP", "IDN"
+]
+
+
 class MLP(Process):
+    """
+    A Multi-Layer Perceptron.
+    
+    Learns input-output mappings by backpropagating error signals. 
+    """
+
     class Hidden(Atoms):
         pass
 
     input: Site
-    ilayer: LayerBase
-    olayer: LayerBase
-    layers: list[LayerBase]
+    ilayer: Layer
+    olayer: Layer
+    layers: list[Layer]
     optimizer: Optimizer
 
     def __init__(self, 
         name: str, 
         p: Family,
         h: Family, 
-        d1: Family | Sort | Atom, 
-        v1: Family | Sort,
-        d2: Family | Sort | Atom | None = None,
-        v2: Family | Sort | None = None,
+        s1: V | DV,
+        s2: V | DV | None = None,
         layers: Sequence[int] = (),
         optimizer: Type[Optimizer] = SGD, 
         f: Activation = NumDict.eye,
-        lags: int = 0,
+        l: int = 0,
         **kwargs: Any
     ) -> None:
-        d2 = d1 if d2 is None else d2
-        v2 = v1 if v2 is None else v2
+        s2 = s1 if s2 is None else s2
         super().__init__(name)
         self.system.check_root(h)
         self.optimizer = optimizer(f"{name}.optimizer", p, **kwargs)
         with self.optimizer:
             if not layers:
-                self.ilayer = self.olayer = SingleLayer(
-                    f"{name}.layer", d1, v1, d2, v2, f=f, lags=lags)
+                self.ilayer = Layer(f"{name}.layer", s1, s2, f=f, l=l)
+                self.olayer = self.ilayer
             else:
                 hs = []
                 for i, n in enumerate(layers):
                     hs.append(self._mk_hidden_nodes(h, i, n))
-                self.ilayer = InputLayer(
-                    f"{name}.ilayer", d1, v1, hs[0], f=f, lags=lags)
-                h_in = hs[0]
+                self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], f=f, l=l)
+                hi = hs[0]
                 layer = self.ilayer 
-                for i, h_out in enumerate(hs[1:]):
-                    layer = layer >> Layer(
-                        f"{name}.l{i}", h_in, h_out, f=f, lags=lags)
+                for i, ho in enumerate(hs[1:]):
+                    layer = layer >> Layer(f"{name}.l{i}", hi, ho, f=f, l=l)
                     self.layers.append(layer)
-                    h_in = h_out
-                self.olayer = layer >> OutputLayer(
-                    f"{name}.olayer", h_in, d2, v2, lags=lags)
+                    hi = ho
+                self.olayer = layer >> Layer(f"{name}.olayer", hi, s2, l=l)
         self.input = Site(self.ilayer.input.index, {}, self.ilayer.input.const)
 
     def _mk_hidden_nodes(self, h: Family, l: int, n: int) -> Hidden:
@@ -75,7 +83,7 @@ class MLP(Process):
     
     def __rrshift__(self: Self, other: Site | Process) -> Self:
         if isinstance(other, Site):
-            self.ilayer.input = other
+            self.input = other
             return self
         if isinstance(other, Process):
             try:
@@ -97,5 +105,36 @@ class MLP(Process):
         priority: Priority = Priority.PROPAGATION
     ) -> None:
         self.system.schedule(self.update, 
-            self.ilayer.input.update(self.input[0]),
+            self.ilayer.input.update(self.input[0].d),
             dt=dt, priority=priority)
+
+
+class IDN(MLP):
+    """
+    An Implicit Decision Network (IDN).
+    
+    Learns to make action decisions in the bottom level via temporal difference 
+    learning.
+    """
+
+    error: TDError
+
+    def __init__(self, 
+        name: str, 
+        p: Family,
+        h: Family,
+        r: D | DV, 
+        s1: V | DV,
+        s2: V | DV | None = None,
+        layers: Sequence[int] = (),
+        optimizer: Type[Optimizer] = SGD,
+        f: Activation = NumDict.eye,
+        func: Callable[[TDError], NumDict] = TDError.qmax,
+        gamma: float = .3,
+        l: int = 1,
+        **kwargs: Any
+    ) -> None:
+        super().__init__(name, p, h, s1, s2, layers, optimizer, f, l, **kwargs)
+        self.error = self >> TDError(f"{name}.error", 
+            p, r, func=func, gamma=gamma, l=l)
+        

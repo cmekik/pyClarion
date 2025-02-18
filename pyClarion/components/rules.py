@@ -3,14 +3,14 @@ from datetime import timedelta
 from ..system import Process, Event, Priority, Site
 from ..knowledge import Family, Sort, Atom, Rule, describe, keyform
 from ..numdicts import crawl, KeyForm
-from .elementary import ChoiceTL
+from .elementary import Choice
 from .top_level import RuleStore
 
 
 class FixedRules(Process):
     main: Site
     rules: RuleStore
-    choice: ChoiceTL
+    choice: Choice
     by: KeyForm
 
     def __init__(self, 
@@ -26,7 +26,7 @@ class FixedRules(Process):
         super().__init__(name)
         with self:
             self.rules = RuleStore(f"{name}.rules", r, c, d, v)
-            self.choice = ChoiceTL(f"{name}.choice", p, self.rules.rules, sd=sd)
+            self.choice = Choice(f"{name}.choice", p, self.rules.rules, sd=sd)
         self.main = Site(self.rules.main.index, {}, 0.0)
         self.mul_by = keyform(self.rules.rules).agg * keyform(self.rules.rules)
         self.sum_by = keyform(self.rules.rules) * keyform(self.rules.rules).agg
