@@ -7,6 +7,13 @@ from ...numdicts import path
 
 
 class SGD(Optimizer):
+    """
+    A stochastic gradient descent process.
+    
+    Issues updates to weights and biases of a collection of layers using 
+    stochastic gradient descent with l2 regularization and gradient noise.
+    """
+
     class Params(Atoms):
         lr: Atom
         sd: Atom
@@ -17,7 +24,7 @@ class SGD(Optimizer):
         p: Family, 
         *, 
         lr: float = 1e-2, 
-        sd: float = 1.0,
+        sd: float = 1e-2,
         l2: float = 1e-3
     ) -> None:
         super().__init__(name, p, lr=lr, sd=sd, l2=l2)

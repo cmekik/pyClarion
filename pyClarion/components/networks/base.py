@@ -9,6 +9,12 @@ from ...numdicts import NumDict, KeyForm
 
 
 class Train(Flag):
+    """
+    A training flag.
+    
+    Used to selectively control which elements of a neural network or layer are 
+    subject to training via backpropagation. 
+    """
     NIL = 0
     WEIGHTS = auto()
     BIAS = auto()
@@ -16,6 +22,7 @@ class Train(Flag):
 
 
 class Activation:
+    """A differentiable activation function."""
 
     def __call__(self, d: NumDict) -> NumDict:
         raise NotImplementedError()
@@ -28,6 +35,12 @@ class Activation:
 
 
 class Layer(DualRepMixin, Process):
+    """
+    A neural network layer.
+    
+    Implements forward propagation of activation signals and backward 
+    propagation of error signals.
+    """
 
     main: Site
     wsum: Site
@@ -132,6 +145,12 @@ class Layer(DualRepMixin, Process):
         
 
 class Optimizer[P: Atoms](ParamMixin, Process):
+    """
+    A neural network optimization process. 
+
+    Issues updates to weights and biases of a collection of layers. 
+    """
+
     Params: type[P]
     p: P
     params: Site
@@ -153,6 +172,12 @@ class Optimizer[P: Atoms](ParamMixin, Process):
     
 
 class ErrorSignal(Process):
+    """
+    A neural network error signaling process.
+    
+    Computes and backpropagates error signals based on neural network outputs.
+    """
+
     main: Site
 
     def __rrshift__(self: Self, other: Layer) -> Self:

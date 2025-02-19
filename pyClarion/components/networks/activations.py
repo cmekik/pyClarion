@@ -4,6 +4,7 @@ from .base import Activation
 
 
 class Tanh(Activation):
+    """A tanh activation function for neural networks."""
 
     def __call__(self, d: NumDict) -> NumDict:
         return d.tanh()

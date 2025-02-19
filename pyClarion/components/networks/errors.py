@@ -10,15 +10,18 @@ from ...numdicts import NumDict, path, Key
 
 
 class Cost:
+    """A differentiable cost function for supervised learning."""
 
     def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
         raise NotImplementedError()
     
     def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        """Compute gradient of self with respect to input est."""
         raise NotImplementedError()
 
 
 class LeastSquares(Cost):
+    """A differentiable least squares cost function for supervised learning."""
 
     def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
         return est.sub(tgt).pow(x=2).mul(mask)
@@ -28,6 +31,12 @@ class LeastSquares(Cost):
 
 
 class Supervised(DualRepMixin, ErrorSignal):
+    """
+    An error signaling process for supervised learning.
+    
+    Computes and backpropagates errors based on a supervised cost function.
+    """
+
     cost: Cost
     input: Site
     target: Site
@@ -58,6 +67,12 @@ class Supervised(DualRepMixin, ErrorSignal):
     
 
 class TDError(ParamMixin, DualRepMixin, ErrorSignal):
+    """
+    An error signaling process for temporal difference learning.
+    
+    Computes and backpropagates errors based on a temporal difference function.
+    """
+
     class Params(Atoms):
         gamma: Atom
 

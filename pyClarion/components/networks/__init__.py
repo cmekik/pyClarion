@@ -24,7 +24,7 @@ __all__ = [
 
 class MLP(Process):
     """
-    A Multi-Layer Perceptron.
+    A multi-layer perceptron.
     
     Learns input-output mappings by backpropagating error signals. 
     """
@@ -114,7 +114,7 @@ class MLP(Process):
 
 class IDN(MLP):
     """
-    An Implicit Decision Network (IDN).
+    An implicit decision network (IDN).
     
     Learns to make action decisions in the bottom level via temporal difference 
     learning.
