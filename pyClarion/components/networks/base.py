@@ -25,12 +25,15 @@ class Activation:
     """A differentiable activation function."""
 
     def __call__(self, d: NumDict) -> NumDict:
+        """Compute activations for each input value."""
         raise NotImplementedError()
     
     def grad(self, d: NumDict) -> NumDict:
+        """Compute activation derivative with respect to each input value."""
         raise NotImplementedError()
     
     def scale(self, layer: "Layer") -> float:
+        """Compute scaling factor for weight initialization."""
         raise NotImplementedError()
 
 
@@ -110,6 +113,7 @@ class Layer(DualRepMixin, Process):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
+        """Compute and propagate forward activations."""
         wsum = (self.weights[0]
             .mul(self.input[0], by=self.fw_by)
             .sum(by=self.bw_by)
@@ -128,6 +132,7 @@ class Layer(DualRepMixin, Process):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
+        """Compute gradients and backpropagate errors."""
         grad_wsum = self.error[0]
         if self.afunc:
             grad_wsum = grad_wsum.mul(self.afunc.grad(self.wsum[-1]))
@@ -162,12 +167,14 @@ class Optimizer[P: Atoms](ParamMixin, Process):
         self.layers = set()
 
     def add(self, layer: Layer) -> None:
+        """Include layer in future updates."""
         self.layers.add(layer)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
+        """Compute and schedule parameter updates for all client layers."""
         raise NotImplementedError()
     
 
@@ -191,4 +198,5 @@ class ErrorSignal(Process):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
     ) -> None:
+        """Compute and schedule update to error value."""
         raise NotImplementedError()

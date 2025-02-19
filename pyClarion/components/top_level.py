@@ -1,7 +1,7 @@
 from datetime import timedelta
 import logging
 
-from ..numdicts import NumDict, numdict, KeyForm
+from ..numdicts import NumDict, KeyForm
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
     compile_chunks, compile_rules, keyform, Sort, Atom, describe)
 from ..system import Process, UpdateSort, Event, Priority, Site
@@ -9,6 +9,13 @@ from .elementary import TopDown, BottomUp
 
 
 class ChunkStore(Process):
+    """
+    A chunk store. 
+
+    Maintains a collection of chunks and facilitates top-down and bottom-up 
+    activation propagation.
+    """
+    
     chunks: Chunks
     main: Site
     ciw: Site
@@ -65,6 +72,7 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        """Compute and update abstract chunk activations."""
         main = (self.ciw[0]
             .mul(self.bu.main[0], by=self.mul_by)
             .max(by=self.max_by)
@@ -77,6 +85,7 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
     ) -> None:
+        """Encode a collection of new chunks."""
         new, data = compile_chunks(*chunks, sort=self.chunks)
         self.system.schedule(
             self.compile, 
@@ -89,6 +98,7 @@ class ChunkStore(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> None:
+        """Update bottom-up weights to be consistent with top-down weights."""
         weights = self.td.weights[0].div(self.norm(self.td.weights[0]))
         self.system.schedule(
             self.update_buw, 
@@ -97,6 +107,12 @@ class ChunkStore(Process):
 
 
 class RuleStore(Process):
+    """
+    A rule store. 
+
+    Maintains a collection of rules.
+    """
+
     rules: Rules
     lhs: ChunkStore
     rhs: ChunkStore
@@ -161,7 +177,9 @@ class RuleStore(Process):
 
     def compile(self, *rules: Rule, 
         dt: timedelta = timedelta(),
-        priority: int = Priority.LEARNING) -> None:
+        priority: int = Priority.LEARNING
+    ) -> None:
+        """Encode a collection of new rules."""
         new, data = compile_rules(*rules, 
             sort=self.rules, lhs=self.lhs.chunks, rhs=self.rhs.chunks)
         lhs = []; rhs = []

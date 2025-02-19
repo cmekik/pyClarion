@@ -13,10 +13,11 @@ class Cost:
     """A differentiable cost function for supervised learning."""
 
     def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
+        """Compute the cost for each estimate."""
         raise NotImplementedError()
     
     def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        """Compute gradient of self with respect to input est."""
+        """Compute cost derivative with respect to each estimate."""
         raise NotImplementedError()
 
 

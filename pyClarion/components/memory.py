@@ -6,6 +6,12 @@ from ..numdicts import Key, path
 
 
 class BaseLevel(Process):
+    """
+    A base-level activation process.
+
+    Maintains and propagates base level activations.
+    """
+
     class Params(Atoms):
         th: Atom
         sc: Atom

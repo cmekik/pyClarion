@@ -9,7 +9,6 @@ from enum import IntEnum
 from collections import deque
 from weakref import WeakSet
 import logging
-import warnings
 import heapq
 
 from .knowledge import Sort, Term
@@ -22,12 +21,14 @@ PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
 
 
 class Update:
+    """A future update to the simulation state."""
     def apply(self) -> None:
         ...
 
 
 @dataclass(slots=True)
 class UpdateSort[C: Term](Update):
+    """A future update to a sort within a simulation keyspace."""
     sort: Sort[C]
     add: tuple[tuple[str, C], ...] = ()
     remove: tuple[str, ...] = ()
@@ -46,7 +47,14 @@ class UpdateSort[C: Term](Update):
     
 
 class Priority(IntEnum):
+    """
+    An event priority enum.
+    
+    Used to indicate event priority in case two events are scheduled at the 
+    same time within a simulation. 
+    """
     MAX = 128
+    PARAM = 120
     CHOICE = 112
     LEARNING = 96
     PROPAGATION = 64
@@ -56,6 +64,11 @@ class Priority(IntEnum):
 
 @dataclass(slots=True)
 class Event:
+    """
+    A simulation event.
+    
+    Events are ordered first by time, then by priority, then by number.
+    """
     time: timedelta
     source: Callable
     updates: Sequence[Update]
@@ -63,7 +76,6 @@ class Event:
     number: int
 
     def __repr__(self) -> str:
-
         if ismethod(self.source) and isinstance(self.source.__self__, Process):
             source = f"{self.source.__self__.name}.{self.source.__name__}"
         else:
@@ -98,6 +110,7 @@ class Event:
 
 @dataclass(slots=True)
 class Clock:
+    """A simulation clock."""
     time: timedelta = timedelta()
     limit: timedelta = timedelta()
     counter: count = field(default_factory=count)
@@ -122,9 +135,29 @@ class Clock:
 
 
 class Process:
+    """
+    A simulated process.
+    
+    Owns data sites and schedules simulation events. Maintains a handle to 
+    global simulation state.
+
+    Process instances may be used in with statements for compositional model 
+    construction. 
+
+    >>> with Process("p1") as p1:
+    ...     p2 = Process("p2")
+    ...     assert p1.system is p2.system
+    
+    """
 
     @dataclass(slots=True)
     class System:
+        """
+        A simulated system.
+
+        Maintains global simulation data.
+        """
+
         root: KeySpace = field(default_factory=KeySpace)
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
@@ -140,10 +173,12 @@ class Process:
         def get_index(self, form: KeyForm | Key | str) -> Index:
             return Index(self.root, form)
 
-        def user_update(
-                self, *updates: Update, dt: timedelta = timedelta()
+        def user_update(self, 
+                *updates: Update, 
+                dt: timedelta = timedelta(), 
+                priority: Priority = Priority.MAX
             ) -> None:
-            self.schedule(self.user_update, *updates, dt=dt)
+            self.schedule(self.user_update, *updates, dt=dt, priority=priority)
 
         def schedule(self, src: Callable, *uds: Update, 
             dt: timedelta = timedelta(), 
@@ -153,6 +188,7 @@ class Process:
                 self.clock.event(dt, src, *uds, priority=priority))
 
         def advance(self) -> Event:
+            """Process the next event in the queue."""
             event = heapq.heappop(self.queue)
             for update in event.updates:
                 try:
@@ -191,7 +227,6 @@ class Process:
     def __repr__(self) -> str:
         return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"
 
-
     def __setattr__(self, name: str, value: Any) -> None:
         try:
             old = getattr(self, name)
@@ -225,15 +260,25 @@ class Process:
         PROCESS.reset(self.__tokens.pop())
 
     def resolve(self, event: Event) -> None:
+        """
+        Analyze event and schedule new events as needed.
+        
+        Typically, dispatches calls to various event scheduling methods.
+        """
         pass
 
-    def breakpoint(self, dt: timedelta) -> None:
-        self.system.schedule(self.breakpoint, dt=dt)
+    def breakpoint(self, dt: timedelta, priority: Priority = Priority.MAX) \
+        -> None:
+        """Schedule a dummy event at specified time."""
+        self.system.schedule(self.breakpoint, dt=dt, priority=priority)
 
 
 class Site:
+    """A simulation data site."""
+
     @dataclass(slots=True)
     class Update(Update):
+        """A future update to a data site."""
         site: "Site"
         data: NumDict | dict[Key, float]
         method: Callable[["Site", NumDict, int], None]

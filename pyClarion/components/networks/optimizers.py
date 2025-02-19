@@ -15,9 +15,9 @@ class SGD(Optimizer):
     """
 
     class Params(Atoms):
-        lr: Atom
-        sd: Atom
-        l2: Atom
+        lr: Atom # Learning rate
+        sd: Atom # Upper bound on standard deviation of gradient noise
+        l2: Atom # L2 regularization parameter
     
     def __init__(self, 
         name: str, 

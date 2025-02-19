@@ -61,6 +61,7 @@ class Input(DualRepMixin, Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        """Update input data."""
         data = self._parse_input(d)
         method = Site.push if self.reset else Site.write_inplace
         self.system.schedule(self.send, 
@@ -135,12 +136,14 @@ class Choice(ParamMixin, DualRepMixin, Process):
                 return keyform(s, trunc=1)
 
     def poll(self) -> dict[Key, Key]:
+        """Return a symbolic representation of current decision."""
         return self.main[0].argmax(by=self.by)
 
     def select(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.CHOICE
     ) -> None:
+        """Make a new stochastic decision and update sites accordingly."""
         input = self.bias[0].sum(self.input[0])
         sd = numdict(self.main.index, {}, c=self.params[0][path(self.p.sd)])
         sample = input.normalvariate(sd)

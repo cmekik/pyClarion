@@ -7,7 +7,14 @@ from .elementary import Choice
 from .top_level import RuleStore
 
 
-class FixedRules(Process):
+class ActionRules(Process):
+    """
+    An action rule store.
+    
+    Maintains a collection of action rules and facilitates explicit action  
+    selection.
+    """
+
     main: Site
     rules: RuleStore
     choice: Choice
@@ -74,3 +81,13 @@ class FixedRules(Process):
             self.main.update(main),
             self.rules.rhs.td.input.update(td_input),
             dt=dt, priority=priority)
+        
+
+class FixedRules(ActionRules):
+    """
+    A fixed rule store.
+    
+    Maintains a collection of user-defined fixed action rules, and facilitates 
+    explicit action selection.
+    """
+    pass

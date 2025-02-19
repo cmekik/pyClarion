@@ -11,6 +11,7 @@ type DV = tuple[D, V]
 
 
 class DualRepMixin:    
+    """Facilitates initialization of processes across levels."""
     system: Process.System
 
     def _init_indexes(
@@ -32,7 +33,8 @@ class DualRepMixin:
         return indices
 
 
-class ParamMixin(Process):
+class ParamMixin:
+    """Facilitates initialization of process parameters."""
     name: str
     system: Process.System
 
