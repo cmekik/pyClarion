@@ -4,7 +4,7 @@ from datetime import timedelta
 from .base import Layer, Optimizer, ErrorSignal, Activation, Train
 from .activations import Tanh
 from .errors import TDError, Supervised, LeastSquares, Cost
-from .optimizers import SGD
+from .optimizers import SGD, Adam
 
 from ..base import D, V, DV
 from ...system import Process, Event, Site, Priority
@@ -17,7 +17,7 @@ __all__ = [
     "LeastSquares",
     "Tanh",
     "Supervised", "TDError",
-    "SGD", 
+    "SGD", "Adam",
     "MLP", "IDN"
 ]
 
@@ -45,7 +45,7 @@ class MLP(Process):
         s1: V | DV,
         s2: V | DV | None = None,
         layers: Sequence[int] = (),
-        optimizer: Type[Optimizer] = SGD, 
+        optimizer: Type[Optimizer] = Adam, 
         afunc: Activation | None = None,
         l: int = 0,
         **kwargs: Any
@@ -137,7 +137,7 @@ class IDN(MLP):
         s1: V | DV,
         s2: V | DV | None = None,
         layers: Sequence[int] = (),
-        optimizer: Type[Optimizer] = SGD,
+        optimizer: Type[Optimizer] = Adam,
         afunc: Activation | None = None,
         func: Callable[[TDError], NumDict] = TDError.max_Q,
         gamma: float = .3,

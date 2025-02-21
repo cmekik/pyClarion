@@ -9,7 +9,7 @@ from .components import (Environment, Agent, Input, Input, Choice,
     TopDown, BottomUp, ChunkStore, 
     RuleStore, FixedRules, BaseLevel,
     Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
-    TDError, SGD, MLP, IDN, Train, LeastSquares, Tanh)
+    TDError, SGD, Adam, MLP, IDN, Train, LeastSquares, Tanh)
 
 __all__ = [
     # from numdicts
@@ -28,6 +28,6 @@ __all__ = [
     "ChunkStore", "RuleStore", "FixedRules", "BaseLevel",
     "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
     "Supervised", "TDError", "LeastSquares", "Tanh",
-    "SGD", 
+    "SGD", "Adam",
     "MLP", "IDN", "Train"
 ]

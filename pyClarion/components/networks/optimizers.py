@@ -1,9 +1,9 @@
 from datetime import timedelta
 
-from .base import Optimizer, Train
+from .base import Optimizer, Train, Layer
 from ...system import Priority, Site
 from ...knowledge import Family, Atoms, Atom
-from ...numdicts import path
+from ...numdicts import path, NumDict
 
 
 class SGD(Optimizer):
@@ -24,7 +24,7 @@ class SGD(Optimizer):
         p: Family, 
         *, 
         lr: float = 1e-2, 
-        sd: float = 1e-2,
+        sd: float = 1.0,
         l2: float = 1e-3
     ) -> None:
         super().__init__(name, p, lr=lr, sd=sd, l2=l2)
@@ -36,32 +36,145 @@ class SGD(Optimizer):
         if not self.layers:
             return
         lr = self.params[0][path(self.p.lr)]
-        sd = self.params[0][path(self.p.sd)]
+        sd_ = self.params[0][path(self.p.sd)]
         l2 = self.params[0][path(self.p.l2)]
         uds = []
         for layer in self.layers:
             if layer.afunc:
-                scale = sd * layer.afunc.scale(layer) 
+                sd = sd_ * layer.afunc.scale(layer) 
             else: 
-                scale = sd / (1 + len(layer.input))
+                sd = sd_ / len(layer.input[0])
             if Train.BIAS in layer.train:
-                bias_sd = (layer.grad_bias[-1]
-                    .pvariance().neg().exp()
-                    .scale(x=scale))
-                d_bias = (layer.grad_bias[-1]
-                    .normalvariate(bias_sd, c=layer.bias.const)
-                    .sum(layer.bias[-1].scale(x=l2))
-                    .scale(x=-lr)) # don't miss the minus sign here
-                uds.append(layer.bias.update(d_bias, Site.add_inplace))
-                uds.append(layer.grad_bias.update({}))
+                param, grad = layer.bias, layer.grad_bias
+                uds.extend(self._update(param, grad, lr, sd, l2))
             if Train.WEIGHTS in layer.train:
-                weights_sd = (layer.grad_weights[-1]
-                    .pvariance().neg().exp()
-                    .scale(x=scale))
-                d_weights = (layer.grad_weights[0]
-                    .normalvariate(weights_sd, c=layer.weights.const)
-                    .sum(layer.weights[-1].scale(x=l2))
-                    .scale(x=-lr))  # don't miss the minus sign here
-                uds.append(layer.weights.update(d_weights, Site.add_inplace))
-                uds.append(layer.grad_weights.update({}))
+                param, grad = layer.weights, layer.grad_weights
+                uds.extend(self._update(param, grad, lr, sd, l2))
         self.system.schedule(self.update, *uds, dt=dt, priority=priority)
+
+    def _update(self, 
+        param: Site, 
+        grad: Site, 
+        lr: float, 
+        sd: float, 
+        l2: float
+    ) -> tuple[Site.Update, Site.Update]:
+        delta = (grad[-1]
+            .normalvariate(grad[-1].abs().scale(x=sd), c=param.const)
+            .sum(param[-1].scale(x=l2))
+            .scale(x=-lr)) # Don't miss negative here!
+        return (param.update(delta, Site.add_inplace), grad.update({}))
+
+class Adam(Optimizer):
+    """
+    An adaptive moment estimation (Adam) process.
+    
+    Issues updates to weights and biases of a collection of layers using 
+    adaptive moment estimation with l2 regularization and gradient noise.
+    """
+
+    class Params(Atoms):
+        lr: Atom # Learning rate
+        b1: Atom # Exponential decay rate for moment 1
+        b2: Atom # Exponential decay rate for moment 2
+        sd: Atom # Upper bound on standard deviation of gradient noise
+        l2: Atom # L2 regularization parameter
+        ep: Atom # Epsilon
+        bt1: Atom 
+        bt2: Atom
+    
+    wm1: dict[str, Site]
+    wm2: dict[str, Site]
+    bm1: dict[str, Site]
+    bm2: dict[str, Site]
+
+    def __init__(self, 
+        name: str, 
+        p: Family, 
+        *, 
+        lr: float = 1e-2,
+        b1: float = 9e-1,
+        b2: float = .999, 
+        sd: float = 1.0,
+        l2: float = 1e-3,
+        ep: float = 1e-8
+    ) -> None:
+        super().__init__(name, p, 
+            lr=lr, b1=b1, b2=b2, sd=sd, l2=l2, ep=ep, bt1=b1, bt2=b2)
+        self.wm1 = {}
+        self.wm2 = {}
+        self.bm1 = {}
+        self.bm2 = {}
+
+    def add(self, layer: Layer) -> None:
+        super().add(layer)
+        self.wm1[layer.name] = Site(layer.weights.index, {}, 0.0)
+        self.wm2[layer.name] = Site(layer.weights.index, {}, 0.0)
+        self.bm1[layer.name] = Site(layer.bias.index, {}, 0.0)
+        self.bm2[layer.name] = Site(layer.bias.index, {}, 0.0)
+
+    def update(self,
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> None:
+        if not self.layers:
+            return
+        lr = self.params[0][path(self.p.lr)]
+        sd_ = self.params[0][path(self.p.sd)]
+        l2 = self.params[0][path(self.p.l2)]
+        b1 = self.params[0][path(self.p.b1)]
+        b2 = self.params[0][path(self.p.b2)]
+        bt1 = self.params[0][path(self.p.bt1)]
+        bt2 = self.params[0][path(self.p.bt2)]
+        ep = self.params[0][path(self.p.ep)]
+        uds = []
+        for layer in self.layers:
+            if layer.afunc:
+                sd = sd_ * layer.afunc.scale(layer) 
+            else: 
+                sd = sd_ / (1 + len(layer.input))
+            if Train.BIAS in layer.train:
+                param, grad = layer.bias, layer.grad_bias
+                m, v = self.bm1[layer.name], self.bm2[layer.name]
+                uds.extend(self._update(
+                    param, grad, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
+            if Train.WEIGHTS in layer.train:
+                param, grad = layer.weights, layer.grad_weights
+                m, v = self.wm1[layer.name], self.wm2[layer.name]
+                uds.extend(self._update(
+                    param, grad, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
+        bt1 = bt1 * b1
+        bt2 = bt2 * b2
+        uds.append(self.params.update(
+            {path(self.p.bt1): bt1, path(self.p.bt2): bt2},
+            Site.write_inplace))
+        self.system.schedule(self.update, *uds, dt=dt, priority=priority)
+
+    def _update(self, 
+        param: Site, 
+        grad: Site,
+        m: Site,
+        v: Site, 
+        lr: float, 
+        sd: float, 
+        l2: float,
+        b1: float,
+        b2: float,
+        bt1: float,
+        bt2: float,
+        ep: float
+    ) -> tuple[Site.Update, Site.Update, Site.Update, Site.Update]:
+        m_next = m[0].scale(x=b1).sum(grad[-1].scale(x=1 - b1))
+        v_next = v[0].scale(x=b2).sum(grad[-1].pow(x=2).scale(x=1 - b2))
+        m_hat = m_next.scale(x=1/(1 - bt1))
+        v_hat = v_next.scale(x=1/(1 - bt2))
+        g_hat = m_hat.div(v_hat.pow(x=0.5).shift(x=ep))
+        delta = (g_hat
+            .normalvariate(g_hat.abs().scale(x=sd), c=param.const)
+            .sum(param[-1].scale(x=l2))
+            .scale(x=-lr)) # Don't miss negative here!
+        return (
+            param.update(delta, Site.add_inplace), 
+            grad.update({}), 
+            m.update(m_next), 
+            v.update(v_next))

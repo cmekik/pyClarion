@@ -13,4 +13,4 @@ class Tanh(Activation):
         return d.cosh().inv().pow(x=2.0)
 
     def scale(self, layer: Layer) -> float:
-        return 1 / (1 + len(layer.input) + len(layer.main))
+        return 1 / (1 + len(layer.input[0]) + len(layer.main[0]))
