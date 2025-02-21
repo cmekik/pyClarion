@@ -83,7 +83,7 @@ class Compound(Term):
         if not other.isidentifier():
             ValueError("Compound term identifier must be a valid "
                 "python identifier")
-        self._descr_ = other
+        self._name_ = other
         return self
 
 
@@ -142,6 +142,15 @@ class Chunk(Compound):
         if isinstance(other, Chunk):
             return Rule({self: 1.0, other: 1.0})
         return NotImplemented
+
+    def __rrshift__(self, others: Sequence["Chunk"]) -> "Rule":
+        d = {}
+        for other in others:
+            if isinstance(other, Chunk):
+                d[other] = 1.0
+            else:
+                return NotImplemented
+        return Rule(d)
 
 
 class Rule(Compound):

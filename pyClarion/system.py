@@ -241,6 +241,9 @@ class Process:
         if any(d.d for d in old.data):
             raise ValueError(f"Site '{name}' of process {self.name} "
                 "contains data")
+        if 1 < len(old.procs):
+            raise ValueError(f"Site connects processes {old.procs} and cannot "
+                "be replaced")
         if old.index != value.index and name not in self.lax \
             or old.index < value.index:
             raise ValueError("Incompatible index in site assignment")
