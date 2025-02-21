@@ -52,9 +52,7 @@ class ChunkStore(Process):
         if event.source == self.bu.update:
             self.update()
         if event.source == self.compile:
-            # This next check is probably not idiomatic, is there a way to 
-            # avoid needlessly computing log data that is idiomatic?
-            if self.system.logger.level <= logging.DEBUG:
+            if self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_compilation(event)
             self.update_buw()
 

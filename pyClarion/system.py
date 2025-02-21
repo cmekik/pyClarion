@@ -198,7 +198,9 @@ class Process:
                         f"Update scheduled by {event.source.__qualname__} at "
                         f"{event.time} failed") from e
             self.clock.advance(event.time)
-            self.logger.info(event.describe())
+            if self.logger.isEnabledFor(logging.INFO):
+                msg = event.describe()
+                self.logger.info(msg)
             for proc in self.procs:
                 proc.resolve(event)
             return event
