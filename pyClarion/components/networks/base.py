@@ -66,12 +66,12 @@ class Layer(DualRepMixin, Process):
         *, 
         afunc: Activation | None = None, 
         l: int = 0,
-        train: Train = Train.ALL
+        train: Train = Train.ALL,
+        init_sd: float = 1e-2
     ) -> None:
         s2 = s1 if s2 is None else s2
         super().__init__(name)
         idx_in, idx_out = self._init_indexes(s1, s2)
-        self._connect_to_learning_rule()
         self.afunc = afunc
         self.train = train
         self.main = Site(idx_out, {}, 0.0, l)
@@ -85,8 +85,34 @@ class Layer(DualRepMixin, Process):
         self.grad_weights = Site(idx_in * idx_out, {}, 0.0)
         self.fw_by = idx_in.keyform * idx_out.keyform.agg
         self.bw_by = idx_in.keyform.agg * idx_out.keyform
+        self.init_weights(init_sd)
+        self._connect_to_optimizer()
 
-    def _connect_to_learning_rule(self):
+    def init_weights(self, sd: float = 1e-2) -> None:
+        with self.bias[0].mutable():
+            self.bias[0].reset()
+        with self.weights[0].mutable():
+            self.weights[0].reset()
+        if self.afunc:
+            scale = sd * self.afunc.scale(self) 
+        else: 
+            scale = sd / (1 + len(self.input))
+        if Train.BIAS in self.train:
+            bias_sd = self.bias[0].const().scale(x=scale)
+            bias_init = (self.bias[0]
+                .const(c=0.0)
+                .normalvariate(bias_sd, c=self.bias.const))
+            with self.bias[0].mutable():
+                self.bias[0].update(bias_init.d)
+        if Train.WEIGHTS in self.train:
+            weight_sd = self.weights[0].const().scale(x=scale)
+            weight_init = (self.weights[0]
+                .const(c=0.0)
+                .normalvariate(weight_sd, c=self.weights.const))
+            with self.weights[0].mutable():
+                self.weights[0].update(weight_init.d)
+
+    def _connect_to_optimizer(self):
         try:
             sup = PROCESS.get()
         except LookupError:
@@ -132,7 +158,16 @@ class Layer(DualRepMixin, Process):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
-        """Compute gradients and backpropagate errors."""
+        """
+        Compute gradients and backpropagate errors.
+        
+        Computed gradients from successive calls to this method will accumulate 
+        at gradient sites. This allows layers to receive asynchronous error 
+        signals. 
+        
+        Typically, gradient sites will be cleared by an optimizer after it has 
+        consumed their data for weight updates. 
+        """
         grad_wsum = self.error[0]
         if self.afunc:
             grad_wsum = grad_wsum.mul(self.afunc.grad(self.wsum[-1]))

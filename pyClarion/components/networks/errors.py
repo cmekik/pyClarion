@@ -87,21 +87,24 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
     action: Site
     params: Site
 
-    def qnext(self) -> NumDict:
+    def next_Q(self) -> NumDict:
+        qvals = self.input[0]
         return (self.main.new({})
-            .sum(self.qvals[0].mul(self.action[0]).sum())
+            .sum(qvals.mul(self.action[0]).sum())
             .with_default(c=0.0))
 
-    def qexpected(self) -> NumDict:
+    def expected_Q(self) -> NumDict:
         sd = self.choice.params[0][path(self.choice.p.sd)]
-        pvec = self.qvals[0].scale(x=sd).exp()
+        qvals = self.input[0]
+        pvec = qvals.scale(x=sd).exp()
         pvec = pvec.div(pvec.sum())
-        expected_q = pvec.mul(self.qvals[0]).sum()
+        expected_q = pvec.mul(qvals).sum()
         return self.main.new({}).sum(expected_q).with_default(c=0.0)
 
-    def qmax(self) -> NumDict:
+    def max_Q(self) -> NumDict:
+        qvals = self.input[0]
         return (self.main.new({})
-            .sum(self.qvals[0]
+            .sum(qvals
                 .max(by=self.choice.by)))
         
     def __init__(self, 
@@ -109,7 +112,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         p: Family, 
         r: DV | D, 
         *,
-        func: Callable[["TDError"], NumDict] = qmax,
+        func: Callable[["TDError"], NumDict] = max_Q,
         gamma: float = .5,
         l: int = 1
     ) -> None:
@@ -149,11 +152,11 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         n = len(self.reward)
         main = (self.func(self)
             .scale(x=gamma ** n)
-            .sum(*(rwd.sum().scale(x=gamma ** (n - t - 1)) 
+            .sum(*(rwd.sum().scale(x=gamma ** (n - t - 2)) 
                 for t, rwd in enumerate(self.reward.data) if t < n - 1))
             .with_default(c=self.main.const)
-            .sub(self.qvals[-1])
-            .mul(self.action[-1])
+            .sub(self.qvals[-2])
+            .mul(self.action[-2])
             .neg())
         self.system.schedule(self.update,
             self.main.update(main),

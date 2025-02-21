@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, overload
 from datetime import timedelta
 
 from .base import V, DV, DualRepMixin, ParamMixin
@@ -57,7 +57,35 @@ class Input(DualRepMixin, Process):
         self.main = Site(index, {}, c, lags)
         self.reset = reset
 
-    def send(self, d: dict[Term | Key, float] | Chunk, 
+    @overload
+    def send(self, d: dict[Term, float], 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        ...
+
+    @overload
+    def send(self, d: dict[Key, float], 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        ...
+
+    @overload
+    def send(self, d: dict[Key | Term, float], 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        ...
+
+    @overload
+    def send(self, d: Chunk, 
+        dt: timedelta = timedelta(), 
+        priority: int = Priority.PROPAGATION
+    ) -> None:
+        ...
+
+    def send(self, d: dict | Chunk, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
@@ -68,8 +96,7 @@ class Input(DualRepMixin, Process):
             self.main.update(data, method), 
             dt=dt, priority=priority)
 
-    def _parse_input(self, d: dict[Term | Key, float] | Chunk) \
-        -> dict[Key, float]:
+    def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
         data = {}
         if isinstance(d, dict):
             for k, v in d.items():

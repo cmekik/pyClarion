@@ -53,6 +53,7 @@ class MLP(Process):
         s2 = s1 if s2 is None else s2
         super().__init__(name)
         self.system.check_root(h)
+        self.layers = []
         self.optimizer = optimizer(f"{name}.optimizer", p, **kwargs)
         with self.optimizer:
             if not layers:
@@ -96,6 +97,12 @@ class MLP(Process):
             return self
         return NotImplemented
 
+    def init_weights(self) -> None:
+        self.ilayer.init_weights()
+        for layer in self.layers:
+            layer.init_weights()
+        self.olayer.init_weights()
+
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
@@ -132,7 +139,7 @@ class IDN(MLP):
         layers: Sequence[int] = (),
         optimizer: Type[Optimizer] = SGD,
         afunc: Activation | None = None,
-        func: Callable[[TDError], NumDict] = TDError.qmax,
+        func: Callable[[TDError], NumDict] = TDError.max_Q,
         gamma: float = .3,
         l: int = 1,
         **kwargs: Any
