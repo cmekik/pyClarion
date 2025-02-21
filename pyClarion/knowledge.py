@@ -108,8 +108,7 @@ class Atom(Term):
     """
     An atomic data term.
 
-    Represents some elementary data element (e.g., a basic feature, parameter, 
-    etc.).
+    Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
     
     def __rmul__(self, other: Key) -> Key:
