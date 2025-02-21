@@ -280,8 +280,8 @@ class Chunks(Sort[Chunk]):
     """
     A data sort for chunk terms.
 
-    Represents a collection of chunk terms that belong to some common 
-    collection. This sort includes a `nil` term as a necessary member.
+    Represents a collection of chunk terms. This sort includes a `nil` term as 
+    a necessary member.
     """
     nil: Chunk
 
@@ -293,8 +293,8 @@ class Rules(Sort[Rule]):
     """
     A data sort for rule terms.
 
-    Represents a collection of rule terms that belong to some common 
-    collection. This sort includes a `nil` term as a necessary member.
+    Represents a collection of rule terms. This sort includes a `nil` term as a 
+    necessary member.
     """
     nil: Rule 
 
