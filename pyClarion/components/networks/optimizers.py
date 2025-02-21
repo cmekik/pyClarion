@@ -132,7 +132,7 @@ class Adam(Optimizer):
             if layer.afunc:
                 sd = sd_ * layer.afunc.scale(layer) 
             else: 
-                sd = sd_ / (1 + len(layer.input))
+                sd = sd_ / len(layer.input[0])
             if Train.BIAS in layer.train:
                 param, grad = layer.bias, layer.grad_bias
                 m, v = self.bm1[layer.name], self.bm2[layer.name]

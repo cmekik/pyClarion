@@ -48,6 +48,8 @@ class MLP(Process):
         optimizer: Type[Optimizer] = Adam, 
         afunc: Activation | None = None,
         l: int = 0,
+        train: Train = Train.ALL,
+        init_sd: float = 1e-2,
         **kwargs: Any
     ) -> None:
         s2 = s1 if s2 is None else s2
@@ -55,22 +57,24 @@ class MLP(Process):
         self.system.check_root(h)
         self.layers = []
         self.optimizer = optimizer(f"{name}.optimizer", p, **kwargs)
+        lkwargs = {"afunc": afunc, "l": l, "train": train, "init_sd": init_sd}
         with self.optimizer:
             if not layers:
-                self.ilayer = Layer(f"{name}.layer", s1, s2, afunc=afunc, l=l)
+                self.ilayer = Layer(f"{name}.layer", s1, s2, **lkwargs)
                 self.olayer = self.ilayer
             else:
                 hs = []
                 for i, n in enumerate(layers):
                     hs.append(self._mk_hidden_nodes(h, i, n))
-                self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], afunc=afunc, l=l)
+                self.ilayer = Layer(f"{name}.ilayer", s1, hs[0], **lkwargs)
                 hi = hs[0]
                 layer = self.ilayer 
                 for i, ho in enumerate(hs[1:]):
-                    layer = layer >> Layer(f"{name}.l{i}", hi, ho, afunc=afunc, l=l)
+                    layer = layer >> Layer(f"{name}.l{i}", hi, ho, **lkwargs)
                     self.layers.append(layer)
                     hi = ho
-                self.olayer = layer >> Layer(f"{name}.olayer", hi, s2, l=l)
+                lkwargs.pop("afunc")
+                self.olayer = layer >> Layer(f"{name}.olayer", hi, s2, **lkwargs)
         self.input = Site(self.ilayer.input.index, {}, self.ilayer.input.const)
 
     def _mk_hidden_nodes(self, h: Family, l: int, n: int) -> Hidden:
@@ -142,9 +146,13 @@ class IDN(MLP):
         func: Callable[[TDError], NumDict] = TDError.max_Q,
         gamma: float = .3,
         l: int = 1,
+        train: Train = Train.ALL,
+        init_sd: float = 1e-2,
         **kwargs: Any
     ) -> None:
-        super().__init__(name, p, h, s1, s2, layers, optimizer, afunc, l + 1, **kwargs)
+        super().__init__(
+            name, p, h, s1, s2, layers, optimizer, afunc, l + 1, train, init_sd, 
+            **kwargs)
         self.error = self >> TDError(f"{name}.error", 
             p, r, func=func, gamma=gamma, l=l)
         
