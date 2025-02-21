@@ -3,14 +3,34 @@ from typing import (Self, Iterable, Type, Iterator, TypedDict, get_type_hints,
 from weakref import WeakValueDictionary
 from itertools import product, count
 
-from .numdicts import KeySpaceBase, KeyForm, Key, path, ValidationError
+from .numdicts import KeySpaceBase, KeyForm, Key, path, bind, ValidationError
 
 
-class Branch[P: KeySpaceBase, C: "Branch"](KeySpaceBase[P, C]):
-    pass
+class Symbol[P: KeySpaceBase, C: "Symbol"](KeySpaceBase[P, C]):
+    """
+    Base class for data symbols.
+    
+    Do not directly instantiate this class.
+    """
+    
+    def __invert__(self) -> Key:
+        return path(self)
+
+    def __mul__(self, other: "Symbol") -> Key:
+        if isinstance(other, Symbol):
+            return bind(path(self), path(other))
+        return NotImplemented
 
 
-class Term(Branch["Sort", "Sort"]):
+class Term(Symbol["Sort", "Sort"]):
+    """
+    Base class for data terms.
+
+    Data terms represent indvidual data elements of a model (e.g., individual 
+    features, parameters etc.).
+    
+    Do not directly instantiate this class. 
+    """
 
     def __init__(self) -> None:
         super().__init__(Sort, Sort)
@@ -27,7 +47,17 @@ class Term(Branch["Sort", "Sort"]):
         return NotImplemented
 
 
-class Sort[C: "Term"](Branch[KeySpaceBase, C]):
+class Sort[C: "Term"](Symbol[KeySpaceBase, C]):
+    """
+    A data sort.
+
+    Represents a collection of data terms that are alike in content (e.g., 
+    color terms, shape terms, etc.). 
+
+    Direct instantiation of this class is not recommended. Use `Atoms`, 
+    `Chunks`, or `Rules` instead.
+    """
+
     _required_: frozenset[Key]
     _counter_: count
     _vars_: dict[str, "Var"]
@@ -49,8 +79,20 @@ class Sort[C: "Term"](Branch[KeySpaceBase, C]):
         if Key(name) in self._required_:
             raise ValidationError(f"Cannot remove required key '{name}'")
 
+    def __rmul__(self, other: Key) -> Key:
+        if isinstance(other, Key):
+            return bind(other, path(self))
+        return NotImplemented
 
-class Family[S: "Sort"](Branch[KeySpaceBase, S]):
+
+class Family[S: "Sort"](Symbol[KeySpaceBase, S]):
+    """
+    A family of data sorts.
+
+    Represents a collection of data terms that are alike in content (e.g., 
+    color terms, shape terms, etc.). 
+    """
+
     _required_: frozenset[Key]
 
     def __init__(self, sort: Type[S] = Sort) -> None:
@@ -63,10 +105,28 @@ class Family[S: "Sort"](Branch[KeySpaceBase, S]):
 
 
 class Atom(Term):
-    pass
+    """
+    An atomic data term.
+
+    Represents some elementary data element (e.g., a basic feature, parameter, 
+    etc.).
+    """
+    
+    def __rmul__(self, other: Key) -> Key:
+        if isinstance(other, Key):
+            return bind(other, path(self))
+        return NotImplemented
 
 
 class Compound(Term):
+    """
+    Base class for compound terms.
+
+    A compound term represents a data element with some constituency structure 
+    (i.e., chunks and rules).
+
+    Do not directly instantiate this class.
+    """
     _descr_: str
     _vars_: dict
     _instances_: WeakValueDictionary[str, Self]
@@ -88,6 +148,12 @@ class Compound(Term):
 
 
 class Chunk(Compound):
+    """
+    A chunk term.
+    
+    Symbolically represents a Clarion chunk, together with its dimension-value 
+    pairs.
+    """
     _dyads_: "dict[tuple[Term | Var, Term | Var], float]"
     
     def __init__(
@@ -119,9 +185,19 @@ class Chunk(Compound):
     def __neg__(self: Self) -> Self:
         return type(self)({d: -w for d, w in self._dyads_.items()})
     
+    @overload
     def __rmul__(self: Self, other: float) -> Self:
+        ...
+
+    @overload
+    def __rmul__(self: Self, other: Key) -> Key:
+        ...
+
+    def __rmul__(self, other):
         if isinstance(other, float):
             return type(self)({d: other * w for d, w in self._dyads_.items()})
+        elif isinstance(other, Key):
+            return bind(other, path(self))
         return NotImplemented
 
     def __add__(self, other: "Chunk") -> "Chunk":
@@ -154,6 +230,12 @@ class Chunk(Compound):
 
 
 class Rule(Compound):
+    """
+    A rule term.
+    
+    Symbolically represents a Clarion rule, together with its constituent 
+    chunks.
+    """
     _chunks_ : dict[Chunk, float]
 
     def __init__(
@@ -167,6 +249,10 @@ class Rule(Compound):
         self._vars_.update(
             Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
 
+    def __rmul__(self, other: Key) -> Key:
+        if isinstance(other, Key):
+            return bind(other, path(self))
+        return NotImplemented
 
 class Var:
     def __init__(self, name: str, sort: Sort) -> None:
@@ -180,11 +266,23 @@ class Var:
 
 
 class Atoms(Sort[Atom]):
+    """
+    A data sort for atomic terms.
+
+    Represents a collection of atomic data terms that are alike in content 
+    (e.g., color terms, shape terms, etc.).
+    """ 
     def __init__(self):
         super().__init__(Atom)
 
 
 class Chunks(Sort[Chunk]):
+    """
+    A data sort for chunk terms.
+
+    Represents a collection of chunk terms that belong to some common 
+    collection. This sort includes a `nil` term as a necessary member.
+    """
     nil: Chunk
 
     def __init__(self):
@@ -192,6 +290,12 @@ class Chunks(Sort[Chunk]):
 
 
 class Rules(Sort[Rule]):
+    """
+    A data sort for rule terms.
+
+    Represents a collection of rule terms that belong to some common 
+    collection. This sort includes a `nil` term as a necessary member.
+    """
     nil: Rule 
 
     def __init__(self):
@@ -399,14 +503,14 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
     return new_rules, rule_data
 
 
-def keyform(branch: Branch, *, trunc: int = 0) -> KeyForm:
-    match branch:
+def keyform(Symbol: Symbol, *, trunc: int = 0) -> KeyForm:
+    match Symbol:
         case Atom():
-            k, h = path(branch), 0 - trunc
+            k, h = path(Symbol), 0 - trunc
         case Sort():
-            k, h = path(branch), 1 - trunc
+            k, h = path(Symbol), 1 - trunc
         case Family():
-            k, h = path(branch), 2 - trunc
+            k, h = path(Symbol), 2 - trunc
         case _:
             raise TypeError()
     if h < 0:

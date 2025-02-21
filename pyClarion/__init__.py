@@ -1,7 +1,7 @@
 from .numdicts import (ValidationError, Key, KeyForm, KeySpaceBase, KeySpace,
     Index, NumDict, root, path, parent, bind, crawl, numdict)
 from .system import Update, Event, UpdateSort, Clock, Process, Site, Priority
-from .knowledge import (Branch, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
+from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
     Atoms, Chunks, Rules, keyform, compile_chunks, compile_rules, describe)
 from .components import (Environment, Agent, Input, Choice, Pool, 
     #ChunkAssocs, 
@@ -17,7 +17,7 @@ __all__ = [
     # from system
     "Update", "Event", "UpdateSort", "Clock", "Process", "Site", "Priority",
     # from knowledge,
-    "Branch", "Term", "Sort", "Family", "Atom", "Compound", "Chunk", "Rule", 
+    "Symbol", "Term", "Sort", "Family", "Atom", "Compound", "Chunk", "Rule", 
     "Atoms", "Chunks", "Rules", "keyform", "compile_chunks", "compile_rules", 
     "describe",
     # from components
