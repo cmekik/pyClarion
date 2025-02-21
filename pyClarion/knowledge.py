@@ -29,7 +29,8 @@ class Term(Symbol["Sort", "Sort"]):
     Data terms represent indvidual data elements of a model (e.g., individual 
     features, parameters etc.).
     
-    Do not directly instantiate this class. 
+    Do not directly instantiate or subclass this class. Use `Atom`, `Chunk`, or 
+    `Rule` instead.
     """
 
     def __init__(self) -> None:
@@ -54,8 +55,8 @@ class Sort[C: "Term"](Symbol[KeySpaceBase, C]):
     Represents a collection of data terms that are alike in content (e.g., 
     color terms, shape terms, etc.). 
 
-    Direct instantiation of this class is not recommended. Use `Atoms`, 
-    `Chunks`, or `Rules` instead.
+    Direct instantiation or subclassing of this class is not recommended. Use 
+    `Atoms`, `Chunks`, or `Rules` instead.
     """
 
     _required_: frozenset[Key]
