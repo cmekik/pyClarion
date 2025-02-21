@@ -306,14 +306,14 @@ class Site:
     const: float
     data: deque[NumDict]
 
-    def __init__(self, i: Index, d: dict, c: float, l: int = 0) -> None:
-        l = 0 if l < 0 else l
+    def __init__(self, i: Index, d: dict, c: float, l: int = 1) -> None:
+        l = 1 if l < 1 else l
         self.procs = WeakSet()
         self.index = i
         self.const = c
         self.data = deque(
             [numdict(i, d, c) for _ in range((l + 1))], 
-            maxlen=l + 1)
+            maxlen=l)
 
     def __iter__(self) -> Iterator[NumDict]:
         yield from self.data

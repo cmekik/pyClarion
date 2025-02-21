@@ -144,7 +144,7 @@ class IDN(MLP):
         l: int = 1,
         **kwargs: Any
     ) -> None:
-        super().__init__(name, p, h, s1, s2, layers, optimizer, afunc, l, **kwargs)
+        super().__init__(name, p, h, s1, s2, layers, optimizer, afunc, l + 1, **kwargs)
         self.error = self >> TDError(f"{name}.error", 
             p, r, func=func, gamma=gamma, l=l)
         

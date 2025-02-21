@@ -126,7 +126,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         idx_r, = self._init_indexes(r)
         idx_a = self.choice.main.index
         self.main = Site(idx_a, {}, c=0.0)
-        self.input = Site(idx_a, {}, c=0.0, l=l)
+        self.input = Site(idx_a, {}, c=0.0, l=l + 1)
         self.qvals = Site(idx_a, {}, c=0.0, l=l)
         self.reward = Site(idx_r, {}, c=0.0, l=l)
         self.action = Site(idx_a, {}, c=0.0, l=l)
@@ -152,11 +152,11 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         n = len(self.reward)
         main = (self.func(self)
             .scale(x=gamma ** n)
-            .sum(*(rwd.sum().scale(x=gamma ** (n - t - 2)) 
-                for t, rwd in enumerate(self.reward.data) if t < n - 1))
+            .sum(*(rwd.sum().scale(x=gamma ** (n - 1 - t)) 
+                for t, rwd in enumerate(self.reward.data)))
             .with_default(c=self.main.const)
-            .sub(self.qvals[-2])
-            .mul(self.action[-2])
+            .sub(self.qvals[-1])
+            .mul(self.action[-1])
             .neg())
         self.system.schedule(self.update,
             self.main.update(main),
