@@ -60,7 +60,7 @@ class BaseLevel(Process):
             float("nan"))
 
     def resolve(self, event: Event) -> None:
-        if self.input.affected_by(event):
+        if self.input.affected_by(*event.updates):
             self.invoke(event)
 
     def invoke(self,

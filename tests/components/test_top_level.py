@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from pyClarion import Agent
 from pyClarion.knowledge import Family, Atoms, Atom
-from pyClarion.components.elementary import InputBL
+from pyClarion.components.elementary import Input
 from pyClarion.components.top_level import ChunkStore, RuleStore
 from pyClarion.components.rules import FixedRules
 
@@ -32,7 +32,7 @@ class ChunkStoreTestCase(unittest.TestCase):
 
         with Agent("a") as agent:
             root = agent.system.root; root.s = s
-            input = InputBL("input", root.s, root.s)
+            input = Input("input", (root.s, root.s))
             store = ChunkStore("store", root.s, root.s, root.s)
             store.bu.input = input.main
         
@@ -90,7 +90,7 @@ class RuleStoreTestCase(unittest.TestCase):
         
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s
-            input = InputBL("input", root.s, root.s)
+            input = Input("input", (root.s, root.s))
             store = RuleStore("rules", root.s, root.s, root.s, root.s)
             store.lhs.bu.input = input.main
 
@@ -134,7 +134,7 @@ class FixedRuleTestCase(unittest.TestCase):
         
         with Agent("agent") as agent:
             root = agent.system.root; root.s = s; root.p = Family()
-            input = InputBL("input", root.s, root.s)
+            input = Input("input", (root.s, root.s))
             frs = FixedRules("frs", root.p, root.s, root.s, root.s, root.s, sd=1e-4)
             frs.rules.lhs.bu.input = input.main
 
@@ -148,13 +148,13 @@ class FixedRuleTestCase(unittest.TestCase):
             event = agent.system.advance()
             print("Event:", event.source.__qualname__, f"(# {event.number})")
             print("Input (BL):")
-            pprint.pprint(input.main.d)
+            pprint.pprint(input.main[0].d)
             print("Input (TL):")
-            pprint.pprint(frs.rules.lhs.bu.main.d)
+            pprint.pprint(frs.rules.lhs.bu.main[0].d)
             print("Output (TL):")
-            pprint.pprint(frs.choice.main.d)
+            pprint.pprint(frs.choice.main[0].d)
             print("Output (BL):")
-            pprint.pprint(frs.rules.rhs.td.main.d)
+            pprint.pprint(frs.rules.rhs.td.main[0].d)
             print()
         ...
 

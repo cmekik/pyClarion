@@ -240,8 +240,10 @@ class Index[T: KeySpaceBase]:
     def __iter__(self) -> Iterator[Key]:
         its = (_iter(self._levels[i], self._heights[i]) for i in self._leaves)
         suites = [list(it) for it in its]
-        for l in suites: 
-            if not l: l.append(Key()) # ensures suite not empty when h=0
+        heights = [self._heights[i] for i in self._leaves]
+        for h, l in zip(heights, suites): 
+            if h == 0 and not l: 
+                l.append(Key()) # ensures suite not empty when h=0
         for suite in product(*suites):
             result = self.keyform.k
             for i, s in zip(reversed(self._leaves), reversed(suite)):

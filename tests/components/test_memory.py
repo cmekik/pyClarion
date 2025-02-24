@@ -30,7 +30,7 @@ class BaseLevelTestCase(unittest.TestCase):
             if event.source == agent.breakpoint:
                 base_levels.update()
             if event.source == base_levels.update:
-                print(event.time, base_levels.main[path(chunks["test_chunk"])])
+                print(event.time, base_levels.main[0][path(chunks["test_chunk"])])
         
 
 if __name__ == "__main__":

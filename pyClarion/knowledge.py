@@ -10,7 +10,7 @@ class Symbol[P: KeySpaceBase, C: "Symbol"](KeySpaceBase[P, C]):
     """
     Base class for data symbols.
     
-    Do not directly instantiate this class.
+    Do not directly instantiate or subclass this class.
     """
     
     def __invert__(self) -> Key:
