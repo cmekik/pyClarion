@@ -206,7 +206,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
 
     @staticmethod
     def Heckerman(main: NumDict, *numdicts: NumDict) -> NumDict:
-        return main.logit().sum(*(d.logit() for d in numdicts)).expit()
+        return main.shift(x=1).scale(x=0.5).logit().sum(*(d.shift(x=1).scale(x=0.5).logit() for d in numdicts)).expit()
 
 
     def __init__(self, name: str, p: Family, s: V | DV, *, func: Callable = CAM) -> None:
