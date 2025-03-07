@@ -1,11 +1,11 @@
-from typing import Any, ClassVar, overload
+from typing import Any, ClassVar, overload, Callable
 from datetime import timedelta
 
 from .base import V, DV, DualRepMixin, ParamMixin
 from ..system import Process, Event, Priority, Site
 from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
     keyform)
-from ..numdicts import Key, KeyForm, numdict, path
+from ..numdicts import Key, KeyForm, numdict, path, NumDict
 
 
 class Environment(Process):
@@ -196,8 +196,20 @@ class Pool(ParamMixin, DualRepMixin, Process):
     main: Site
     params: Site
     inputs: dict[Key, Site]
+    func: Callable
 
-    def __init__(self, name: str, p: Family, s: V | DV) -> None:
+    @staticmethod
+    def CAM(main: NumDict, *numdicts: NumDict) -> NumDict:
+        pro = main.max(*numdicts)
+        con = main.min(*numdicts)
+        return pro.sum(con)
+
+    @staticmethod
+    def Heckerman(main: NumDict, *numdicts: NumDict) -> NumDict:
+        return main.logit().sum(*(d.logit() for d in numdicts)).expit()
+
+
+    def __init__(self, name: str, p: Family, s: V | DV, *, func: Callable = CAM) -> None:
         super().__init__(name)
         index, = self._init_indexes(s)
         psort, psite = self._init_params(p, type(self).Params)
@@ -205,6 +217,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
         self.params = psite
         self.main = Site(index, {}, 0.0)
         self.inputs = {}
+        self.func = func
 
     def __setitem__(self, name: str, site: Any) -> None:
         if not isinstance(site, Site):
@@ -233,10 +246,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
     ) -> None:
         inputs = [s[0].scale(x=self.params[0][k]) 
             for k, s in self.inputs.items()]
-        main = self.main.new({})
-        pro = main.max(*inputs)
-        con = main.min(*inputs)
-        main = pro.sum(con)
+        main = self.func(self.main.new({}), *inputs)
         self.system.schedule(
             self.update, 
             self.main.update(main),
