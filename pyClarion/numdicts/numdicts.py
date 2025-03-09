@@ -225,5 +225,4 @@ class NumDict(IndexObserver):
         self._d.update({Key(k): float(v) for k, v in data.items()})
     
     def on_del(self, index: Index, key: Key) -> None:
-        if key in self._d:
-            del self._d[key]
+        self._d.pop(key, None)

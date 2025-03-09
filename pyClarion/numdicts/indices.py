@@ -3,6 +3,8 @@ from typing import overload, Any, Iterator
 from itertools import product
 from weakref import WeakSet
 
+from pyClarion.numdicts.keyspaces import KSChild
+
 from.keys import Key, KeyForm
 from .keyspaces import KSBase, KSRoot, KSParent, KSObserver, root, path
 
@@ -11,6 +13,7 @@ class Index[R: KSRoot](KSObserver):
     root: R
     kf: KeyForm
     observers: WeakSet["IndexObserver"]
+    _dependencies: WeakSet[KSBase]
     _leaves: list[int]
     _heights: dict[int, int]
     _levels: list[KSBase]
@@ -105,14 +108,35 @@ class Index[R: KSRoot](KSObserver):
     def __mul__(self, other: "Index") -> "Index":
         return Index(self.root, self.kf * other.kf)
 
+    def requires(self, ksp: KSBase) -> bool:
+        if root(ksp) != self.root:
+            raise ValueError("Incompatible keyspace: Non-identical roots")
+        key = ~ksp
+        for i in self._leaves:
+            leaf = ~self._levels[i]
+            matches = key.find_in(leaf)
+            if matches:
+                return True
+        return False
+
     def depends_on(self, ksp: KSBase) -> bool:
         if root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
-        key, i = path(ksp), 0
-        while key and not key < self.kf.k:
-            key, _ = key.cut(key.size - 1)
-            i += 1
-        return bool(key)        
+        key = ~ksp
+        for i, h in zip(self._leaves, self._heights):
+            leaf = ~self._levels[i]
+            matches = leaf.find_in(key)
+            if matches and key.size <= leaf.size + h:
+                return True
+        return False        
+    
+    def on_del(self, parent: KSParent, child: KSChild) -> None:
+        if self.requires(child):
+            raise RuntimeError(f"Cannot delete key {~child}: "
+                f"Required by index {self}")
+        if self.depends_on(child):
+            for observer in self.observers:
+                observer.on_del(self, ~child)
 
 
 class IndexObserver:
@@ -124,5 +148,5 @@ class IndexObserver:
     def on_add(self, index: Index, key: Key) -> None:
         pass
 
-    def on_remove(self, index: Index, key: Key) -> None:
+    def on_del(self, index: Index, key: Key) -> None:
         pass
