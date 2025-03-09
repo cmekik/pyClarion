@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from ..system import Process, UpdateSort, Priority, Event, Site
 from ..knowledge import Family, Sort, Atoms, Atom, keyform
-from ..numdicts import Key, path
+from ..numdicts import Key
 
 
 class BaseLevel(Process):
@@ -58,7 +58,7 @@ class BaseLevel(Process):
         self.scale = Site(idx_e, {}, float("nan"))
         self.weights = Site(idx_e * idx_s, {}, 0.0)
         self.params = Site(idx_p, 
-            {path(self.p.th): th, path(self.p.sc): sc, path(self.p.de): de}, 
+            {~self.p.th: th, ~self.p.sc: sc, ~self.p.de: de}, 
             float("nan"))
 
     def resolve(self, event: Event) -> None:
@@ -70,9 +70,9 @@ class BaseLevel(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> None:
-        ke = path(self.e); name = f"e{next(self.e._counter_)}"
+        ke = ~self.e; name = f"e{next(self.e._counter_)}"
         key = ke.link(Key(name), ke.size)
-        invoked = set(); th = self.params[0][path(self.p.th)]
+        invoked = set(); th = self.params[0][~self.p.th]
         for ud in (ud for ud in event.updates if self.input.affected_by(ud)):
             if isinstance(ud, Site.Update):
                 for k in ud.data:
@@ -80,12 +80,12 @@ class BaseLevel(Process):
                         invoked.add(key.link(k, 0))
             if isinstance(ud, UpdateSort):
                 for _, term in ud.add:
-                    k = key.link(path(term), 0)
+                    k = key.link(~term, 0)
                     if k not in self.ignore:
                         invoked.add(k)
         time = self.system.clock.time / self.unit
-        sc = self.params[0][path(self.p.sc)] 
-        de = self.params[0][path(self.p.de)]
+        sc = self.params[0][~self.p.sc] 
+        de = self.params[0][~self.p.de]
         self.system.schedule(self.invoke, 
             UpdateSort(self.e, add=((name, Atom()),)),
             self.times.update({key: time}, Site.write_inplace),

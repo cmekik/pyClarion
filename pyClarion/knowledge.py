@@ -3,8 +3,8 @@ from typing import (Self, Iterable, Type, Iterator, TypedDict, get_type_hints,
 from weakref import WeakValueDictionary
 from itertools import product, count
 
-from .numdicts import KeyForm, Key, path, bind, ValidationError
-from .numdicts.keyspaces import KSBase, KSRoot, KSNode, KSChild
+from .numdicts import KeyForm, Key, ValidationError
+from .numdicts.keyspaces import KSBase, KSRoot, KSNode, KSChild, ks_parent
 
 
 class Root(KSRoot["Symbol"]):
@@ -17,11 +17,7 @@ class Symbol(KSChild):
     
     Do not directly instantiate or subclass this class.
     """
-    
-    def __mul__(self: Self, other: "Symbol") -> Key:
-        if isinstance(other, Symbol):
-            return bind(~self, ~other)
-        return NotImplemented
+    pass
 
 
 class Term(Symbol):
@@ -82,11 +78,6 @@ class Sort[C: Term](KSNode[C], Symbol):
         if Key(name) in self._required_:
             raise ValidationError(f"Cannot remove required key '{name}'")
 
-    def __rmul__(self, other: Key) -> Key:
-        if isinstance(other, Key):
-            return bind(other, path(self))
-        return NotImplemented
-
 
 class Family[S: Sort](KSNode[S], Symbol):
     """
@@ -117,11 +108,6 @@ class Atom(Term):
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
     
-    def __rmul__(self, other: Key) -> Key:
-        if isinstance(other, Key):
-            return bind(other, path(self))
-        return NotImplemented
-
 
 class Compound(Term):
     """
@@ -190,19 +176,9 @@ class Chunk(Compound):
     def __neg__(self: Self) -> Self:
         return type(self)({d: -w for d, w in self._dyads_.items()})
     
-    @overload
-    def __rmul__(self: Self, other: float) -> Self:
-        ...
-
-    @overload
-    def __rmul__(self: Self, other: Key) -> Key:
-        ...
-
     def __rmul__(self, other):
         if isinstance(other, float):
             return type(self)({d: other * w for d, w in self._dyads_.items()})
-        elif isinstance(other, Key):
-            return bind(other, path(self))
         return NotImplemented
 
     def __add__(self, other: "Chunk") -> "Chunk":
@@ -254,10 +230,6 @@ class Rule(Compound):
         self._vars_.update(
             Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
 
-    def __rmul__(self, other: Key) -> Key:
-        if isinstance(other, Key):
-            return bind(other, path(self))
-        return NotImplemented
 
 class Var:
     def __init__(self, name: str, sort: Sort) -> None:
@@ -265,9 +237,10 @@ class Var:
         self.sort = sort
 
     def __call__(self, valuation: dict[str, Term]) -> Term:
-        if (value := valuation[self.name]) in self.sort:
+        if ks_parent(value := valuation[self.name]) == self.sort:
             return value
-        raise ValueError()
+        raise ValueError(f"Value {value} assigned to Var {self} does not "
+            "belong to the correct sort.")
 
 
 class Atoms(Sort[Atom]):
@@ -391,7 +364,7 @@ class RuleData(TypedDict):
 def compile_chunk(chunk: Chunk, sort: Chunks) -> ChunkData:
     if not chunk._name_:
         raise ValueError("Cannot compile unnamed chunk")
-    ciw = {}; tdw = {}; k = path(sort)
+    ciw = {}; tdw = {}; k = ~sort
     kc = k.link(Key(chunk._name_), k.size)
     if chunk._template_ is None:
         ciw[kc.link(kc, 0)] = 1.0
@@ -405,7 +378,7 @@ def compile_chunk(chunk: Chunk, sort: Chunks) -> ChunkData:
     if not chunk._vars_:
         for (s1, s2), w in chunk._dyads_.items():
             assert isinstance(s1, Term) and isinstance(s2, Term)
-            kw = kc.link(path(s1), 0).link(path(s2), 0)
+            kw = kc * ~s1 * ~s2
             tdw[kw] = w 
     return ChunkData(ciw=ciw, tdw=tdw)
 
@@ -429,7 +402,7 @@ def compile_chunks(*chunks: Chunk, sort: Chunks) \
 
 
 def compile_rule(rule: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) -> RuleData:
-    riw = {}; lhw = {}; rhw = {}; k = path(sort)
+    riw = {}; lhw = {}; rhw = {}; k = ~sort
     kr = k.link(Key(rule._name_), k.size)
     if rule._template_ is None:
         riw[kr.link(kr, 0)] = 1.0
@@ -459,7 +432,7 @@ def compile_rule(rule: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) -> RuleData:
     else:
         _, lhs_data = compile_chunks(*chunks[:-1], sort=lhs)
         _, rhs_data = compile_chunks(chunks[-1], sort=rhs)
-        k_lhs = path(lhs); k_rhs = path(rhs)
+        k_lhs = ~lhs; k_rhs = ~rhs
         for c, w in zip(chunks[:-1], weights[:-1]):
             kc = k_lhs.link(Key(c._name_), k_lhs.size)
             lhw[kr.link(kc, 0)] = w
@@ -508,14 +481,14 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
     return new_rules, rule_data
 
 
-def keyform(Symbol: Symbol, *, trunc: int = 0) -> KeyForm:
-    match Symbol:
+def keyform(symbol: Symbol, *, trunc: int = 0) -> KeyForm:
+    match symbol:
         case Atom():
-            k, h = path(Symbol), 0 - trunc
+            k, h = ~symbol, 0 - trunc
         case Sort():
-            k, h = path(Symbol), 1 - trunc
+            k, h = ~symbol, 1 - trunc
         case Family():
-            k, h = path(Symbol), 2 - trunc
+            k, h = ~symbol, 2 - trunc
         case _:
             raise TypeError()
     if h < 0:
@@ -525,12 +498,12 @@ def keyform(Symbol: Symbol, *, trunc: int = 0) -> KeyForm:
 
 def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:
     if isinstance(d, Term):
-        key = path(d)
+        key = ~d
         s_d = ".".join([label for label, _ in key[-2:]]) 
     else:
         s_d = f"{d.sort._name_}('{d.name}')"
     if isinstance(v, Term):
-        key = path(v)
+        key = ~v
         s_v = ".".join([label for label, _ in key[-2:]]) 
     else:
         s_v = f"{v.sort._name_}('{v.name}')"
@@ -542,7 +515,7 @@ def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:
 
 
 def describe_chunk(chunk: Chunk):
-    key = path(chunk)
+    key = ~chunk
     descr = chunk._descr_
     instances = chunk._instances_
     template = chunk._template_
@@ -553,7 +526,7 @@ def describe_chunk(chunk: Chunk):
     if instances:
         data.append(f"Abstract chunk with {len(instances)} instances")
     if template:
-        data.append(f"Instance of chunk {path(template)}")
+        data.append(f"Instance of chunk {~template}")
     for (d, v), w in dyads.items():
         data.append(describe_dyad(d, v, w))
     if not dyads:
@@ -562,7 +535,7 @@ def describe_chunk(chunk: Chunk):
 
 
 def describe_rule(rule: Rule):
-    key = path(rule)
+    key = ~rule
     descr = rule._descr_
     instances = rule._instances_
     template = rule._template_
@@ -573,7 +546,7 @@ def describe_rule(rule: Rule):
     if instances:
         data.append(f"Abstract rule with {len(instances)} instances")
     if template:
-        data.append(f"Instance of rule {path(template)}")
+        data.append(f"Instance of rule {~template}")
     for c in chunks:
         data.append(describe_chunk(c).replace("\n", "\n    "))
     if chunks:

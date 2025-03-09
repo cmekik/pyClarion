@@ -6,17 +6,16 @@ from weakref import WeakSet
 from pyClarion.numdicts.keyspaces import KSChild
 
 from.keys import Key, KeyForm
-from .keyspaces import KSBase, KSRoot, KSParent, KSObserver, root, path
+from .keyspaces import KSPath, KSRoot, KSParent, KSObserver, ks_root
 
 
 class Index[R: KSRoot](KSObserver):
     root: R
     kf: KeyForm
     observers: WeakSet["IndexObserver"]
-    _dependencies: WeakSet[KSBase]
     _leaves: list[int]
     _heights: dict[int, int]
-    _levels: list[KSBase]
+    _levels: list[KSPath]
 
     @overload
     def __init__(self, root: R, form: KeyForm | Key | str) -> None:
@@ -53,7 +52,7 @@ class Index[R: KSRoot](KSObserver):
 
     @staticmethod
     def _init(root: KSRoot, keyform: KeyForm) \
-        -> tuple[list[int], dict[int, int], list[KSBase]]:
+        -> tuple[list[int], dict[int, int], list[KSPath]]:
         keyspaces, parents = [], []
         leaves, hs, heights = [], iter(keyform.h), {}
         for i, (label, degree) in enumerate(keyform.k):
@@ -108,8 +107,8 @@ class Index[R: KSRoot](KSObserver):
     def __mul__(self, other: "Index") -> "Index":
         return Index(self.root, self.kf * other.kf)
 
-    def requires(self, ksp: KSBase) -> bool:
-        if root(ksp) != self.root:
+    def requires(self, ksp: KSPath) -> bool:
+        if ks_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
         for i in self._leaves:
@@ -119,8 +118,8 @@ class Index[R: KSRoot](KSObserver):
                 return True
         return False
 
-    def depends_on(self, ksp: KSBase) -> bool:
-        if root(ksp) != self.root:
+    def depends_on(self, ksp: KSPath) -> bool:
+        if ks_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
         for i, h in zip(self._leaves, self._heights):

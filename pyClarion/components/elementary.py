@@ -5,7 +5,7 @@ from .base import V, DV, DualRepMixin, ParamMixin
 from ..system import Process, Event, Priority, Site
 from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
     keyform)
-from ..numdicts import Key, KeyForm, numdict, path, NumDict
+from ..numdicts import Key, KeyForm, numdict, NumDict
 
 
 class Environment(Process):
@@ -102,7 +102,7 @@ class Input(DualRepMixin, Process):
             for k, v in d.items():
                 if isinstance(k, Term):
                     self.system.check_root(k)
-                    k = path(k)
+                    k =  ~k
                 if k not in self.main.index:
                     raise ValueError(f"Unexpected key {k}")
                 data[k] = v
@@ -110,7 +110,7 @@ class Input(DualRepMixin, Process):
             for (t1, t2), weight in d._dyads_.items():
                 if isinstance(t1, Var) or isinstance(t2, Var):
                     raise TypeError("Var not allowed in input chunk.")
-                key = path(t1).link(path(t2), 0)    
+                key = ~t1 * ~t2
                 if key not in self.main.index:
                     raise ValueError(f"Unexpected dimension-value pair {key}")
                 data[key] = weight
@@ -193,7 +193,7 @@ class Choice(ParamMixin, DualRepMixin, Process):
         See Choice.trigger() for a safer option.
         """
         input = self.bias[0].sum(self.input[0])
-        sd = numdict(self.main.index, {}, c=self.params[0][path(self.p.sd)])
+        sd = numdict(self.main.index, {}, c=self.params[0][~self.p.sd])
         sample = input.normalvariate(sd)
         choices = sample.argmax(by=self.by)
         self.system.schedule(
@@ -271,7 +271,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
         if not self.main.index.kf <= site.index.kf:
             raise ValueError()
         self.p[name] = Atom()
-        key = path(self.p[name])
+        key = ~self.p[name]
         self.inputs[key] = site
         if pre is not None:
             self.pre[key] = pre
@@ -279,7 +279,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
             self.params[0][key] = 1.0
 
     def __getitem__(self, name: str) -> Site:
-        return self.inputs[path(self.p[name])]
+        return self.inputs[~self.p[name]]
         
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]

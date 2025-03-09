@@ -6,7 +6,7 @@ from ..base import DualRepMixin, ParamMixin, D, V, DV
 from ..elementary import Choice
 from ...system import Site, Priority, Event, PROCESS
 from ...knowledge import Family, Atoms, Atom, Term
-from ...numdicts import NumDict, path, Key
+from ...numdicts import NumDict, Key
 
 
 class Cost:
@@ -94,7 +94,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
             .with_default(c=0.0))
 
     def expected_Q(self) -> NumDict:
-        sd = self.choice.params[0][path(self.choice.p.sd)]
+        sd = self.choice.params[0][~self.choice.p.sd]
         qvals = self.input[0]
         pvec = qvals.scale(x=sd).exp()
         pvec = pvec.div(pvec.sum())
@@ -148,7 +148,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> None:
-        gamma = self.params[0][path(self.p.gamma)]
+        gamma = self.params[0][~self.p.gamma]
         n = len(self.reward)
         main = (self.func(self)
             .scale(x=gamma ** n)
@@ -173,7 +173,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         for k, v in d.items():
             if isinstance(k, Term):
                 self.system.check_root(k)
-                k = path(k)
+                k = ~k
             if k not in self.reward.index:
                 raise ValueError(f"Unexpected key {k}")
             data[k] = v

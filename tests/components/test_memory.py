@@ -1,7 +1,7 @@
 import unittest
 from datetime import timedelta
 
-from pyClarion import Agent, UpdateSort, path
+from pyClarion import Agent, UpdateSort
 from pyClarion.knowledge import Family, Chunks, Chunk
 from pyClarion.components.memory import BaseLevel
 

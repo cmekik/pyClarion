@@ -13,7 +13,7 @@ import heapq
 
 from .knowledge import Root, Symbol, Sort, Term
 from .numdicts import NumDict, Key, KeyForm, Index, numdict
-from .numdicts import root as get_root
+from .numdicts import ks_root
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
@@ -186,7 +186,7 @@ class Process:
 
         def check_root(self, *keyspaces: Symbol) -> None:
             for keyspace in keyspaces:
-                if self.root == get_root(keyspace):
+                if self.root == ks_root(keyspace):
                     continue
                 raise ValueError(f"Root of {keyspace} does not match system")
 

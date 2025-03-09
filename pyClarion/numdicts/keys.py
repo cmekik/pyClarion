@@ -92,6 +92,11 @@ class Key(tuple[tuple[str, int], ...]):
         if not isinstance(other, Key):
             return NotImplemented
         return bool(self.find_in(other))
+    
+    def __mul__(self: Self, other) -> Self:
+        if not isinstance(other, Key):
+            return NotImplemented
+        return self.link(other, 0)
 
     @property
     @sig_cache
@@ -167,7 +172,7 @@ class Key(tuple[tuple[str, int], ...]):
         return super().__new__(cls, l), super().__new__(cls, r)
 
     @sig_cache
-    def link(self: Self, other: Self, n: int, m: Sequence[int] = ()) -> Self:
+    def link(self: Self, other: "Key", n: int, m: Sequence[int] = ()) -> Self:
         if n < 0 or len(self) <= n:
             raise ValidationError(f"Invalid node index '{n}'")
         (label_s, degree_s), (_, degree_o) = self[n], other[0]
@@ -255,7 +260,7 @@ class KeyForm:
         return bool(k1.find_in(k2, crit=self._crit))
     
     def __mul__(self: Self, other: Self) -> "KeyForm":
-        return KeyForm.from_key(self.as_key().link(other.as_key(), 0))
+        return KeyForm.from_key(self.as_key() * other.as_key())
         
     def reductor(self, other: "KeyForm") -> Callable[[Key], Key]:
         k1 = self.as_key(); k2 = other.as_key()
@@ -313,7 +318,8 @@ class KeyForm:
         leaves, indices, hs, S = [], {}, {}, 1
         for i, (label, deg) in enumerate(key):
             children = [key[S + j] for j in range(deg)]
-            dot_sep_id = all(s.isidentifier() for s in label.split(".")) or label == "*" or label == ""
+            dot_sep_id = all(s.isidentifier() for s in label.split(".")) \
+                or label == "*" or label == ""
             if not (i == 0 or dot_sep_id or label == "?"):
                 raise ValidationError(f"Unexpected label {repr(label)} in key, "
                     "label must be a valid python identifier or '?'.")

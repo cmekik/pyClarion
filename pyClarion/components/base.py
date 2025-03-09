@@ -2,7 +2,7 @@ from typing import Sequence
 
 from ..system import Process, Site
 from ..knowledge import Family, Sort, Term, keyform
-from ..numdicts import path, Index
+from ..numdicts import Index
 
 
 type D = Family | Sort | Term
@@ -47,6 +47,6 @@ class ParamMixin:
         sort = Params(); p[self.name] = sort
         site = Site(
             i=self.system.get_index(keyform(sort)), 
-            d={path(sort[k]): v for k, v in params.items()}, 
+            d={~sort[k]: v for k, v in params.items()}, 
             c=float("nan"))
         return sort, site

@@ -3,7 +3,6 @@ from datetime import timedelta
 from .base import Optimizer, Train, Layer
 from ...system import Priority, Site
 from ...knowledge import Family, Atoms, Atom
-from ...numdicts import path, NumDict
 
 
 class SGD(Optimizer):
@@ -35,9 +34,9 @@ class SGD(Optimizer):
     ) -> None:
         if not self.layers:
             return
-        lr = self.params[0][path(self.p.lr)]
-        sd_ = self.params[0][path(self.p.sd)]
-        l2 = self.params[0][path(self.p.l2)]
+        lr = self.params[0][~self.p.lr]
+        sd_ = self.params[0][~self.p.sd]
+        l2 = self.params[0][~self.p.l2]
         uds = []
         for layer in self.layers:
             if layer.afunc:
@@ -119,14 +118,14 @@ class Adam(Optimizer):
     ) -> None:
         if not self.layers:
             return
-        lr = self.params[0][path(self.p.lr)]
-        sd_ = self.params[0][path(self.p.sd)]
-        l2 = self.params[0][path(self.p.l2)]
-        b1 = self.params[0][path(self.p.b1)]
-        b2 = self.params[0][path(self.p.b2)]
-        bt1 = self.params[0][path(self.p.bt1)]
-        bt2 = self.params[0][path(self.p.bt2)]
-        ep = self.params[0][path(self.p.ep)]
+        lr = self.params[0][~self.p.lr]
+        sd_ = self.params[0][~self.p.sd]
+        l2 = self.params[0][~self.p.l2]
+        b1 = self.params[0][~self.p.b1]
+        b2 = self.params[0][~self.p.b2]
+        bt1 = self.params[0][~self.p.bt1]
+        bt2 = self.params[0][~self.p.bt2]
+        ep = self.params[0][~self.p.ep]
         uds = []
         for layer in self.layers:
             if layer.afunc:
@@ -145,8 +144,7 @@ class Adam(Optimizer):
                     param, grad, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
         bt1 = bt1 * b1
         bt2 = bt2 * b2
-        uds.append(self.params.update(
-            {path(self.p.bt1): bt1, path(self.p.bt2): bt2},
+        uds.append(self.params.update({~self.p.bt1: bt1, ~self.p.bt2: bt2},
             Site.write_inplace))
         self.system.schedule(self.update, *uds, dt=dt, priority=priority)
 

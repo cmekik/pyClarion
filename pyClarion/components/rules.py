@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from ..system import Process, Event, Priority, Site
 from ..knowledge import Family, Sort, Atom, Rule, describe, keyform
-from ..numdicts import crawl, KeyForm
+from ..numdicts import ks_crawl, KeyForm
 from .elementary import Choice
 from .top_level import RuleStore
 
@@ -48,7 +48,7 @@ class ActionRules(Process):
             self.log_update()
 
     def log_update(self):
-        rule = crawl(self.system.root, self.choice.main[0].argmax())
+        rule = ks_crawl(self.system.root, self.choice.main[0].argmax())
         assert isinstance(rule, Rule)
         message = "\n    ".join([
             "    Fired the following rule", 
