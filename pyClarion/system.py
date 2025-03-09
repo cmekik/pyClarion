@@ -110,12 +110,31 @@ class Event:
 
 @dataclass(slots=True)
 class Clock:
-    """A simulation clock."""
+    """
+    A simulation clock.
+    
+    Tracks simulation time using datetime.timedelta() objects.
+    """
     time: timedelta = timedelta()
     limit: timedelta = timedelta()
     counter: count = field(default_factory=count)
 
+    @property
+    def has_time(self) -> bool:
+        """
+        Return True iff clock time limit has not yet been reached.
+        
+        If self.limit == timedelta(), always returns True.
+        """
+        return self.time <= self.limit
+
     def advance(self, timepoint: timedelta) -> None:
+        """
+        Advance clock to given timepoint.
+        
+        Raises StopIteration if a time limit is set and timepoint is beyond it 
+        and ValueError if timepoint precedes clock time.
+        """
         if timedelta() < self.limit and self.limit < timepoint:
             raise StopIteration("Timepoint beyond time limit")
         if timepoint < self.time:
@@ -128,6 +147,7 @@ class Clock:
         *uds: Update, 
         priority: int
     ) -> Event:
+        """Construct an event scheduled at dt from the current timepoint."""
         if dt < timedelta():
             raise ValueError("Cannot schedule an event in the past.")
         t = self.time + dt
@@ -204,6 +224,18 @@ class Process:
             for proc in self.procs:
                 proc.resolve(event)
             return event
+        
+        def run_all(self) -> None:
+            """
+            Process all events.
+            
+            Will stop when scheduled events are exhausted or a time limit is 
+            reached, whichever comes first. For information on time limits, see 
+            Clock.
+            """
+            while self.queue and self.clock.has_time:
+                self.advance()
+
 
     lax: ClassVar[tuple[str, ...]] = ()
     name: str

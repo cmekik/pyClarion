@@ -20,6 +20,7 @@ class BaseLevel(Process):
     e: Atoms
     p: Params
     unit: timedelta
+    ignore: set[Key]
     main: Site
     input: Site
     times: Site
@@ -49,7 +50,8 @@ class BaseLevel(Process):
         idx_e = self.system.get_index(keyform(self.e))
         idx_s = self.system.get_index(keyform(s))
         self.unit = unit
-        self.main = Site(idx_s, {}, 0.0)
+        self.ignore = set()
+        self.main = Site(idx_s, {}, 1.0)
         self.input = Site(idx_s, {}, 0.0)
         self.times = Site(idx_e, {}, float("nan"))
         self.decay = Site(idx_e, {}, float("nan"))
@@ -74,11 +76,13 @@ class BaseLevel(Process):
         for ud in (ud for ud in event.updates if self.input.affected_by(ud)):
             if isinstance(ud, Site.Update):
                 for k in ud.data:
-                    if th < ud.data[k]:
+                    if k not in self.ignore and th < ud.data[k]:
                         invoked.add(key.link(k, 0))
             if isinstance(ud, UpdateSort):
                 for _, term in ud.add:
-                    invoked.add(key.link(path(term), 0))
+                    k = key.link(path(term), 0)
+                    if k not in self.ignore:
+                        invoked.add(k)
         time = self.system.clock.time / self.unit
         sc = self.params[0][path(self.p.sc)] 
         de = self.params[0][path(self.p.de)]
@@ -106,6 +110,9 @@ class BaseLevel(Process):
             .mul(terms)
             .sum(by=self.main.index.keyform)
             .with_default(c=0.0))
+        with blas.mutable():
+            for k in self.ignore:
+                blas[k] = 1.0
         self.system.schedule(self.update, 
             self.main.update(blas.d), 
             dt=dt, priority=priority)

@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, overload, Callable
+from typing import Any, ClassVar, overload, Callable, Protocol
 from datetime import timedelta
 
 from .base import V, DV, DualRepMixin, ParamMixin
@@ -166,11 +166,33 @@ class Choice(ParamMixin, DualRepMixin, Process):
         """Return a symbolic representation of current decision."""
         return self.main[0].argmax(by=self.by)
 
+    def resolve(self, event: Event) -> None:
+        if event.source == self.trigger:
+            self.select()
+
+    def trigger(self, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.DEFERRED
+    ) -> None:
+        """
+        Trigger a new stochastic decision.
+
+        In most use cases, this method should be preferred to Choice.select() 
+        to avoid data synchronization problems.
+        """
+        self.system.schedule(self.trigger, dt=dt, priority=priority)
+
     def select(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.CHOICE
     ) -> None:
-        """Make a new stochastic decision and update sites accordingly."""
+        """
+        Make a new stochastic decision and update sites accordingly.
+        
+        Direct use of this method may result in data synchronization problems. 
+        Use Choice.trigger() should be used in most cases to avoid these such
+        problems.
+        """
         input = self.bias[0].sum(self.input[0])
         sd = numdict(self.main.index, {}, c=self.params[0][path(self.p.sd)])
         sample = input.normalvariate(sd)
@@ -180,6 +202,11 @@ class Choice(ParamMixin, DualRepMixin, Process):
             self.main.update({v: 1.0 for v in choices.values()}),
             self.sample.update(sample),
             dt=dt, priority=priority)
+
+
+class PoolFunc(Protocol):
+    def __call__(self, *others: NumDict) -> NumDict:
+        ...
 
 
 class Pool(ParamMixin, DualRepMixin, Process):
@@ -196,7 +223,9 @@ class Pool(ParamMixin, DualRepMixin, Process):
     main: Site
     params: Site
     inputs: dict[Key, Site]
-    func: Callable
+    pre: dict[Key, Callable[[NumDict], NumDict]]
+    func: PoolFunc
+    post: Callable[[NumDict], NumDict] | None
 
     @staticmethod
     def CAM(main: NumDict, *numdicts: NumDict) -> NumDict:
@@ -206,10 +235,20 @@ class Pool(ParamMixin, DualRepMixin, Process):
 
     @staticmethod
     def Heckerman(main: NumDict, *numdicts: NumDict) -> NumDict:
-        return main.shift(x=1).scale(x=0.5).logit().sum(*(d.shift(x=1).scale(x=0.5).logit() for d in numdicts)).expit().scale(x=2).shift(x=-1)
+        return (main
+            .shift(x=1).scale(x=0.5).logit()
+            .sum(*(d.shift(x=1).scale(x=0.5).logit() for d in numdicts))
+            .expit().scale(x=2).shift(x=-1))
 
 
-    def __init__(self, name: str, p: Family, s: V | DV, *, func: Callable = CAM) -> None:
+    def __init__(self, 
+        name: str, 
+        p: Family, 
+        s: V | DV, 
+        *, 
+        func: PoolFunc = CAM, 
+        post: Callable[[NumDict], NumDict] | None = None
+    ) -> None:
         super().__init__(name)
         index, = self._init_indexes(s)
         psort, psite = self._init_params(p, type(self).Params)
@@ -217,9 +256,17 @@ class Pool(ParamMixin, DualRepMixin, Process):
         self.params = psite
         self.main = Site(index, {}, 0.0)
         self.inputs = {}
+        self.pre = {}
         self.func = func
+        self.post = post
 
-    def __setitem__(self, name: str, site: Any) -> None:
+    def __setitem__(self, 
+            name: str, 
+            value: Site | tuple[Site, Callable[[NumDict], NumDict]]
+        ) -> None:
+        site, pre = value, None
+        if isinstance(value, tuple):
+            site, pre = value
         if not isinstance(site, Site):
             raise TypeError()
         if not self.main.index.keyform <= site.index.keyform:
@@ -227,6 +274,8 @@ class Pool(ParamMixin, DualRepMixin, Process):
         self.p[name] = Atom()
         key = path(self.p[name])
         self.inputs[key] = site
+        if pre is not None:
+            self.pre[key] = pre
         with self.params[0].mutable():
             self.params[0][key] = 1.0
 
@@ -245,8 +294,12 @@ class Pool(ParamMixin, DualRepMixin, Process):
         priority: int = Priority.PROPAGATION
     ) -> None:
         inputs = [s[0].scale(x=self.params[0][k]) 
+            if (pre := self.pre.get(k)) is None
+            else s[0].pipe(pre).scale(x=self.params[0][k])
             for k, s in self.inputs.items()]
         main = self.func(self.main.new({}), *inputs)
+        if (post := self.post) is not None:
+            main = post(main)
         self.system.schedule(
             self.update, 
             self.main.update(main),

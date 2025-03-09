@@ -61,6 +61,14 @@ def lte(self: D, other: D) -> D:
     return type(self)(self._i, d, c, False)
 
 
+def copysign(self: D, other: D) -> D:
+    mode = "self" if math.isnan(self._c) else "match"
+    d = {k: math.copysign(v1, v2) 
+        for k, (v1, v2) in self.collect(other, mode=mode)}
+    c = math.copysign(self._c, other._c)
+    return type(self)(self._i, d, c, False)
+
+
 def with_default(self: D, *, c: bool | int | float) -> D:
     return type(self)(self._i, self._d.copy(), c, False)
 

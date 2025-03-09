@@ -20,7 +20,7 @@ def numdict(
 
 class NumDict:
     from .methods.logical import (isfinite, isnan, isinf, isclose, gt, gte, lt, 
-        lte, with_default, valmax, valmin, argmax, argmin)
+        lte, copysign, with_default, valmax, valmin, argmax, argmin)
     from .methods.arithmetic import (eye, neg, inv, abs, log, log1p, logit, exp, 
         expm1, expit, cosh, sinh, tanh, bound_max, bound_min, const, shift, 
         scale, pow, sum, sub, mul, div, max, min)

@@ -41,11 +41,11 @@ class ChunkStore(Process):
             self.td = TopDown(f"{name}.td", self.chunks,  d, v)
             self.bu = BottomUp(f"{name}.bu", self.chunks, d, v)
 
-    def norm(self, d: NumDict) -> NumDict:
+    def norm(self, d: NumDict, max_by: KeyForm, sum_by: KeyForm) -> NumDict:
         return (d
             .abs()
-            .max(by=self.bu.max_by)
-            .sum(by=self.bu.sum_by)
+            .max(by=max_by)
+            .sum(by=sum_by)
             .shift(x=1.0))
 
     def resolve(self, event: Event) -> None:
@@ -97,7 +97,8 @@ class ChunkStore(Process):
         priority: int = Priority.LEARNING
     ) -> None:
         """Update bottom-up weights to be consistent with top-down weights."""
-        weights = self.td.weights[0].div(self.norm(self.td.weights[0]))
+        weights = (self.td.weights[0]
+            .div(self.norm(self.td.weights[0], self.bu.max_by, self.bu.sum_by)))
         self.system.schedule(
             self.update_buw, 
             self.bu.weights.update(weights),
