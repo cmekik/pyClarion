@@ -83,8 +83,8 @@ class Layer(DualRepMixin, Process):
         self.back = Site(idx_in, {}, 0.0)
         self.grad_bias = Site(idx_out, {}, 0.0)
         self.grad_weights = Site(idx_in * idx_out, {}, 0.0)
-        self.fw_by = idx_in.keyform * idx_out.keyform.agg
-        self.bw_by = idx_in.keyform.agg * idx_out.keyform
+        self.fw_by = idx_in.kf * idx_out.kf.agg
+        self.bw_by = idx_in.kf.agg * idx_out.kf
         self.init_weights(init_sd)
         self._connect_to_optimizer()
 

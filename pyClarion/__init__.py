@@ -1,4 +1,4 @@
-from .numdicts import (ValidationError, Key, KeyForm, KeySpaceBase, KeySpace,
+from .numdicts import (ValidationError, Key, KeyForm,
     Index, NumDict, root, path, parent, bind, crawl, numdict)
 from .system import Update, Event, UpdateSort, Clock, Process, Site, Priority
 from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
@@ -12,7 +12,7 @@ from .components import (Environment, Agent, Input, Choice, Pool,
 
 __all__ = [
     # from numdicts
-    "ValidationError", "Key", "KeyForm", "KeySpaceBase", "KeySpace",
+    "ValidationError", "Key", "KeyForm",
     "Index", "NumDict", "root", "path", "parent", "bind", "crawl", "numdict",
     # from system
     "Update", "Event", "UpdateSort", "Clock", "Process", "Site", "Priority",

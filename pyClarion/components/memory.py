@@ -108,7 +108,7 @@ class BaseLevel(Process):
             .exp())
         blas = (self.weights[0]
             .mul(terms)
-            .sum(by=self.main.index.keyform)
+            .sum(by=self.main.index.kf)
             .with_default(c=0.0))
         with blas.mutable():
             for k in self.ignore:

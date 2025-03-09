@@ -177,8 +177,8 @@ class Choice(ParamMixin, DualRepMixin, Process):
         """
         Trigger a new stochastic decision.
 
-        In most use cases, this method should be preferred to Choice.select() 
-        to avoid data synchronization problems.
+        This method should be preferred to Choice.select() in most cases to 
+        avoid data synchronization problems.
         """
         self.system.schedule(self.trigger, dt=dt, priority=priority)
 
@@ -190,8 +190,7 @@ class Choice(ParamMixin, DualRepMixin, Process):
         Make a new stochastic decision and update sites accordingly.
         
         Direct use of this method may result in data synchronization problems. 
-        Use Choice.trigger() should be used in most cases to avoid these such
-        problems.
+        See Choice.trigger() for a safer option.
         """
         input = self.bias[0].sum(self.input[0])
         sd = numdict(self.main.index, {}, c=self.params[0][path(self.p.sd)])
@@ -269,7 +268,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
             site, pre = value
         if not isinstance(site, Site):
             raise TypeError()
-        if not self.main.index.keyform <= site.index.keyform:
+        if not self.main.index.kf <= site.index.kf:
             raise ValueError()
         self.p[name] = Atom()
         key = path(self.p[name])

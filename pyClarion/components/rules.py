@@ -75,7 +75,7 @@ class ActionRules(Process):
             .with_default(c=self.main.const))
         td_input = (self.rules.rhw[0]
             .mul(choice)
-            .sum(by=self.rules.rhs.td.input.index.keyform)
+            .sum(by=self.rules.rhs.td.input.index.kf)
             .with_default(c=self.rules.rhs.td.input.const))
         self.system.schedule(self.update, 
             self.main.update(main),

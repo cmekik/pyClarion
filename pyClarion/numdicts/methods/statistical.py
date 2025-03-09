@@ -3,7 +3,7 @@ import math
 import statistics as stats
 
 from ..keys import Key, KeyForm
-from ..keyspaces import Index
+from ..indices import Index
 from .. import numdicts as nd
 
 
@@ -13,15 +13,15 @@ D = TypeVar("D", bound="nd.NumDict")
 def mean(self: D, by: KeyForm | None = None) -> D:
     match by:
         case None:
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = stats.fmean(self.group(by, mode=mode).get(Key(), (self._c,)))
         case by:
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -33,15 +33,15 @@ def mean(self: D, by: KeyForm | None = None) -> D:
 def stdev(self: D, by: KeyForm | None = None) -> D:
     match by:
         case None:
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = stats.stdev(self.group(by, mode=mode).get(Key(), (self._c,)))
         case by:
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -53,15 +53,15 @@ def stdev(self: D, by: KeyForm | None = None) -> D:
 def variance(self: D, by: KeyForm | None = None) -> D:
     match by:
         case None:
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = stats.variance(self.group(by, mode=mode).get(Key(), (self._c,)))
         case by:
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -73,15 +73,15 @@ def variance(self: D, by: KeyForm | None = None) -> D:
 def pstdev(self: D, by: KeyForm | None = None) -> D:
     match by:
         case None:
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = stats.pstdev(self.group(by, mode=mode).get(Key(), (self._c,)))
         case by:
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -93,15 +93,15 @@ def pstdev(self: D, by: KeyForm | None = None) -> D:
 def pvariance(self: D, by: KeyForm | None = None) -> D:
     match by:
         case None:
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = stats.pvariance(self.group(by, mode=mode).get(Key(), (self._c,)))
         case by:
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)

@@ -114,7 +114,7 @@ def argmax(
         case by:
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
-            reduce = by.reductor(self.i.keyform)
+            reduce = by.reductor(self.i.kf)
             kmax, vmax = {}, {}
             for k in it:
                 group, v = reduce(k), self[k]
@@ -147,7 +147,7 @@ def argmin(
         case by:
             if isinstance(by, (str, nd.Key)):
                 by = nd.KeyForm.from_key(nd.Key(by))
-            reduce = by.reductor(self.i.keyform)
+            reduce = by.reductor(self.i.kf)
             kmin, vmin = {}, {}
             for k in it:
                 group, v = reduce(k), self[k]

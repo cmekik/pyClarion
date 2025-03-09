@@ -5,7 +5,7 @@ from functools import wraps
 from contextlib import contextmanager
 
 from .keys import KeyForm, Key
-from .keyspaces import Index
+from .indices import Index, IndexObserver
 
 
 def numdict(
@@ -18,7 +18,7 @@ def numdict(
     return NumDict(i, d, c)
 
 
-class NumDict:
+class NumDict(IndexObserver):
     from .methods.logical import (isfinite, isnan, isinf, isclose, gt, gte, lt, 
         lte, copysign, with_default, valmax, valmin, argmax, argmin)
     from .methods.arithmetic import (eye, neg, inv, abs, log, log1p, logit, exp, 
@@ -29,12 +29,11 @@ class NumDict:
         lognormvariate, vonmisesvariate, expovariate, gammavariate, 
         paretovariate, logisticvariate, gumbelvariate)
 
-    __slots__ = ("_i", "_d", "_c", "_p", "_r", "__weakref__")
+    __slots__ = ("_i", "_d", "_c", "_p")
 
     _i: Index
     _d: dict[Key, float]
     _c: float
-    _r: int
     _p: bool
 
     def __init__(
@@ -52,21 +51,10 @@ class NumDict:
         self._d = d 
         self._c = c
         self._p = True
-        self._r = self._i.deletions
+        self.register(i)
 
     def _iter_d(self) -> Iterator[Key]:
-        if self._r == self._i.deletions:
-            yield from self._d
-            return
-        rm = set()
-        for k in self._d:
-            if k in self._i:
-                yield k
-            else:
-                rm.add(k)
-        for k in rm:
-            del self._d[k]
-        self._r = self._i.deletions
+        yield from self._d
 
     @property
     def i(self) -> Index:
@@ -101,11 +89,11 @@ class NumDict:
                 raise KeyError(f"Key '{k}' not a member") from e
 
     def __repr__(self) -> str:
-        return (f"<{type(self).__qualname__} '{self.i.keyform.as_key()}' "
+        return (f"<{type(self).__qualname__} '{self.i.kf.as_key()}' "
             f"c={self.c} at {hex(id(self))}>")
     
     def __str__(self) -> str:
-        data = [f"{type(self).__qualname__} '{self.i.keyform.as_key()}' c={self.c}"]
+        data = [f"{type(self).__qualname__} '{self.i.kf.as_key()}' c={self.c}"]
         width = 0
         for k in self.d:
             width = max(width, len(str(k)))
@@ -140,13 +128,13 @@ class NumDict:
         for i, d in enumerate(others):
             if d._i.root != self._i.root:
                 raise ValueError(f"Mismatched keyspaces")
-            if d._i.keyform != self._i.keyform:
+            if d._i.kf != self._i.kf:
                 invariant = False
-            kf = self._i.keyform
+            kf = self._i.kf
             if branches is not None:
                 branch = branches if isinstance(branches, KeyForm) else branches[i]
                 kf = branch if branch is not None else kf 
-            reductors.append(d._i.keyform.reductor(kf))
+            reductors.append(d._i.kf.reductor(kf))
         match mode:
             case "self":
                 it = self._iter()
@@ -171,7 +159,7 @@ class NumDict:
     ) -> dict[Key, list[float]]:
         if mode not in ("self", "full"):
             raise ValueError(f"Invalid mode flag: '{mode}'")
-        reduce = kf.reductor(self._i.keyform)
+        reduce = kf.reductor(self._i.kf)
         items: dict[Key, list[float]] = {}
         match mode:
             case "self":
@@ -235,3 +223,7 @@ class NumDict:
             if k not in self:
                 raise ValueError(f"Key '{k}' not a member")
         self._d.update({Key(k): float(v) for k, v in data.items()})
+    
+    def on_del(self, index: Index, key: Key) -> None:
+        if key in self._d:
+            del self._d[key]

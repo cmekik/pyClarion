@@ -168,7 +168,7 @@ class RuleStore(Process):
     ) -> None:
         main = (self.lhw[0]
             .mul(self.lhs.bu.main[0])
-            .max(by=self.main.index.keyform)
+            .max(by=self.main.index.kf)
             .with_default(c=self.main.const))
         self.system.schedule(self.update, 
             self.main.update(main), 

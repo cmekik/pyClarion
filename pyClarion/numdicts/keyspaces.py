@@ -7,147 +7,151 @@ from .exc import ValidationError
 from .keys import Key, KeyForm
 
 
-class KeySpaceBase[P: "KeySpaceBase", T: "KeySpaceBase"]:
+class KSBase:
+    """Base class for all keyspaces."""
     _name_: str
-    _parent_: P | None = None
-    _ptype_: Type[P]
-    _mtype_: Type[T]
-    _members_: dict[Key, T]
-    _indices_: WeakSet["Index"]
 
-    def __init__(self, ptype: Type[P], mtype: Type[T]):
-        self._name_ = ""
-        self._ptype_ = ptype
-        self._mtype_ = mtype
-        self._members_ = {}
-        self._indices_ = WeakSet()
+    def __invert__(self) -> Key:
+        """Return a symbolic representation of self."""
+        return Key(self._name_)
+
+    def _iter_(self, h: int) -> Iterator[Key]:
+        return
+        yield
+
+
+class KSParent[M: "KSChild"](KSBase):
+    """Base class for parent keyspaces."""
+    _members_: dict[Key, M]
+    _observers_: WeakSet["KSObserver"]
 
     def __iter__(self) -> Iterator[str]:
         for k in self._members_:
             yield k[1][0]
 
-    def __contains__(self, key: "str | Key | KeySpaceBase") -> bool:
-        if isinstance(key, KeySpaceBase):
+    def _iter_(self, h: int) -> Iterator[Key]:
+        if h <= 0:
+            return
+        if h == 1:
+            yield from self._members_
+        else:
+            for key, child in self._members_.items():
+                for suite in child._iter_(h - 1):
+                    yield key.link(suite, 1)
+
+    def __contains__(self, key: "str | Key | KSChild") -> bool:
+        if isinstance(key, KSChild):
             return key in self._members_.values()
-        k, keyspace = Key(key), self
+        k, ksp = Key(key), self
         while k and k[0][1] <= 1:
             node, k = k.cut(1)
+            if not isinstance(ksp, KSParent):
+                return False
             try:
-                keyspace = keyspace._members_[node]
+                ksp = ksp._members_[node]
             except KeyError:
                 return False
         else:
             while k.size:
                 k, branch = k.cut(0, (0,))
-                if branch not in keyspace:
+                if not isinstance(ksp, KSParent) or branch not in ksp:
                     return False
         return True
 
-    def __getitem__(self, name: str) -> T:
-        if all(s.isidentifier() for s in name.split(".")):
-            return getattr(self, name)
-        raise ValueError(f"Argument {repr(name)} is not a Python identifier")
-    
-    def __setitem__(self, name: str, value: T) -> None:
-        if isinstance(value, self._mtype_):
-            setattr(self, name, value)
-        else:
-            raise TypeError(f"{type(self).__name__}.__setitem__ expects value " 
-                f"of type {self._mtype_.__name__}, but got a value of type "
-                f"{type(value).__name__} instead")
+    def __getitem__(self, name: str | Key) -> M:
+        return self._members_[Key(name)]
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name == "_parent_":
-            if self._parent_ is not None:
-                raise ValidationError("Keyspace already has parent")
-            if not isinstance(value, self._ptype_):
-                raise TypeError()
-        elif name.startswith("_") and name.endswith("_"):
-            pass
-        elif isinstance(value, KeySpaceBase):
-            if (key := Key(name)) in self._members_:
-                raise ValidationError(f"Cannot replace existing key '{name}'")
-            if not isinstance(value, self._mtype_):
-                raise TypeError()
-            if not isinstance(self, value._ptype_):
-                raise TypeError()
-            self._members_[key] = value
+    def __setitem__(self, name: str, value: M) -> None:
+        if not name or any(not s.isidentifier() for s in name.split(".")):
+            raise ValueError(f"Invalid keyspace name: '{name}'")
+        try:
+            value._parent_
+        except AttributeError:
             value._name_ = name
             value._parent_ = self
-        super().__setattr__(name, value)
+            self._members_[Key(name)] = value
+            for obs in self._observers_:
+                obs.on_add(self, value)
+        else:
+            raise ValidationError(f"{value} already has a parent")
 
-    def __delattr__(self, name: str) -> None:
-        if (key := Key(name)) in self._members_ and self._members_[key]._indices_: 
-            raise ValidationError(f"Key {name} has dependent subspaces")
-        super().__delattr__(name)
-        if key in self._members_: 
-            keyspace = self._members_[key]
-            del self._members_[key]
-            subspaces, keyspace = set(), self
-            while keyspace._parent_ is not None:
-                subspaces.update(keyspace._indices_)
-                keyspace = keyspace._parent_
-            for subspace in subspaces:
-                subspace.deletions += 1
+    def __delitem__(self, name: str) -> None:
+        child = self._members_[(key := Key(name))]
+        for obs in self._observers_:
+            obs.on_del(self, child)
+        del self._members_[key]
 
 
-class KeySpace(KeySpaceBase["KeySpaceBase", "KeySpaceBase"]):
+class KSChild(KSBase):
+    """Base class for child keyspaces."""
+    _parent_: KSParent
 
+    def __invert__(self) -> Key:
+        p = ~self._parent_
+        k = super().__invert__()
+        return p.link(k, p.size)
+
+
+class KSObserver:
+    """Base class for keyspace observers."""
+
+    def subscribe(self, parent: "KSParent") -> None:
+        """Register self as an observer of parent keyspace."""
+        parent._observers_.add(self)
+
+    def on_add(self, parent: "KSParent", child: "KSChild") -> None:
+        """Called when a child keyspace is added to parent."""
+        pass
+
+    def on_del(self, parent: "KSParent", child: "KSChild") -> None:
+        """Called when child keyspace is deleted from parent."""
+        pass
+
+
+class KSRoot[M: KSChild](KSParent[M]):
+    "A generic keyspace root"
     def __init__(self):
-        super().__init__(KeySpaceBase, KeySpaceBase)           
-
-    def __getattr__(self, name: str) -> "KeySpace":
-        if name.startswith("_") and name.endswith("_"):
-            raise AttributeError(
-                f"'{type(self).__name__}' object has no attribute '{name}'")
-        new = type(self)()
-        self.__setattr__(name, new)
-        return new
+        self._name_ = ""
+        self._members_ = {}
+        self._observers_ = WeakSet()
 
 
-def root(ksp: KeySpaceBase) -> KeySpaceBase:
-    ret = ksp
-    while ret._parent_ is not None:
-        ret = ret._parent_
+class KSNode[M: "KSChild"](KSChild, KSParent[M]):
+    "A generic keyspace node"
+    def __init__(self, name: str = ""):
+        self._name_ = name
+        self._members_ = {}
+        self._observers_ = WeakSet()
+
+
+def root(keyspace: KSBase) -> KSBase | None:
+    ret = keyspace
+    while isinstance(ret, KSChild):
+        try:
+            ret = ret._parent_
+        except AttributeError:
+            return None
     return ret
 
 
-def path(ksp: KeySpaceBase) -> Key:
-    ret = Key(ksp._name_); key = ret
-    while ksp._parent_ is not None:
-        assert len(key) == 2
-        ksp = ksp._parent_
-        key = Key(ksp._name_)
-        ret = key.link(ret, key.size)
-    return ret
+def path(keyspace: KSBase) -> Key:
+    return ~keyspace
 
 
-def parent[P: KeySpaceBase](ksp: KeySpaceBase[P, Any]) -> P:
-    if ksp._parent_ is None:
-        raise ValueError("Keyspace is root (has no parent)")
-    return ksp._parent_
+def parent(keyspace: KSChild) -> KSParent:
+    return keyspace._parent_
 
 
-def crawl(keyspace: KeySpaceBase, path: str | Key) -> KeySpaceBase:
+def crawl(keyspace: KSParent, path: str | Key) -> KSBase:
     key = Key(path)
     if any(1 < deg for _, deg in key):
         raise ValueError(f"Key {key} is not a path")
+    ksp = keyspace
     for label, _ in key[1:]:
-        keyspace = keyspace[label]
-    return keyspace 
-
-
-def _iter(ksp: KeySpaceBase, h: int) -> Iterator[Key]:
-    if not ksp._members_:
-        return
-    if h <= 0:
-        return
-    if h == 1:
-        yield from ksp._members_
-    else:
-        for key, child in ksp._members_.items():
-            for suite in _iter(child, h - 1):
-                yield key.link(suite, 1)
+        if not isinstance(keyspace, KSParent):
+            raise ValidationError(f"{key} not a member of {keyspace}")
+        ksp = ksp[label]
+    return ksp 
 
 
 def bind(__1: Key, __2: Key, *__others: Key) -> Key:
@@ -155,110 +159,3 @@ def bind(__1: Key, __2: Key, *__others: Key) -> Key:
     for __i in __others:
         ret = ret.link(__i, 0)
     return ret
-    
-
-class Index[T: KeySpaceBase]:
-    root: T
-    keyform: KeyForm
-    deletions: int
-    _leaves: list[int]
-    _heights: dict[int, int]
-    _levels: list[KeySpaceBase]
-
-    @overload
-    def __init__(self, root: T, form: KeyForm | Key | str) -> None:
-        ...
-
-    @overload
-    def __init__(
-        self, root: T, form: Key | str, tup: tuple[int, ...]
-    ) -> None:
-        ...
-
-    def __init__(self, 
-        root: T, 
-        form: KeyForm | Key | str, 
-        tup: tuple[int, ...] | None = None
-    ) -> None:
-        if isinstance(form, (Key, str)) and tup is not None:
-            form = KeyForm(Key(form), tup)
-        elif isinstance(form, (Key, str)):
-            form = KeyForm.from_key(Key(form))
-        elif not isinstance(form, KeyForm):
-            raise TypeError("Unexpected input to Index.")
-        form = form.strip # make sure the form contains no placeholders
-        leaves, heights, levels = self._init(root, form)
-        self.root = root
-        self.keyform = form 
-        self.deletions = 0
-        self._leaves = leaves
-        self._heights = heights
-        self._levels = levels
-        for ksp in self._levels:
-            ksp._indices_.add(self)
-
-    @staticmethod
-    def _init(root: KeySpaceBase, keyform: KeyForm) \
-        -> tuple[list[int], dict[int, int], list[KeySpaceBase]]:
-        keyspaces, parents = [], []
-        leaves, hs, heights = [], iter(keyform.h), {}
-        for i, (label, degree) in enumerate(keyform.k):
-            if i == 0:
-                keyspaces.append(root)
-                parents.extend([-1, *([i] * degree)])
-            else:
-                level = keyspaces[parents[i]][label]
-                keyspaces.append(level)
-                parents.extend([i] * degree)
-            if degree == 0:
-                heights[i] = next(hs)
-                leaves.append(i)
-        return leaves, heights, keyspaces 
-
-    def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Index):
-            return self.root is other.root and self.keyform == other.keyform
-        return NotImplemented
-
-    def __lt__(self, other: Any) -> bool:
-        if isinstance(other, Index):
-            return self.root is other.root and self.keyform < other.keyform
-        return NotImplemented
-
-    def __hash__(self) -> int:
-        return hash((self.root, self.keyform))
-
-    def __contains__(self, key: Key) -> bool:
-        return key in self.keyform and key in self.root
-
-    def __len__(self) -> int:
-        l = 0
-        for _ in self:
-            l += 1
-        return l
-
-    def __iter__(self) -> Iterator[Key]:
-        its = (_iter(self._levels[i], self._heights[i]) for i in self._leaves)
-        suites = [list(it) for it in its]
-        heights = [self._heights[i] for i in self._leaves]
-        for h, l in zip(heights, suites): 
-            if h == 0 and not l: 
-                l.append(Key()) # ensures suite not empty when h=0
-        for suite in product(*suites):
-            result = self.keyform.k
-            for i, s in zip(reversed(self._leaves), reversed(suite)):
-                if s:
-                    result = result.link(s, i, ())
-            yield result
-
-    def __mul__(self, other: "Index") -> "Index":
-        return Index(self.root, self.keyform * other.keyform)
-
-    def depends_on(self, ksp: KeySpaceBase) -> bool:
-        if root(ksp) != self.root:
-            raise ValueError("Incompatible keyspace: Non-identical roots")
-        key, i = path(ksp), 0
-        while key and not key < self.keyform.k:
-            key, _ = key.cut(key.size - 1)
-            i += 1
-        return bool(key)        

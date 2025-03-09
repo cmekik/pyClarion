@@ -2,7 +2,7 @@ import math
 from typing import TypeVar, Sequence, overload
 
 from ..keys import Key, KeyForm
-from ..keyspaces import Index
+from ..indices import Index
 from .. import numdicts as nd
 
 
@@ -148,15 +148,15 @@ def sum(
 ) -> D:
     match (others, by):
         case ((), None):
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if self._c == 0. or math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = math.fsum(self.group(by, mode=mode).get(Key(), (self._c,)))
         case ((), by) if isinstance(by, KeyForm):
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if self._c == 0. or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -175,7 +175,7 @@ def sum(
 
 
 def sub(self: D, other: D, *, by: KeyForm | None = None) -> D:
-    if not other._i.keyform <= self._i.keyform:
+    if not other._i.kf <= self._i.kf:
         raise ValueError()
     mode = "self" if math.isnan(self._c) else "match"
     it = self.collect(other, branches=(by,), mode=mode)
@@ -207,15 +207,15 @@ def mul(
 ) -> D:
     match (others, by):
         case ((), None):
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if self._c == 1. or math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = math.prod(self.group(by, mode=mode).get(Key(), (self.c,)))
         case ((), by) if isinstance(by, KeyForm):
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if self._c == 1. or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -264,15 +264,15 @@ def max(
 ) -> D:
     match (others, by):
         case ((), None):
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if self._c == float("-inf") or math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = _max(self.group(by, mode=mode).get(Key(), (self.c,)))
         case ((), by) if isinstance(by, KeyForm):
-            if not by < self._i.keyform:
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if self._c == float("-inf") or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)
@@ -313,17 +313,17 @@ def min(
 ) -> D:
     match (others, by):
         case ((), None):
-            by = self._i.keyform.agg
+            by = self._i.kf.agg
             mode = "self" if self._c == float("inf") or math.isnan(self._c) else "full"
             it = ()
             i = Index(self._i.root, by)
             c = _min(self.group(by, mode=mode).get(Key(), (self.c,)))
         case ((), by) if by is None or isinstance(by, KeyForm):
             if by is None:
-                by = self._i.keyform.agg
-            if not by < self._i.keyform:
+                by = self._i.kf.agg
+            if not by < self._i.kf:
                 raise ValueError(f"Keyform {by.as_key()} cannot reduce "
-                    f"{self._i.keyform.as_key()}")
+                    f"{self._i.kf.as_key()}")
             mode = "self" if self._c == float("inf") or math.isnan(self._c) else "full"
             it = self.group(by, mode=mode).items()
             i = Index(self._i.root, by)

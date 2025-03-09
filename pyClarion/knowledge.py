@@ -3,26 +3,28 @@ from typing import (Self, Iterable, Type, Iterator, TypedDict, get_type_hints,
 from weakref import WeakValueDictionary
 from itertools import product, count
 
-from .numdicts import KeySpaceBase, KeyForm, Key, path, bind, ValidationError
+from .numdicts import KeyForm, Key, path, bind, ValidationError
+from .numdicts.keyspaces import KSBase, KSRoot, KSNode, KSChild
 
 
-class Symbol[P: KeySpaceBase, C: "Symbol"](KeySpaceBase[P, C]):
+class Root(KSRoot["Symbol"]):
+    pass
+
+
+class Symbol(KSChild):
     """
     Base class for data symbols.
     
     Do not directly instantiate or subclass this class.
     """
     
-    def __invert__(self) -> Key:
-        return path(self)
-
-    def __mul__(self, other: "Symbol") -> Key:
+    def __mul__(self: Self, other: "Symbol") -> Key:
         if isinstance(other, Symbol):
-            return bind(path(self), path(other))
+            return bind(~self, ~other)
         return NotImplemented
 
 
-class Term(Symbol["Sort", "Sort"]):
+class Term(Symbol):
     """
     Base class for data terms.
 
@@ -32,9 +34,6 @@ class Term(Symbol["Sort", "Sort"]):
     Do not directly instantiate or subclass this class. Use `Atom`, `Chunk`, or 
     `Rule` instead.
     """
-
-    def __init__(self) -> None:
-        super().__init__(Sort, Sort)
 
     def __pow__(self, other: "Term | Var | Iterable[Term]") -> "Chunk":
         if isinstance(other, (Term, Var)):
@@ -48,7 +47,7 @@ class Term(Symbol["Sort", "Sort"]):
         return NotImplemented
 
 
-class Sort[C: "Term"](Symbol[KeySpaceBase, C]):
+class Sort[C: Term](KSNode[C], Symbol):
     """
     A data sort.
 
@@ -59,16 +58,19 @@ class Sort[C: "Term"](Symbol[KeySpaceBase, C]):
     `Atoms`, `Chunks`, or `Rules` instead.
     """
 
+    _mtype_: Type[C]
     _required_: frozenset[Key]
     _counter_: count
     _vars_: dict[str, "Var"]
 
-    def __init__(self, mtype: Type[C] = Term) -> None:
-        super().__init__(KeySpaceBase, mtype)
+    def __init__(self, name: str = "", mtype: Type[C] = Term) -> None:
+        super().__init__(name)
+        self._mtype_ = mtype
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, Term):
-                setattr(self, name, typ())
+            if isinstance(typ, type) and issubclass(typ, mtype):
+                self[name] = typ()
+                setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
         self._counter_ = count()
         self._vars_ = {}
@@ -86,7 +88,7 @@ class Sort[C: "Term"](Symbol[KeySpaceBase, C]):
         return NotImplemented
 
 
-class Family[S: "Sort"](Symbol[KeySpaceBase, S]):
+class Family[S: Sort](KSNode[S], Symbol):
     """
     A family of data sorts.
 
@@ -94,14 +96,17 @@ class Family[S: "Sort"](Symbol[KeySpaceBase, S]):
     color terms, shape terms, etc.). 
     """
 
+    _mtype_: Type[S]
     _required_: frozenset[Key]
 
-    def __init__(self, sort: Type[S] = Sort) -> None:
-        super().__init__(KeySpaceBase, sort)
+    def __init__(self, name: str = "", mtype: Type[S] = Sort) -> None:
+        super().__init__(name)
         cls = type(self)
+        self._mtype_ = mtype
         for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, Sort):
-                setattr(self, name, typ())
+            if isinstance(typ, type) and issubclass(typ, mtype):
+                self[name] = typ()
+                setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
 
 
@@ -272,8 +277,8 @@ class Atoms(Sort[Atom]):
     Represents a collection of atomic data terms that are alike in content 
     (e.g., color terms, shape terms, etc.).
     """ 
-    def __init__(self):
-        super().__init__(Atom)
+    def __init__(self, name: str = ""):
+        super().__init__(name, Atom)
 
 
 class Chunks(Sort[Chunk]):
@@ -285,8 +290,8 @@ class Chunks(Sort[Chunk]):
     """
     nil: Chunk
 
-    def __init__(self):
-        super().__init__(Chunk)
+    def __init__(self, name: str = ""):
+        super().__init__(name, Chunk)
 
 
 class Rules(Sort[Rule]):
@@ -298,8 +303,8 @@ class Rules(Sort[Rule]):
     """
     nil: Rule 
 
-    def __init__(self):
-        super().__init__(Rule)
+    def __init__(self, name: str = ""):
+        super().__init__(name, Rule)
 
 
 @overload

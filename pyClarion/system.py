@@ -11,8 +11,8 @@ from weakref import WeakSet
 import logging
 import heapq
 
-from .knowledge import Sort, Term
-from .numdicts import NumDict, Key, KeyForm, KeySpace, Index, KeySpaceBase, numdict
+from .knowledge import Root, Symbol, Sort, Term
+from .numdicts import NumDict, Key, KeyForm, Index, numdict
 from .numdicts import root as get_root
 
 
@@ -178,13 +178,13 @@ class Process:
         Maintains global simulation data.
         """
 
-        root: KeySpace = field(default_factory=KeySpace)
+        root: Root = field(default_factory=Root)
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
         logger: logging.Logger = logging.getLogger(__name__)
 
-        def check_root(self, *keyspaces: KeySpaceBase) -> None:
+        def check_root(self, *keyspaces: Symbol) -> None:
             for keyspace in keyspaces:
                 if self.root == get_root(keyspace):
                     continue
