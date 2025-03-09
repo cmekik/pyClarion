@@ -221,7 +221,7 @@ class KeyGroup:
         if 0 < self.h and isinstance(self.ks, KSParent):
             yield from self.ks._iter_(self.h)
         elif self.h == 0:
-            yield ~self.ks
+            yield Key()
 
 
 class KSObserver:

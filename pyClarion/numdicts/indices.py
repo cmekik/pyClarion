@@ -2,20 +2,19 @@
 from typing import overload, Any, Iterator
 from itertools import product
 from weakref import WeakSet
+from math import prod
 
 from pyClarion.numdicts.keyspaces import KSChild
 
 from.keys import Key, KeyForm
-from .keyspaces import KSPath, KSRoot, KSParent, KSObserver, ks_root
+from .keyspaces import KSPath, KSRoot, KSParent, KSObserver, KeyGroup, ks_root
 
 
 class Index[R: KSRoot](KSObserver):
     root: R
     kf: KeyForm
     observers: WeakSet["IndexObserver"]
-    _leaves: list[int]
-    _heights: dict[int, int]
-    _levels: list[KSPath]
+    groups: dict[int, KeyGroup]
 
     @overload
     def __init__(self, root: R, form: KeyForm | Key | str) -> None:
@@ -43,10 +42,8 @@ class Index[R: KSRoot](KSObserver):
         self.root = root
         self.kf = form 
         self.observers = WeakSet()
-        self._leaves = leaves
-        self._heights = heights
-        self._levels = levels
-        for ksp in self._levels:
+        self.groups = {i: KeyGroup(levels[i], heights[i]) for i in leaves}
+        for ksp in levels:
             if isinstance(ksp, KSParent):
                 self.subscribe(ksp)
 
@@ -85,22 +82,15 @@ class Index[R: KSRoot](KSObserver):
         return key in self.kf and key in self.root
 
     def __len__(self) -> int:
-        l = 0
-        for _ in self:
-            l += 1
-        return l
+        return prod([len(g) for g in self.groups.values()])
 
     def __iter__(self) -> Iterator[Key]:
-        its = (self._levels[i]._iter_(self._heights[i]) for i in self._leaves)
-        suites = [list(it) for it in its]
-        heights = [self._heights[i] for i in self._leaves]
-        for h, l in zip(heights, suites): 
-            if h == 0 and not l: 
-                l.append(Key()) # ensures suite not empty when h=0
+        suites = [list(group) for group in self.groups.values()]
         for suite in product(*suites):
             result = self.kf.k
-            for i, s in zip(reversed(self._leaves), reversed(suite)):
-                if s:
+            # We append in reverse order because this preserves indices
+            for i, s in zip(reversed(self.groups), reversed(suite)):
+                if s: # s == Key() when h == 0, in which case don't append. 
                     result = result.link(s, i, ())
             yield result
 
@@ -111,9 +101,8 @@ class Index[R: KSRoot](KSObserver):
         if ks_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
-        for i in self._leaves:
-            leaf = ~self._levels[i]
-            matches = key.find_in(leaf)
+        for group in self.groups.values():
+            matches = key.find_in(~group.ks)
             if matches:
                 return True
         return False
@@ -122,10 +111,10 @@ class Index[R: KSRoot](KSObserver):
         if ks_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
-        for i, h in zip(self._leaves, self._heights):
-            leaf = ~self._levels[i]
+        for group in self.groups.values():
+            leaf = ~group.ks
             matches = leaf.find_in(key)
-            if matches and key.size <= leaf.size + h:
+            if matches and key.size <= leaf.size + group.h:
                 return True
         return False        
     
