@@ -262,7 +262,7 @@ def ks_parent(ks: KSChild) -> KSParent:
     return ks._parent_
 
 
-def ks_crawl(ks: KSParent, path: str | Key) -> KSBase:
+def ks_crawl(ks: KSParent, path: str | Key) -> KSPath:
     """Find and return the keyspace located at path relative to ks."""
     key = Key(path)
     if any(1 < deg for _, deg in key):
