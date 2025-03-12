@@ -30,7 +30,7 @@ class KSProtocol(Protocol):
         ...
 
 
-class KSProduct[*Ts]:
+class KSProduct[*Ts](KSProtocol):
     """A product of elementary keyspaces."""
     paths: tuple[*Ts]
 
@@ -103,7 +103,7 @@ class KSProduct[*Ts]:
         return
 
 
-class KSPath:
+class KSPath(KSProtocol):
     """Abstract base class for all elementary keyspaces."""
 
     _name_: str
