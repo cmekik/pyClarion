@@ -4,7 +4,7 @@ from weakref import WeakValueDictionary
 from itertools import product, count
 
 from .numdicts import KeyForm, Key, ValidationError
-from .numdicts.keyspaces import KSBase, KSRoot, KSNode, KSChild, ks_parent
+from .numdicts.keyspaces import KSRoot, KSNode, KSChild, ks_parent, keyform
 
 
 class Root(KSRoot["Symbol"]):
@@ -30,6 +30,7 @@ class Term(Symbol):
     Do not directly instantiate or subclass this class. Use `Atom`, `Chunk`, or 
     `Rule` instead.
     """
+    _h_offset_ = 0
 
     def __pow__(self, other: "Term | Var | Iterable[Term]") -> "Chunk":
         if isinstance(other, (Term, Var)):
@@ -53,7 +54,8 @@ class Sort[C: Term](KSNode[C], Symbol):
     Direct instantiation or subclassing of this class is not recommended. Use 
     `Atoms`, `Chunks`, or `Rules` instead.
     """
-
+    
+    _h_offset_ = 1
     _mtype_: Type[C]
     _required_: frozenset[Key]
     _counter_: count
@@ -87,6 +89,7 @@ class Family[S: Sort](KSNode[S], Symbol):
     color terms, shape terms, etc.). 
     """
 
+    _h_offset_ = 2
     _mtype_: Type[S]
     _required_: frozenset[Key]
 
@@ -481,19 +484,19 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
     return new_rules, rule_data
 
 
-def keyform(symbol: Symbol, *, trunc: int = 0) -> KeyForm:
-    match symbol:
-        case Atom():
-            k, h = ~symbol, 0 - trunc
-        case Sort():
-            k, h = ~symbol, 1 - trunc
-        case Family():
-            k, h = ~symbol, 2 - trunc
-        case _:
-            raise TypeError()
-    if h < 0:
-        raise ValueError("Truncation too deep")
-    return KeyForm(k, (h,))
+# def keyform(symbol: Symbol, *, trunc: int = 0) -> KeyForm:
+#     match symbol:
+#         case Atom():
+#             k, h = ~symbol, 0 - trunc
+#         case Sort():
+#             k, h = ~symbol, 1 - trunc
+#         case Family():
+#             k, h = ~symbol, 2 - trunc
+#         case _:
+#             raise TypeError()
+#     if h < 0:
+#         raise ValueError("Truncation too deep")
+#     return KeyForm(k, (h,))
 
 
 def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:

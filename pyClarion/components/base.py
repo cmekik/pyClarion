@@ -1,8 +1,8 @@
 from typing import Sequence
 
 from ..system import Process, Site
-from ..knowledge import Family, Sort, Term, keyform
-from ..numdicts import Index
+from ..knowledge import Family, Sort, Term
+from ..numdicts import Index, keyform
 
 
 type D = Family | Sort | Term

@@ -1,9 +1,9 @@
 from datetime import timedelta
 import logging
 
-from ..numdicts import NumDict, KeyForm
+from ..numdicts import NumDict, KeyForm, keyform
 from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
-    compile_chunks, compile_rules, keyform, Sort, Atom, describe)
+    compile_chunks, compile_rules, Sort, Atom, describe)
 from ..system import Process, UpdateSort, Event, Priority, Site
 from .elementary import TopDown, BottomUp
 

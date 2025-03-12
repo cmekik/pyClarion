@@ -1,8 +1,8 @@
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, Site
-from ..knowledge import Family, Sort, Atom, Rule, describe, keyform
-from ..numdicts import ks_crawl, KeyForm
+from ..knowledge import Family, Sort, Atom, Rule, describe
+from ..numdicts import KeyForm, ks_crawl, keyform
 from .elementary import Choice
 from .top_level import RuleStore
 

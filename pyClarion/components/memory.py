@@ -1,8 +1,8 @@
 from datetime import timedelta
 
 from ..system import Process, UpdateSort, Priority, Event, Site
-from ..knowledge import Family, Sort, Atoms, Atom, keyform
-from ..numdicts import Key
+from ..knowledge import Family, Sort, Atoms, Atom
+from ..numdicts import Key, keyform
 
 
 class BaseLevel(Process):

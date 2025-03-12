@@ -1,8 +1,8 @@
 from .numdicts import (ValidationError, Key, KeyForm,
-    Index, NumDict, ks_root, ks_parent, ks_crawl, numdict)
+    Index, NumDict, ks_root, ks_parent, ks_crawl, keyform, numdict)
 from .system import Update, Event, UpdateSort, Clock, Process, Site, Priority
 from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
-    Atoms, Chunks, Rules, keyform, compile_chunks, compile_rules, describe)
+    Atoms, Chunks, Rules, compile_chunks, compile_rules, describe)
 from .components import (Environment, Agent, Input, Choice, Pool, 
     #ChunkAssocs, 
     TopDown, BottomUp, ChunkStore, 
@@ -13,12 +13,12 @@ from .components import (Environment, Agent, Input, Choice, Pool,
 __all__ = [
     # from numdicts
     "ValidationError", "Key", "KeyForm", "Index", "NumDict", 
-    "ks_root", "ks_parent", "ks_crawl", "numdict",
+    "ks_root", "ks_parent", "ks_crawl", "keyform", "numdict",
     # from system
     "Update", "Event", "UpdateSort", "Clock", "Process", "Site", "Priority",
     # from knowledge,
     "Symbol", "Term", "Sort", "Family", "Atom", "Compound", "Chunk", "Rule", 
-    "Atoms", "Chunks", "Rules", "keyform", "compile_chunks", "compile_rules", 
+    "Atoms", "Chunks", "Rules", "compile_chunks", "compile_rules", 
     "describe",
     # from components
     "Environment", "Agent", "Input", "Choice", "Pool", "TopDown", "BottomUp", 

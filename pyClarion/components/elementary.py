@@ -158,9 +158,9 @@ class Choice(ParamMixin, DualRepMixin, Process):
     def _init_by(s: V | DV) -> KeyForm:
         match s:
             case (d, v):
-                return keyform(d) * keyform(v, trunc=1)
+                return keyform(d) * keyform(v, -1)
             case s:
-                return keyform(s, trunc=1)
+                return keyform(s, -1)
 
     def poll(self) -> dict[Key, Key]:
         """Return a symbolic representation of current decision."""
@@ -372,8 +372,8 @@ class BottomUp(Process):
         self.input = Site(idx_d * idx_v, {}, c=0.0)
         self.weights = Site(idx_c * idx_d * idx_v, {}, c=float("nan"))
         self.mul_by = keyform(c).agg * keyform(d) * keyform(v)
-        self.sum_by = keyform(c) * keyform(d).agg * keyform(v, trunc=1).agg
-        self.max_by = keyform(c) * keyform(d) * keyform(v, trunc=1)
+        self.sum_by = keyform(c) * keyform(d).agg * keyform(v, -1).agg
+        self.max_by = keyform(c) * keyform(d) * keyform(v, -1)
 
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
