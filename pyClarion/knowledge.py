@@ -58,8 +58,6 @@ class Sort[C: Term](KSNode[C], Symbol):
 
     _mtype_: Type[C]
     _required_: frozenset[Key]
-    _counter_: count
-    _vars_: dict[str, "Var"]
 
     def __init__(self, name: str = "", mtype: Type[C] = Term) -> None:
         super().__init__(name)
@@ -70,11 +68,6 @@ class Sort[C: Term](KSNode[C], Symbol):
                 self[name] = typ()
                 setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
-        self._counter_ = count()
-        self._vars_ = {}
-
-    def __call__(self, name: str) -> "Var":
-        return self._vars_.setdefault(name, Var(name, self))
 
     def __delattr__(self, name: str) -> None:
         if Key(name) in self._required_:
@@ -122,14 +115,13 @@ class Compound(Term):
 
     Do not directly instantiate this class.
     """
-    _descr_: str
     _vars_: dict
     _instances_: WeakValueDictionary[str, Self]
     _template_: Self | None
 
+
     def __init__(self, template: Self | None = None) -> None:
         super().__init__()
-        self._descr_ = ""
         self._vars_ = {}
         self._instances_ = WeakValueDictionary()
         self._template_ = template
@@ -301,11 +293,26 @@ class Atoms(Sort[Atom]):
     Represents a collection of atomic data terms that are alike in content 
     (e.g., color terms, shape terms, etc.).
     """ 
+    _vars_: dict[str, "Var"]
+
     def __init__(self, name: str = ""):
         super().__init__(name, Atom)
+        self._vars_ = {}
+
+    def __call__(self, name: str) -> "Var":
+        return self._vars_.setdefault(name, Var(name, self))
 
 
-class Chunks(Sort[Chunk]):
+class Compounds[C: Compound](Sort[C]):
+    """A data sort for compound terms."""
+    _counter_: count
+
+    def __init__(self, name: str = "", mtype: Type[C] = Compound) -> None:
+        super().__init__(name, mtype)
+        self._counter_ = count()
+
+
+class Chunks(Compounds[Chunk]):
     """
     A data sort for chunk terms.
 
@@ -318,7 +325,7 @@ class Chunks(Sort[Chunk]):
         super().__init__(name, Chunk)
 
 
-class Rules(Sort[Rule]):
+class Rules(Compounds[Rule]):
     """
     A data sort for rule terms.
 
@@ -552,13 +559,10 @@ def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:
 
 def describe_chunk(chunk: Chunk):
     key = ~chunk
-    descr = chunk._descr_
     instances = chunk._instances_
     template = chunk._template_
     dyads = chunk._dyads_
     data = [f"chunk {key}"]
-    if descr:
-        data.append(f"'''{descr}'''")
     if instances:
         data.append(f"Abstract chunk with {len(instances)} instances")
     if template:
@@ -572,13 +576,10 @@ def describe_chunk(chunk: Chunk):
 
 def describe_rule(rule: Rule):
     key = ~rule
-    descr = rule._descr_
     instances = rule._instances_
     template = rule._template_
     chunks = rule._chunks_
     data = [f"rule {key}"]
-    if descr:
-        data.append(f"'''{descr}'''")
     if instances:
         data.append(f"Abstract rule with {len(instances)} instances")
     if template:

@@ -355,12 +355,17 @@ class BottomUp(Process):
     mul_by: KeyForm
     sum_by: KeyForm
     max_by: KeyForm
+    pre: Callable[[NumDict], NumDict] | None
+    post: Callable[[NumDict], NumDict] | None
 
     def __init__(self, 
         name: str, 
         c: Chunks, 
         d: Family | Sort | Atom, 
-        v: Family | Sort
+        v: Family | Sort,
+        *,
+        pre: Callable[[NumDict], NumDict] | None = None,
+        post: Callable[[NumDict], NumDict] | None = None
     ) -> None:
         super().__init__(name)
         self.system.check_root(c, d, v)
@@ -373,6 +378,8 @@ class BottomUp(Process):
         self.mul_by = keyform(c).agg * keyform(d) * keyform(v)
         self.sum_by = keyform(c) * keyform(d).agg * keyform(v, -1).agg
         self.max_by = keyform(c) * keyform(d) * keyform(v, -1)
+        self.pre = pre
+        self.post = post
 
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
@@ -383,14 +390,24 @@ class BottomUp(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        input = self.input[0]
+        if self.pre is not None:
+            input = self.pre(input)
         main = (self.weights[0]
-            .mul(self.input[0], by=self.mul_by)
+            .mul(input, by=self.mul_by)
             .max(by=self.max_by)
             .sum(by=self.sum_by)
             .with_default(c=0.0))
+        if self.post is not None:
+            main = self.post(main)
         self.system.schedule(self.update, 
             self.main.update(main), 
             dt=dt, priority=priority)
+
+
+class AggFunc(Protocol):
+    def __call__(_, self: NumDict, *, by: KeyForm) -> NumDict:
+        ...
 
 
 class TopDown(Process):    
@@ -405,12 +422,25 @@ class TopDown(Process):
     weights: Site
     mul_by: KeyForm
     maxmin_by: KeyForm
+    pre: Callable[[NumDict], NumDict] | None
+    post: Callable[[NumDict], NumDict] | None
+    agg: AggFunc
+
+    @staticmethod
+    def CAM(self: NumDict, *, by: KeyForm) -> NumDict:
+        pro = self.max(by=by).bound_min(x=0.0).with_default(c=0.0) 
+        con = self.min(by=by).bound_max(x=0.0).with_default(c=0.0)
+        return pro.sum(con)
 
     def __init__(self, 
         name: str, 
         c: Chunks, 
         d: Family | Sort | Atom, 
-        v: Family | Sort
+        v: Family | Sort,
+        *,
+        pre: Callable[[NumDict], NumDict] | None = None,
+        post: Callable[[NumDict], NumDict] | None = None,
+        agg: AggFunc = CAM
     ) -> None:
         super().__init__(name)
         self.system.check_root(c, d, v)
@@ -421,7 +451,10 @@ class TopDown(Process):
         self.input = Site(idx_c, {}, c=0.0)
         self.weights = Site(idx_c * idx_d * idx_v, {}, c=float("nan")) 
         self.mul_by = keyform(c) * keyform(d).agg * keyform(v).agg
-        self.maxmin_by = keyform(c).agg * keyform(d) * keyform(v)         
+        self.maxmin_by = keyform(c).agg * keyform(d) * keyform(v)
+        self.pre = pre
+        self.post = post
+        self.agg = agg         
 
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
@@ -432,10 +465,13 @@ class TopDown(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        cf = self.weights[0].mul(self.input[0], by=self.mul_by)
-        pro = cf.max(by=self.maxmin_by).bound_min(x=0.0).with_default(c=0.0) 
-        con = cf.min(by=self.maxmin_by).bound_max(x=0.0).with_default(c=0.0)
-        main = pro.sum(con)
+        input = self.input[0]
+        if self.pre is not None:
+            input = self.pre(input)
+        cf = self.weights[0].mul(input, by=self.mul_by)
+        if self.post is not None:
+            cf = self.post(cf)
+        main = self.agg(cf, by=self.maxmin_by).with_default(c=0.0)
         self.system.schedule(self.update, 
             self.main.update(main),
             dt=dt, priority=priority)
