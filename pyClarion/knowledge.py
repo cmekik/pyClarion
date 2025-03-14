@@ -2,9 +2,10 @@ from typing import (Self, Iterable, Type, Iterator, TypedDict, get_type_hints,
     overload, Sequence)
 from weakref import WeakValueDictionary
 from itertools import product, count
+from contextlib import contextmanager
 
 from .numdicts import KeyForm, Key, ValidationError
-from .numdicts.keyspaces import KSRoot, KSNode, KSChild, ks_parent, keyform
+from .numdicts.keyspaces import KSRoot, KSNode, KSChild, ks_parent, KSProtocol, KSPath
 
 
 class Root(KSRoot["Symbol"]):
@@ -54,8 +55,7 @@ class Sort[C: Term](KSNode[C], Symbol):
     Direct instantiation or subclassing of this class is not recommended. Use 
     `Atoms`, `Chunks`, or `Rules` instead.
     """
-    
-    _h_offset_ = 1
+
     _mtype_: Type[C]
     _required_: frozenset[Key]
     _counter_: count
@@ -110,7 +110,8 @@ class Atom(Term):
 
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
-    
+    pass
+
 
 class Compound(Term):
     """
@@ -234,16 +235,63 @@ class Rule(Compound):
             Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
 
 
-class Var:
-    def __init__(self, name: str, sort: Sort) -> None:
+class Var[S: Sort](KSProtocol):
+    name: str
+    sort: S
+    _subset: frozenset[Term]
+
+    def __init__(self, name: str, sort: S) -> None:
         self.name = name
         self.sort = sort
+        self._subset = frozenset()
 
     def __call__(self, valuation: dict[str, Term]) -> Term:
-        if ks_parent(value := valuation[self.name]) == self.sort:
-            return value
-        raise ValueError(f"Value {value} assigned to Var {self} does not "
+        term = valuation[self.name]
+        if self.validate(term):
+            return term
+        raise ValueError(f"Value {term} assigned to Var {self} does not "
             "belong to the correct sort.")
+
+    def __contains__(self, key: str | Key) -> bool:
+        try:
+            term = self.sort._members_[Key(key)]
+        except KeyError:
+            return False
+        return self.validate(term)
+    
+    def __invert__(self) -> Key:
+        return ~self.sort
+
+    __mul__ = KSPath.__mul__
+
+    def _keyform_(self, *hs: int) -> KeyForm:
+        return self.sort._keyform_(*hs)
+    
+    def _iter_(self, *hs: int) -> Iterator[Key]:
+        h, = hs
+        if h <= 0:
+            return
+        if h == 1:
+            for key in self.sort._members_:
+                if key in self:
+                    yield key 
+    
+    def validate(self, term: Term) -> bool:
+        if ks_parent(term) != self.sort:
+            return False
+        if self._subset and term not in self._subset:
+            return False
+        return True
+
+    @contextmanager
+    def subset(self, keys: Iterable[Term]):
+        if keys:
+            _subset = self._subset
+            self._subset = self._subset & frozenset(keys)
+            yield self
+            self._subset = _subset
+        else:
+            yield self
 
 
 class Atoms(Sort[Atom]):
@@ -482,21 +530,6 @@ def compile_rules(*rules: Rule, sort: Rules, lhs: Chunks, rhs: Chunks) \
             for cache, chunk in zip(caches, inst._chunks_):
                 cache[frozenset(chunk._vars_)] = chunk
     return new_rules, rule_data
-
-
-# def keyform(symbol: Symbol, *, trunc: int = 0) -> KeyForm:
-#     match symbol:
-#         case Atom():
-#             k, h = ~symbol, 0 - trunc
-#         case Sort():
-#             k, h = ~symbol, 1 - trunc
-#         case Family():
-#             k, h = ~symbol, 2 - trunc
-#         case _:
-#             raise TypeError()
-#     if h < 0:
-#         raise ValueError("Truncation too deep")
-#     return KeyForm(k, (h,))
 
 
 def describe_dyad(d: Term | Var, v: Term | Var, w: float) -> str:

@@ -109,6 +109,9 @@ class KSPath(KSProtocol):
     _name_: str
     _h_offset_: ClassVar[int] = 0
 
+    def __init__(self) -> None:
+        self._name_ = ""
+
     def __contains__(self, key: str | Key) -> bool:
         return Key(key) == ~self
 

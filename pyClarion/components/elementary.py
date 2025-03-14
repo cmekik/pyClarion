@@ -3,9 +3,8 @@ from datetime import timedelta
 
 from .base import V, DV, DualRepMixin, ParamMixin
 from ..system import Process, Event, Priority, Site
-from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var, 
-    keyform)
-from ..numdicts import Key, KeyForm, numdict, NumDict
+from ..knowledge import (Family, Sort, Chunks, Term, Atoms, Atom, Chunk, Var)
+from ..numdicts import Key, KeyForm, numdict, NumDict, keyform
 
 
 class Environment(Process):
