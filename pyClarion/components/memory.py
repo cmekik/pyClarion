@@ -86,8 +86,10 @@ class BaseLevel(Process):
         time = self.system.clock.time / self.unit
         sc = self.params[0][~self.p.sc] 
         de = self.params[0][~self.p.de]
+        atom = Atom()
+        atom._name_ = name
         self.system.schedule(self.invoke, 
-            UpdateSort(self.e, add=((name, Atom()),)),
+            UpdateSort(self.e, add=(atom,)),
             self.times.update({key: time}, Site.write_inplace),
             self.scale.update({key: sc}, Site.write_inplace),
             self.decay.update({key: de}, Site.write_inplace),

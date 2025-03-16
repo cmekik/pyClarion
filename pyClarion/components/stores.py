@@ -2,8 +2,7 @@ from datetime import timedelta
 import logging
 
 from ..numdicts import NumDict, KeyForm, keyform
-from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, 
-    compile_chunks, compile_rules, Sort, Atom, describe)
+from ..knowledge import (Family, Chunks, Rules, Chunk, Rule, Sort, Atom)
 from ..system import Process, UpdateSort, Event, Priority, Site
 from .elementary import TopDown, BottomUp
 
@@ -54,7 +53,9 @@ class ChunkStore(Process):
         if event.source == self.compile:
             if self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_compilation(event)
-            self.update_buw()
+            ud, = event.updates
+            assert isinstance(ud, UpdateSort)
+            self.compile_weights(*ud.add)
 
     def log_compilation(self, event: Event) -> None:
         if event.source != self.compile:
@@ -62,8 +63,8 @@ class ChunkStore(Process):
         assert isinstance(event.updates[0], UpdateSort)
         assert event.updates[0].sort is self.chunks
         data = [f"    Added the following new chunk(s)"]
-        for _, c in event.updates[0].add:
-            data.append(describe(c).replace("\n", "\n    "))
+        for c in event.updates[0].add:
+            data.append(str(c).replace("\n", "\n    "))
         self.system.logger.debug("\n    ".join(data))
 
     def update(self, 
@@ -79,29 +80,38 @@ class ChunkStore(Process):
             self.main.update(main),
             dt=dt, priority=priority)
         
-    def compile(self, *chunks: Chunk, 
+    def compile(self, 
+        *chunks: Chunk, 
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
     ) -> None:
         """Encode a collection of new chunks."""
-        new, data = compile_chunks(*chunks, sort=self.chunks)
+        new = [*chunks]
+        for chunk in chunks:
+            instances = list(chunk._instantiations_())
+            chunk._instances_.update(instances)
+            new.extend(instances)
         self.system.schedule(
             self.compile, 
-            UpdateSort(self.chunks, add=tuple((c._name_, c) for c in new)),
-            self.ciw.update(data["ciw"], Site.write_inplace),
-            self.td.weights.update(data["tdw"], Site.write_inplace),
+            UpdateSort(self.chunks, add=tuple(new)),
             dt=dt, priority=priority)
-
-    def update_buw(self, 
+        
+    def compile_weights(self, *chunks: Chunk, 
         dt: timedelta = timedelta(), 
-        priority: int = Priority.LEARNING
+        priority=Priority.LEARNING
     ) -> None:
-        """Update bottom-up weights to be consistent with top-down weights."""
-        weights = (self.td.weights[0]
-            .div(self.norm(self.td.weights[0], self.bu.max_by, self.bu.sum_by)))
+        ciw, tdw = {}, {}
+        for chunk in chunks:
+            data = chunk._compile_()
+            ciw.update(data["ciw"])
+            tdw.update(data["tdw"])
+        buw = self.td.weights.new(tdw)
+        buw = buw.div(self.norm(buw, self.bu.max_by, self.bu.sum_by))
         self.system.schedule(
-            self.update_buw, 
-            self.bu.weights.update(weights),
+            self.compile_weights,
+            self.ciw.update(ciw, Site.write_inplace),
+            self.td.weights.update(tdw, Site.write_inplace),
+            self.bu.weights.update(buw, Site.write_inplace),
             dt=dt, priority=priority)
 
 
@@ -145,12 +155,15 @@ class RuleStore(Process):
         if event.source == self.lhs.bu.update:
             self.update()
         if event.source == self.compile:
-            # This next check is probably not idiomatic, is there a way to 
-            # avoid needlessly computing log data that is idiomatic?
-            if self.system.logger.level <= logging.DEBUG:
+            if self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_compilation(event)
-            self.lhs.update_buw()
-            self.rhs.update_buw()
+            ud_lhs, ud_rhs, ud_rules = event.updates
+            assert isinstance(ud_lhs, UpdateSort)
+            assert isinstance(ud_rhs, UpdateSort)
+            assert isinstance(ud_rules, UpdateSort)
+            self.lhs.compile_weights(*ud_lhs.add)
+            self.rhs.compile_weights(*ud_rhs.add)
+            self.compile_weights(*ud_rules.add)
 
     def log_compilation(self, event: Event) -> None:
         if event.source != self.compile:
@@ -158,8 +171,8 @@ class RuleStore(Process):
         assert isinstance(event.updates[2], UpdateSort)
         assert event.updates[2].sort is self.rules
         data = [f"    Added the following new rule(s)"]
-        for _, c in event.updates[2].add:
-            data.append(describe(c).replace("\n", "\n    "))
+        for r in event.updates[2].add:
+            data.append(str(r).replace("\n", "\n    "))
         self.system.logger.debug("\n    ".join(data))
 
     def update(self, 
@@ -179,32 +192,44 @@ class RuleStore(Process):
         priority: int = Priority.LEARNING
     ) -> None:
         """Encode a collection of new rules."""
-        new, data = compile_rules(*rules, 
-            sort=self.rules, lhs=self.lhs.chunks, rhs=self.rhs.chunks)
-        lhs = []; rhs = []
-        for rule in new:
-            chunks = list(rule._chunks_)
-            lhs.extend(chunks[:-1]); rhs.append(chunks[-1])
-        seen_lhs, add_lhs = set(), []
-        for c in lhs:
-            if c not in seen_lhs:
-                add_lhs.append((c._name_, c))
-                seen_lhs.add(c)
-        seen_rhs, add_rhs = set(), []
-        for c in rhs:
-            if c not in seen_rhs:
-                add_rhs.append((c._name_, c))
-                seen_rhs.add(c)
+        new_rules = []
+        new_lhs_chunks = []
+        new_rhs_chunks = []
+        for rule in rules:
+            for i, chunk in enumerate(rule._chunks_):
+                chunk_instances = list(chunk._instantiations_())
+                chunk._instances_.update(chunk_instances)
+                if i < len(rule._chunks_) - 1:
+                    new_lhs_chunks.append(chunk)
+                    new_lhs_chunks.extend(chunk_instances)
+                else:
+                    new_rhs_chunks.append(chunk)
+                    new_rhs_chunks.extend(chunk_instances)
+            rule_instances = list(rule._instantiations_())
+            rule._instances_.update(rule_instances)
+            new_rules.append(rule)
+            new_rules.extend(rule_instances)
         self.system.schedule(
             self.compile, 
-            UpdateSort(self.lhs.chunks, add=tuple(add_lhs)),
-            UpdateSort(self.rhs.chunks, add=tuple(add_rhs)),
-            UpdateSort(self.rules, add=tuple((r._name_, r) for r in new)),
-            self.lhs.ciw.update(data["lhs"]["ciw"], Site.write_inplace),
-            self.rhs.ciw.update(data["rhs"]["ciw"], Site.write_inplace), 
-            self.lhs.td.weights.update(data["lhs"]["tdw"], Site.write_inplace), 
-            self.rhs.td.weights.update(data["rhs"]["tdw"], Site.write_inplace),
-            self.riw.update(data["riw"], Site.write_inplace),
-            self.lhw.update(data["lhw"], Site.write_inplace),
-            self.rhw.update(data["rhw"], Site.write_inplace),
+            UpdateSort(self.lhs.chunks, add=tuple(new_lhs_chunks)),
+            UpdateSort(self.rhs.chunks, add=tuple(new_rhs_chunks)),
+            UpdateSort(self.rules, add=tuple(new_rules)),
+            dt=dt, priority=priority)
+
+    def compile_weights(self, 
+        *rules: Rule, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.LEARNING
+    ) -> None:
+        riw, lhw, rhw = {}, {}, {}
+        for rule in rules:
+            data = rule._compile_()
+            riw.update(data["riw"])
+            lhw.update(data["lhw"])
+            rhw.update(data["rhw"])
+        self.system.schedule(
+            self.compile_weights,
+            self.riw.update(riw, Site.write_inplace),
+            self.lhw.update(lhw, Site.write_inplace),
+            self.rhw.update(rhw, Site.write_inplace),
             dt=dt, priority=priority)

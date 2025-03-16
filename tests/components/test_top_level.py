@@ -4,7 +4,7 @@ from datetime import timedelta
 from pyClarion import Agent
 from pyClarion.knowledge import Family, Atoms, Atom
 from pyClarion.components.elementary import Input
-from pyClarion.components.top_level import ChunkStore, RuleStore
+from pyClarion.components.stores import ChunkStore, RuleStore
 from pyClarion.components.rules import FixedRules
 
 @unittest.skip("very broken")

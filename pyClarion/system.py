@@ -12,8 +12,8 @@ import logging
 import heapq
 
 from .knowledge import Root, Symbol, Sort, Term
-from .numdicts import NumDict, Key, KeyForm, Index, numdict
-from .numdicts import ks_root
+from .numdicts import NumDict, Key, KeyForm, Index, numdict, ks_root
+from .numdicts.keyspaces import KSPath
 
 
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
@@ -30,15 +30,18 @@ class Update:
 class UpdateSort[C: Term](Update):
     """A future update to a sort within a simulation keyspace."""
     sort: Sort[C]
-    add: tuple[tuple[str, C], ...] = ()
+    add: tuple[C, ...] = ()
     remove: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(self.add or self.remove)
 
     def apply(self) -> None:
-        for name, value in self.add:
-            self.sort[name] = value
+        for term in self.add:
+            try:
+                self.sort[term._name_] = term
+            except AttributeError:
+                self.sort[f"_{next(self.sort._counter_)}"] = term
         for name in self.remove:
             self.sort[name]
 
@@ -184,7 +187,7 @@ class Process:
         procs: list["Process"] = field(default_factory=list)
         logger: logging.Logger = logging.getLogger(__name__)
 
-        def check_root(self, *keyspaces: Symbol) -> None:
+        def check_root(self, *keyspaces: KSPath) -> None:
             for keyspace in keyspaces:
                 if self.root == ks_root(keyspace):
                     continue

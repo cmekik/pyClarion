@@ -3,7 +3,7 @@ from .elementary import (Environment, Agent, Input, Choice, Pool,
     BottomUp, TopDown)
 from .networks import (Train, Layer, Optimizer, ErrorSignal, Activation, 
     Cost, Supervised, TDError, SGD, Adam, MLP, IDN, LeastSquares, Tanh)
-from .top_level import ChunkStore, RuleStore
+from .stores import ChunkStore, RuleStore
 from .rules import FixedRules
 from .memory import BaseLevel
 
@@ -13,7 +13,9 @@ __all__ = [
     "Environment", "Agent", "Input", "Choice", "Pool", 
     #"ChunkAssocs", 
     "BottomUp", "TopDown",
-    "ChunkStore", "RuleStore", "FixedRules", "BaseLevel",   
+    "ChunkStore", 
+    "RuleStore", "FixedRules", 
+    "BaseLevel",   
     "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal", "LeastSquares", 
     "Tanh", "Supervised", "TDError", "Train", 
     "SGD", "Adam",

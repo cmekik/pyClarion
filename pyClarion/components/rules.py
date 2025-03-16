@@ -1,10 +1,10 @@
 from datetime import timedelta
 
 from ..system import Process, Event, Priority, Site
-from ..knowledge import Family, Sort, Atom, Rule, describe
+from ..knowledge import Family, Sort, Atom, Rule
 from ..numdicts import KeyForm, ks_crawl, keyform
 from .elementary import Choice
-from .top_level import RuleStore
+from .stores import RuleStore
 
 
 class ActionRules(Process):
@@ -51,8 +51,7 @@ class ActionRules(Process):
         rule = ks_crawl(self.system.root, self.choice.main[0].argmax())
         assert isinstance(rule, Rule)
         message = "\n    ".join([
-            "    Fired the following rule", 
-            describe(rule).replace("\n", "\n    ")])
+            "    Fired the following rule", str(rule).replace("\n", "\n    ")])
         self.system.logger.info(message)
 
     def compute_rt(self) -> timedelta:

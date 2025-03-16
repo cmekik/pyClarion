@@ -92,7 +92,14 @@ class Key(tuple[tuple[str, int], ...]):
         if not isinstance(other, Key):
             return NotImplemented
         return bool(self.find_in(other))
-    
+
+    def __add__(self: Self, other) -> Self:
+        if not isinstance(other, Key):
+            return NotImplemented
+        if 1 < max(deg for _, deg in self):
+            raise ValueError("Expected path-like key")
+        return self.link(other, self.size)
+
     def __mul__(self: Self, other) -> Self:
         if not isinstance(other, Key):
             return NotImplemented
