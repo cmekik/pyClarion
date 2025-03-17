@@ -81,7 +81,7 @@ class BaseLevel(Process):
                     if k not in self.ignore and th < ud.data[k]:
                         invoked.add(key.link(k, 0))
             if isinstance(ud, UpdateSort):
-                for _, term in ud.add:
+                for term in ud.add:
                     k = key.link(~term, 0)
                     if k not in self.ignore:
                         invoked.add(k)
