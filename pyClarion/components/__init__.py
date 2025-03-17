@@ -5,7 +5,7 @@ from .networks import (Train, Layer, Optimizer, ErrorSignal, Activation,
     Cost, Supervised, TDError, SGD, Adam, MLP, IDN, LeastSquares, Tanh)
 from .stores import ChunkStore, RuleStore
 from .rules import FixedRules
-from .memory import BaseLevel
+from .stats import BaseLevel
 
     
 
