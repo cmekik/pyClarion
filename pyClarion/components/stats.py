@@ -1,5 +1,7 @@
 from datetime import timedelta
+import math
 
+from .base import ParamMixin
 from ..system import Process, UpdateSort, Priority, Event, Site
 from ..knowledge import Family, Sort, Atoms, Atom
 from ..numdicts import Key, keyform
@@ -117,4 +119,90 @@ class BaseLevel(Process):
                 blas[k] = 1.0
         self.system.schedule(self.update, 
             self.main.update(blas.d), 
+            dt=dt, priority=priority)
+
+
+class MatchStats(ParamMixin, Process):
+    """A process that maintains match statistics."""
+    
+    class Params(Atoms):
+        c1: Atom
+        c2: Atom
+        discount: Atom
+        th_cond: Atom
+        th_crit: Atom
+
+    p: Params
+    main: Site
+    posm: Site
+    negm: Site
+    cond: Site
+    crit: Site
+    params: Site
+
+    def __init__(self,
+        name: str, 
+        p: Family, 
+        s: Sort, 
+        *, 
+        c1=1.0, 
+        c2=2.0, 
+        discount=.9, 
+        th_cond=0.0, 
+        th_crit=0.0
+    ) -> None:
+        super().__init__(name)
+        self.system.check_root(s)
+        self.p, self.params = self._init_params(p, type(self).Params, 
+            c1=c1, c2=c2, discount=discount, th_cond=th_cond, th_crit=th_crit)
+        index = self.system.get_index(keyform(s))
+        self.main = Site(index, {}, math.log(c1/c2, 2))
+        self.posm = Site(index, {}, 0.0)
+        self.negm = Site(index, {}, 0.0)
+        self.cond = Site(index, {}, 0.0)
+        self.crit = Site(index, {}, 0.0)
+
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> None:
+        main = (self.posm[0].shift(x=self.params[0][~self.p.c1])
+            .div(self.posm[0]
+                .sum(self.negm[0])
+                .shift(x=self.params[0][~self.p.c2]))
+            .log()
+            .scale(x=1/math.log(2)))
+        self.system.schedule(
+            self.update,
+            self.main.update(main),
+            dt=dt, priority=priority)
+
+    def increment(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> None:
+        cond = (self.crit.new({})
+            .with_default(c=self.params[0][~self.p.th_cond])
+            .lt(self.cond[0]))
+        pos = (self.crit.new({})
+            .with_default(c=self.params[0][~self.p.th_crit])
+            .lt(self.crit[0]))
+        neg = pos.neg().shift(x=1.0)
+        posm = self.posm[0].sum(pos.mul(cond))
+        negm = self.negm[0].sum(neg.mul(cond))
+        self.system.schedule(
+            self.increment,
+            self.posm.update(posm),
+            self.negm.update(negm))
+
+    def discount(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> None:
+        posm = self.posm[0].scale(x=self.params[0][~self.p.discount])
+        negm = self.negm[0].scale(x=self.params[0][~self.p.discount])
+        self.system.schedule(
+            self.discount,
+            self.posm.update(posm),
+            self.negm.update(negm),
             dt=dt, priority=priority)
