@@ -11,7 +11,7 @@ from weakref import WeakSet
 import logging
 import heapq
 
-from .knowledge import Root, Symbol, Sort, Term
+from .knowledge import Root, Sort, Term
 from .numdicts import NumDict, Key, KeyForm, Index, numdict, ks_root
 from .numdicts.keyspaces import KSPath
 
@@ -321,30 +321,34 @@ class Site:
         """A future update to a data site."""
         site: "Site"
         data: NumDict | dict[Key, float]
-        method: Callable[["Site", NumDict, int], None]
+        method: Callable[["Site", NumDict, int, bool], None]
         index: int
+        grad: bool
         
         def __init__(self, 
             site: "Site", 
             data: NumDict | dict[Key, float], 
-            method: Callable[["Site", NumDict, int], None],
-            index: int
+            method: Callable[["Site", NumDict, int, bool], None],
+            index: int,
+            grad: bool
         ) -> None:
             self.site = site
             self.data = data
             self.method = method
             self.index = index
+            self.grad = grad
         
         def apply(self) -> None:
             data = self.data
             if not isinstance(data, NumDict):
                 data = self.site.new(data)
-            self.method(self.site, data, self.index)
+            self.method(self.site, data, self.index, self.grad)
 
     procs: WeakSet[Process]
     index: Index
     const: float
     data: deque[NumDict]
+    grad: deque[NumDict]
 
     def __init__(self, i: Index, d: dict, c: float, l: int = 1) -> None:
         l = 1 if l < 1 else l
@@ -353,6 +357,9 @@ class Site:
         self.const = c
         self.data = deque(
             [numdict(i, d, c) for _ in range((l + 1))], 
+            maxlen=l)
+        self.grad = deque(
+            [numdict(i, {}, 0.0) for _ in range((l + 1))], 
             maxlen=l)
 
     def __iter__(self) -> Iterator[NumDict]:
@@ -367,22 +374,34 @@ class Site:
     def new(self, d: dict) -> NumDict:
         return numdict(self.index, d, self.const)
 
-    def push(self, data: NumDict, index: int = 0) -> None:
+    def push(self, data: NumDict, index: int = 0, grad: bool = False) -> None:
         if index != 0:
             raise ValueError("Site.push() only operates on index 0")
-        self.data.appendleft(data)
+        d = self.grad if grad else self.data
+        d.appendleft(data)
 
-    def add_inplace(self, data: NumDict, index: int = 0) -> None:
-        self.data[index] = self.data[index].sum(data)
+    def add_inplace(self, 
+        data: NumDict, 
+        index: int = 0, 
+        grad: bool = False
+    ) -> None:
+        d = self.grad if grad else self.data
+        d[index] = d[index].sum(data)
 
-    def write_inplace(self, data: NumDict, index: int = 0) -> None:
-        with self.data[index].mutable():
-            self.data[index].update(data.d)
+    def write_inplace(self, 
+        data: NumDict, 
+        index: int = 0, 
+        grad: bool = False
+    ) -> None:
+        d = self.grad if grad else self.data
+        with d[index].mutable():
+            d[index].update(data.d)
 
     def update(self, 
         data: NumDict | dict[Key, float], 
-        method: Callable[["Site", NumDict, int], None] = push,
-        index: int = 0
+        method: Callable[["Site", NumDict, int, bool], None] = push,
+        index: int = 0,
+        grad: bool = False
     ) -> Update:
         if isinstance(data, NumDict) and data.i != self.index:
             raise ValueError("Index of data numdict does not match site")
@@ -390,11 +409,12 @@ class Site:
             not (isnan(data.c) and isnan(self.const) or data.c == self.const):
             raise ValueError(f"Default constant {data.c} of data does not "
                 f"match site {self.const}")
-        return Site.Update(self, data, method, index)
+        return Site.Update(self, data, method, index, grad)
     
-    def affected_by(self, *updates) -> bool:
+    def affected_by(self, *updates, grad: bool = False) -> bool:
         for ud in updates:
-            if isinstance(ud, Site.Update) and self is ud.site:
+            if isinstance(ud, Site.Update) and self is ud.site \
+                and ud.grad == grad:
                 return True
             if isinstance(ud, UpdateSort) and self.index.depends_on(ud.sort):
                 return True

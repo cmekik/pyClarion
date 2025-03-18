@@ -48,12 +48,8 @@ class Layer(DualRepMixin, Process):
     main: Site
     wsum: Site
     input: Site
-    error: Site
-    back: Site
     weights: Site
     bias: Site
-    grad_weights: Site
-    grad_bias: Site
     afunc: Activation | None
     train: Train
     fw_by: KeyForm
@@ -79,10 +75,6 @@ class Layer(DualRepMixin, Process):
         self.wsum = Site(idx_out, {}, 0.0, l)
         self.bias = Site(idx_out, {}, 0.0, l)
         self.weights = Site(idx_in * idx_out, {}, 0.0, l)
-        self.error = Site(idx_out, {}, 0.0)
-        self.back = Site(idx_in, {}, 0.0)
-        self.grad_bias = Site(idx_out, {}, 0.0)
-        self.grad_weights = Site(idx_in * idx_out, {}, 0.0)
         self.fw_by = idx_in.kf * idx_out.kf.agg
         self.bw_by = idx_in.kf.agg * idx_out.kf
         self.init_weights(init_sd)
@@ -124,7 +116,6 @@ class Layer(DualRepMixin, Process):
     def __rshift__[T](self, other: T) -> T:
         if isinstance(other, Layer):
             other.input = self.main
-            self.error = other.back
             return other
         return NotImplemented
 
@@ -132,7 +123,7 @@ class Layer(DualRepMixin, Process):
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
             self.forward()
-        if self.error.affected_by(*updates):
+        if self.main.affected_by(*updates, grad=True):
             self.backward()
 
     def forward(self, 
@@ -168,7 +159,7 @@ class Layer(DualRepMixin, Process):
         Typically, gradient sites will be cleared by an optimizer after it has 
         consumed their data for weight updates. 
         """
-        grad_wsum = self.error[0]
+        grad_wsum = self.main.grad[0]
         if self.afunc:
             grad_wsum = grad_wsum.mul(self.afunc.grad(self.wsum[-1]))
         grad_bias = grad_wsum
@@ -178,9 +169,9 @@ class Layer(DualRepMixin, Process):
             .mul(grad_wsum, by=self.bw_by)
             .sum(by=self.fw_by)) 
         self.system.schedule(self.backward,
-            self.back.update(back),
-            self.grad_bias.update(grad_bias, Site.add_inplace),
-            self.grad_weights.update(grad_weights, Site.add_inplace),
+            self.input.update(back, grad=True),
+            self.bias.update(grad_bias, Site.add_inplace, grad=True),
+            self.weights.update(grad_weights, Site.add_inplace, grad=True),
             dt=dt, priority=priority)
         
 
@@ -225,7 +216,6 @@ class ErrorSignal(Process):
     def __rrshift__(self: Self, other: Layer) -> Self:
         if isinstance(other, Layer):
             self.input = other.main
-            other.error = self.main
             return self
         return NotImplemented
     

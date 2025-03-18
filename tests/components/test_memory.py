@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from pyClarion import Agent, UpdateSort
 from pyClarion.knowledge import Family, Chunks, Chunk
-from pyClarion.components.memory import BaseLevel
+from pyClarion.components.stats import BaseLevel
 
 @unittest.skip("very broken")
 class BaseLevelTestCase(unittest.TestCase):
@@ -13,15 +13,12 @@ class BaseLevelTestCase(unittest.TestCase):
         pfam = Family()
         tfam = Family()
         chunks = Chunks()
-        tfam.c = chunks
-        with Agent("agent") as agent:
-            agent.system.root.p = pfam
-            agent.system.root.e = efam
-            agent.system.root.s = tfam
+        tfam["c"] = chunks
+        with Agent("agent", p=pfam, e=efam, t=tfam) as agent:
             base_levels = BaseLevel("bla", pfam, efam, chunks)
         
         agent.system.user_update(
-            UpdateSort(chunks, add=((f"test_chunk", Chunk()),)))
+            UpdateSort(chunks, add=(Chunk({}),)))
         for i in range(1,11):
             agent.breakpoint(dt=timedelta(seconds=i))
         
@@ -30,7 +27,7 @@ class BaseLevelTestCase(unittest.TestCase):
             if event.source == agent.breakpoint:
                 base_levels.update()
             if event.source == base_levels.update:
-                print(event.time, base_levels.main[0][path(chunks["test_chunk"])])
+                print(event.time, base_levels.main[0][~chunks["test_chunk"]])
         
 
 if __name__ == "__main__":

@@ -159,7 +159,8 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
             .mul(self.action[-1])
             .neg())
         self.system.schedule(self.update,
-            self.main.update(main),
+            self.main.update(main.pow(x=2).scale(x=.5)),
+            self.input.update(main, grad=True),
             self.reward.update({}),
             self.qvals.update(self.input[0]),
             self.action.update(self.choice.main[0]),

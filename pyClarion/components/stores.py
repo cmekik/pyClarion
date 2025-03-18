@@ -115,6 +115,20 @@ class ChunkStore(Process):
             dt=dt, priority=priority)
 
 
+class RuleStore2(Process):
+    """
+    A rule store. 
+
+    Maintains a collection of rules.
+    """
+
+    rules: Rules
+    main: Site
+    riw: Site
+    lhw: Site
+    rhw: Site
+
+
 class RuleStore(Process):
     """
     A rule store. 

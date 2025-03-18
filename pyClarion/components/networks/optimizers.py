@@ -44,25 +44,24 @@ class SGD(Optimizer):
             else: 
                 sd = sd_ / len(layer.input[0])
             if Train.BIAS in layer.train:
-                param, grad = layer.bias, layer.grad_bias
-                uds.extend(self._update(param, grad, lr, sd, l2))
+                uds.extend(self._update(layer.bias, lr, sd, l2))
             if Train.WEIGHTS in layer.train:
-                param, grad = layer.weights, layer.grad_weights
-                uds.extend(self._update(param, grad, lr, sd, l2))
+                uds.extend(self._update(layer.weights, lr, sd, l2))
         self.system.schedule(self.update, *uds, dt=dt, priority=priority)
 
     def _update(self, 
         param: Site, 
-        grad: Site, 
         lr: float, 
         sd: float, 
         l2: float
     ) -> tuple[Site.Update, Site.Update]:
-        delta = (grad[-1]
-            .normalvariate(grad[-1].abs().scale(x=sd), c=param.const)
+        delta = (param.grad[-1]
+            .normalvariate(param.grad[-1].abs().scale(x=sd), c=param.const)
             .sum(param[-1].scale(x=l2))
             .scale(x=-lr)) # Don't miss negative here!
-        return (param.update(delta, Site.add_inplace), grad.update({}))
+        return (param.update(delta, Site.add_inplace), 
+            param.update({}, grad=True))
+
 
 class Adam(Optimizer):
     """
@@ -133,15 +132,13 @@ class Adam(Optimizer):
             else: 
                 sd = sd_ / len(layer.input[0])
             if Train.BIAS in layer.train:
-                param, grad = layer.bias, layer.grad_bias
                 m, v = self.bm1[layer.name], self.bm2[layer.name]
                 uds.extend(self._update(
-                    param, grad, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
+                    layer.bias, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
             if Train.WEIGHTS in layer.train:
-                param, grad = layer.weights, layer.grad_weights
                 m, v = self.wm1[layer.name], self.wm2[layer.name]
                 uds.extend(self._update(
-                    param, grad, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
+                    layer.weights, m, v, lr, sd, l2, b1, b2, bt1, bt2, ep))
         bt1 = bt1 * b1
         bt2 = bt2 * b2
         uds.append(self.params.update({~self.p.bt1: bt1, ~self.p.bt2: bt2},
@@ -150,7 +147,6 @@ class Adam(Optimizer):
 
     def _update(self, 
         param: Site, 
-        grad: Site,
         m: Site,
         v: Site, 
         lr: float, 
@@ -162,8 +158,8 @@ class Adam(Optimizer):
         bt2: float,
         ep: float
     ) -> tuple[Site.Update, Site.Update, Site.Update, Site.Update]:
-        m_next = m[0].scale(x=b1).sum(grad[-1].scale(x=1 - b1))
-        v_next = v[0].scale(x=b2).sum(grad[-1].pow(x=2).scale(x=1 - b2))
+        m_next = m[0].scale(x=b1).sum(param.grad[-1].scale(x=1 - b1))
+        v_next = v[0].scale(x=b2).sum(param.grad[-1].pow(x=2).scale(x=1 - b2))
         m_hat = m_next.scale(x=1/(1 - bt1))
         v_hat = v_next.scale(x=1/(1 - bt2))
         g_hat = m_hat.div(v_hat.pow(x=0.5).shift(x=ep))
@@ -173,6 +169,6 @@ class Adam(Optimizer):
             .scale(x=-lr)) # Don't miss negative here!
         return (
             param.update(delta, Site.add_inplace), 
-            grad.update({}), 
+            param.update({}, grad=True), 
             m.update(m_next), 
             v.update(v_next))
