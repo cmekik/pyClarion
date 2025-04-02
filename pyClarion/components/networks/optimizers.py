@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from .base import Optimizer, Train, Layer
-from ...system import Priority, Site
+from ...system import Priority, Site, Event
 from ...knowledge import Family, Atoms, Atom
 
 
@@ -31,9 +31,7 @@ class SGD(Optimizer):
     def update(self,
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
-        if not self.layers:
-            return
+    ) -> Event:
         lr = self.params[0][~self.p.lr]
         sd_ = self.params[0][~self.p.sd]
         l2 = self.params[0][~self.p.l2]
@@ -47,7 +45,7 @@ class SGD(Optimizer):
                 uds.extend(self._update(layer.bias, lr, sd, l2))
             if Train.WEIGHTS in layer.train:
                 uds.extend(self._update(layer.weights, lr, sd, l2))
-        self.system.schedule(self.update, *uds, dt=dt, priority=priority)
+        return Event(self.update, tuple(uds), dt, priority)
 
     def _update(self, 
         param: Site, 
@@ -114,9 +112,7 @@ class Adam(Optimizer):
     def update(self,
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
-        if not self.layers:
-            return
+    ) -> Event:
         lr = self.params[0][~self.p.lr]
         sd_ = self.params[0][~self.p.sd]
         l2 = self.params[0][~self.p.l2]
@@ -143,7 +139,7 @@ class Adam(Optimizer):
         bt2 = bt2 * b2
         uds.append(self.params.update({~self.p.bt1: bt1, ~self.p.bt2: bt2},
             Site.write_inplace))
-        self.system.schedule(self.update, *uds, dt=dt, priority=priority)
+        return Event(self.update, tuple(uds), dt, priority)
 
     def _update(self, 
         param: Site, 

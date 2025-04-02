@@ -41,9 +41,9 @@ class ActionRules(Process):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.trigger:
-            self.choice.select()
+            self.system.schedule(self.choice.select)
         if event.source == self.choice.select:
-            self.update(dt=self.compute_rt())
+            self.system.schedule(self.update, dt=self.compute_rt())
         if event.source == self.update:
             self.log_update()
 
@@ -60,13 +60,13 @@ class ActionRules(Process):
     def trigger(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.DEFERRED
-    ) -> None:
-        self.system.schedule(self.trigger, dt=dt, priority=priority)
+    ) -> Event:
+        return Event(self.trigger, (), dt, priority)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         choice = self.choice.main[0]
         main = (self.rules.riw[0]
             .mul(choice, by=self.mul_by)
@@ -76,10 +76,10 @@ class ActionRules(Process):
             .mul(choice)
             .sum(by=self.rules.rhs.td.input.index.kf)
             .with_default(c=self.rules.rhs.td.input.const))
-        self.system.schedule(self.update, 
-            self.main.update(main),
-            self.rules.rhs.td.input.update(td_input),
-            dt=dt, priority=priority)
+        return Event(self.update, 
+            (self.main.update(main),
+             self.rules.rhs.td.input.update(td_input)),
+            dt, priority)
         
 
 class FixedRules(ActionRules):

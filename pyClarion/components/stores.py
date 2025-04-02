@@ -49,13 +49,13 @@ class ChunkStore(Process):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.bu.update:
-            self.update()
+            self.system.schedule(self.update)
         if event.source == self.compile:
             if self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_compilation(event)
             ud, = event.updates
             assert isinstance(ud, UpdateSort)
-            self.compile_weights(*ud.add)
+            self.system.schedule(self.compile_weights, *ud.add)
 
     def log_compilation(self, event: Event) -> None:
         if event.source != self.compile:
@@ -70,36 +70,33 @@ class ChunkStore(Process):
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         """Compute and update abstract chunk activations."""
         main = (self.ciw[0]
             .mul(self.bu.main[0], by=self.mul_by)
             .max(by=self.max_by)
             .with_default(c=self.main.const))
-        self.system.schedule(self.update, 
-            self.main.update(main),
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
         
     def compile(self, 
         *chunks: Chunk, 
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         """Encode a collection of new chunks."""
         new = [*chunks]
         for chunk in chunks:
             instances = list(chunk._instantiations_())
             chunk._instances_.update(instances)
             new.extend(instances)
-        self.system.schedule(
-            self.compile, 
-            UpdateSort(self.chunks, add=tuple(new)),
-            dt=dt, priority=priority)
+        return Event(self.compile, 
+            (UpdateSort(self.chunks, add=tuple(new)),),
+            dt, priority)
         
     def compile_weights(self, *chunks: Chunk, 
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         ciw, tdw = {}, {}
         for chunk in chunks:
             data = chunk._compile_()
@@ -107,12 +104,11 @@ class ChunkStore(Process):
             tdw.update(data["tdw"])
         buw = self.td.weights.new(tdw)
         buw = buw.div(self.norm(buw, self.bu.max_by, self.bu.sum_by))
-        self.system.schedule(
-            self.compile_weights,
-            self.ciw.update(ciw, Site.write_inplace),
-            self.td.weights.update(tdw, Site.write_inplace),
-            self.bu.weights.update(buw, Site.write_inplace),
-            dt=dt, priority=priority)
+        return Event(self.compile_weights,
+            (self.ciw.update(ciw, Site.write_inplace),
+             self.td.weights.update(tdw, Site.write_inplace),
+             self.bu.weights.update(buw, Site.write_inplace)),
+            dt, priority)
 
 
 class RuleStore2(Process):
@@ -167,7 +163,7 @@ class RuleStore(Process):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.lhs.bu.update:
-            self.update()
+            self.system.schedule(self.update)
         if event.source == self.compile:
             if self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_compilation(event)
@@ -175,9 +171,9 @@ class RuleStore(Process):
             assert isinstance(ud_lhs, UpdateSort)
             assert isinstance(ud_rhs, UpdateSort)
             assert isinstance(ud_rules, UpdateSort)
-            self.lhs.compile_weights(*ud_lhs.add)
-            self.rhs.compile_weights(*ud_rhs.add)
-            self.compile_weights(*ud_rules.add)
+            self.system.schedule(self.lhs.compile_weights, *ud_lhs.add)
+            self.system.schedule(self.rhs.compile_weights, *ud_rhs.add)
+            self.system.schedule(self.compile_weights, *ud_rules.add)
 
     def log_compilation(self, event: Event) -> None:
         if event.source != self.compile:
@@ -192,19 +188,17 @@ class RuleStore(Process):
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         main = (self.lhw[0]
             .mul(self.lhs.bu.main[0])
             .max(by=self.main.index.kf)
             .with_default(c=self.main.const))
-        self.system.schedule(self.update, 
-            self.main.update(main), 
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
 
     def compile(self, *rules: Rule, 
         dt: timedelta = timedelta(),
         priority: int = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         """Encode a collection of new rules."""
         new_rules = []
         new_lhs_chunks = []
@@ -223,27 +217,25 @@ class RuleStore(Process):
             rule._instances_.update(rule_instances)
             new_rules.append(rule)
             new_rules.extend(rule_instances)
-        self.system.schedule(
-            self.compile, 
-            UpdateSort(self.lhs.chunks, add=tuple(new_lhs_chunks)),
-            UpdateSort(self.rhs.chunks, add=tuple(new_rhs_chunks)),
-            UpdateSort(self.rules, add=tuple(new_rules)),
-            dt=dt, priority=priority)
+        return Event(self.compile, 
+            (UpdateSort(self.lhs.chunks, add=tuple(new_lhs_chunks)),
+             UpdateSort(self.rhs.chunks, add=tuple(new_rhs_chunks)),
+             UpdateSort(self.rules, add=tuple(new_rules))),
+            dt, priority)
 
     def compile_weights(self, 
         *rules: Rule, 
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         riw, lhw, rhw = {}, {}, {}
         for rule in rules:
             data = rule._compile_()
             riw.update(data["riw"])
             lhw.update(data["lhw"])
             rhw.update(data["rhw"])
-        self.system.schedule(
-            self.compile_weights,
-            self.riw.update(riw, Site.write_inplace),
-            self.lhw.update(lhw, Site.write_inplace),
-            self.rhw.update(rhw, Site.write_inplace),
-            dt=dt, priority=priority)
+        return Event(self.compile_weights,
+            (self.riw.update(riw, Site.write_inplace),
+             self.lhw.update(lhw, Site.write_inplace),
+             self.rhw.update(rhw, Site.write_inplace)),
+            dt, priority)

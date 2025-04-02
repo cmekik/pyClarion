@@ -60,40 +60,40 @@ class Input(DualRepMixin, Process):
     def send(self, d: dict[Term, float], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         ...
 
     @overload
     def send(self, d: dict[Key, float], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         ...
 
     @overload
     def send(self, d: dict[Key | Term, float], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         ...
 
     @overload
     def send(self, d: Chunk, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         ...
 
     def send(self, d: dict | Chunk, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         """Update input data."""
         data = self._parse_input(d)
         method = Site.push if self.reset else Site.write_inplace
-        self.system.schedule(self.send, 
-            self.main.update(data, method), 
-            dt=dt, priority=priority)
+        return Event(self.send, 
+            (self.main.update(data, method),), 
+            time=dt, priority=priority)
 
     def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
         data = {}
@@ -167,24 +167,24 @@ class Choice(ParamMixin, DualRepMixin, Process):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.trigger:
-            self.select()
+            self.system.schedule(self.select)
 
     def trigger(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.DEFERRED
-    ) -> None:
+    ) -> Event:
         """
         Trigger a new stochastic decision.
 
         This method should be preferred to Choice.select() in most cases to 
         avoid data synchronization problems.
         """
-        self.system.schedule(self.trigger, dt=dt, priority=priority)
+        return Event(self.trigger, (), time=dt, priority=priority)
 
     def select(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.CHOICE
-    ) -> None:
+    ) -> Event:
         """
         Make a new stochastic decision and update sites accordingly.
         
@@ -195,11 +195,10 @@ class Choice(ParamMixin, DualRepMixin, Process):
         sd = numdict(self.main.index, {}, c=self.params[0][~self.p.sd])
         sample = input.normalvariate(sd)
         choices = sample.argmax(by=self.by)
-        self.system.schedule(
-            self.select,
-            self.main.update({v: 1.0 for v in choices.values()}),
-            self.sample.update(sample),
-            dt=dt, priority=priority)
+        return Event(self.select,
+            (self.main.update({v: 1.0 for v in choices.values()}),
+             self.sample.update(sample)),
+            time=dt, priority=priority)
 
 
 class PoolFunc(Protocol):
@@ -285,12 +284,12 @@ class Pool(ParamMixin, DualRepMixin, Process):
         if (self.params.affected_by(*updates) \
             or any(site.affected_by(*updates) 
                 for site in self.inputs.values())):
-            self.update()
+            self.system.schedule(self.update)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         inputs = [s[0].scale(x=self.params[0][k]) 
             if (pre := self.pre.get(k)) is None
             else s[0].pipe(pre).scale(x=self.params[0][k])
@@ -298,10 +297,7 @@ class Pool(ParamMixin, DualRepMixin, Process):
         main = self.func(self.main.new({}), *inputs)
         if (post := self.post) is not None:
             main = post(main)
-        self.system.schedule(
-            self.update, 
-            self.main.update(main),
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
 
 
 # # class AssociationsBase(Process):
@@ -384,12 +380,12 @@ class BottomUp(Process):
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
-            self.update()
+            self.system.schedule(self.update)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         input = self.input[0]
         if self.pre is not None:
             input = self.pre(input)
@@ -400,9 +396,7 @@ class BottomUp(Process):
             .with_default(c=0.0))
         if self.post is not None:
             main = self.post(main)
-        self.system.schedule(self.update, 
-            self.main.update(main), 
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
 
 
 class AggFunc(Protocol):
@@ -459,12 +453,12 @@ class TopDown(Process):
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
-            self.update()
+            self.system.schedule(self.update)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         input = self.input[0]
         if self.pre is not None:
             input = self.pre(input)
@@ -472,6 +466,4 @@ class TopDown(Process):
         if self.post is not None:
             cf = self.post(cf)
         main = self.agg(cf, by=self.maxmin_by).with_default(c=0.0)
-        self.system.schedule(self.update, 
-            self.main.update(main),
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)

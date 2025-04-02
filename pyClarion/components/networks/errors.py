@@ -59,12 +59,10 @@ class Supervised(DualRepMixin, ErrorSignal):
     def update(self,
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         exp_mask = self.mask[0].exp()
         main = self.cost.grad(self.input[0], self.target[0], exp_mask)
-        self.system.schedule(self.update, 
-            self.main.update(main), 
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
     
 
 class TDError(ParamMixin, DualRepMixin, ErrorSignal):
@@ -147,7 +145,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
     def update(self,
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         gamma = self.params[0][~self.p.gamma]
         n = len(self.reward)
         main = (self.func(self)
@@ -158,18 +156,18 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
             .sub(self.qvals[-1])
             .mul(self.action[-1])
             .neg())
-        self.system.schedule(self.update,
-            self.main.update(main.pow(x=2).scale(x=.5)),
-            self.input.update(main, grad=True),
-            self.reward.update({}),
-            self.qvals.update(self.input[0]),
-            self.action.update(self.choice.main[0]),
-            dt=dt, priority=priority)
+        return Event(self.update,
+            (self.main.update(main.pow(x=2).scale(x=.5)),
+             self.input.update(main, grad=True),
+             self.reward.update({}),
+             self.qvals.update(self.input[0]),
+             self.action.update(self.choice.main[0])),
+            dt, priority)
 
     def send(self, d: dict[Term | Key, float], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         data = {}
         for k, v in d.items():
             if isinstance(k, Term):
@@ -178,6 +176,6 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
             if k not in self.reward.index:
                 raise ValueError(f"Unexpected key {k}")
             data[k] = v
-        self.system.schedule(self.send, 
-            self.reward.update(data, Site.add_inplace), 
-            dt=dt, priority=priority)
+        return Event(self.send, 
+            (self.reward.update(data, Site.add_inplace),), 
+            dt, priority)

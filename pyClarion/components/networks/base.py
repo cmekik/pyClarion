@@ -122,14 +122,14 @@ class Layer(DualRepMixin, Process):
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
-            self.forward()
+            self.system.schedule(self.forward)
         if self.main.affected_by(*updates, grad=True):
-            self.backward()
+            self.system.schedule(self.backward)
 
     def forward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         """Compute and propagate forward activations."""
         wsum = (self.weights[0]
             .mul(self.input[0], by=self.fw_by)
@@ -138,17 +138,17 @@ class Layer(DualRepMixin, Process):
         main = wsum
         if self.afunc:
             main = self.afunc(wsum)            
-        self.system.schedule(self.forward, 
-            self.wsum.update(wsum), 
-            self.main.update(main), 
-            self.weights.update(self.weights[0]),
-            self.bias.update(self.bias[0]),
-            dt=dt, priority=priority)
+        return Event(self.forward, 
+            (self.wsum.update(wsum), 
+             self.main.update(main), 
+             self.weights.update(self.weights[0]),
+             self.bias.update(self.bias[0])),
+            dt, priority)
         
     def backward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         """
         Compute gradients and backpropagate errors.
         
@@ -168,11 +168,11 @@ class Layer(DualRepMixin, Process):
         back = (self.weights[-1]
             .mul(grad_wsum, by=self.bw_by)
             .sum(by=self.fw_by)) 
-        self.system.schedule(self.backward,
-            self.input.update(back, grad=True),
-            self.bias.update(grad_bias, Site.add_inplace, grad=True),
-            self.weights.update(grad_weights, Site.add_inplace, grad=True),
-            dt=dt, priority=priority)
+        return Event(self.backward,
+            (self.input.update(back, grad=True),
+             self.bias.update(grad_bias, Site.add_inplace, grad=True),
+             self.weights.update(grad_weights, Site.add_inplace, grad=True)),
+            dt, priority)
         
 
 class Optimizer[P: Atoms](ParamMixin, Process):
@@ -199,7 +199,7 @@ class Optimizer[P: Atoms](ParamMixin, Process):
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         """Compute and schedule parameter updates for all client layers."""
         raise NotImplementedError()
     
@@ -222,6 +222,6 @@ class ErrorSignal(Process):
     def update(self,
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         """Compute and schedule update to error value."""
         raise NotImplementedError()

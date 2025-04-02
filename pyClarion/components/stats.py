@@ -65,13 +65,13 @@ class BaseLevel(Process):
 
     def resolve(self, event: Event) -> None:
         if self.input.affected_by(*event.updates):
-            self.invoke(event)
+            self.system.schedule(self.invoke, event)
 
     def invoke(self,
         event: Event, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         ke = ~self.e; name = f"e{next(self.e._counter_)}"
         key = ke.link(Key(name), ke.size)
         invoked = set(); th = self.params[0][~self.p.th]
@@ -90,18 +90,18 @@ class BaseLevel(Process):
         de = self.params[0][~self.p.de]
         atom = Atom()
         atom._name_ = name
-        self.system.schedule(self.invoke, 
-            UpdateSort(self.e, add=(atom,)),
-            self.times.update({key: time}, Site.write_inplace),
-            self.scale.update({key: sc}, Site.write_inplace),
-            self.decay.update({key: de}, Site.write_inplace),
-            self.weights.update({k: 1.0 for k in invoked}, Site.write_inplace),
-            dt=dt, priority=priority)
+        return Event(self.invoke, 
+            (UpdateSort(self.e, add=(atom,)),
+             self.times.update({key: time}, Site.write_inplace),
+             self.scale.update({key: sc}, Site.write_inplace),
+             self.decay.update({key: de}, Site.write_inplace),
+             self.weights.update({k: 1.0 for k in invoked}, Site.write_inplace)),
+            dt, priority)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         time = self.system.clock.time / self.unit
         terms = (self.times[0]
             .neg()
@@ -117,9 +117,7 @@ class BaseLevel(Process):
         with blas.mutable():
             for k in self.ignore:
                 blas[k] = 1.0
-        self.system.schedule(self.update, 
-            self.main.update(blas.d), 
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(blas.d),), dt, priority)
 
 
 class MatchStats(ParamMixin, Process):
@@ -165,22 +163,19 @@ class MatchStats(ParamMixin, Process):
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
+    ) -> Event:
         main = (self.posm[0].shift(x=self.params[0][~self.p.c1])
             .div(self.posm[0]
                 .sum(self.negm[0])
                 .shift(x=self.params[0][~self.p.c2]))
             .log()
             .scale(x=1/math.log(2)))
-        self.system.schedule(
-            self.update,
-            self.main.update(main),
-            dt=dt, priority=priority)
+        return Event(self.update, (self.main.update(main),), dt, priority)
 
     def increment(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         cond = (self.crit.new({})
             .with_default(c=self.params[0][~self.p.th_cond])
             .lt(self.cond[0]))
@@ -190,19 +185,18 @@ class MatchStats(ParamMixin, Process):
         neg = pos.neg().shift(x=1.0)
         posm = self.posm[0].sum(pos.mul(cond))
         negm = self.negm[0].sum(neg.mul(cond))
-        self.system.schedule(
-            self.increment,
-            self.posm.update(posm),
-            self.negm.update(negm))
+        return Event(self.increment,
+            (self.posm.update(posm),
+             self.negm.update(negm)),
+            dt, priority)
 
     def discount(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
-    ) -> None:
+    ) -> Event:
         posm = self.posm[0].scale(x=self.params[0][~self.p.discount])
         negm = self.negm[0].scale(x=self.params[0][~self.p.discount])
-        self.system.schedule(
-            self.discount,
-            self.posm.update(posm),
-            self.negm.update(negm),
-            dt=dt, priority=priority)
+        return Event(self.discount,
+            (self.posm.update(posm),
+             self.negm.update(negm)),
+            dt, priority)

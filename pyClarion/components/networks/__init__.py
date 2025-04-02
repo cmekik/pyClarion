@@ -110,17 +110,17 @@ class MLP(Process):
     def resolve(self, event: Event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
-            self.update()
+            self.system.schedule(self.update)
         if event.source == self.ilayer.backward:
-            self.optimizer.update()
+            self.system.schedule(self.optimizer.update)
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
-    ) -> None:
-        self.system.schedule(self.update, 
-            self.ilayer.input.update(self.input[0].d),
-            dt=dt, priority=priority)
+    ) -> Event:
+        return Event(self.update, 
+            (self.ilayer.input.update(self.input[0].d),),
+            dt, priority)
 
 
 class IDN(MLP):

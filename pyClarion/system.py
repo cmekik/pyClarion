@@ -72,11 +72,11 @@ class Event:
     
     Events are ordered first by time, then by priority, then by number.
     """
-    time: timedelta
     source: Callable
     updates: Sequence[Update]
-    priority: int
-    number: int
+    time: timedelta = timedelta()
+    priority: int = Priority.PROPAGATION
+    number: int = 0
 
     def __repr__(self) -> str:
         if ismethod(self.source) and isinstance(self.source.__self__, Process):
@@ -143,18 +143,6 @@ class Clock:
         if timepoint < self.time:
             raise ValueError("Timepoint precedes current time")
         self.time = timepoint
-    
-    def event(self, 
-        dt: timedelta, 
-        src: Callable, 
-        *uds: Update, 
-        priority: int
-    ) -> Event:
-        """Construct an event scheduled at dt from the current timepoint."""
-        if dt < timedelta():
-            raise ValueError("Cannot schedule an event in the past.")
-        t = self.time + dt
-        return Event(t, src, uds, priority, next(self.counter))
 
 
 class Process:
@@ -196,19 +184,17 @@ class Process:
         def get_index(self, form: KeyForm | Key | str) -> Index:
             return Index(self.root, form)
 
-        def user_update(self, 
-                *updates: Update, 
-                dt: timedelta = timedelta(), 
-                priority: Priority = Priority.MAX
-            ) -> None:
-            self.schedule(self.user_update, *updates, dt=dt, priority=priority)
-
-        def schedule(self, src: Callable, *uds: Update, 
-            dt: timedelta = timedelta(), 
-            priority: int = Priority.PROPAGATION,
+        def schedule[**P](self, 
+            src: Callable[P, Event],  
+            *args: P.args,
+            **kwargs: P.kwargs
         ) -> None:
-            heapq.heappush(self.queue, 
-                self.clock.event(dt, src, *uds, priority=priority))
+            event = src(*args, **kwargs)
+            if event.time < timedelta():
+                raise ValueError("Cannot schedule an event in the past.")
+            event.time += self.clock.time
+            event.number = next(self.clock.counter)
+            heapq.heappush(self.queue, event)
 
         def advance(self) -> Event:
             """Process the next event in the queue."""
@@ -308,9 +294,9 @@ class Process:
         pass
 
     def breakpoint(self, dt: timedelta, priority: Priority = Priority.MAX) \
-        -> None:
+        -> Event:
         """Schedule a dummy event at specified time."""
-        self.system.schedule(self.breakpoint, dt=dt, priority=priority)
+        return Event(self.breakpoint, (), dt, priority, 0)
 
 
 class Site:
