@@ -300,44 +300,6 @@ class Pool(ParamMixin, DualRepMixin, Process):
         return Event(self.update, (self.main.update(main),), dt, priority)
 
 
-# # class AssociationsBase(Process):
-# #     main: Site
-# #     input: Site
-# #     weights: Site
-# #     sum_by: KeyForm
-
-# #     def resolve(self, event: Event) -> None:
-# #         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
-# #         if self.input.affected_by(*updates):
-# #             self.update()
-
-# #     def update(self, 
-# #         dt: timedelta = timedelta(), 
-# #         priority: int = Priority.PROPAGATION
-# #     ) -> None:
-# #         main = self.weights[0].mul(self.input[0]).sum(by=self.sum_by)
-# #         self.system.schedule(self.update, 
-# #             self.main.update(main), 
-# #             dt=dt, priority=priority)
-
-
-# class ChunkAssocs(AssociationsBase):
-#     def __init__(self, 
-#         name: str, 
-#         c_in: Chunks, 
-#         c_out: Chunks | None = None
-#     ) -> None:
-#         c_out = c_in if c_out is None else c_out
-#         super().__init__(name)
-#         self.system.check_root(c_in, c_out)
-#         idx_in = self.system.get_index(keyform(c_in))
-#         idx_out = self.system.get_index(keyform(c_out))
-#         self.main = Site(idx_out, {}, 0.0)
-#         self.input = Site(idx_in, {}, 0.0)
-#         self.weights = Site(idx_in * idx_out, {}, 0.0)
-#         self.by = keyform(c_in).agg * keyform(c_out)
-
-
 class BottomUp(Process):
     """
     A bottom-up activation process.

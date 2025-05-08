@@ -341,12 +341,8 @@ class Site:
         self.procs = WeakSet()
         self.index = i
         self.const = c
-        self.data = deque(
-            [numdict(i, d, c) for _ in range((l + 1))], 
-            maxlen=l)
-        self.grad = deque(
-            [numdict(i, {}, 0.0) for _ in range((l + 1))], 
-            maxlen=l)
+        self.data = deque([numdict(i, d, c) for _ in range(l)], maxlen=l)
+        self.grad = deque([numdict(i, {}, 0.0) for _ in range(l)], maxlen=l)
 
     def __iter__(self) -> Iterator[NumDict]:
         yield from self.data

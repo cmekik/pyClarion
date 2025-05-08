@@ -140,7 +140,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.choice.select:
-            self.update()
+            self.system.schedule(self.update)
 
     def update(self,
         dt: timedelta = timedelta(), 
