@@ -1,44 +1,47 @@
 from typing import Callable
 from datetime import timedelta
 
-from .base import ErrorSignal
-from ..base import DualRepMixin, ParamMixin, D, V, DV
-from ..elementary import Choice
-from ...system import Site, Priority, Event, PROCESS
-from ...knowledge import Family, Atoms, Atom, Term
-from ...numdicts import NumDict, Key
+from .base import Component, Parametric, D, V, DV
+from .io import Choice
+from .nn_funcs import least_squares_cost
+from ..system import Site, Priority, Event, PROCESS
+from ..knowledge import Family, Atoms, Atom, Term
+from ..numdicts import NumDict, Key
+from ..numdicts.numdicts import Ternary
 
 
-class Cost:
-    """A differentiable cost function for supervised learning."""
-
-    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        """Compute the cost for each estimate."""
-        raise NotImplementedError()
+class LearningSignal(Component):
+    """
+    A neural network error signaling process.
     
-    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        """Compute cost derivative with respect to each estimate."""
+    Computes and backpropagates error signals based on neural network outputs.
+    """
+
+    main: Site
+
+    # TODO: FIX
+    # def __rrshift__(self: Self, other: Layer) -> Self:
+    #     if isinstance(other, Layer):
+    #         self.input = other.main
+    #         return self
+    #     return NotImplemented
+    
+    def update(self,
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> Event:
+        """Compute and schedule update to error value."""
         raise NotImplementedError()
 
 
-class LeastSquares(Cost):
-    """A differentiable least squares cost function for supervised learning."""
-
-    def __call__(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        return est.sub(tgt).pow(x=2).mul(mask)
-    
-    def grad(self, est: NumDict, tgt: NumDict, mask: NumDict) -> NumDict:
-        return est.sub(tgt).mul(mask)
-
-
-class Supervised(DualRepMixin, ErrorSignal):
+class SupervisedLearning(LearningSignal):
     """
     An error signaling process for supervised learning.
     
     Computes and backpropagates errors based on a supervised cost function.
     """
 
-    cost: Cost
+    cost: Ternary
     input: Site
     target: Site
     mask: Site
@@ -46,7 +49,7 @@ class Supervised(DualRepMixin, ErrorSignal):
     def __init__(self, 
         name: str, 
         s: V | DV, 
-        cost: Cost = LeastSquares()
+        cost: Ternary = least_squares_cost
     ) -> None:
         super().__init__(name)
         index, = self._init_indexes(s)
@@ -60,12 +63,15 @@ class Supervised(DualRepMixin, ErrorSignal):
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
     ) -> Event:
-        exp_mask = self.mask[0].exp()
-        main = self.cost.grad(self.input[0], self.target[0], exp_mask)
+        est = self.input[0]
+        tgt = self.target[0]
+        mask = self.mask[0]
+        cost = self.cost(est, tgt, mask)
+        main = self.cost.grad(cost.ones(), cost, est, tgt, mask)
         return Event(self.update, (self.main.update(main),), dt, priority)
     
 
-class TDError(ParamMixin, DualRepMixin, ErrorSignal):
+class TDLearning(Parametric, LearningSignal):
     """
     An error signaling process for temporal difference learning.
     
@@ -77,7 +83,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
 
     p: Params
     choice: Choice
-    func: Callable[["TDError"], NumDict]
+    func: Callable[["TDLearning"], NumDict]
     main: Site
     input: Site
     reward: Site
@@ -87,17 +93,14 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
 
     def next_Q(self) -> NumDict:
         qvals = self.input[0]
-        return (self.main.new({})
-            .sum(qvals.mul(self.action[0]).sum())
-            .with_default(c=0.0))
+        return self.main.new({}).sum(qvals.mul(self.action[0]).sum())
 
     def expected_Q(self) -> NumDict:
         sd = self.choice.params[0][~self.choice.p.sd]
         qvals = self.input[0]
-        pvec = qvals.scale(x=sd).exp()
+        pvec = qvals.scale(sd).exp()
         pvec = pvec.div(pvec.sum())
-        expected_q = pvec.mul(qvals).sum()
-        return self.main.new({}).sum(expected_q).with_default(c=0.0)
+        return pvec.mul(qvals).sum()
 
     def max_Q(self) -> NumDict:
         qvals = self.input[0]
@@ -110,7 +113,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         p: Family, 
         r: DV | D, 
         *,
-        func: Callable[["TDError"], NumDict] = max_Q,
+        func: Callable[["TDLearning"], NumDict] = max_Q,
         gamma: float = .5,
         l: int = 1
     ) -> None:
@@ -119,7 +122,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         super().__init__(name)
         self.func = func
         self._connect_to_choice()
-        self.p, self.params = self._init_params(
+        self.p, self.params = self._init_sort(
             p, type(self).Params, gamma=gamma)
         idx_r, = self._init_indexes(r)
         idx_a = self.choice.main.index
@@ -140,7 +143,7 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
 
     def resolve(self, event: Event) -> None:
         if event.source == self.choice.select:
-            self.system.schedule(self.update)
+            self.system.schedule(self.update())
 
     def update(self,
         dt: timedelta = timedelta(), 
@@ -149,15 +152,14 @@ class TDError(ParamMixin, DualRepMixin, ErrorSignal):
         gamma = self.params[0][~self.p.gamma]
         n = len(self.reward)
         main = (self.func(self)
-            .scale(x=gamma ** n)
-            .sum(*(rwd.sum().scale(x=gamma ** (n - 1 - t)) 
+            .scale(gamma ** n)
+            .sum(*(rwd.sum().scale(gamma ** (n - 1 - t)) 
                 for t, rwd in enumerate(self.reward.data)))
-            .with_default(c=self.main.const)
             .sub(self.qvals[-1])
             .mul(self.action[-1])
             .neg())
         return Event(self.update,
-            (self.main.update(main.pow(x=2).scale(x=.5)),
+            (self.main.update(main.pow(2).scale(.5)),
              self.input.update(main, grad=True),
              self.reward.update({}),
              self.qvals.update(self.input[0]),

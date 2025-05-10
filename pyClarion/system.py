@@ -184,12 +184,7 @@ class Process:
         def get_index(self, form: KeyForm | Key | str) -> Index:
             return Index(self.root, form)
 
-        def schedule[**P](self, 
-            src: Callable[P, Event],  
-            *args: P.args,
-            **kwargs: P.kwargs
-        ) -> None:
-            event = src(*args, **kwargs)
+        def schedule(self, event: Event) -> None:
             if event.time < timedelta():
                 raise ValueError("Cannot schedule an event in the past.")
             event.time += self.clock.time

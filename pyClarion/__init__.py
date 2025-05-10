@@ -5,10 +5,11 @@ from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule,
     Atoms, Chunks, Rules)
 from .components import (Environment, Agent, Input, Choice, Pool, 
     TopDown, BottomUp, ChunkStore, 
-    RuleStore, FixedRules, 
-    BaseLevel,
-    Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
-    TDError, SGD, Adam, MLP, IDN, Train, LeastSquares, Tanh)
+    # RuleStore, FixedRules, 
+    # BaseLevel,
+    # Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
+    # TDError, SGD, Adam, MLP, IDN, Train, LeastSquares, Tanh
+    )
 
 __all__ = [
     # from numdicts
@@ -23,9 +24,9 @@ __all__ = [
     "Environment", "Agent", "Input", "Choice", "Pool", "TopDown", "BottomUp", 
     "ChunkStore", 
     #"RuleStore", "FixedRules", 
-    "BaseLevel",
-    "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
-    "Supervised", "TDError", "LeastSquares", "Tanh",
-    "SGD", "Adam",
-    "MLP", "IDN", "Train"
+    # "BaseLevel",
+    # "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal",
+    # "Supervised", "TDError", "LeastSquares", "Tanh",
+    # "SGD", "Adam",
+    # "MLP", "IDN", "Train"
 ]
