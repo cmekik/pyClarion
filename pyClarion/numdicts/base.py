@@ -284,76 +284,9 @@ def group(
     items: dict[Key, list[float]] = {}
     match mode:
         case "self":
-            it = self._iter()
+            it = nd_iter(self)
         case "full":
             it = self._i
     for k in it:
         items.setdefault(reduce(k), []).append(self[k])
     return items
-
-
-def unary[D: NumDictBase](
-    d: D, kernel: Callable, *args: Any, **kwargs: Any
-) -> D:
-    new_c = kernel(d._c, *args, **kwargs)
-    new_d = {k: new_v for k, v in d._d.items() if (new_v := kernel(v, *args, **kwargs)) != new_c} 
-    return type(d)(d._i, new_d, new_c, False)
-
-
-def binary[D: NumDictBase](
-    d1: D, d2: D, kernel: Callable, by: KeyForm | None, *args: Any, **kwargs: Any
-) -> D:
-    it = collect(d1, d2, mode="match", branches=(by,))
-    new_c = kernel(d1._c, d2._c, *args, **kwargs)
-    new_d = {k: v for k, (v1, v2) in it if (v := kernel(v1, v2, *args, **kwargs)) != new_c}
-    return type(d1)(d1._i, new_d, new_c, False)
-
-
-def random_variate[D: NumDictBase](
-    d: D, 
-    *ds: D, 
-    kernel: Callable, 
-    by: KeyForm | None = None, 
-    c: float | None = None
-) -> D:
-    c = c or d._c
-    it = collect(d, *ds, branches=by, mode="full")
-    new_d = {k: v for k, vs in it if (v := kernel(*vs)) != c}
-    return type(d)(d._i, new_d, c, False)
-
-
-def aggregator[D: NumDictBase](
-    d: D, 
-    *others: D,
-    kernel: Callable,
-    eye: float, 
-    by: KeyForm | Sequence[KeyForm | None] | None = None,
-    c: float | None = None
-) -> D:
-    mode = "match" if others else "self" if d._c == eye else "full"
-    c = c or eye
-    if len(others) == 0 and by is None:
-        by = d._i.kf.agg
-        it = ()
-        i = Index(d._i.root, by)
-        assert mode != "match"
-        new_c = kernel(group(d, by, mode=mode).get(Key(), (c,)))
-    elif len(others) == 0 and isinstance(by, KeyForm):
-        if not by < d._i.kf:
-            raise ValueError(f"Keyform {by.as_key()} cannot "
-                f"reduce {d._i.kf.as_key()}")
-        assert mode != "match"
-        it = group(d, by, mode=mode).items()
-        i = Index(d._i.root, by)
-        new_c = d._c if mode == "self" else c
-    elif 0 < len(others):
-        if c is not None:
-            ValueError("Unexpected float value for arg c")
-        mode = "match"
-        it = collect(d, *others, branches=by, mode=mode)
-        i = d._i
-        new_c = kernel((d._c, *(other._c for other in others)))
-    else:
-        assert False
-    new_d = {k: v for k, vs in it if (v := kernel(vs)) != new_c}
-    return type(d)(i, new_d, new_c, False)

@@ -4,6 +4,7 @@ from inspect import Signature, Parameter, BoundArguments, signature
 from contextlib import contextmanager
 from contextvars import ContextVar
 from collections import deque
+from types import MethodType as _MethodType
 
 import math
 import random
@@ -59,14 +60,19 @@ class GradientTape:
     ) -> list["NumDict"]:
         grads = {}
         for current, node in self._iter_nodes(output, seed):
-            g = (NumDict.sum(*node.grads) if 0 < len(node.grads) 
+            print(node.grads)
+            g = (NumDict.sum(*node.grads) if 1 < len(node.grads)
+                else node.grads[0] if 1 == len(node.grads)  
                 else current.zeros())
             grads[current] = g
             node.grads.clear()
             if node.gspec is not None:
                 args = node.gspec.sig.args
                 kwargs = node.gspec.sig.kwargs
+                print(g, current)
                 gs = node.gspec.op.grad(g, current, *args, **kwargs)
+                print(args, kwargs)
+                print(gs)
                 if isinstance(gs, NumDict):
                     d = node.gspec.sig.args[0]
                     self.nodes[d].grads.append(gs)
@@ -99,7 +105,7 @@ class GradientTape:
                     queue.extend(node.gspec.sig.args)
 
     def record(self, f, r, d, *args, **kwargs) -> None:
-        sig = signature(f).bind(*args, **kwargs)
+        sig = signature(f).bind(d, *args, **kwargs)
         self.nodes[r] = self.Node([], self.OpData(f, sig))
         for d in sig.args:
             if d not in self.nodes:
@@ -130,6 +136,10 @@ class Op:
 
     def set_signature(self, owner: type) -> None:
         self.__signature__ = signature(self.__call__)
+
+    def set_grad(self, g: Callable) -> None:
+        self.grad = _MethodType(g, self)
+
 
 class MethodType:
     __slots__ = ("__name__", "__self__", "__func__", "grad")
@@ -391,7 +401,7 @@ class Aggregator(Op):
             tape.record(self, r, d, *ds, by, c)
         return r
 
-    def grad(self, g: "NumDict", r: "NumDict", d: "NumDict", /, *ds: "NumDict", by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | None = None) -> "NumDict":
+    def grad(self, g: "NumDict", r: "NumDict", d: "NumDict", /, *ds: "NumDict", by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | None = None) -> "NumDict | tuple[NumDict, ...]":
         raise NotImplementedError
 
 
@@ -473,6 +483,7 @@ class NumDict(NumDictBase):
     isnan = Unary(math.isnan)
     isinf = Unary(math.isinf)
     neg = Unary(float.__neg__)
+    inv = Unary(lambda x, zero: 1 / x if x != 0.0 else zero)
     abs = Unary(abs)
     log = Unary(lambda x, /: -math.inf if x == 0.0 else math.log(x))
     log1p = Unary(math.log1p)
