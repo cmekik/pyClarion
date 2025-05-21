@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from .base import Component, Parametric, D, V, DV
 from .io import Choice
-from .funcs import least_squares_cost, Cost
+from .ops import least_squares_cost, Cost
 from ..system import Site, Priority, Event, PROCESS
 from ..knowledge import Family, Atoms, Atom, Term
 from ..numdicts import NumDict, Key

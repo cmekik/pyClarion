@@ -261,7 +261,7 @@ class Sub[D: "nd.NumDict"](Binary[D]):
 class Div[D: "nd.NumDict"](Binary[D]):
     kernel = float.__truediv__
     def grad(self, g: D, r: D, d1: D, d2: D, /, by: KeyForm | None = None) -> tuple[D, D]:
-        return g.mul(d2.inv()), g.mul(d1.mul(d2.inv(0.0).pow(2.0).neg()))
+        return g.mul(d2.inv()), g.mul(d1.mul(d2.inv().pow(2.0).neg()))
 
 
 class Sum[D: "nd.NumDict"](Aggregator[D]):

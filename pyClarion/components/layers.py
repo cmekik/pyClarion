@@ -1,15 +1,17 @@
 from typing import Self, Any, cast
 from datetime import timedelta
+from collections import deque
 
-from .base import Parametric, Component, V, DV
-from .funcs import cam
+from .base import Parametric, Backpropagator, Component, V, DV
+from .ops import cam
 from ..knowledge import Atoms, Family, Atom
 from ..system import Site, Priority, Event
 from ..numdicts import Key, KeyForm, NumDict
 from ..numdicts.ops.base import Unary, Aggregator
+from ..numdicts.ops.tape import GradientTape
 
 
-class Layer(Component):
+class Layer(Backpropagator):
     """
     A neural network layer.
     
@@ -43,6 +45,7 @@ class Layer(Component):
         self.wsum = Site(idx_out, {}, 0.0, l)
         self.bias = Site(idx_out, {}, 0.0, l)
         self.weights = Site(idx_in * idx_out, {}, 0.0, l)
+        self.tapes = deque([], maxlen=l)
         self.fw_by = idx_in.kf * idx_out.kf.agg
         self.bw_by = idx_in.kf.agg * idx_out.kf
 
@@ -50,59 +53,60 @@ class Layer(Component):
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
         if self.input.affected_by(*updates):
             self.system.schedule(self.forward())
-        # if self.main.affected_by(*updates, grad=True):
-        #     self.system.schedule(self.backward())
+        if len(self.tapes) == self.tapes.maxlen \
+            and self.main.affected_by(*updates, grad=True):
+            self.system.schedule(self.backward())
 
     def forward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> Event:
         """Compute and propagate forward activations."""
-        wsum = (self.weights[0]
-            .mul(self.input[0], by=self.fw_by)
-            .sum(by=self.bw_by)
-            .sum(self.bias[0]))
-        main = wsum
-        if self.func:
-            main = self.func(wsum)            
+        with GradientTape() as tape:
+            wsum = (self.weights[0]
+                .mul(self.input[0], by=self.fw_by)
+                .sum(by=self.bw_by)
+                .sum(self.bias[0]))
+            main = wsum
+            if self.func:
+                main = self.func(wsum)            
         return Event(self.forward, 
             (self.wsum.update(wsum), 
              self.main.update(main), 
              self.weights.update(self.weights[0]),
-             self.bias.update(self.bias[0])),
+             self.bias.update(self.bias[0]),
+             self.push_tape(tape)),
             dt, priority)
         
-    # def backward(self, 
-    #     dt: timedelta = timedelta(), 
-    #     priority: Priority = Priority.PROPAGATION
-    # ) -> Event:
-    #     """
-    #     Compute gradients and backpropagate errors.
+    def backward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> Event:
+        """
+        Compute gradients and backpropagate errors.
         
-    #     Computed gradients from successive calls to this method will accumulate 
-    #     at gradient sites. This allows layers to receive asynchronous error 
-    #     signals. 
+        Computed gradients from successive calls to this method will accumulate 
+        at gradient sites. This allows layers to receive asynchronous error 
+        signals. 
         
-    #     Typically, gradient sites will be cleared by an optimizer after it has 
-    #     consumed their data for weight updates. 
-    #     """
-    #     grad_wsum = self.main.grad[0]
-    #     if self.func:
-    #         grad_wsum = grad_wsum.mul(self.func.grad(self.wsum[-1]))
-    #     grad_bias = grad_wsum
-    #     grad_weights = (self.weights[-1].zeros()
-    #         .mul(self.input[-1], grad_wsum, by=(self.fw_by, self.bw_by)))
-    #     back = (self.weights[-1]
-    #         .mul(grad_wsum, by=self.bw_by)
-    #         .sum(by=self.fw_by)) 
-    #     return Event(self.backward,
-    #         (self.input.update(back, grad=True),
-    #          self.bias.update(grad_bias, Site.add_inplace, grad=True),
-    #          self.weights.update(grad_weights, Site.add_inplace, grad=True)),
-    #         dt, priority)
+        Typically, gradient sites will be cleared by an optimizer after it has 
+        consumed their data for weight updates. 
+        """
+        tape = self.tapes[-1]
+        g_main = self.main.grad[0]
+        main = self.main[-1]
+        input = self.input[-1]
+        weights = self.weights[-1]
+        bias = self.bias[-1]
+        g_i, g_w, g_b = tape.gradients(main, [input, weights, bias], g_main) 
+        return Event(self.backward,
+            (self.input.update(g_i, grad=True),
+             self.weights.update(g_w, Site.add_inplace, grad=True),
+             self.bias.update(g_b, Site.add_inplace, grad=True)),
+            dt, priority)
 
 
-class Pool(Parametric):
+class Pool(Parametric, Backpropagator):
     """
     An activation pooling process.
 
@@ -117,7 +121,6 @@ class Pool(Parametric):
     aggregate: Site
     params: Site
     inputs: dict[Key, Site]
-    scaled: dict[Key, Site]
     agg: Aggregator[NumDict]
     post: Unary[NumDict] | None
 
@@ -137,8 +140,8 @@ class Pool(Parametric):
         self.params = psite
         self.main = Site(index, {}, 0.0, l=l)
         self.aggregate = Site(index, {}, 0.0, l=l)
+        self.tapes = deque([], maxlen=l)
         self.inputs = {}
-        self.scaled = {}
         self.agg = agg
         self.post = post
 
@@ -160,46 +163,45 @@ class Pool(Parametric):
             self.p[comp.name] = Atom()
             key = ~self.p[comp.name]
             self.inputs[key] = site
-            self.scaled[key] = Site(site.index, {}, site.const, len(site.data)) 
             with self.params[0].mutable():
                 self.params[0][key] = 1.0
         return self
         
-    # def resolve(self, event: Event) -> None:
-    #     updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
-    #     if self.main.affected_by(*updates, grad=True):
-    #         self.system.schedule(self.backward()) 
+    def resolve(self, event: Event) -> None:
+        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        if self.main.affected_by(*updates, grad=True):
+            self.system.schedule(self.backward()) 
 
     def forward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.PROPAGATION
     ) -> Event:
-        inputs = [s[0].scale(self.params[0][k]) 
-            for k, s in self.inputs.items()]
-        aggregate = self.agg(*inputs)
-        if (post := self.post) is None:
-            main = aggregate
-        else:
-            main = post(aggregate)
+        with GradientTape() as tape:
+            inputs = [s[0].scale(self.params[0][k]) 
+                for k, s in self.inputs.items()]
+            aggregate = self.agg(*inputs)
+            if (post := self.post) is None:
+                main = aggregate
+            else:
+                main = post(aggregate)
         return Event(self.forward, 
             (self.params.update(self.params[0].d),
              self.main.update(main), 
              self.aggregate.update(aggregate),
-             *(site.update(data) 
-               for site, data in zip(self.scaled.values(), inputs))), 
+             self.push_tape(tape)), 
             dt, priority)
     
-    # def backward(self, 
-    #     dt: timedelta = timedelta(), 
-    #     priority: Priority = Priority.LEARNING
-    # ) -> Event:
-    #     grad_agg = self.main.grad[0]
-    #     if (post := self.post) is not None:
-    #         grad_agg = grad_agg.mul(post.grad(self.aggregate[-1]))
-    #     scaled = (self.main.new({}), *(s[-1] for s in self.scaled.values()))
-    #     grads = [grad.mul(grad_agg) for grad in self.agg.grad(*scaled)]
-    #     updates = []
-    #     for (k, site), grad in zip(self.inputs.items(), grads[1:]):
-    #         ud = site.update(grad.scale(self.params[-1][k]), grad=True)
-    #         updates.append(ud)
-    #     return Event(self.backward, updates, dt, priority)
+    def backward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> Event:
+        tape = self.tapes[-1]
+        g_agg = self.main.grad[0]
+        main = self.main[-1]
+        inputs = [site[-1] for site in self.inputs.values()]
+        grads = tape.gradients(main, inputs, g_agg)
+        updates = []
+        for (k, site), grad in zip(self.inputs.items(), grads):
+            ud = site.update(grad.scale(self.params[-1][k]), grad=True)
+            updates.append(ud)
+        return Event(self.backward, updates, dt, priority)

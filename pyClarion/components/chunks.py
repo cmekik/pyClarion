@@ -3,7 +3,7 @@ from datetime import timedelta
 import logging
 
 from .base import Component
-from .funcs import cam
+from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
 from ..knowledge import (Family, Chunks, Chunk, Sort, Atom, Term)
 from ..system import UpdateSort, Event, Priority, Site

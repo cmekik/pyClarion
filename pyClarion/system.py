@@ -306,18 +306,18 @@ class Site:
         index: int
         grad: bool
         
-        def __init__(self, 
-            site: "Site", 
-            data: NumDict | dict[Key, float], 
-            method: Callable[["Site", NumDict, int, bool], None],
-            index: int,
-            grad: bool
-        ) -> None:
-            self.site = site
-            self.data = data
-            self.method = method
-            self.index = index
-            self.grad = grad
+        # def __init__(self, 
+        #     site: "Site", 
+        #     data: NumDict | dict[Key, float], 
+        #     method: Callable[["Site", NumDict, int, bool], None],
+        #     index: int,
+        #     grad: bool
+        # ) -> None:
+        #     self.site = site
+        #     self.data = data
+        #     self.method = method
+        #     self.index = index
+        #     self.grad = grad
         
         def apply(self) -> None:
             data = self.data
