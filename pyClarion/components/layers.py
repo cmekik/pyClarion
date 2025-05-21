@@ -5,8 +5,8 @@ from .base import Parametric, Component, V, DV
 from .funcs import cam
 from ..knowledge import Atoms, Family, Atom
 from ..system import Site, Priority, Event
-from ..numdicts import Key, KeyForm
-from ..numdicts.numdicts import Unary, Aggregator
+from ..numdicts import Key, KeyForm, NumDict
+from ..numdicts.ops.base import Unary, Aggregator
 
 
 class Layer(Component):
@@ -22,7 +22,7 @@ class Layer(Component):
     input: Site
     weights: Site
     bias: Site
-    func: Unary | None
+    func: Unary[NumDict] | None
     fw_by: KeyForm
     bw_by: KeyForm
 
@@ -31,7 +31,7 @@ class Layer(Component):
         s1: V | DV,
         s2: V | DV | None = None,
         *, 
-        func: Unary | None = None, 
+        func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> None:
         s2 = s1 if s2 is None else s2
@@ -118,16 +118,16 @@ class Pool(Parametric):
     params: Site
     inputs: dict[Key, Site]
     scaled: dict[Key, Site]
-    agg: Aggregator
-    post: Unary | None
+    agg: Aggregator[NumDict]
+    post: Unary[NumDict] | None
 
     def __init__(self, 
         name: str, 
         p: Family, 
         s: V | DV, 
         *, 
-        agg: Aggregator = cam, 
-        post: Unary | None = None,
+        agg: Aggregator[NumDict] = cam, 
+        post: Unary[NumDict] | None = None,
         l: int = 1
     ) -> None:
         super().__init__(name)

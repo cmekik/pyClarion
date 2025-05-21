@@ -3,11 +3,10 @@ from datetime import timedelta
 
 from .base import Component, Parametric, D, V, DV
 from .io import Choice
-from .funcs import least_squares_cost
+from .funcs import least_squares_cost, Cost
 from ..system import Site, Priority, Event, PROCESS
 from ..knowledge import Family, Atoms, Atom, Term
 from ..numdicts import NumDict, Key
-from ..numdicts.numdicts import Ternary
 
 
 class LearningSignal(Component):
@@ -41,7 +40,7 @@ class SupervisedLearning(LearningSignal):
     Computes and backpropagates errors based on a supervised cost function.
     """
 
-    cost: Ternary
+    cost: Cost
     input: Site
     target: Site
     mask: Site
@@ -49,7 +48,7 @@ class SupervisedLearning(LearningSignal):
     def __init__(self, 
         name: str, 
         s: V | DV, 
-        cost: Ternary = least_squares_cost
+        cost: Cost = least_squares_cost
     ) -> None:
         super().__init__(name)
         index, = self._init_indexes(s)
@@ -67,7 +66,7 @@ class SupervisedLearning(LearningSignal):
         tgt = self.target[0]
         mask = self.mask[0]
         cost = self.cost(est, tgt, mask)
-        main = self.cost.grad(cost.ones(), cost, est, tgt, mask)
+        main = self.cost.grad(cost.ones(), cost, est, tgt, mask)[0]
         return Event(self.update, (self.main.update(main),), dt, priority)
     
 

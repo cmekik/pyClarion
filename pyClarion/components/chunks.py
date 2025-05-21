@@ -7,7 +7,7 @@ from .funcs import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
 from ..knowledge import (Family, Chunks, Chunk, Sort, Atom, Term)
 from ..system import UpdateSort, Event, Priority, Site
-from ..numdicts.numdicts import Unary, Aggregator
+from ..numdicts.ops.base import Unary, Aggregator
 
 
 class ChunkStore(Component):
@@ -114,8 +114,8 @@ class BottomUp(Component):
     mul_by: KeyForm
     sum_by: KeyForm
     max_by: KeyForm
-    pre: Unary | None
-    post: Unary | None
+    pre: Unary[NumDict] | None
+    post: Unary[NumDict] | None
 
     def __init__(self, 
         name: str, 
@@ -195,9 +195,9 @@ class TopDown(Component):
     weights: Site
     mul_by: KeyForm
     agg_by: KeyForm
-    pre: Unary | None
-    post: Unary | None
-    agg: Aggregator
+    pre: Unary[NumDict] | None
+    post: Unary[NumDict] | None
+    agg: Aggregator[NumDict]
 
     def __init__(self, 
         name: str, 
@@ -205,9 +205,9 @@ class TopDown(Component):
         d: Family | Sort | Term, 
         v: Family | Sort,
         *,
-        pre: Unary | None = None,
-        post: Unary | None = None,
-        agg: Aggregator = cam
+        pre: Unary[NumDict] | None = None,
+        post: Unary[NumDict] | None = None,
+        agg: Aggregator[NumDict] = cam
     ) -> None:
         super().__init__(name)
         self.system.check_root(c, d, v)
