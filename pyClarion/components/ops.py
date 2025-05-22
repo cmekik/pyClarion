@@ -27,7 +27,7 @@ class Cost(OpBase[NumDict]):
 
 
 class CAM(Aggregator[NumDict]):
-    kernel = lambda *xs: max(0.0, *xs) + min(0.0, *xs)
+    kernel = lambda xs: max(0.0, *xs) + min(0.0, *xs)
     eye = 0.0
 
 

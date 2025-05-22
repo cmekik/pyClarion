@@ -307,7 +307,7 @@ class Rule(Compound):
         if not self._vars_:
             chunks, weights = zip(*self._chunks_.items())
             for c, w in zip(chunks[:-1], weights[:-1]):
-                lhw[kr * ~c] = w
+                lhw[~c * kr] = w
             c, w = chunks[-1], weights[-1]
             rhw[kr * ~c] = w
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)

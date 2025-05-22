@@ -162,10 +162,8 @@ class Choice(Stateful, Parametric):
     ) -> Event:
         """Generate a dummy event to trigger selection of a new choice."""
         return Event(self.trigger, 
-            [self.state.update({~self.s.busy: 1.0}), 
-             self.main.update({}), 
-             self.sample.update({})], 
-            time=dt, priority=priority)
+            [self.state.update({~self.s.busy: 1.0})], 
+            dt, priority)
 
     def select(self, 
         dt: timedelta = timedelta(), 
