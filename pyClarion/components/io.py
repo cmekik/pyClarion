@@ -24,11 +24,11 @@ class Input(Component):
         *,
         c: float = 0.0,
         reset: bool = True,
-        lags: int = 0
+        l: int = 1
     ) -> None:
         super().__init__(name)
         index, = self._init_indexes(s) 
-        self.main = Site(index, {}, c, lags)
+        self.main = Site(index, {}, c, l)
         self.reset = reset
 
     @overload
@@ -66,9 +66,7 @@ class Input(Component):
         """Update input data."""
         data = self._parse_input(d)
         method = Site.push if self.reset else Site.write_inplace
-        return Event(self.send, 
-            (self.main.update(data, method),), 
-            time=dt, priority=priority)
+        return Event(self.send, [self.main.update(data, method)], dt, priority)
 
     def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
         data = {}
@@ -113,7 +111,6 @@ class Choice(Stateful, Parametric):
     by: KeyForm
     main: Site
     input: Site
-    bias: Site
     sample: Site
     params: Site
     state: Site
@@ -126,17 +123,17 @@ class Choice(Stateful, Parametric):
         s: V | DV, 
         *, 
         sd: float = 1.0,
-        f: float = 1.0
+        f: float = 1.0,
+        l: int = 1
     ) -> None:
         super().__init__(name)
         self.system.check_root(p)
         index, = self._init_indexes(s)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, f=f)
         self.s, self.state = self._init_sort(s_, type(self).State, c=0., free=1.)
-        self.main = Site(index, {}, 0.0)
-        self.input = Site(index, {}, 0.0)
-        self.bias = Site(index, {}, 0.0)
-        self.sample = Site(index, {}, float("nan"))
+        self.main = Site(index, {}, 0.0, l=l)
+        self.input = Site(index, {}, 0.0, l=l)
+        self.sample = Site(index, {}, 0.0, l=l)
         self.by = self._init_by(s)
         self.locked = False
 
@@ -165,9 +162,9 @@ class Choice(Stateful, Parametric):
     ) -> Event:
         """Generate a dummy event to trigger selection of a new choice."""
         return Event(self.trigger, 
-            (self.state.update({~self.s.busy: 1.0}), 
+            [self.state.update({~self.s.busy: 1.0}), 
              self.main.update({}), 
-             self.sample.update({})), 
+             self.sample.update({})], 
             time=dt, priority=priority)
 
     def select(self, 
@@ -182,7 +179,7 @@ class Choice(Stateful, Parametric):
     
         Direct use of this method is discouraged in favor of Choice.trigger().
         """
-        input = self.bias[0].sum(self.input[0])
+        input = self.main.new({}).sum(self.input[0])
         sd = numdict(self.main.index, {}, c=self.params[0][~self.p.sd])
         sample = input.normalvariate(sd)
         choices = sample.argmax(by=self.by)
@@ -190,8 +187,8 @@ class Choice(Stateful, Parametric):
         if f > 0 and not dt:
             dt = timedelta(seconds=f * exp(-sample.valmax()))
         return Event(self.select,
-            (self.main.update({v: 1.0 for v in choices.values()}),
+            [self.main.update({v: 1.0 for v in choices.values()}),
              self.sample.update(sample),
-             self.state.update({~self.s.free: 1.0})),
+             self.state.update({~self.s.free: 1.0})],
             time=dt, priority=priority)
 

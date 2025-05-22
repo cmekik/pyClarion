@@ -20,13 +20,13 @@ class Layer(Backpropagator):
     """
 
     main: Site
-    wsum: Site
     input: Site
     weights: Site
     bias: Site
     func: Unary[NumDict] | None
     fw_by: KeyForm
     bw_by: KeyForm
+    tapes2: deque[tuple[GradientTape, NumDict, NumDict, NumDict, NumDict]]
 
     def __init__(self, 
         name: str, 
@@ -40,11 +40,10 @@ class Layer(Backpropagator):
         super().__init__(name)
         idx_in, idx_out = self._init_indexes(s1, s2)
         self.func = func
-        self.main = Site(idx_out, {}, 0.0, l)
-        self.input = Site(idx_in, {}, 0.0, l)
-        self.wsum = Site(idx_out, {}, 0.0, l)
-        self.bias = Site(idx_out, {}, 0.0, l)
-        self.weights = Site(idx_in * idx_out, {}, 0.0, l)
+        self.main = Site(idx_out, {}, 0.0)
+        self.input = Site(idx_in, {}, 0.0)
+        self.bias = Site(idx_out, {}, 0.0)
+        self.weights = Site(idx_in * idx_out, {}, 0.0)
         self.tapes = deque([], maxlen=l)
         self.fw_by = idx_in.kf * idx_out.kf.agg
         self.bw_by = idx_in.kf.agg * idx_out.kf
@@ -62,20 +61,17 @@ class Layer(Backpropagator):
         priority: Priority = Priority.PROPAGATION
     ) -> Event:
         """Compute and propagate forward activations."""
+        input, weights, bias = self.input[0], self.weights[0], self.bias[0]
         with GradientTape() as tape:
-            wsum = (self.weights[0]
-                .mul(self.input[0], by=self.fw_by)
+            main = (weights
+                .mul(input, by=self.fw_by)
                 .sum(by=self.bw_by)
-                .sum(self.bias[0]))
-            main = wsum
+                .sum(bias))
             if self.func:
-                main = self.func(wsum)            
+                main = self.func(main)            
         return Event(self.forward, 
-            (self.wsum.update(wsum), 
-             self.main.update(main), 
-             self.weights.update(self.weights[0]),
-             self.bias.update(self.bias[0]),
-             self.push_tape(tape)),
+            [self.main.update(main),
+             self.push_tape(tape, main, [input, weights, bias])],
             dt, priority)
         
     def backward(self, 
@@ -92,17 +88,13 @@ class Layer(Backpropagator):
         Typically, gradient sites will be cleared by an optimizer after it has 
         consumed their data for weight updates. 
         """
-        tape = self.tapes[-1]
+        tape, main, args = self.tapes[-1]
         g_main = self.main.grad[0]
-        main = self.main[-1]
-        input = self.input[-1]
-        weights = self.weights[-1]
-        bias = self.bias[-1]
-        g_i, g_w, g_b = tape.gradients(main, [input, weights, bias], g_main) 
+        g_i, g_w, g_b = tape.gradients(main, args, g_main) 
         return Event(self.backward,
-            (self.input.update(g_i, grad=True),
+            [self.input.update(g_i, grad=True),
              self.weights.update(g_w, Site.add_inplace, grad=True),
-             self.bias.update(g_b, Site.add_inplace, grad=True)),
+             self.bias.update(g_b, Site.add_inplace, grad=True)],
             dt, priority)
 
 
@@ -185,23 +177,20 @@ class Pool(Parametric, Backpropagator):
             else:
                 main = post(aggregate)
         return Event(self.forward, 
-            (self.params.update(self.params[0].d),
-             self.main.update(main), 
+            [self.main.update(main), 
              self.aggregate.update(aggregate),
-             self.push_tape(tape)), 
+             self.push_tape(tape, main, [s[0] for s in self.inputs.values()])], 
             dt, priority)
     
     def backward(self, 
         dt: timedelta = timedelta(), 
         priority: Priority = Priority.LEARNING
     ) -> Event:
-        tape = self.tapes[-1]
+        tape, main, inputs = self.tapes[-1]
         g_agg = self.main.grad[0]
-        main = self.main[-1]
-        inputs = [site[-1] for site in self.inputs.values()]
         grads = tape.gradients(main, inputs, g_agg)
         updates = []
         for (k, site), grad in zip(self.inputs.items(), grads):
-            ud = site.update(grad.scale(self.params[-1][k]), grad=True)
+            ud = site.update(grad, grad=True)
             updates.append(ud)
         return Event(self.backward, updates, dt, priority)

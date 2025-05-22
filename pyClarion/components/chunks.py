@@ -80,7 +80,7 @@ class ChunkStore(Component):
             chunk._instances_.update(instances)
             new.extend(instances)
         return Event(self.encode, 
-            (UpdateSort(self.chunks, add=tuple(new)),),
+            [UpdateSort(self.chunks, add=tuple(new)),],
             dt, priority)
         
     def encode_weights(self, *chunks: Chunk, 
@@ -95,9 +95,9 @@ class ChunkStore(Component):
         buw = self.buw.new(tdw)
         buw = buw.div(self.norm(buw))
         return Event(self.encode_weights,
-            (self.ciw.update(ciw, Site.write_inplace),
+            [self.ciw.update(ciw, Site.write_inplace),
              self.tdw.update(tdw, Site.write_inplace),
-             self.buw.update(buw, Site.write_inplace)),
+             self.buw.update(buw, Site.write_inplace)],
             dt, priority)
     
 
@@ -158,10 +158,7 @@ class BottomUp(Component):
             .sum(by=self.sum_by))
         if self.post is not None:
             main = self.post(main)
-        return Event(self.forward, 
-            (self.main.update(main), 
-             self.weights.update(self.weights[0])), 
-            dt, priority)
+        return Event(self.forward, [self.main.update(main)], dt, priority)
     
     @classmethod
     def from_store(cls: Type[Self], 
@@ -239,10 +236,7 @@ class TopDown(Component):
         if self.post is not None:
             cf = self.post(cf)
         main = self.agg(cf, by=self.agg_by)
-        return Event(self.forward, 
-            (self.main.update(main), 
-             self.weights.update(self.weights[0])), 
-            dt, priority)
+        return Event(self.forward, [self.main.update(main)], dt, priority)
 
     @classmethod
     def from_store(cls: Type[Self], 

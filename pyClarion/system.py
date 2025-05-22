@@ -73,7 +73,7 @@ class Event:
     Events are ordered first by time, then by priority, then by number.
     """
     source: Callable
-    updates: Sequence[Update]
+    updates: list[Update]
     time: timedelta = timedelta()
     priority: int = Priority.PROPAGATION
     number: int = 0
@@ -291,7 +291,7 @@ class Process:
     def breakpoint(self, dt: timedelta, priority: Priority = Priority.MAX) \
         -> Event:
         """Schedule a dummy event at specified time."""
-        return Event(self.breakpoint, (), dt, priority, 0)
+        return Event(self.breakpoint, [], dt, priority, 0)
 
 
 class Site:

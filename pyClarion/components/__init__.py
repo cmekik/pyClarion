@@ -2,7 +2,7 @@ from .io import  Input, Choice
 from .sim import Environment, Agent
 from .chunks import ChunkStore, BottomUp, TopDown
 from .layers import Pool
-from .learning import SupervisedLearning, TDLearning
+from .learning import TDLearning
 from .optimizers import SGD, Adam
     # #PoolBL, PoolTL, ChunkAssocs, 
     # BottomUp, TopDown)
@@ -18,12 +18,12 @@ __all__ = [
     "Environment", "Agent", "Input", "Choice", "Pool", 
     #"ChunkAssocs", 
     "ChunkStore", "BottomUp", "TopDown",
-    # "ChunkStore", 
     # "RuleStore", "FixedRules", 
     # "BaseLevel",   
     # "Layer", "Optimizer", "Activation", "Cost", "ErrorSignal", "LeastSquares", 
     # "Tanh", "Supervised", "TDError", "Train", 
     "SGD", "Adam",
-    "SupervisedLearning", "TDLearning"
+    #"SupervisedLearning", 
+    "TDLearning"
     # "MLP", "IDN"
 ]

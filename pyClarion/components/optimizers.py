@@ -33,8 +33,9 @@ class Optimizer[P: Atoms](Parametric):
         priority: Priority = Priority.LEARNING
     ) -> Event:
         """Compute and schedule parameter updates for all client layers."""
-        updates = [ud for s in self.sites for ud in self.site_updates(s)]
-        return Event(self.update, updates, dt, priority)
+        return Event(self.update, 
+            [ud for s in self.sites for ud in self.site_updates(s)], 
+            dt, priority)
     
     def site_updates(self, site: Site) -> Sequence[Site.Update]:
         raise NotImplementedError()
@@ -90,8 +91,8 @@ class Adam(Optimizer):
         ep: float = 1e-8
     ) -> None:
         super().__init__(name, p, lr=lr, b1=b1, b2=b2, ep=ep, bt1=b1, bt2=b2)
-        self.wm1 = {}
-        self.wm2 = {}
+        self.m1 = {}
+        self.m2 = {}
 
     def add(self, *sites: Site) -> None:
         super().add(*sites)

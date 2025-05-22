@@ -80,7 +80,7 @@ class Parametric[P: Atoms](Component):
     ) -> Event:
         data = {~self.p[param]: value for param, value in kwargs.items()}
         return Event(self.set_params, 
-            (self.params.update(data, Site.write_inplace),), 
+            [self.params.update(data, Site.write_inplace)], 
             dt, priority)
     
 
@@ -95,16 +95,22 @@ class Stateful[S: Atoms](Component):
 
 class Backpropagator(Component):
     @dataclass(slots=True)
-    class Update(Update):
+    class UpdateTapes(Update):
         proc: "Backpropagator"
         tape: GradientTape
+        main: NumDict
+        args: list[NumDict]
 
         def apply(self) -> None:
-            self.proc.tapes.appendleft(self.tape)
+            self.proc.tapes.appendleft((self.tape, self.main, self.args))
 
-    tapes: deque[GradientTape[NumDict]]
+    tapes: deque[tuple[GradientTape[NumDict], NumDict, list[NumDict]]]
     forward: Callable[..., Event]
     backward: Callable[..., Event]
 
-    def push_tape(self, tape: GradientTape) -> Update:
-        return self.Update(self, tape)
+    def push_tape(self, 
+        tape: GradientTape, 
+        main: NumDict, 
+        args: list[NumDict]
+    ) -> Update:
+        return self.UpdateTapes(self, tape, main, args)

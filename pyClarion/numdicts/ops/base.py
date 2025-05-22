@@ -120,7 +120,7 @@ class UnaryRV[D: "nd.NumDict"](OpBase[D]):
 
     def __call__(self, d: D, /, c: float | None = None) -> D:
         it = collect(d, mode="full")
-        c = c or d._c
+        c = c if c is not None else d._c
         new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
         r = type(d)(d._i, new_d, c, False)
         tape = GradientTape.STACK.get()
@@ -136,7 +136,7 @@ class BinaryRV[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[float, float], float]]
 
     def __call__(self, d1: D, d2: D, /, by: KeyForm | None = None, c: float | None = None) -> D:
-        c = c or d1._c
+        c = c if c is not None else d1._c
         it = collect(d1, d2, branches=by, mode="full")
         new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
         r = type(d1)(d1._i, new_d, c, False)

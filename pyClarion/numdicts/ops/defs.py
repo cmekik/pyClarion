@@ -306,7 +306,7 @@ class Mul[D: "nd.NumDict"](Aggregator[D]):
                 by = (by,) * len(ds)
             return (d.inv(0.0).mul(rg), 
                 *(rg.mul(_d.inv(0.0), by=_by).sum(by=_by or _d._i.kf, c=0.0) 
-                    for _by, _d in zip(by, *ds)))
+                    for _by, _d in zip(by, ds)))
         else:
             assert False
 

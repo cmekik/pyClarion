@@ -106,7 +106,7 @@ def binary[**P, D: "nd.NumDict"](
 
 def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None, c: float | None, kernel: Callable[[Sequence[float]], float], eye: float) -> D:
     mode = "match" if ds else "self" if d._c == eye else "full"
-    c = c or eye
+    c = c if c is not None else eye
     if len(ds) == 0 and by is None:
         by = d._i.kf.agg
         it = ()
@@ -114,7 +114,7 @@ def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | Non
         assert mode != "match"
         new_c = kernel(group(d, by, mode=mode).get(Key(), (c,)))
     elif len(ds) == 0 and isinstance(by, KeyForm):
-        if not by < d._i.kf:
+        if not by <= d._i.kf:
             raise ValueError(f"Keyform {by.as_key()} cannot "
                 f"reduce {d._i.kf.as_key()}")
         assert mode != "match"
