@@ -3,7 +3,7 @@ from datetime import timedelta
 from collections import deque
 from dataclasses import dataclass
 
-from ..system import Process, Site, Priority, Event, Update
+from ..system import Process, Site, State, Priority, Event, Update
 from ..knowledge import Family, Sort, Term, Atoms
 from ..numdicts import Index, keyform, Key, NumDict
 from ..numdicts.ops.tape import GradientTape
@@ -19,20 +19,20 @@ class Component(Process):
     def __rshift__[T](self: Self, other: T) -> T:
         input = getattr(other, "input", None)
         main = getattr(self, "main", None)
-        if isinstance(input, Site) and isinstance(main, Site) :
+        if isinstance(input, State) and isinstance(main, State) :
             setattr(other, "input", main)
             return other
         return NotImplemented
      
     def __rrshift__(self: Self, other: Any) -> Self:
         input = getattr(self, "input", None)
-        if isinstance(input, Site):
-            if isinstance(other, Site):
+        if isinstance(input, State):
+            if isinstance(other, State):
                 setattr(self, "input", other)
                 return self
             elif isinstance(other, Component):
                 main = getattr(other, "main", None)
-                if isinstance(main, Site):
+                if isinstance(main, State):
                     setattr(self, "input", main)
                     return self
         return NotImplemented
@@ -58,10 +58,10 @@ class Component(Process):
         c: float = float("nan"), 
         l: int = 1,
         **params: float
-    ) -> tuple[S, Site]:
+    ) -> tuple[S, State]:
         self.system.check_root(family)
         sort = sort_cls(); family[self.name] = sort
-        site = Site(
+        site = State(
             i=self.system.get_index(keyform(sort)), 
             d={~sort[k]: v for k, v in params.items()}, 
             c=c,
@@ -71,7 +71,7 @@ class Component(Process):
 
 class Parametric[P: Atoms](Component):
     p: P
-    params: Site
+    params: Site = Site()
 
     def set_params(self, 
         dt: timedelta = timedelta(), 
@@ -80,13 +80,13 @@ class Parametric[P: Atoms](Component):
     ) -> Event:
         data = {~self.p[param]: value for param, value in kwargs.items()}
         return Event(self.set_params, 
-            [self.params.update(data, Site.write_inplace)], 
+            [self.params.update(data, State.write_inplace)], 
             dt, priority)
     
 
 class Stateful[S: Atoms](Component):
     s: S
-    state: Site
+    state: Site = Site()
 
     @property
     def current_state(self) -> Key:

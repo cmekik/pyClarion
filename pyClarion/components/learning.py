@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from .base import Component, D, V, DV
 from .io import Choice
-from ..system import Event, Site, Priority
+from ..system import Event, State, Site, Priority
 from ..knowledge import Family, Atom, Term
 from ..numdicts import NumDict, Key
 
@@ -15,7 +15,7 @@ class LearningSignal(Component):
     Computes and backpropagates error signals based on neural network outputs.
     """
 
-    cost: Site
+    cost: Site = Site()
     
     def update(self,
         dt: timedelta = timedelta(), 
@@ -28,9 +28,9 @@ class LearningSignal(Component):
 class TDLearning(LearningSignal, Choice):
     
     func: Callable[["TDLearning"], NumDict]
-    actions: Site
-    qvals: Site
-    reward: Site
+    actions: Site = Site()
+    qvals: Site = Site()
+    reward: Site = Site()
 
     def next_Q(self) -> NumDict:
         qvals = self.qvals[0]
@@ -68,10 +68,10 @@ class TDLearning(LearningSignal, Choice):
             d[~self.p["gamma"]] = gamma
         idx_a = self.main.index
         idx_r, = self._init_indexes(r)
-        self.cost = Site(idx_a, {}, c=0.0)
-        self.qvals = Site(idx_a, {}, c=0.0, l=l)
-        self.actions = Site(idx_a, {}, c=0.0, l=l)
-        self.reward = Site(idx_r, {}, c=0.0, l=l)
+        self.cost = State(idx_a, {}, c=0.0)
+        self.qvals = State(idx_a, {}, c=0.0, l=l)
+        self.actions = State(idx_a, {}, c=0.0, l=l)
+        self.reward = State(idx_r, {}, c=0.0, l=l)
         self.func = func
 
     def resolve(self, event: Event) -> None:
@@ -86,7 +86,7 @@ class TDLearning(LearningSignal, Choice):
         event = super().select(dt, priority)
         qvals = self.qvals.new({}).sum(self.input[0])
         main, *_ = event.updates
-        assert isinstance(main, Site.Update)
+        assert isinstance(main, State.Update)
         event.updates.append(self.qvals.update(qvals)) 
         event.updates.append(self.actions.update(main.data))
         return event
@@ -123,5 +123,5 @@ class TDLearning(LearningSignal, Choice):
                 raise ValueError(f"Unexpected key {k}")
             data[k] = v
         return Event(self.send, 
-            [self.reward.update(data, Site.add_inplace)], 
+            [self.reward.update(data, State.add_inplace)], 
             dt, priority)

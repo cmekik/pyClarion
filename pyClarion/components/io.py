@@ -3,7 +3,7 @@ from datetime import timedelta
 from math import exp
 
 from .base import V, DV, Component, Parametric, Stateful
-from ..system import Event, Priority, Site
+from ..system import Event, Priority, State, Site
 from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var)
 from ..numdicts import Key, KeyForm, numdict, keyform
 
@@ -15,7 +15,7 @@ class Input(Component):
     Receives activations from external sources.
     """
 
-    main: Site
+    main: Site = Site()
     reset: bool
 
     def __init__(self, 
@@ -28,7 +28,7 @@ class Input(Component):
     ) -> None:
         super().__init__(name)
         index, = self._init_indexes(s) 
-        self.main = Site(index, {}, c, l)
+        self.main = State(index, {}, c, l)
         self.reset = reset
 
     @overload
@@ -65,7 +65,7 @@ class Input(Component):
     ) -> Event:
         """Update input data."""
         data = self._parse_input(d)
-        method = Site.push if self.reset else Site.write_inplace
+        method = State.push if self.reset else State.write_inplace
         return Event(self.send, [self.main.update(data, method)], dt, priority)
 
     def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
@@ -104,16 +104,14 @@ class Choice(Stateful, Parametric):
         free: Atom
         busy: Atom
 
-    lax: ClassVar[tuple[str, ...]] = ("input",)
-
     p: Params
     s: State
     by: KeyForm
-    main: Site
-    input: Site
-    sample: Site
-    params: Site
-    state: Site
+    main: Site = Site()
+    input: Site = Site(lax=True)
+    sample: Site = Site()
+    params: Site = Site()
+    state: Site = Site()
     locked: bool
 
     def __init__(self, 
@@ -131,9 +129,9 @@ class Choice(Stateful, Parametric):
         index, = self._init_indexes(s)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, f=f)
         self.s, self.state = self._init_sort(s_, type(self).State, c=0., free=1.)
-        self.main = Site(index, {}, 0.0, l=l)
-        self.input = Site(index, {}, 0.0, l=l)
-        self.sample = Site(index, {}, 0.0, l=l)
+        self.main = State(index, {}, 0.0, l=l)
+        self.input = State(index, {}, 0.0, l=l)
+        self.sample = State(index, {}, 0.0, l=l)
         self.by = self._init_by(s)
         self.locked = False
 

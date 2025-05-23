@@ -5,7 +5,7 @@ from .base import Component
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
 from ..knowledge import (Family, Chunks, Chunk, Sort, Atom, Term)
-from ..system import UpdateSort, Event, Priority, Site
+from ..system import Event, Priority, State, Site, UpdateSort
 from ..numdicts.ops.base import Unary, Aggregator
 
 
@@ -16,9 +16,9 @@ class BottomUp(Component):
     Propagates activations from the bottom level to the top level.
     """
 
-    main: Site
-    input: Site
-    weights: Site
+    main: Site = Site()
+    input: Site = Site()
+    weights: Site = Site()
     mul_by: KeyForm
     sum_by: KeyForm
     max_by: KeyForm
@@ -39,9 +39,9 @@ class BottomUp(Component):
         idx_c = self.system.get_index(keyform(c))
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = Site(idx_c, {}, c=0.0)
-        self.input = Site(idx_d * idx_v, {}, c=0.0)
-        self.weights = Site(idx_c * idx_d * idx_v, {}, c=0.0)
+        self.main = State(idx_c, {}, c=0.0)
+        self.input = State(idx_d * idx_v, {}, c=0.0)
+        self.weights = State(idx_c * idx_d * idx_v, {}, c=0.0)
         self.mul_by = keyform(c).agg * keyform(d) * keyform(v)
         self.sum_by = keyform(c) * keyform(d).agg * keyform(v, -1).agg
         self.max_by = keyform(c) * keyform(d) * keyform(v, -1)
@@ -49,7 +49,7 @@ class BottomUp(Component):
         self.post = post
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
         if self.input.affected_by(*updates):
             self.system.schedule(self.forward())
 
@@ -76,9 +76,9 @@ class TopDown(Component):
     Propagates activations from the top level to the bottom level.
     """
 
-    main: Site
-    input: Site
-    weights: Site
+    main: Site = Site()
+    input: Site = Site()
+    weights: Site = Site()
     mul_by: KeyForm
     agg_by: KeyForm
     pre: Unary[NumDict] | None
@@ -100,9 +100,9 @@ class TopDown(Component):
         idx_c = self.system.get_index(keyform(c))
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.main = Site(idx_d * idx_v, {}, c=0.0)
-        self.input = Site(idx_c, {}, c=0.0)
-        self.weights = Site(idx_c * idx_d * idx_v, {}, c=0.0) 
+        self.main = State(idx_d * idx_v, {}, c=0.0)
+        self.input = State(idx_c, {}, c=0.0)
+        self.weights = State(idx_c * idx_d * idx_v, {}, c=0.0) 
         self.mul_by = keyform(c) * keyform(d).agg * keyform(v).agg
         self.agg_by = keyform(c).agg * keyform(d) * keyform(v)
         self.pre = pre
@@ -110,7 +110,7 @@ class TopDown(Component):
         self.agg = agg         
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
         if self.input.affected_by(*updates):
             self.system.schedule(self.forward())
 
@@ -136,10 +136,10 @@ class ChunkStore(Component):
     activation propagation.
     """
     
+    ciw: Site = Site()
+    tdw: Site = Site()
+    buw: Site = Site()
     chunks: Chunks
-    ciw: Site
-    tdw: Site
-    buw: Site
     sum_by: KeyForm
     max_by: KeyForm
 
@@ -155,9 +155,9 @@ class ChunkStore(Component):
         idx_c = self.system.get_index(keyform(self.chunks))
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
-        self.ciw = Site(idx_c * idx_c, {}, c=0.0)
-        self.tdw = Site(idx_c * idx_d * idx_v, {}, c=0.0)
-        self.buw = Site(idx_c * idx_d * idx_v, {}, c=0.0)
+        self.ciw = State(idx_c * idx_c, {}, c=0.0)
+        self.tdw = State(idx_c * idx_d * idx_v, {}, c=0.0)
+        self.buw = State(idx_c * idx_d * idx_v, {}, c=0.0)
         self.sum_by = keyform(self.chunks)
         self.max_by = keyform(self.chunks) * keyform(d) * keyform(v, -1)
 
@@ -212,9 +212,9 @@ class ChunkStore(Component):
         buw = self.buw.new(tdw)
         buw = buw.div(self.norm(buw))
         return Event(self.encode_weights,
-            [self.ciw.update(ciw, Site.write_inplace),
-             self.tdw.update(tdw, Site.write_inplace),
-             self.buw.update(buw, Site.write_inplace)],
+            [self.ciw.update(ciw, State.write_inplace),
+             self.tdw.update(tdw, State.write_inplace),
+             self.buw.update(buw, State.write_inplace)],
             dt, priority)
     
     def bottom_up(self, 

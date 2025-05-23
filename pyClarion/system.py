@@ -1,4 +1,4 @@
-from typing import Callable, Sequence, ClassVar, Any, Iterator
+from typing import Callable, Protocol, ClassVar, Any, Iterator
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -19,18 +19,17 @@ from .numdicts.keyspaces import KSPath
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
 
 
-
-class Update:
+class Update(Protocol):
     """A future update to the simulation state."""
     def apply(self) -> None:
         ...
 
 
 @dataclass(slots=True)
-class UpdateSort[C: Term](Update):
+class UpdateSort[T: Term]:
     """A future update to a sort within a simulation keyspace."""
-    sort: Sort[C]
-    add: tuple[C, ...] = ()
+    sort: "Sort[T]"
+    add: tuple[T, ...] = ()
     remove: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
@@ -47,7 +46,7 @@ class UpdateSort[C: Term](Update):
 
     def affects(self, site: NumDict) -> bool:
         return site.i.depends_on(self.sort)
-    
+
 
 class Priority(IntEnum):
     """
@@ -129,7 +128,7 @@ class Clock:
         
         If self.limit == timedelta(), always returns True.
         """
-        return self.time <= self.limit
+        return not self.limit or self.time <= self.limit
 
     def advance(self, timepoint: timedelta) -> None:
         """
@@ -220,8 +219,6 @@ class Process:
             while self.queue and self.clock.has_time:
                 self.advance()
 
-
-    lax: ClassVar[tuple[str, ...]] = ()
     name: str
     system: System
     __tokens: list[Token]
@@ -243,35 +240,7 @@ class Process:
         self.system.procs.append(self)
 
     def __repr__(self) -> str:
-        return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        try:
-            old = getattr(self, name)
-        except AttributeError:
-            super().__setattr__(name, value)
-            return
-        if not isinstance(old, Site):
-            super().__setattr__(name, value)
-            return
-        if not isinstance(value, Site):
-            raise TypeError("Process site assigned object of wrong type")
-        if any(d.d for d in old.data):
-            raise ValueError(f"Site '{name}' of process {self.name} "
-                "contains data")
-        if 1 < len(old.procs):
-            raise ValueError(f"Site connects processes {old.procs} and cannot "
-                "be replaced")
-        if old.index != value.index and name not in self.lax \
-            or old.index < value.index:
-            raise ValueError("Incompatible index in site assignment")
-        if not (isnan(old.const) and isnan(value.const) \
-            or old.const == value.const):
-            raise ValueError("Incompatible default value in site assignment")
-        if len(old.data) != len(value.data) and name not in self.lax:
-            raise ValueError("Incompatible lag values")
-        value.procs.add(self)
-        super().__setattr__(name, value)        
+        return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"        
 
     def __enter__(self):
         self.__tokens.append(PROCESS.set(self))
@@ -294,30 +263,17 @@ class Process:
         return Event(self.breakpoint, [], dt, priority, 0)
 
 
-class Site:
-    """A simulation data site."""
+class State:
+    """A simulated process state."""
 
     @dataclass(slots=True)
     class Update(Update):
-        """A future update to a data site."""
-        site: "Site"
+        """A future update to a process state."""
+        site: "State"
         data: NumDict | dict[Key, float]
-        method: Callable[["Site", NumDict, int, bool], None]
+        method: Callable[["State", NumDict, int, bool], None]
         index: int
         grad: bool
-        
-        # def __init__(self, 
-        #     site: "Site", 
-        #     data: NumDict | dict[Key, float], 
-        #     method: Callable[["Site", NumDict, int, bool], None],
-        #     index: int,
-        #     grad: bool
-        # ) -> None:
-        #     self.site = site
-        #     self.data = data
-        #     self.method = method
-        #     self.index = index
-        #     self.grad = grad
         
         def apply(self) -> None:
             data = self.data
@@ -376,7 +332,7 @@ class Site:
 
     def update(self, 
         data: NumDict | dict[Key, float], 
-        method: Callable[["Site", NumDict, int, bool], None] = push,
+        method: Callable[["State", NumDict, int, bool], None] = push,
         index: int = 0,
         grad: bool = False
     ) -> Update:
@@ -386,13 +342,49 @@ class Site:
             not (isnan(data.c) and isnan(self.const) or data.c == self.const):
             raise ValueError(f"Default constant {data.c} of data does not "
                 f"match site {self.const}")
-        return Site.Update(self, data, method, index, grad)
-    
+        return State.Update(self, data, method, index, grad)
+
     def affected_by(self, *updates, grad: bool = False) -> bool:
         for ud in updates:
-            if isinstance(ud, Site.Update) and self is ud.site \
+            if isinstance(ud, State.Update) and self is ud.site \
                 and ud.grad == grad:
                 return True
             if isinstance(ud, UpdateSort) and self.index.depends_on(ud.sort):
                 return True
-        return False
+        return False    
+
+class Site:
+    def __init__(self, lax: bool = False) -> None:
+        self.lax = lax
+
+    def __set_name__(self, owner: Process, name: str) -> None:
+        self._name = "_" + name
+
+    def __get__(self, obj: Process, objtype: type[Process] | None = None) -> State:
+        return getattr(obj, self._name)
+
+    def __set__(self, obj: Process, value: State) -> None:
+        self.validate(obj, value)
+        setattr(obj, self._name, value)
+        value.procs.add(obj)
+
+    def validate(self, obj: Process, value: State) -> None:
+        old = getattr(obj, self._name, None)
+        if old is None:
+            pass
+        elif not isinstance(value, State):
+            raise TypeError("Process site assigned object of wrong type")
+        elif any(d.d for d in old.data):
+            raise ValueError(f"Site '{self._name}' of process {obj.name} "
+                "contains data")
+        elif 1 < len(old.procs):
+            raise ValueError(f"Site connects processes {old.procs} and cannot "
+                "be replaced")
+        elif old.index != value.index and not self.lax \
+            or old.index < value.index:
+            raise ValueError("Incompatible index in site assignment")
+        elif not (isnan(old.const) and isnan(value.const) \
+            or old.const == value.const):
+            raise ValueError("Incompatible default value in site assignment")
+        elif len(old.data) != len(value.data) and not self.lax:
+            raise ValueError("Incompatible lag values")

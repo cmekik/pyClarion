@@ -5,7 +5,7 @@ from collections import deque
 from .base import Parametric, Backpropagator, Component, V, DV
 from .ops import cam
 from ..knowledge import Atoms, Family, Atom
-from ..system import Site, Priority, Event
+from ..system import State, Site, Priority, Event
 from ..numdicts import Key, KeyForm, NumDict
 from ..numdicts.ops.base import Unary, Aggregator
 from ..numdicts.ops.tape import GradientTape
@@ -19,14 +19,13 @@ class Layer(Backpropagator):
     propagation of error signals.
     """
 
-    main: Site
-    input: Site
-    weights: Site
-    bias: Site
+    main: Site = Site()
+    input: Site = Site()
+    weights: Site = Site()
+    bias: Site = Site()
     func: Unary[NumDict] | None
     fw_by: KeyForm
     bw_by: KeyForm
-    tapes2: deque[tuple[GradientTape, NumDict, NumDict, NumDict, NumDict]]
 
     def __init__(self, 
         name: str, 
@@ -40,16 +39,16 @@ class Layer(Backpropagator):
         super().__init__(name)
         idx_in, idx_out = self._init_indexes(s1, s2)
         self.func = func
-        self.main = Site(idx_out, {}, 0.0)
-        self.input = Site(idx_in, {}, 0.0)
-        self.bias = Site(idx_out, {}, 0.0)
-        self.weights = Site(idx_in * idx_out, {}, 0.0)
+        self.main = State(idx_out, {}, 0.0)
+        self.input = State(idx_in, {}, 0.0)
+        self.bias = State(idx_out, {}, 0.0)
+        self.weights = State(idx_in * idx_out, {}, 0.0)
         self.tapes = deque([], maxlen=l)
         self.fw_by = idx_in.kf * idx_out.kf.agg
         self.bw_by = idx_in.kf.agg * idx_out.kf
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
         if self.input.affected_by(*updates):
             self.system.schedule(self.forward())
         if len(self.tapes) == self.tapes.maxlen \
@@ -93,8 +92,8 @@ class Layer(Backpropagator):
         g_i, g_w, g_b = tape.gradients(main, args, g_main) 
         return Event(self.backward,
             [self.input.update(g_i, grad=True),
-             self.weights.update(g_w, Site.add_inplace, grad=True),
-             self.bias.update(g_b, Site.add_inplace, grad=True)],
+             self.weights.update(g_w, State.add_inplace, grad=True),
+             self.bias.update(g_b, State.add_inplace, grad=True)],
             dt, priority)
 
 
@@ -109,10 +108,10 @@ class Pool(Parametric, Backpropagator):
         pass
 
     p: Params
-    main: Site
-    aggregate: Site
-    params: Site
-    inputs: dict[Key, Site]
+    main: Site = Site()
+    aggregate: Site = Site()
+    params: Site = Site()
+    inputs: dict[Key, State]
     agg: Aggregator[NumDict]
     post: Unary[NumDict] | None
 
@@ -130,8 +129,8 @@ class Pool(Parametric, Backpropagator):
         psort, psite = self._init_sort(p, type(self).Params, l=l)
         self.p = psort
         self.params = psite
-        self.main = Site(index, {}, 0.0, l=l)
-        self.aggregate = Site(index, {}, 0.0, l=l)
+        self.main = State(index, {}, 0.0, l=l)
+        self.aggregate = State(index, {}, 0.0, l=l)
         self.tapes = deque([], maxlen=l)
         self.inputs = {}
         self.agg = agg
@@ -148,7 +147,7 @@ class Pool(Parametric, Backpropagator):
             return NotImplemented
         for comp in inputs:
             site = getattr(comp, "main", None)
-            if not isinstance(site, Site):
+            if not isinstance(site, State):
                 return NotImplemented
             if not self.main.index.kf <= site.index.kf:
                 raise ValueError("Input to pool does not match main keyform")
@@ -160,7 +159,7 @@ class Pool(Parametric, Backpropagator):
         return self
         
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
+        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
         if self.main.affected_by(*updates, grad=True):
             self.system.schedule(self.backward()) 
 

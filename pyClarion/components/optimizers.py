@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Sequence
 
 from .base import Parametric
-from ..system import Priority, Site, Event
+from ..system import Priority, State, Site, Event
 from ..knowledge import Family, Atoms, Atom
 
 
@@ -15,8 +15,8 @@ class Optimizer[P: Atoms](Parametric):
 
     Params: type[P]
     p: P
-    params: Site
-    sites: set[Site]
+    params: Site = Site()
+    sites: set[State]
 
     def __init__(self, name: str, p: Family, **params: float) -> None:
         super().__init__(name)
@@ -24,9 +24,9 @@ class Optimizer[P: Atoms](Parametric):
             p, type(self).Params, 0.0, 1, **params)
         self.sites = set()
 
-    def add(self, *sites: Site) -> None:
+    def add(self, *states: State) -> None:
         """Include sites in future updates."""
-        self.sites.update(sites)
+        self.sites.update(states)
 
     def update(self, 
         dt: timedelta = timedelta(), 
@@ -34,10 +34,10 @@ class Optimizer[P: Atoms](Parametric):
     ) -> Event:
         """Compute and schedule parameter updates for all client layers."""
         return Event(self.update, 
-            [ud for s in self.sites for ud in self.site_updates(s)], 
+            [ud for s in self.sites for ud in self.state_updates(s)], 
             dt, priority)
     
-    def site_updates(self, site: Site) -> Sequence[Site.Update]:
+    def state_updates(self, state: State) -> Sequence[State.Update]:
         raise NotImplementedError()
 
 
@@ -55,10 +55,10 @@ class SGD(Optimizer):
     def __init__(self, name: str, p: Family, *, lr: float = 1e-2) -> None:
         super().__init__(name, p, lr=lr)
 
-    def site_updates(self, site: Site) -> tuple[Site.Update, Site.Update]:
+    def state_updates(self, state: State) -> tuple[State.Update, State.Update]:
         lr = self.params[0][~self.p.lr]
-        delta = site.grad[-1].scale(-lr)
-        return site.update(delta, Site.add_inplace), site.update({}, grad=True)
+        delta = state.grad[-1].scale(-lr)
+        return state.update(delta, State.add_inplace), state.update({}, grad=True)
 
 
 class Adam(Optimizer):
@@ -78,8 +78,8 @@ class Adam(Optimizer):
         bt2: Atom
     
     # Maybe these should be weak key dicts?
-    m1: dict[Site, Site]
-    m2: dict[Site, Site]
+    m1: dict[State, State]
+    m2: dict[State, State]
 
     def __init__(self, 
         name: str, 
@@ -94,11 +94,11 @@ class Adam(Optimizer):
         self.m1 = {}
         self.m2 = {}
 
-    def add(self, *sites: Site) -> None:
-        super().add(*sites)
-        for s in sites:
-            self.m1[s] = Site(s.index, {}, 0.0)
-            self.m2[s] = Site(s.index, {}, 0.0)
+    def add(self, *states: State) -> None:
+        super().add(*states)
+        for s in states:
+            self.m1[s] = State(s.index, {}, 0.0)
+            self.m2[s] = State(s.index, {}, 0.0)
 
     def update(self,
         dt: timedelta = timedelta(), 
@@ -115,27 +115,27 @@ class Adam(Optimizer):
         event.updates.append(
             self.params.update(
                 {~self.p.bt1: bt1, ~self.p.bt2: bt2}, 
-                Site.write_inplace))
+                State.write_inplace))
         return event
 
-    def site_updates(self, site: Site) \
-        -> tuple[Site.Update, Site.Update, Site.Update, Site.Update]:
+    def state_updates(self, state: State) \
+        -> tuple[State.Update, State.Update, State.Update, State.Update]:
         lr = self.params[0][~self.p.lr]
         b1 = self.params[0][~self.p.b1]
         b2 = self.params[0][~self.p.b2]
         bt1 = self.params[0][~self.p.bt1]
         bt2 = self.params[0][~self.p.bt2]
         ep = self.params[0][~self.p.ep]
-        m, v = self.m1[site], self.m2[site]
-        m_next = m[0].scale(b1).sum(site.grad[-1].scale(1 - b1))
-        v_next = v[0].scale(b2).sum(site.grad[-1].pow(2).scale(1 - b2))
+        m, v = self.m1[state], self.m2[state]
+        m_next = m[0].scale(b1).sum(state.grad[-1].scale(1 - b1))
+        v_next = v[0].scale(b2).sum(state.grad[-1].pow(2).scale(1 - b2))
         m_hat = m_next.scale(1/(1 - bt1))
         v_hat = v_next.scale(1/(1 - bt2))
         g_hat = m_hat.div(v_hat.pow(0.5).shift(ep))
         delta = (g_hat
             .scale(-lr))
         return (
-            site.update(delta, Site.add_inplace), 
-            site.update({}, grad=True), 
+            state.update(delta, State.add_inplace), 
+            state.update({}, grad=True), 
             m.update(m_next), 
             v.update(v_next))

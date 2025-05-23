@@ -3,7 +3,7 @@ from datetime import timedelta
 import logging
 
 from .layers import Layer
-from ..system import Process, Site, UpdateSort, Event, Priority
+from ..system import Process, State, Site, Event, Priority, UpdateSort
 from ..knowledge import Rules, Rule, Family, Chunks
 from ..numdicts import keyform, NumDict
 from ..numdicts.ops.base import Unary
@@ -19,9 +19,9 @@ class RuleStore(Process):
     rules: Rules
     lhs: Chunks
     rhs: Chunks
-    riw: Site
-    lhw: Site
-    rhw: Site
+    riw: Site = Site()
+    lhw: Site = Site()
+    rhw: Site = Site()
 
     def __init__(self, 
         name: str, 
@@ -38,10 +38,10 @@ class RuleStore(Process):
         idx_r = self.system.get_index(keyform(self.rules))
         idx_lhs = self.system.get_index(keyform(lhs))
         idx_rhs = self.system.get_index(keyform(rhs))
-        self.main = Site(idx_r, {}, c=0.0)
-        self.riw = Site(idx_r * idx_r, {}, c=0.0)
-        self.lhw = Site(idx_lhs * idx_r, {}, c=0.0)
-        self.rhw = Site(idx_r * idx_rhs, {}, c=0.0)
+        self.main = State(idx_r, {}, c=0.0)
+        self.riw = State(idx_r * idx_r, {}, c=0.0)
+        self.lhw = State(idx_lhs * idx_r, {}, c=0.0)
+        self.rhw = State(idx_r * idx_rhs, {}, c=0.0)
 
     def resolve(self, event: Event) -> None:
         new_rules = [rule 
@@ -103,9 +103,9 @@ class RuleStore(Process):
             lhw.update(data["lhw"])
             rhw.update(data["rhw"])
         return Event(self.encode_weights,
-            [self.riw.update(riw, Site.write_inplace),
-             self.lhw.update(lhw, Site.write_inplace),
-             self.rhw.update(rhw, Site.write_inplace)],
+            [self.riw.update(riw, State.write_inplace),
+             self.lhw.update(lhw, State.write_inplace),
+             self.rhw.update(rhw, State.write_inplace)],
             dt, priority)
     
     def lhs_layer(self, 

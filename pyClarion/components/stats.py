@@ -2,12 +2,12 @@ from datetime import timedelta
 import math
 
 from .base import Parametric
-from ..system import Process, UpdateSort, Priority, Event, Site
+from ..system import Process, Priority, Event, State, Site, UpdateSort
 from ..knowledge import Family, Sort, Atoms, Atom
 from ..numdicts import Key, keyform
 
 
-class BaseLevel(Process):
+class BaseLevel[S: Sort](Process):
     """
     A base-level activation process.
 
@@ -21,21 +21,22 @@ class BaseLevel(Process):
     
     e: Atoms
     p: Params
+    s: S
     unit: timedelta
     ignore: set[Key]
-    main: Site
-    input: Site
-    times: Site
-    decay: Site
-    scale: Site
-    weights: Site
-    params: Site
+    main: Site = Site()
+    input: Site = Site()
+    times: Site = Site()
+    decay: Site = Site()
+    scale: Site = Site()
+    weights: Site = Site()
+    params: Site = Site()
     
     def __init__(self, 
         name: str, 
         p: Family, 
         e: Family, 
-        s: Sort, 
+        s: S, 
         *, 
         unit: timedelta = timedelta(milliseconds=1),
         th: float = 0.0, 
@@ -48,18 +49,19 @@ class BaseLevel(Process):
             raise ValueError("Args p and e must be distinct")
         self.p = type(self).Params(); p[name] = self.p
         self.e = Atoms(); e[name] = self.e
+        self.s = s
         idx_p = self.system.get_index(keyform(self.p))
         idx_e = self.system.get_index(keyform(self.e))
         idx_s = self.system.get_index(keyform(s))
         self.unit = unit
         self.ignore = set()
-        self.main = Site(idx_s, {}, 1.0)
-        self.input = Site(idx_s, {}, 0.0)
-        self.times = Site(idx_e, {}, float("nan"))
-        self.decay = Site(idx_e, {}, float("nan"))
-        self.scale = Site(idx_e, {}, float("nan"))
-        self.weights = Site(idx_e * idx_s, {}, 0.0)
-        self.params = Site(idx_p, 
+        self.main = State(idx_s, {}, 1.0)
+        self.input = State(idx_s, {}, 0.0)
+        self.times = State(idx_e, {}, float("nan"))
+        self.decay = State(idx_e, {}, float("nan"))
+        self.scale = State(idx_e, {}, float("nan"))
+        self.weights = State(idx_e * idx_s, {}, 0.0)
+        self.params = State(idx_p, 
             {~self.p.th: th, ~self.p.sc: sc, ~self.p.de: de}, 
             float("nan"))
 
@@ -76,7 +78,7 @@ class BaseLevel(Process):
         key = ke.link(Key(name), ke.size)
         invoked = set(); th = self.params[0][~self.p.th]
         for ud in (ud for ud in event.updates if self.input.affected_by(ud)):
-            if isinstance(ud, Site.Update):
+            if isinstance(ud, State.Update):
                 for k in ud.data:
                     if k not in self.ignore and th < ud.data[k]:
                         invoked.add(key.link(k, 0))
@@ -92,10 +94,10 @@ class BaseLevel(Process):
         atom._name_ = name
         return Event(self.invoke, 
             [UpdateSort(self.e, add=(atom,)),
-            self.times.update({key: time}, Site.write_inplace),
-            self.scale.update({key: sc}, Site.write_inplace),
-            self.decay.update({key: de}, Site.write_inplace),
-            self.weights.update({k: 1.0 for k in invoked}, Site.write_inplace)],
+            self.times.update({key: time}, State.write_inplace),
+            self.scale.update({key: sc}, State.write_inplace),
+            self.decay.update({key: de}, State.write_inplace),
+            self.weights.update({k: 1.0 for k in invoked}, State.write_inplace)],
             dt, priority)
 
     def update(self, 
@@ -130,12 +132,12 @@ class MatchStats(Parametric, Process):
         th_crit: Atom
 
     p: Params
-    main: Site
-    posm: Site
-    negm: Site
-    cond: Site
-    crit: Site
-    params: Site
+    main: Site = Site()
+    posm: Site = Site()
+    negm: Site = Site()
+    cond: Site = Site()
+    crit: Site = Site()
+    params: Site = Site()
 
     def __init__(self,
         name: str, 
@@ -153,11 +155,11 @@ class MatchStats(Parametric, Process):
         self.p, self.params = self._init_sort(p, type(self).Params, 
             c1=c1, c2=c2, discount=discount, th_cond=th_cond, th_crit=th_crit)
         index = self.system.get_index(keyform(s))
-        self.main = Site(index, {}, math.log(c1/c2, 2))
-        self.posm = Site(index, {}, 0.0)
-        self.negm = Site(index, {}, 0.0)
-        self.cond = Site(index, {}, 0.0)
-        self.crit = Site(index, {}, 0.0)
+        self.main = State(index, {}, math.log(c1/c2, 2))
+        self.posm = State(index, {}, 0.0)
+        self.negm = State(index, {}, 0.0)
+        self.cond = State(index, {}, 0.0)
+        self.crit = State(index, {}, 0.0)
 
     def update(self, 
         dt: timedelta = timedelta(), 
