@@ -299,14 +299,23 @@ class Mul[D: "nd.NumDict"](Aggregator[D]):
         c: float | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
-            return d.inv(0.0).mul(r, g, by=by, c=0.0)
+            raise NotImplementedError("Mul reduction gradient not implemented")
         elif 0 < len(ds):
-            rg = r.mul(g)
+            factors = (d, *ds)
             if by is None or isinstance(by, KeyForm):
-                by = (by,) * len(ds)
-            return (d.inv(0.0).mul(rg), 
-                *(rg.mul(_d.inv(0.0), by=_by).sum(by=_by or _d._i.kf, c=0.0) 
-                    for _by, _d in zip(by, ds)))
+                by = (None, *(by for _ in ds))
+            else:
+                by = (None, *by)
+            lhs, rhs = [d.ones().mul(g)], [d.ones()]
+            it = zip(factors[:-1], by[:-1], 
+                reversed(factors[1:]), reversed(by[1:]), strict=True)
+            for f1, by1, f2, by2 in it:
+                lhs.append(lhs[-1].mul(f1, by=by1))
+                rhs.append(rhs[-1].mul(f2, by=by2))
+            gs = []
+            for _d, _by, f1, f2 in zip(factors, by, lhs, reversed(rhs)):
+                gs.append(f1.mul(f2).sum(by=_by or _d._i.kf, c=0.0))
+            return tuple(gs)
         else:
             assert False
 
