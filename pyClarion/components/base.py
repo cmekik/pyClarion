@@ -81,7 +81,7 @@ class Parametric[P: Atoms](Component):
     ) -> Event:
         data = {~self.p[param]: value for param, value in kwargs.items()}
         return Event(self.set_params, 
-            [self.params.update(data, State.write_inplace)], 
+            [ForwardUpdate(self.params, data, "write")], 
             dt, priority)
     
 

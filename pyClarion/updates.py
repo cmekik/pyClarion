@@ -40,6 +40,7 @@ class StateUpdate(Update[State]):
             case _:
                 assert False
 
+    @property
     def target(self) -> "State":
         return self.state
 
@@ -76,6 +77,7 @@ class SortUpdate[T: Term](Update[Sort[T]]):
         for name in self.remove:
             self.sort[name]
 
+    @property
     def target(self) -> Sort[T]:
         return self.sort
     

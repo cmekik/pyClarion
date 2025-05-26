@@ -22,6 +22,7 @@ class Update[I: Hashable](Protocol):
     """A future update to the simulation state."""
     def apply(self) -> None:
         ...
+    @property
     def target(self) -> I:
         ...
 
@@ -63,7 +64,7 @@ class Event:
         for ud in self.updates:
             (self._index
                 .setdefault(type(ud), dict())
-                .setdefault(ud.target(), [])
+                .setdefault(ud.target, [])
                 .append(ud))
 
     def __repr__(self) -> str:
@@ -80,7 +81,7 @@ class Event:
         for ud in updates:
             (self._index
                 .setdefault(type(ud), dict())
-                .setdefault(ud.target(), [])
+                .setdefault(ud.target, [])
                 .append(ud))
     
     def describe(self) -> str:
@@ -97,7 +98,8 @@ class Event:
             f"{seconds:02d}.{centiseconds:02d}")
         return f"event {time} {self.priority:03d} {self.number} {source}"
     
-    def index[U: Update](self, update_type: type[U]) -> dict[Hashable, list[U]]:
+    def index[U: Update](self, update_type: type[U]) \
+        -> dict[Hashable, list[U]]:
         return cast(dict[Hashable, list[U]], self._index.get(update_type, {}))
 
     def __lt__(self, other) -> bool:
@@ -298,7 +300,8 @@ class Site:
     def __set_name__(self, owner: Process, name: str) -> None:
         self._name = "_" + name
 
-    def __get__(self, obj: Process, objtype: type[Process] | None = None) -> State:
+    def __get__(self, obj: Process, objtype: type[Process] | None = None) \
+        -> State:
         return getattr(obj, self._name)
 
     def __set__(self, obj: Process, value: State) -> None:
