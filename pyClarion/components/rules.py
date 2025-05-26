@@ -18,13 +18,10 @@ class RuleStore(Component):
     Maintains a collection of rules.
     """
 
-    def _update(self, add: Sequence[Rule] = (), remove: Sequence[str] = ()) \
-        -> RuleUpdate:
-        return RuleUpdate(self.rules, tuple(add), tuple(remove))
-
     rules: Rules
     lhs: Chunks
     rhs: Chunks
+    b: float
     bias: Site = Site()
     riw: Site = Site()
     lhw: Site = Site()
@@ -34,7 +31,9 @@ class RuleStore(Component):
         name: str, 
         r: Family,
         lhs: Chunks,
-        rhs: Chunks | None = None
+        rhs: Chunks | None = None,
+        *,
+        b: float = float("-inf")
     ) -> None:
         rhs = rhs if rhs is not None else lhs
         super().__init__(name)
@@ -42,6 +41,7 @@ class RuleStore(Component):
         self.rules = Rules(); r[name] = self.rules
         self.lhs = lhs
         self.rhs = rhs
+        self.b = b
         idx_r = self.system.get_index(keyform(self.rules))
         idx_lhs = self.system.get_index(keyform(lhs))
         idx_rhs = self.system.get_index(keyform(rhs))
@@ -91,7 +91,8 @@ class RuleStore(Component):
             rule._instances_.update(rule_instances)
             new_rules.append(rule)
             new_rules.extend(rule_instances)
-        updates = [self._update(add=tuple(new_rules)),
+        updates = [
+            RuleUpdate(self.rules, add=tuple(new_rules)),
             ChunkUpdate(self.lhs, add=tuple(new_lhs_chunks))]
         if new_rhs_chunks:
             updates.append(ChunkUpdate(self.rhs, add=tuple(new_rhs_chunks)))
@@ -105,6 +106,8 @@ class RuleStore(Component):
         bias, riw, lhw, rhw = {}, {}, {}, {}
         for rule in rules:
             data = rule._compile_()
+            if 0 < len(rule._vars_):
+                bias[~rule] = self.b
             riw.update(data["riw"])
             lhw.update(data["lhw"])
             rhw.update(data["rhw"])

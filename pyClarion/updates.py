@@ -44,15 +44,15 @@ class StateUpdate(Update[State]):
         return self.state
 
 
-@dataclass(slots=True)
 class ForwardUpdate(StateUpdate):
+    __slots__ = ()
     def __post_init__(self) -> None:
         super().__post_init__()
         self.grad = False
 
 
-@dataclass(slots=True)
 class BackwardUpdate(StateUpdate):
+    __slots__ = ()
     def __post_init__(self) -> None:
         super().__post_init__()
         self.grad = True
