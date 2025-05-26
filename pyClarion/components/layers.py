@@ -1,4 +1,4 @@
-from typing import Self, Any, cast
+from typing import Self, Any, Hashable, cast
 from datetime import timedelta
 from collections import deque
 
@@ -6,6 +6,7 @@ from .base import Parametric, Backpropagator, Component, V, DV
 from .ops import cam
 from ..knowledge import Atoms, Family, Atom
 from ..system import State, Site, Priority, Event
+from ..updates import ForwardUpdate, BackwardUpdate
 from ..numdicts import Key, KeyForm, NumDict
 from ..numdicts.ops.base import Unary, Aggregator
 from ..numdicts.ops.tape import GradientTape
@@ -48,11 +49,11 @@ class Layer(Backpropagator):
         self.bw_by = idx_in.kf.agg * idx_out.kf
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
-        if self.input.affected_by(*updates):
+        forward = event.index(ForwardUpdate)
+        backward = event.index(BackwardUpdate)
+        if self.input in forward:
             self.system.schedule(self.forward())
-        if len(self.tapes) == self.tapes.maxlen \
-            and self.main.affected_by(*updates, grad=True):
+        if len(self.tapes) == self.tapes.maxlen and self.main in backward:
             self.system.schedule(self.backward())
 
     def forward(self, 
@@ -67,10 +68,10 @@ class Layer(Backpropagator):
                 .sum(by=self.bw_by)
                 .sum(bias))
             if self.func:
-                main = self.func(main)            
+                main = self.func(main)        
+        self.push_tape(tape, main, [input, weights, bias])            
         return Event(self.forward, 
-            [self.main.update(main),
-             self.push_tape(tape, main, [input, weights, bias])],
+            [ForwardUpdate(self.main, main)],
             dt, priority)
         
     def backward(self, 
@@ -91,9 +92,9 @@ class Layer(Backpropagator):
         g_main = self.main.grad[0]
         g_i, g_w, g_b = tape.gradients(main, args, g_main) 
         return Event(self.backward,
-            [self.input.update(g_i, grad=True),
-             self.weights.update(g_w, State.add_inplace, grad=True),
-             self.bias.update(g_b, State.add_inplace, grad=True)],
+            [BackwardUpdate(self.input, g_i),
+             BackwardUpdate(self.weights, g_w, "add"),
+             BackwardUpdate(self.bias, g_b, "add")],
             dt, priority)
 
 
@@ -159,8 +160,8 @@ class Pool(Parametric, Backpropagator):
         return self
         
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
-        if self.main.affected_by(*updates, grad=True):
+        gradients = event.index(BackwardUpdate)
+        if len(self.tapes) == self.tapes.maxlen and self.main in gradients:
             self.system.schedule(self.backward()) 
 
     def forward(self, 
@@ -175,10 +176,10 @@ class Pool(Parametric, Backpropagator):
                 main = aggregate
             else:
                 main = post(aggregate)
+        self.push_tape(tape, main, [s[0] for s in self.inputs.values()])
         return Event(self.forward, 
-            [self.main.update(main), 
-             self.aggregate.update(aggregate),
-             self.push_tape(tape, main, [s[0] for s in self.inputs.values()])], 
+            [ForwardUpdate(self.main, main), 
+             ForwardUpdate(self.aggregate, aggregate)], 
             dt, priority)
     
     def backward(self, 
@@ -189,7 +190,7 @@ class Pool(Parametric, Backpropagator):
         g_agg = self.main.grad[0]
         grads = tape.gradients(main, inputs, g_agg)
         updates = []
-        for (k, site), grad in zip(self.inputs.items(), grads):
-            ud = site.update(grad, grad=True)
+        for (k, state), grad in zip(self.inputs.items(), grads):
+            ud = BackwardUpdate(state, grad)
             updates.append(ud)
         return Event(self.backward, updates, dt, priority)

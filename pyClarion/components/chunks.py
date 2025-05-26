@@ -1,3 +1,4 @@
+from typing import Sequence
 from datetime import timedelta
 import logging
 
@@ -5,7 +6,8 @@ from .base import Component
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
 from ..knowledge import (Family, Chunks, Chunk, Sort, Atom, Term)
-from ..system import Event, Priority, State, Site, UpdateSort
+from ..system import Event, Priority, State, Site 
+from ..updates import ForwardUpdate, ChunkUpdate
 from ..numdicts.ops.base import Unary, Aggregator
 
 
@@ -49,8 +51,7 @@ class BottomUp(Component):
         self.post = post
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
-        if self.input.affected_by(*updates):
+        if self.input in event.index(ForwardUpdate):
             self.system.schedule(self.forward())
 
     def forward(self, 
@@ -66,7 +67,7 @@ class BottomUp(Component):
             .sum(by=self.sum_by))
         if self.post is not None:
             main = self.post(main)
-        return Event(self.forward, [self.main.update(main)], dt, priority)
+        return Event(self.forward, [ForwardUpdate(self.main, main)], dt, priority)
     
 
 class TopDown(Component):    
@@ -110,8 +111,7 @@ class TopDown(Component):
         self.agg = agg         
 
     def resolve(self, event: Event) -> None:
-        updates = [ud for ud in event.updates if isinstance(ud, State.Update)]
-        if self.input.affected_by(*updates):
+        if self.input in event.index(ForwardUpdate):
             self.system.schedule(self.forward())
 
     def forward(self, 
@@ -125,7 +125,7 @@ class TopDown(Component):
         if self.post is not None:
             cf = self.post(cf)
         main = self.agg(cf, by=self.agg_by)
-        return Event(self.forward, [self.main.update(main)], dt, priority)
+        return Event(self.forward, [ForwardUpdate(self.main, main)], dt, priority)
 
 
 class ChunkStore(Component):
@@ -135,7 +135,7 @@ class ChunkStore(Component):
     Maintains a collection of chunks and facilitates top-down and bottom-up 
     activation propagation.
     """
-    
+
     ciw: Site = Site()
     tdw: Site = Site()
     buw: Site = Site()
@@ -169,17 +169,15 @@ class ChunkStore(Component):
             .shift(1.0))
 
     def resolve(self, event: Event) -> None:
-        new_chunks = [chunk 
-            for ud in event.updates 
-                if isinstance(ud, UpdateSort) and ud.sort is self.chunks 
-                    for chunk in ud.add]
+        updates = event.index(ChunkUpdate).get(self.chunks, [])
+        new_chunks = [chunk for ud in updates for chunk in ud.add]
         if new_chunks:
             if event.source == self.encode \
                 and self.system.logger.isEnabledFor(logging.DEBUG):
                 self.log_encoding(new_chunks)
             self.system.schedule(self.encode_weights(*new_chunks))
 
-    def log_encoding(self, chunks: list[Chunks]) -> None:
+    def log_encoding(self, chunks: list[Chunk]) -> None:
         data = [f"    Added the following new chunk(s)"]
         for c in chunks:
             data.append(str(c).replace("\n", "\n    "))
@@ -197,8 +195,8 @@ class ChunkStore(Component):
             chunk._instances_.update(instances)
             new.extend(instances)
         return Event(self.encode, 
-            [UpdateSort(self.chunks, add=tuple(new))],
-            dt, priority)
+            [ChunkUpdate(self.chunks, add=tuple(new))], 
+        dt, priority)
         
     def encode_weights(self, *chunks: Chunk, 
         dt: timedelta = timedelta(), 
@@ -212,9 +210,9 @@ class ChunkStore(Component):
         buw = self.buw.new(tdw)
         buw = buw.div(self.norm(buw))
         return Event(self.encode_weights,
-            [self.ciw.update(ciw, State.write_inplace),
-             self.tdw.update(tdw, State.write_inplace),
-             self.buw.update(buw, State.write_inplace)],
+            [ForwardUpdate(self.ciw, ciw, "write"),
+             ForwardUpdate(self.tdw, tdw, "write"),
+             ForwardUpdate(self.buw, buw, "write")],
             dt, priority)
     
     def bottom_up(self, 

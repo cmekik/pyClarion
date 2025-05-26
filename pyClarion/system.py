@@ -1,4 +1,4 @@
-from typing import Callable, Protocol, ClassVar, Any, Iterator
+from typing import Callable, Protocol, Hashable, cast, Iterator, Self
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from math import isnan
@@ -7,11 +7,10 @@ from inspect import ismethod
 from itertools import count
 from enum import IntEnum
 from collections import deque
-from weakref import WeakSet
 import logging
 import heapq
 
-from .knowledge import Root, Sort, Term
+from .knowledge import Root
 from .numdicts import NumDict, Key, KeyForm, Index, numdict, ks_root
 from .numdicts.keyspaces import KSPath
 
@@ -19,33 +18,12 @@ from .numdicts.keyspaces import KSPath
 PROCESS: ContextVar["Process"] = ContextVar("PROCESS")
 
 
-class Update(Protocol):
+class Update[I: Hashable](Protocol):
     """A future update to the simulation state."""
     def apply(self) -> None:
         ...
-
-
-@dataclass(slots=True)
-class UpdateSort[T: Term]:
-    """A future update to a sort within a simulation keyspace."""
-    sort: "Sort[T]"
-    add: tuple[T, ...] = ()
-    remove: tuple[str, ...] = ()
-
-    def __bool__(self) -> bool:
-        return bool(self.add or self.remove)
-
-    def apply(self) -> None:
-        for term in self.add:
-            try:
-                self.sort[term._name_] = term
-            except AttributeError:
-                self.sort[f"_{next(self.sort._counter_)}"] = term
-        for name in self.remove:
-            self.sort[name]
-
-    def affects(self, site: NumDict) -> bool:
-        return site.i.depends_on(self.sort)
+    def target(self) -> I:
+        ...
 
 
 class Priority(IntEnum):
@@ -70,12 +48,23 @@ class Event:
     A simulation event.
     
     Events are ordered first by time, then by priority, then by number.
+
+    Do not mutate the updates list as this will corrupt the event.
     """
     source: Callable
     updates: list[Update]
     time: timedelta = timedelta()
     priority: int = Priority.PROPAGATION
     number: int = 0
+    _index: dict[type[Update], dict[Hashable, list[Update]]] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._index = {}
+        for ud in self.updates:
+            (self._index
+                .setdefault(type(ud), dict())
+                .setdefault(ud.target(), [])
+                .append(ud))
 
     def __repr__(self) -> str:
         if ismethod(self.source) and isinstance(self.source.__self__, Process):
@@ -85,6 +74,14 @@ class Event:
         return (f"<{self.__class__.__qualname__} "
             f"source={source} time={repr(self.time)} "
             f"at {hex(id(self))}>")
+    
+    def append(self, *updates) -> None:
+        self.updates.extend(updates)
+        for ud in updates:
+            (self._index
+                .setdefault(type(ud), dict())
+                .setdefault(ud.target(), [])
+                .append(ud))
     
     def describe(self) -> str:
         if ismethod(self.source) and isinstance(self.source.__self__, Process):
@@ -99,6 +96,9 @@ class Event:
         time = (f"{days:#06x} {hours:02d}:{minutes:02d}:"
             f"{seconds:02d}.{centiseconds:02d}")
         return f"event {time} {self.priority:03d} {self.number} {source}"
+    
+    def index[U: Update](self, update_type: type[U]) -> dict[Hashable, list[U]]:
+        return cast(dict[Hashable, list[U]], self._index.get(update_type, {}))
 
     def __lt__(self, other) -> bool:
         if isinstance(other, Event):
@@ -251,7 +251,7 @@ class Process:
 
     def resolve(self, event: Event) -> None:
         """
-        Analyze event and schedule new events as needed.
+        Analyze an event and schedule new events as needed.
         
         Typically, dispatches calls to various event scheduling methods.
         """
@@ -266,22 +266,6 @@ class Process:
 class State:
     """A simulated process state."""
 
-    @dataclass(slots=True)
-    class Update(Update):
-        """A future update to a process state."""
-        site: "State"
-        data: NumDict | dict[Key, float]
-        method: Callable[["State", NumDict, int, bool], None]
-        index: int
-        grad: bool
-        
-        def apply(self) -> None:
-            data = self.data
-            if not isinstance(data, NumDict):
-                data = self.site.new(data)
-            self.method(self.site, data, self.index, self.grad)
-
-    procs: WeakSet[Process]
     index: Index
     const: float
     data: deque[NumDict]
@@ -289,7 +273,6 @@ class State:
 
     def __init__(self, i: Index, d: dict, c: float, l: int = 1) -> None:
         l = 1 if l < 1 else l
-        self.procs = WeakSet()
         self.index = i
         self.const = c
         self.data = deque([numdict(i, d, c) for _ in range(l)], maxlen=l)
@@ -304,54 +287,9 @@ class State:
     def __getitem__(self, i: int) -> NumDict:
         return self.data[i]
     
-    def new(self, d: dict) -> NumDict:
-        return numdict(self.index, d, self.const)
+    def new(self, d: dict, c: float | None = None) -> NumDict:
+        return numdict(self.index, d, self.const if c is None else c)
 
-    def push(self, data: NumDict, index: int = 0, grad: bool = False) -> None:
-        if index != 0:
-            raise ValueError("Site.push() only operates on index 0")
-        d = self.grad if grad else self.data
-        d.appendleft(data)
-
-    def add_inplace(self, 
-        data: NumDict, 
-        index: int = 0, 
-        grad: bool = False
-    ) -> None:
-        d = self.grad if grad else self.data
-        d[index] = d[index].sum(data)
-
-    def write_inplace(self, 
-        data: NumDict, 
-        index: int = 0, 
-        grad: bool = False
-    ) -> None:
-        d = self.grad if grad else self.data
-        with d[index].mutable():
-            d[index].update(data.d)
-
-    def update(self, 
-        data: NumDict | dict[Key, float], 
-        method: Callable[["State", NumDict, int, bool], None] = push,
-        index: int = 0,
-        grad: bool = False
-    ) -> Update:
-        if isinstance(data, NumDict) and data.i != self.index:
-            raise ValueError("Index of data numdict does not match site")
-        if isinstance(data, NumDict) and \
-            not (isnan(data.c) and isnan(self.const) or data.c == self.const):
-            raise ValueError(f"Default constant {data.c} of data does not "
-                f"match site {self.const}")
-        return State.Update(self, data, method, index, grad)
-
-    def affected_by(self, *updates, grad: bool = False) -> bool:
-        for ud in updates:
-            if isinstance(ud, State.Update) and self is ud.site \
-                and ud.grad == grad:
-                return True
-            if isinstance(ud, UpdateSort) and self.index.depends_on(ud.sort):
-                return True
-        return False    
 
 class Site:
     def __init__(self, lax: bool = False) -> None:
@@ -366,7 +304,6 @@ class Site:
     def __set__(self, obj: Process, value: State) -> None:
         self.validate(obj, value)
         setattr(obj, self._name, value)
-        value.procs.add(obj)
 
     def validate(self, obj: Process, value: State) -> None:
         old = getattr(obj, self._name, None)
@@ -377,9 +314,6 @@ class Site:
         elif any(d.d for d in old.data):
             raise ValueError(f"Site '{self._name}' of process {obj.name} "
                 "contains data")
-        elif 1 < len(old.procs):
-            raise ValueError(f"Site connects processes {old.procs} and cannot "
-                "be replaced")
         elif old.index != value.index and not self.lax \
             or old.index < value.index:
             raise ValueError("Incompatible index in site assignment")

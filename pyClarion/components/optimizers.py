@@ -2,7 +2,8 @@ from datetime import timedelta
 from typing import Sequence
 
 from .base import Parametric
-from ..system import Priority, State, Site, Event
+from ..system import Priority, State, Site, Event, Update
+from ..updates import ForwardUpdate, BackwardUpdate
 from ..knowledge import Family, Atoms, Atom
 
 
@@ -37,7 +38,7 @@ class Optimizer[P: Atoms](Parametric):
             [ud for s in self.sites for ud in self.state_updates(s)], 
             dt, priority)
     
-    def state_updates(self, state: State) -> Sequence[State.Update]:
+    def state_updates(self, state: State) -> Sequence[Update]:
         raise NotImplementedError()
 
 
@@ -55,10 +56,10 @@ class SGD(Optimizer):
     def __init__(self, name: str, p: Family, *, lr: float = 1e-2) -> None:
         super().__init__(name, p, lr=lr)
 
-    def state_updates(self, state: State) -> tuple[State.Update, State.Update]:
+    def state_updates(self, state: State) -> tuple[Update, Update]:
         lr = self.params[0][~self.p.lr]
         delta = state.grad[-1].scale(-lr)
-        return state.update(delta, State.add_inplace), state.update({}, grad=True)
+        return ForwardUpdate(state, delta, "add"), BackwardUpdate(state, {})
 
 
 class Adam(Optimizer):
@@ -113,13 +114,13 @@ class Adam(Optimizer):
         bt2 = bt2 * b2
         assert isinstance(event.updates, list)
         event.updates.append(
-            self.params.update(
+            ForwardUpdate(self.params,
                 {~self.p.bt1: bt1, ~self.p.bt2: bt2}, 
-                State.write_inplace))
+                "write"))
         return event
 
     def state_updates(self, state: State) \
-        -> tuple[State.Update, State.Update, State.Update, State.Update]:
+        -> tuple[Update, Update, Update, Update]:
         lr = self.params[0][~self.p.lr]
         b1 = self.params[0][~self.p.b1]
         b2 = self.params[0][~self.p.b2]
@@ -135,7 +136,7 @@ class Adam(Optimizer):
         delta = (g_hat
             .scale(-lr))
         return (
-            state.update(delta, State.add_inplace), 
-            state.update({}, grad=True), 
-            m.update(m_next), 
-            v.update(v_next))
+            BackwardUpdate(state, {}),
+            ForwardUpdate(state, delta, "add"),  
+            ForwardUpdate(m, m_next), 
+            ForwardUpdate(v, v_next))

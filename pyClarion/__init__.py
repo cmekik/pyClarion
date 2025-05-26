@@ -1,6 +1,6 @@
 from .numdicts import (ValidationError, Key, KeyForm,
     Index, NumDict, ks_root, ks_parent, ks_crawl, keyform, numdict)
-from .system import Update, Event, UpdateSort, Clock, Process, Site, Priority 
+from .system import Update, Event, Clock, Process, Site, Priority 
 from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
     Atoms, Chunks, Rules)
 from .components import (Environment, Agent, Input, Choice, Pool, 
@@ -16,7 +16,7 @@ __all__ = [
     "ValidationError", "Key", "KeyForm", "Index", "NumDict", 
     "ks_root", "ks_parent", "ks_crawl", "keyform", "numdict",
     # from system
-    "Update", "Event", "UpdateSort", "Clock", "Process", "Site", "Priority",
+    "Update", "Event", "Clock", "Process", "Site", "Priority",
     # from knowledge,
     "Symbol", "Term", "Sort", "Family", "Atom", "Compound", "Chunk", "Rule", 
     "Atoms", "Chunks", "Rules",

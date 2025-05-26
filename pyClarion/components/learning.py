@@ -4,6 +4,7 @@ from datetime import timedelta
 from .base import Component, D, V, DV
 from .io import Choice
 from ..system import Event, State, Site, Priority
+from ..updates import ForwardUpdate, BackwardUpdate
 from ..knowledge import Family, Atom, Term
 from ..numdicts import NumDict, Key
 
@@ -86,9 +87,9 @@ class TDLearning(LearningSignal, Choice):
         event = super().select(dt, priority)
         qvals = self.qvals.new({}).sum(self.input[0])
         main, *_ = event.updates
-        assert isinstance(main, State.Update)
-        event.updates.append(self.qvals.update(qvals)) 
-        event.updates.append(self.actions.update(main.data))
+        assert isinstance(main, ForwardUpdate)
+        event.append(ForwardUpdate(self.qvals, qvals)) 
+        event.append(ForwardUpdate(self.actions, main.data))
         return event
 
     def update(self,
@@ -105,9 +106,9 @@ class TDLearning(LearningSignal, Choice):
             .mul(self.actions[-1])
             .neg())
         return Event(self.update,
-            [self.cost.update(error.pow(2).scale(.5)),
-             self.input.update(error, grad=True),
-             self.reward.update({})],
+            [BackwardUpdate(self.input, error),
+             ForwardUpdate(self.cost, error.pow(2).scale(.5)),
+             ForwardUpdate(self.reward, {})],
             dt, priority)
 
     def send(self, d: dict[Term | Key, float], 
@@ -123,5 +124,5 @@ class TDLearning(LearningSignal, Choice):
                 raise ValueError(f"Unexpected key {k}")
             data[k] = v
         return Event(self.send, 
-            [self.reward.update(data, State.add_inplace)], 
+            [ForwardUpdate(self.reward, data, "add")], 
             dt, priority)

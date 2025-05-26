@@ -4,6 +4,7 @@ from math import exp
 
 from .base import V, DV, Component, Parametric, Stateful
 from ..system import Event, Priority, State, Site
+from ..updates import ForwardUpdate
 from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var)
 from ..numdicts import Key, KeyForm, numdict, keyform
 
@@ -65,8 +66,8 @@ class Input(Component):
     ) -> Event:
         """Update input data."""
         data = self._parse_input(d)
-        method = State.push if self.reset else State.write_inplace
-        return Event(self.send, [self.main.update(data, method)], dt, priority)
+        method = "push" if self.reset else "write"
+        return Event(self.send, [ForwardUpdate(self.main, data, method)], dt, priority)
 
     def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
         data = {}
@@ -160,7 +161,7 @@ class Choice(Stateful, Parametric):
     ) -> Event:
         """Generate a dummy event to trigger selection of a new choice."""
         return Event(self.trigger, 
-            [self.state.update({~self.s.busy: 1.0})], 
+            [ForwardUpdate(self.state, {~self.s.busy: 1.0})], 
             dt, priority)
 
     def select(self, 
@@ -183,8 +184,8 @@ class Choice(Stateful, Parametric):
         if f > 0 and not dt:
             dt = timedelta(seconds=f * exp(-sample.valmax()))
         return Event(self.select,
-            [self.main.update({v: 1.0 for v in choices.values()}),
-             self.sample.update(sample),
-             self.state.update({~self.s.free: 1.0})],
+            [ForwardUpdate(self.main, {v: 1.0 for v in choices.values()}),
+             ForwardUpdate(self.sample, sample),
+             ForwardUpdate(self.state, {~self.s.free: 1.0})],
             time=dt, priority=priority)
 

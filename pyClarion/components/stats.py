@@ -1,18 +1,22 @@
+from typing import ClassVar
 from datetime import timedelta
 import math
 
 from .base import Parametric
-from ..system import Process, Priority, Event, State, Site, UpdateSort
-from ..knowledge import Family, Sort, Atoms, Atom
+from ..system import Process, Priority, Event, State, Site 
+from ..updates import ForwardUpdate, AtomUpdate, ChunkUpdate, RuleUpdate
+from ..knowledge import Family, Sort, Atoms, Chunk, Rule, Atom, Term
 from ..numdicts import Key, keyform
 
 
-class BaseLevel[S: Sort](Process):
+class BaseLevel[T: Term](Parametric):
     """
     A base-level activation process.
 
     Maintains and propagates base level activations.
     """
+
+    _ud_type = {Atom: AtomUpdate, Chunk: ChunkUpdate, Rule: RuleUpdate}
 
     class Params(Atoms):
         th: Atom
@@ -21,7 +25,7 @@ class BaseLevel[S: Sort](Process):
     
     e: Atoms
     p: Params
-    s: S
+    s: Sort[T]
     unit: timedelta
     ignore: set[Key]
     main: Site = Site()
@@ -36,7 +40,7 @@ class BaseLevel[S: Sort](Process):
         name: str, 
         p: Family, 
         e: Family, 
-        s: S, 
+        s: Sort[T], 
         *, 
         unit: timedelta = timedelta(milliseconds=1),
         th: float = 0.0, 
@@ -66,41 +70,40 @@ class BaseLevel[S: Sort](Process):
             float("nan"))
 
     def resolve(self, event: Event) -> None:
-        if self.input.affected_by(*event.updates):
-            self.invoke(event)
+        state_updates = event.index(ForwardUpdate).get(self.input, [])
+        sort_updates = event.index(self._ud_type[self.s]).get(self.s, [])
+        invoked = set()
+        if state_updates:
+            th = self.params[0][~self.p.th]
+            invoked.update((k for ud in state_updates for k in ud.data 
+                if k not in self.ignore and th < ud.data[k]))
+        if sort_updates:
+            invoked.update((~k for ud in sort_updates for k in ud.add 
+                if k not in self.ignore))
+        if invoked:
+            self.invoke(invoked)
 
     def invoke(self,
-        event: Event, 
+        invoked: set[Key], 
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> Event:
         ke = ~self.e; name = f"e{next(self.e._counter_)}"
         key = ke.link(Key(name), ke.size)
-        invoked = set(); th = self.params[0][~self.p.th]
-        for ud in (ud for ud in event.updates if self.input.affected_by(ud)):
-            if isinstance(ud, State.Update):
-                for k in ud.data:
-                    if k not in self.ignore and th < ud.data[k]:
-                        invoked.add(key.link(k, 0))
-            if isinstance(ud, UpdateSort):
-                for term in ud.add:
-                    k = key.link(~term, 0)
-                    if k not in self.ignore:
-                        invoked.add(k)
         time = self.system.clock.time / self.unit
         sc = self.params[0][~self.p.sc] 
         de = self.params[0][~self.p.de]
         atom = Atom()
         atom._name_ = name
         return Event(self.invoke, 
-            [UpdateSort(self.e, add=(atom,)),
-            self.times.update({key: time}, State.write_inplace),
-            self.scale.update({key: sc}, State.write_inplace),
-            self.decay.update({key: de}, State.write_inplace),
-            self.weights.update({k: 1.0 for k in invoked}, State.write_inplace)],
+            [AtomUpdate(self.e, add=(atom,)),
+            ForwardUpdate(self.times, {key: time}, "write"),
+            ForwardUpdate(self.scale, {key: sc}, "write"),
+            ForwardUpdate(self.decay, {key: de}, "write"),
+            ForwardUpdate(self.weights, {ke * k: 1.0 for k in invoked}, "write")],
             dt, priority)
 
-    def update(self, 
+    def advance(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> Event:
@@ -118,7 +121,7 @@ class BaseLevel[S: Sort](Process):
         with blas.mutable():
             for k in self.ignore:
                 blas[k] = 1.0
-        return Event(self.update, [self.main.update(blas)], dt, priority)
+        return Event(self.advance, [ForwardUpdate(self.main, blas)], dt, priority)
 
 
 class MatchStats(Parametric, Process):
@@ -171,7 +174,7 @@ class MatchStats(Parametric, Process):
                 .shift(self.params[0][~self.p.c2]))
             .log()
             .scale(1/math.log(2)))
-        return Event(self.update, [self.main.update(main)], dt, priority)
+        return Event(self.update, [ForwardUpdate(self.main, main)], dt, priority)
 
     def increment(self, 
         dt: timedelta = timedelta(), 
@@ -183,8 +186,8 @@ class MatchStats(Parametric, Process):
         posm = self.posm[0].sum(pos.mul(cond))
         negm = self.negm[0].sum(neg.mul(cond))
         return Event(self.increment,
-            [self.posm.update(posm),
-             self.negm.update(negm)],
+            [ForwardUpdate(self.posm, posm),
+             ForwardUpdate(self.negm, negm)],
             dt, priority)
 
     def discount(self, 
@@ -194,6 +197,6 @@ class MatchStats(Parametric, Process):
         posm = self.posm[0].scale(self.params[0][~self.p.discount])
         negm = self.negm[0].scale(self.params[0][~self.p.discount])
         return Event(self.discount,
-            [self.posm.update(posm),
-            self.negm.update(negm)],
+            [ForwardUpdate(self.posm, posm),
+             ForwardUpdate(self.negm, negm)],
             dt, priority)

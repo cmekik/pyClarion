@@ -2,23 +2,30 @@ from typing import Sequence
 from datetime import timedelta
 import logging
 
+from .base import Component
 from .layers import Layer
-from ..system import Process, State, Site, Event, Priority, UpdateSort
+from ..system import State, Site, Event, Priority 
+from ..updates import ForwardUpdate, ChunkUpdate, RuleUpdate
 from ..knowledge import Rules, Rule, Family, Chunks
 from ..numdicts import keyform, NumDict
 from ..numdicts.ops.base import Unary
 
 
-class RuleStore(Process):
+class RuleStore(Component):
     """
     A rule store. 
 
     Maintains a collection of rules.
     """
 
+    def _update(self, add: Sequence[Rule] = (), remove: Sequence[str] = ()) \
+        -> RuleUpdate:
+        return RuleUpdate(self.rules, tuple(add), tuple(remove))
+
     rules: Rules
     lhs: Chunks
     rhs: Chunks
+    bias: Site = Site()
     riw: Site = Site()
     lhw: Site = Site()
     rhw: Site = Site()
@@ -39,15 +46,14 @@ class RuleStore(Process):
         idx_lhs = self.system.get_index(keyform(lhs))
         idx_rhs = self.system.get_index(keyform(rhs))
         self.main = State(idx_r, {}, c=0.0)
+        self.bias = State(idx_r, {}, c=0.0)
         self.riw = State(idx_r * idx_r, {}, c=0.0)
         self.lhw = State(idx_lhs * idx_r, {}, c=0.0)
         self.rhw = State(idx_r * idx_rhs, {}, c=0.0)
 
     def resolve(self, event: Event) -> None:
-        new_rules = [rule 
-            for ud in event.updates 
-                if isinstance(ud, UpdateSort) and ud.sort is self.rules 
-                    for rule in ud.add]
+        updates = event.index(RuleUpdate).get(self.rules, [])
+        new_rules = [rule for ud in updates for rule in ud.add]
         if new_rules:
             if event.source == self.encode \
                 and self.system.logger.isEnabledFor(logging.DEBUG):
@@ -85,10 +91,10 @@ class RuleStore(Process):
             rule._instances_.update(rule_instances)
             new_rules.append(rule)
             new_rules.extend(rule_instances)
-        updates = [UpdateSort(self.rules, add=tuple(new_rules)),
-            UpdateSort(self.lhs, add=tuple(new_lhs_chunks))]
+        updates = [self._update(add=tuple(new_rules)),
+            ChunkUpdate(self.lhs, add=tuple(new_lhs_chunks))]
         if new_rhs_chunks:
-            updates.append(UpdateSort(self.rhs, add=tuple(new_rhs_chunks)))
+            updates.append(ChunkUpdate(self.rhs, add=tuple(new_rhs_chunks)))
         return Event(self.encode, updates, dt, priority)
 
     def encode_weights(self, 
@@ -96,16 +102,17 @@ class RuleStore(Process):
         dt: timedelta = timedelta(), 
         priority=Priority.LEARNING
     ) -> Event:
-        riw, lhw, rhw = {}, {}, {}
+        bias, riw, lhw, rhw = {}, {}, {}, {}
         for rule in rules:
             data = rule._compile_()
             riw.update(data["riw"])
             lhw.update(data["lhw"])
             rhw.update(data["rhw"])
         return Event(self.encode_weights,
-            [self.riw.update(riw, State.write_inplace),
-             self.lhw.update(lhw, State.write_inplace),
-             self.rhw.update(rhw, State.write_inplace)],
+            [ForwardUpdate(self.bias, bias, "write"),
+             ForwardUpdate(self.riw, riw, "write"),
+             ForwardUpdate(self.lhw, lhw, "write"),
+             ForwardUpdate(self.rhw, rhw, "write")],
             dt, priority)
     
     def lhs_layer(self, 
@@ -114,9 +121,9 @@ class RuleStore(Process):
         func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> Layer:
-        layer = Layer(name, self.lhs, self.rules)
+        layer = Layer(name, self.lhs, self.rules, func=func, l=l)
         layer.weights = self.lhw
-        #layer.bias = self.bias
+        layer.bias = self.bias
         return layer
 
     def rhs_layer(self, 
@@ -125,7 +132,6 @@ class RuleStore(Process):
         func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> Layer:
-        layer = Layer(name, self.rules, self.rhs)
+        layer = Layer(name, self.rules, self.rhs, func=func, l=l)
         layer.weights = self.rhw
-        #layer.bias = self.bias
         return layer

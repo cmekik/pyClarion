@@ -1,9 +1,10 @@
-from typing import Self, Sequence, Callable, Any
+from typing import Self, Sequence, Callable, Hashable, Any
 from datetime import timedelta
 from collections import deque
 from dataclasses import dataclass
 
-from ..system import Process, Site, State, Priority, Event, Update
+from ..system import Process, Site, State, Priority, Event
+from ..updates import ForwardUpdate
 from ..knowledge import Family, Sort, Term, Atoms
 from ..numdicts import Index, keyform, Key, NumDict
 from ..numdicts.ops.tape import GradientTape
@@ -94,16 +95,6 @@ class Stateful[S: Atoms](Component):
     
 
 class Backpropagator(Component):
-    @dataclass(slots=True)
-    class UpdateTapes(Update):
-        proc: "Backpropagator"
-        tape: GradientTape
-        main: NumDict
-        args: list[NumDict]
-
-        def apply(self) -> None:
-            self.proc.tapes.appendleft((self.tape, self.main, self.args))
-
     tapes: deque[tuple[GradientTape[NumDict], NumDict, list[NumDict]]]
     forward: Callable[..., Event]
     backward: Callable[..., Event]
@@ -112,5 +103,5 @@ class Backpropagator(Component):
         tape: GradientTape, 
         main: NumDict, 
         args: list[NumDict]
-    ) -> Update:
-        return self.UpdateTapes(self, tape, main, args)
+    ) -> None:
+        self.tapes.appendleft((tape, main, args))
