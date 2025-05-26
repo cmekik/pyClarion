@@ -1,5 +1,6 @@
 from typing import Literal
 from dataclasses import dataclass, field
+from math import isnan
 
 from .system import Update, State
 from .knowledge import Sort, Term, Atom, Chunk, Rule
@@ -14,7 +15,14 @@ class StateUpdate(Update[State]):
     grad: bool = field(init=False) 
 
     def __post_init__(self) -> None:
-        raise NotImplementedError()
+        data = self.data
+        state = self.state
+        if isinstance(data, NumDict) and data.i != state.index:
+            raise ValueError("Index of data numdict does not match site")
+        if isinstance(data, NumDict) and \
+            not (isnan(data.c) and isnan(state.const) or data.c == state.const):
+            raise ValueError(f"Default constant {data.c} of data does not "
+                f"match site {state.const}")
 
     def apply(self) -> None:
         data = self.data
@@ -32,9 +40,6 @@ class StateUpdate(Update[State]):
             case _:
                 assert False
 
-    def key(self) -> type:
-        return type(self)
-
     def target(self) -> "State":
         return self.state
 
@@ -42,12 +47,14 @@ class StateUpdate(Update[State]):
 @dataclass(slots=True)
 class ForwardUpdate(StateUpdate):
     def __post_init__(self) -> None:
+        super().__post_init__()
         self.grad = False
 
 
 @dataclass(slots=True)
 class BackwardUpdate(StateUpdate):
     def __post_init__(self) -> None:
+        super().__post_init__()
         self.grad = True
 
 
