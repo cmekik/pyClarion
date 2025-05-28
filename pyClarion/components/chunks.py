@@ -1,11 +1,11 @@
-from typing import Sequence
+from typing import Self, Any
 from datetime import timedelta
 import logging
 
-from .base import Component
+from .base import Component, Parametric
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
-from ..knowledge import (Family, Chunks, Chunk, Sort, Atom, Term)
+from ..knowledge import (Family, Atoms, Chunks, Chunk, Sort, Atom, Compound, Term)
 from ..system import Event, Priority, State, Site 
 from ..updates import ForwardUpdate, ChunkUpdate
 from ..numdicts.ops.base import Unary, Aggregator
@@ -249,3 +249,80 @@ class ChunkStore(Component):
             obj = TopDown(name, c, d, v, pre=pre, post=post)
         obj.weights = self.tdw
         return obj
+
+
+class ChunkExtractor(Parametric, Component):
+    class Params(Atoms):
+        th: Atom
+        tol: Atom
+
+    p: Params
+    chunks: Chunks
+    input_t: Site = Site()
+    input_b: Site = Site()
+    params: Site = Site()
+
+    def __init__(self, 
+        name: str, 
+        p: Family, 
+        c: Chunks,
+        d: Family | Sort | Term,
+        v: Family | Sort,
+        *, 
+        th: float = 1.0, 
+        tol: float = 1e-6
+    ) -> None:
+        super().__init__(name)
+        self.system.check_root(p, c, d, v)
+        self.p, self.params = self._init_sort(
+            p, type(self).Params, th=th, tol=tol)
+        self.chunks = c
+        idx_c = self.system.get_index(keyform(c))
+        idx_d = self.system.get_index(keyform(d))
+        idx_v = self.system.get_index(keyform(v))
+        self.input_t = State(idx_c, {}, 0.0)
+        self.input_b = State(idx_d * idx_v, {}, 0.0)
+
+    def __rrshift__(self: Self, other: Any) -> Self:
+        if isinstance(other, BottomUp):
+            if self.system is not other.system:
+                raise ValueError("Mismatched systems")
+            self.input_b = other.input
+            self.input_t = other.main
+            return self
+        return NotImplemented
+
+    def resolve(self, event: Event) -> None:
+        if self.input_t in event.index(ForwardUpdate):
+            self.system.schedule(self.update())
+
+    def update(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.LEARNING
+    ) -> Event:        
+        pos = self.input_b[0].isbetween(lb=self.params[0][~self.p.th])
+        neg = self.input_b[0].isbetween(ub=-self.params[0][~self.p.th])
+        target = (s := pos.sum().c + neg.sum().c) / (1 + s)
+        crit = (self.input_t[0]
+            .shift(-(target - self.params[0][~self.p.tol]))
+            .isbetween(lb=0.0)
+            .valmax())
+        if 0 < crit:
+            return Event(self.update, [], dt, priority)
+        chunk = self.extract_chunk(pos.sum(neg.neg())) 
+        return Event(self.update, 
+            [ChunkUpdate(self.chunks, add=(chunk,))], 
+            dt, priority)
+    
+    def extract_chunk(self, d: NumDict) -> Chunk:
+        if d.i != self.input_b.index:
+            raise ValueError("Unexpected index")
+        chunk = Chunk({})
+        for k, w in d.d.items():
+            _d, _v = k.split()
+            dim = ks_crawl(self.system.root, _d) 
+            val = ks_crawl(self.system.root, _v)
+            assert isinstance(dim, (Atom, Compound)) \
+                and isinstance(val, (Atom, Compound))
+            chunk += w * dim ** val
+        return chunk
