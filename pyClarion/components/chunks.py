@@ -261,6 +261,7 @@ class ChunkExtractor(Parametric, Component):
     input_t: Site = Site()
     input_b: Site = Site()
     params: Site = Site()
+    auto: bool
 
     def __init__(self, 
         name: str, 
@@ -269,6 +270,7 @@ class ChunkExtractor(Parametric, Component):
         d: Family | Sort | Term,
         v: Family | Sort,
         *, 
+        auto: bool = True,
         th: float = 1.0, 
         tol: float = 1e-6
     ) -> None:
@@ -282,6 +284,7 @@ class ChunkExtractor(Parametric, Component):
         idx_v = self.system.get_index(keyform(v))
         self.input_t = State(idx_c, {}, 0.0)
         self.input_b = State(idx_d * idx_v, {}, 0.0)
+        self.auto = auto
 
     def __rrshift__(self: Self, other: Any) -> Self:
         if isinstance(other, BottomUp):
@@ -293,7 +296,7 @@ class ChunkExtractor(Parametric, Component):
         return NotImplemented
 
     def resolve(self, event: Event) -> None:
-        if self.input_t in event.index(ForwardUpdate):
+        if self.auto and self.input_t in event.index(ForwardUpdate):
             self.system.schedule(self.update())
 
     def update(self, 
@@ -309,7 +312,7 @@ class ChunkExtractor(Parametric, Component):
             .valmax())
         if 0 < crit:
             return Event(self.update, [], dt, priority)
-        chunk = self.extract_chunk(pos.sum(neg.neg())) 
+        chunk = self.extract_chunk(pos.sub(neg)) 
         return Event(self.update, 
             [ChunkUpdate(self.chunks, add=(chunk,))], 
             dt, priority)

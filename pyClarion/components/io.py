@@ -188,4 +188,63 @@ class Choice(Stateful, Parametric):
              ForwardUpdate(self.sample, sample),
              ForwardUpdate(self.state, {~self.s.free: 1.0})],
             time=dt, priority=priority)
+    
+
+class Discriminal(Parametric):
+    """
+    A discriminal process.
+    
+    Makes discrete stochastic decisions based on activation strengths.
+    """
+
+    class Params(Atoms):
+        sd: Atom
+        th: Atom
+
+    p: Params
+    main: Site = Site()
+    input: Site = Site(lax=True)
+    sample: Site = Site()
+    params: Site = Site()
+
+    def __init__(self, 
+        name: str, 
+        p: Family,
+        s: V | DV, 
+        *, 
+        sd: float = 1e-1,
+        th: float = .32905, # critical value for two-tailed alpha = 1e-3
+        l: int = 1
+    ) -> None:
+        super().__init__(name)
+        self.system.check_root(p)
+        index, = self._init_indexes(s)
+        self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, th=th)
+        self.main = State(index, {}, 0.0, l=l)
+        self.input = State(index, {}, 0.0, l=l)
+        self.sample = State(index, {}, 0.0, l=l)
+
+    def select(self, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.CHOICE
+    ) -> Event:
+        """
+        Generate a selection event. 
+
+        Makes a stochastic choice based on the immediate state of the system and 
+        generates an event to update relevant sites.  
+    
+        Direct use of this method is discouraged in favor of Choice.trigger().
+        """
+        input = self.main.new({}).sum(self.input[0])
+        sd = numdict(self.main.index, {}, c=self.params[0][~self.p.sd])
+        sample = input.normalvariate(sd)
+        th = self.params[0][~self.p.th]
+        pos = sample.isbetween(lb=th)
+        neg = sample.isbetween(ub=-th)
+        choices = pos.sub(neg)
+        return Event(self.select,
+            [ForwardUpdate(self.main, choices),
+             ForwardUpdate(self.sample, sample)],
+            time=dt, priority=priority)
 
