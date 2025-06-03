@@ -1,8 +1,10 @@
+from typing import Self, Sequence, overload
+
 from .base import Sort, Var
 from .terms import Atom, Compound, Chunk, Rule
 
 
-class Atoms(Sort[Atom]):
+class Atoms[T: Atom](Sort[T]):
     """
     A data sort for atomic terms.
 
@@ -11,12 +13,22 @@ class Atoms(Sort[Atom]):
     """ 
     _vars_: dict[str, Var]
 
-    def __init__(self, name: str = ""):
-        super().__init__(name, Atom)
+    def __init__(self, name: str = "", mtype: type[T] = Atom):
+        super().__init__(name, mtype)
         self._vars_ = {}
 
-    def __call__(self, name: str) -> Var:
-        return self._vars_.setdefault(name, Var(name, self))
+    @overload
+    def __call__(self) -> Sequence[T]:
+        ...
+
+    @overload
+    def __call__(self, name: str) -> Var[Self]:
+        ...
+
+    def __call__(self, name: str | None = None) -> Var[Self] | Sequence[T]:
+        if name is not None:
+            return self._vars_.setdefault(name, Var(name, self))
+        return [self[val] for val in self]
 
 
 class Compounds[C: Compound](Sort[C]):

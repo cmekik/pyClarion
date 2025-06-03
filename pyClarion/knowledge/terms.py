@@ -13,16 +13,17 @@ class Atom(Term):
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
 
-    def __pow__(self, other: Term | Var | Iterable[Term]) -> "Chunk":
+    def __pow__(self, other: Term | Var | Iterable[Term | Var]) -> "Chunk":
         if isinstance(other, (Term, Var)):
             return Chunk({(self, other): 1.0})
         else:
             return Chunk({(self, atom): 1.0 for atom in other})
 
-    def __rpow__(self, other: Term | Var) -> "Chunk":
+    def __rpow__(self, other: "Term | Var | Iterable[Term | Var]") -> "Chunk":
         if isinstance(other, (Term, Var)):
             return Chunk({(other, self): 1.0})
-        return NotImplemented
+        else:
+            return Chunk({(atom, self): 1.0 for atom in other})
 
 
 class Compound(Term):
@@ -53,10 +54,11 @@ class Compound(Term):
         else:
             return Chunk({(self, atom): 1.0 for atom in other})
 
-    def __rpow__(self, other: Term) -> "Chunk":
+    def __rpow__(self, other: "Term | Iterable[Term]") -> "Chunk":
         if isinstance(other, Term):
             return Chunk({(other, self): 1.0})
-        return NotImplemented
+        else:
+            return Chunk({(atom, self): 1.0 for atom in other})
 
     def __rxor__(self: Self, other: str) -> Self:
         if not other.isidentifier():
