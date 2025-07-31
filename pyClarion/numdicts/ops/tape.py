@@ -1,4 +1,4 @@
-from typing import ClassVar, Self, Sequence, Iterator, NamedTuple, Protocol
+from typing import ClassVar, Self, Sequence, Iterator, Iterable, NamedTuple, Protocol, cast
 from contextvars import ContextVar
 from contextlib import contextmanager
 from collections import deque
@@ -82,6 +82,7 @@ class GradientTape[D: "nd.NumDict"]:
         self.nodes[output].grads.append(seed or output.ones())
         queue: deque[D] = deque([output])
         while queue:
+            print(queue)
             current = queue.popleft()
             try:
                 node = self.nodes[current]
@@ -90,7 +91,14 @@ class GradientTape[D: "nd.NumDict"]:
             else:
                 yield (current, node)
                 if node.gspec is not None:
-                    queue.extend(node.gspec.sig.args)
+                    queue.extend(
+                        # This is a hack. Necessary to handle positional args
+                        # that are non-numdict. Convention is that numdicts come 
+                        # first. Need to clean up in the future.
+                        # E.g., by checking that we are only getting 
+                        # positional-only arguments.
+                        cast(Iterable[D], [arg for arg in node.gspec.sig.args 
+                         if isinstance(arg, nd.NumDict)]))
 
     def record[**P](self, 
         f: OpProto[P, D], r: D, d: D, 

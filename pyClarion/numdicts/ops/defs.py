@@ -109,7 +109,7 @@ class Scale[D: "nd.NumDict"](OpBase[D]):
         r = unary(d, float.__mul__, val)
         tape = GradientTape.STACK.get()
         if tape is not None:
-            tape.record(self, r, d, val)
+            tape.record(self, r, d, val=val)
         return r
 
     def grad(self, g: D, r: D, d: D, /, val: float) -> D:
@@ -121,7 +121,7 @@ class Shift[D: "nd.NumDict"](OpBase[D]):
         r = unary(d, float.__add__, val)
         tape = GradientTape.STACK.get()
         if tape is not None:
-            tape.record(self, r, d, val)
+            tape.record(self, r, d, val=val)
         return r
 
     def grad(self, g: D, r: D, d: D, /, val: float) -> D:
@@ -133,7 +133,7 @@ class Pow[D: "nd.NumDict"](OpBase[D]):
         r = unary(d, float.__pow__, val)
         tape = GradientTape.STACK.get()
         if tape is not None:
-            tape.record(self, r, d, val)
+            tape.record(self, r, d, val=val)
         return r
 
     def grad(self, g: D, r: D, d: D, /, val: float) -> D:
