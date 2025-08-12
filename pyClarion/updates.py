@@ -75,7 +75,7 @@ class SortUpdate[T: Term](Update[Sort[T]]):
             except AttributeError:
                 self.sort[f"_{next(self.sort._counter_)}"] = term
         for name in self.remove:
-            self.sort[name]
+            del self.sort[name]
 
     @property
     def target(self) -> Sort[T]:
