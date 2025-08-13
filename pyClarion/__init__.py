@@ -1,10 +1,10 @@
 from .numdicts import (ValidationError, Key, KeyForm,
     Index, NumDict, ks_root, ks_parent, ks_crawl, keyform, numdict)
-from .system import Update, Event, Clock, Process, Site, Priority 
+from .events import Update, Event, Clock, Process, Site 
 from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
     Atoms, Chunks, Rules)
 from .components import (Environment, Agent, Input, Choice, Pool, 
-    TopDown, BottomUp, ChunkStore, 
+    TopDown, BottomUp, ChunkStore, Priority 
     # RuleStore, FixedRules, 
     # BaseLevel,
     # Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 

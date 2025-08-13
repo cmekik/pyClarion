@@ -1,9 +1,8 @@
 from datetime import timedelta
 from typing import Sequence
 
-from .base import Parametric
-from ..system import Priority, State, Site, Event, Update
-from ..updates import ForwardUpdate, BackwardUpdate
+from .base import Parametric, Priority
+from ..events import State, Site, Event, Update, ForwardUpdate, BackwardUpdate
 from ..knowledge import Family, Atoms, Atom
 
 

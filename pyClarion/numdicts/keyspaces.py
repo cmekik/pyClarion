@@ -160,6 +160,7 @@ class KSParent[M: "KSChild"](KSPath):
     _h_offset_ = 1
     _members_: dict[Key, M]
     _observers_: WeakSet["KSObserver"]
+    _namer_: Iterator[str]
 
     def __iter__(self) -> Iterator[str]:
         for k in self._members_:
@@ -196,7 +197,12 @@ class KSParent[M: "KSChild"](KSPath):
     def __getitem__(self, name: str | Key) -> M:
         return self._members_[Key(name)]
 
-    def __setitem__(self, name: str, value: M) -> None:
+    def __setitem__(self, name: str | None, value: M) -> None:
+        if name is None:
+            try:
+                name = next(self._namer_)
+            except AttributeError as e:
+                raise ValueError("Automatic naming not enabled.") from e
         if not name or any(not s.isidentifier() for s in name.split(".")):
             raise ValueError(f"Invalid keyspace name: '{name}'")
         try:

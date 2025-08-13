@@ -1,11 +1,12 @@
 from typing import Iterator
 from datetime import timedelta
 
-from ..system import Process, Event
+from .base import Component
+from ..events import Event
 from ..knowledge import Family
 
 
-class Simulation(Process):
+class Simulation(Component):
     """
     A simulation environment.
 

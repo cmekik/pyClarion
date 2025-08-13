@@ -1,11 +1,10 @@
-from typing import Self, Sequence, Callable, Hashable, Any
+from typing import Self, Sequence, Callable, Any
 from datetime import timedelta
 from collections import deque
-from dataclasses import dataclass
+from enum import IntEnum
 
-from ..system import Process, Site, State, Priority, Event
-from ..updates import ForwardUpdate
-from ..knowledge import Family, Sort, Term, Atoms
+from ..events import Process, Site, State, Event, ForwardUpdate, KeyspaceUpdate
+from ..knowledge import Root, Family, Sort, Term, Atoms, Atom, Chunks, Chunk, Rules, Rule
 from ..numdicts import Index, keyform, Key, NumDict
 from ..numdicts.ops.tape import GradientTape
 
@@ -15,8 +14,39 @@ type V = Family | Sort
 type DV = tuple[D, V]
 
 
-class Component(Process):
+class Priority(IntEnum):
+    """
+    An event priority enum.
     
+    Used to indicate event priority in case two events are scheduled at the 
+    same time within a simulation. 
+    """
+    MAX = 128
+    PARAM = 120
+    CHOICE = 112
+    LEARNING = 96
+    PROPAGATION = 64
+    DEFERRED = 32
+    MIN = 0
+
+
+class AtomUpdate(KeyspaceUpdate[Atoms, Atom]):
+    __slots__ = ()
+
+
+class ChunkUpdate(KeyspaceUpdate[Chunks, Chunk]):
+    __slots__ = ()
+
+
+class RuleUpdate(KeyspaceUpdate[Rules, Rule]):
+    __slots__ = ()
+
+
+class Component(Process[Root]):
+    
+    def __init__(self, name: str) -> None:
+        super().__init__(name, Root())
+
     def __rshift__[T](self: Self, other: T) -> T:
         input = getattr(other, "input", None)
         main = getattr(self, "main", None)

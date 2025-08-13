@@ -2,12 +2,11 @@ from typing import Self, Any
 from datetime import timedelta
 import logging
 
-from .base import Component, Parametric
+from .base import Component, Parametric, Priority, ChunkUpdate
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
 from ..knowledge import (Family, Atoms, Chunks, Chunk, Sort, Atom, Compound, Term)
-from ..system import Event, Priority, State, Site 
-from ..updates import ForwardUpdate, ChunkUpdate
+from ..events import Event, State, Site, ForwardUpdate 
 from ..numdicts.ops.base import Unary, Aggregator
 
 

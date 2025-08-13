@@ -1,3 +1,4 @@
+from .base import Priority
 from .io import  Input, Choice
 from .sim import Environment, Agent
 from .chunks import ChunkStore, BottomUp, TopDown
@@ -15,6 +16,7 @@ from .optimizers import SGD, Adam
     
 
 __all__ = [
+    "Priority",
     "Environment", "Agent", "Input", "Choice", "Pool", 
     #"ChunkAssocs", 
     "ChunkStore", "BottomUp", "TopDown",

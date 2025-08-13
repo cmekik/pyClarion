@@ -1,10 +1,9 @@
 from typing import Callable
 from datetime import timedelta
 
-from .base import Component, D, V, DV
+from .base import Component, D, V, DV, Priority
 from .io import Choice
-from ..system import Event, State, Site, Priority
-from ..updates import ForwardUpdate, BackwardUpdate
+from ..events import Event, State, Site, ForwardUpdate, BackwardUpdate
 from ..knowledge import Family, Atom, Term
 from ..numdicts import NumDict, Key
 

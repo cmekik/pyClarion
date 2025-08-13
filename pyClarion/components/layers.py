@@ -2,11 +2,10 @@ from typing import Self, Any, Hashable, cast
 from datetime import timedelta
 from collections import deque
 
-from .base import Parametric, Backpropagator, Component, V, DV
+from .base import Parametric, Backpropagator, Component, V, DV, Priority
 from .ops import cam
 from ..knowledge import Atoms, Family, Atom
-from ..system import State, Site, Priority, Event
-from ..updates import ForwardUpdate, BackwardUpdate
+from ..events import State, Site, Event, ForwardUpdate, BackwardUpdate
 from ..numdicts import Key, KeyForm, NumDict
 from ..numdicts.ops.base import Unary, Aggregator
 from ..numdicts.ops.tape import GradientTape

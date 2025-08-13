@@ -2,9 +2,8 @@ from typing import ClassVar, overload
 from datetime import timedelta
 from math import exp
 
-from .base import V, DV, Component, Parametric, Stateful
-from ..system import Event, Priority, State, Site
-from ..updates import ForwardUpdate
+from .base import V, DV, Component, Parametric, Stateful, Priority
+from ..events import Event, State, Site, ForwardUpdate
 from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var)
 from ..numdicts import Key, KeyForm, numdict, keyform
 

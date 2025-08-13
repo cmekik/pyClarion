@@ -2,10 +2,9 @@ from typing import Sequence
 from datetime import timedelta
 import logging
 
-from .base import Component
+from .base import Component, Priority, ChunkUpdate, RuleUpdate
 from .layers import Layer
-from ..system import State, Site, Event, Priority 
-from ..updates import ForwardUpdate, ChunkUpdate, RuleUpdate
+from ..events import State, Site, Event, ForwardUpdate
 from ..knowledge import Rules, Rule, Family, Chunks
 from ..numdicts import keyform, NumDict
 from ..numdicts.ops.base import Unary

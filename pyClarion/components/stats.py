@@ -1,10 +1,8 @@
-from typing import ClassVar
 from datetime import timedelta
 import math
 
-from .base import Parametric
-from ..system import Process, Priority, Event, State, Site 
-from ..updates import ForwardUpdate, AtomUpdate, ChunkUpdate, RuleUpdate
+from .base import Parametric, AtomUpdate, ChunkUpdate, RuleUpdate, Priority
+from ..events import Event, State, Site, ForwardUpdate
 from ..knowledge import Family, Sort, Atoms, Chunk, Rule, Atom, Term
 from ..numdicts import Key, keyform
 
@@ -124,7 +122,7 @@ class BaseLevel[T: Term](Parametric):
         return Event(self.advance, [ForwardUpdate(self.main, blas)], dt, priority)
 
 
-class MatchStats(Parametric, Process):
+class MatchStats(Parametric):
     """A process that maintains match statistics."""
     
     class Params(Atoms):
