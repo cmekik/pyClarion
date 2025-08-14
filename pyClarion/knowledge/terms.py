@@ -2,25 +2,58 @@ from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload
 from weakref import WeakSet
 from itertools import product
 
-from .base import Term, Var
+from .base import Term, Var, Sort
 from ..numdicts import Key
 
 
-class Atom(Term):
+class Data(Term):
+    """A semantic data symbol."""
+    pass
+
+
+type DataVar = Var[Sort[Data]]
+type Datamer = Data | DataVar
+
+
+class Line(Term):
+    """
+    A data line.
+    
+    Represents some address for activations.
+    """
+
+    def __pow__(self, other: "Datamer | Iterable[Datamer]") -> "Chunk":
+        if isinstance(other, (Data, Var)):
+            return Chunk({(self, other): 1.0})
+        else:
+            return Chunk({(self, atom): 1.0 for atom in other})
+
+    def __rpow__(self, other: Datamer | Iterable[Datamer]) -> "Chunk":
+        if isinstance(other, (Data, Var)):
+            return Chunk({(other, self): 1.0})
+        else:
+            return Chunk({(atom, self): 1.0 for atom in other})
+        
+
+type LineVar = Var[Sort[Line]]
+type Linomer = Line | LineVar
+
+
+class Atom(Data):
     """
     An atomic data term.
 
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
 
-    def __pow__(self, other: Term | Var | Iterable[Term | Var]) -> "Chunk":
-        if isinstance(other, (Term, Var)):
+    def __pow__(self, other: Linomer | Iterable[Linomer]) -> "Chunk":
+        if isinstance(other, Line | Var):
             return Chunk({(self, other): 1.0})
         else:
             return Chunk({(self, atom): 1.0 for atom in other})
 
-    def __rpow__(self, other: "Term | Var | Iterable[Term | Var]") -> "Chunk":
-        if isinstance(other, (Term, Var)):
+    def __rpow__(self, other: Linomer | Iterable[Linomer]) -> "Chunk":
+        if isinstance(other, Line | Var):
             return Chunk({(other, self): 1.0})
         else:
             return Chunk({(atom, self): 1.0 for atom in other})
@@ -48,14 +81,14 @@ class Compound(Term):
         self._instances_ = WeakSet()
         self._template_ = template
 
-    def __pow__(self, other: "Term | Iterable[Term]") -> "Chunk":
-        if isinstance(other, Term):
+    def __pow__(self, other: "Linomer | Iterable[Linomer]") -> "Chunk":
+        if isinstance(other, Line | Var):
             return Chunk({(self, other): 1.0})
         else:
             return Chunk({(self, atom): 1.0 for atom in other})
 
-    def __rpow__(self, other: "Term | Iterable[Term]") -> "Chunk":
-        if isinstance(other, Term):
+    def __rpow__(self, other: "Linomer | Iterable[Linomer]") -> "Chunk":
+        if isinstance(other, Line | Var):
             return Chunk({(other, self): 1.0})
         else:
             return Chunk({(atom, self): 1.0 for atom in other})

@@ -17,7 +17,7 @@ class Symbol:
 
 class Term(KSChild, Symbol):
     """
-    Base class for data terms.
+    Base class for terms.
 
     Data terms represent indvidual data elements of a model (e.g., individual 
     features, parameters etc.).
@@ -43,12 +43,11 @@ class Sort[C: Term](KSNode[C], Symbol):
     _required_: frozenset[Key]
     _counter_: count
 
-    def __init__(self, name: str = "", mtype: Type[C] = Term) -> None:
+    def __init__(self, name: str = "") -> None:
         super().__init__(name)
-        self._mtype_ = mtype
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, mtype):
+            if isinstance(typ, type) and issubclass(typ, self._mtype_):
                 self[name] = typ()
                 setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
@@ -123,7 +122,7 @@ class Var[S: Sort](KSProtocol, Symbol):
             yield self
 
 
-class Family[S: Sort](KSNode[S], Symbol):
+class Family(KSNode[Sort], Symbol):
     """
     A family of data sorts.
 
@@ -132,15 +131,13 @@ class Family[S: Sort](KSNode[S], Symbol):
     """
 
     _h_offset_ = 2
-    _mtype_: Type[S]
     _required_: frozenset[Key]
 
-    def __init__(self, name: str = "", mtype: Type[S] = Sort) -> None:
+    def __init__(self, name: str = "") -> None:
         super().__init__(name)
         cls = type(self)
-        self._mtype_ = mtype
         for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, mtype):
+            if isinstance(typ, type) and issubclass(typ, Sort):
                 self[name] = typ()
                 setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
