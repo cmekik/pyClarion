@@ -82,7 +82,6 @@ class GradientTape[D: "nd.NumDict"]:
         self.nodes[output].grads.append(seed or output.ones())
         queue: deque[D] = deque([output])
         while queue:
-            print(queue)
             current = queue.popleft()
             try:
                 node = self.nodes[current]
