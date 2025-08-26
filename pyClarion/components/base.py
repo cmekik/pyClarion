@@ -44,8 +44,8 @@ class RuleUpdate(KeyspaceUpdate[Rules, Rule]):
 
 class Component(Process[Root]):
     
-    def __init__(self, name: str) -> None:
-        super().__init__(name, Root())
+    def __init__(self, name: str, root: Root | None = None) -> None:
+        super().__init__(name, root or Root())
 
     def __rshift__[T](self: Self, other: T) -> T:
         input = getattr(other, "input", None)

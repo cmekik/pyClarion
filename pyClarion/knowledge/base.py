@@ -1,4 +1,4 @@
-from typing import Type, Iterable, Iterator, get_type_hints
+from typing import Type, Iterable, Iterator, ClassVar, get_type_hints
 from contextlib import contextmanager
 from itertools import count
 
@@ -130,6 +130,7 @@ class Family(KSNode[Sort], Symbol):
     color terms, shape terms, etc.). 
     """
 
+    _m_type_: ClassVar[Type[Sort] | tuple[Type[Sort], ...]]
     _h_offset_ = 2
     _required_: frozenset[Key]
 
@@ -137,7 +138,7 @@ class Family(KSNode[Sort], Symbol):
         super().__init__(name)
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
-            if isinstance(typ, type) and issubclass(typ, Sort):
+            if isinstance(typ, type) and issubclass(typ, self._m_type_):
                 self[name] = typ()
                 setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)

@@ -2,19 +2,21 @@ from typing import Iterator
 from datetime import timedelta
 
 from .base import Component
-from ..events import Event
-from ..knowledge import Family
+from ..events import Event, Process
+from ..knowledge import Root, Family
 
 
-class Simulation(Component):
+class Simulation[R: Root](Component):
     """
     A simulation environment.
 
     Do not directly instantiate this class. Use `Environment` or `Agent` instead.
     """
 
-    def __init__(self, name: str, **families: Family) -> None:
-        super().__init__(name)
+    system: Process.System[R]
+
+    def __init__(self, name: str, root: R | None, **families: Family) -> None:
+        super().__init__(name, root)
         for name, family in families.items():
             self.system.root[name] = family
 

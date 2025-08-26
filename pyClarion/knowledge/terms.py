@@ -6,57 +6,13 @@ from .base import Term, Var, Sort
 from ..numdicts import Key
 
 
-class Data(Term):
-    """A semantic data symbol."""
-    pass
-
-
-type DataVar = Var[Sort[Data]]
-type Datamer = Data | DataVar
-
-
-class Line(Term):
-    """
-    A data line.
-    
-    Represents some address for activations.
-    """
-
-    def __pow__(self, other: "Datamer | Iterable[Datamer]") -> "Chunk":
-        if isinstance(other, (Data, Var)):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})
-
-    def __rpow__(self, other: Datamer | Iterable[Datamer]) -> "Chunk":
-        if isinstance(other, (Data, Var)):
-            return Chunk({(other, self): 1.0})
-        else:
-            return Chunk({(atom, self): 1.0 for atom in other})
-        
-
-type LineVar = Var[Sort[Line]]
-type Linomer = Line | LineVar
-
-
-class Atom(Data):
+class Atom(Term):
     """
     An atomic data term.
 
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
-
-    def __pow__(self, other: Linomer | Iterable[Linomer]) -> "Chunk":
-        if isinstance(other, Line | Var):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})
-
-    def __rpow__(self, other: Linomer | Iterable[Linomer]) -> "Chunk":
-        if isinstance(other, Line | Var):
-            return Chunk({(other, self): 1.0})
-        else:
-            return Chunk({(atom, self): 1.0 for atom in other})
+    pass
 
 
 class Compound(Term):
@@ -80,18 +36,6 @@ class Compound(Term):
         self._valuation_ = frozenset()
         self._instances_ = WeakSet()
         self._template_ = template
-
-    def __pow__(self, other: "Linomer | Iterable[Linomer]") -> "Chunk":
-        if isinstance(other, Line | Var):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})
-
-    def __rpow__(self, other: "Linomer | Iterable[Linomer]") -> "Chunk":
-        if isinstance(other, Line | Var):
-            return Chunk({(other, self): 1.0})
-        else:
-            return Chunk({(atom, self): 1.0 for atom in other})
 
     def __rxor__(self: Self, other: str) -> Self:
         if not other.isidentifier():
@@ -346,3 +290,21 @@ class Rule(Compound):
             c, w = chunks[-1], weights[-1]
             rhw[kr * ~c] = w
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
+
+
+type DataVar = Var[Sort[Atom]] | Var[Sort[Chunk]] | Var[Sort[Rule]]
+type Datamer = Atom | Chunk | Rule | DataVar
+
+
+class Bus(Term):
+    """
+    A data line.
+    
+    Represents some address for activations.
+    """
+
+    def __pow__(self, other: Datamer | Iterable[Datamer]) -> Chunk:
+        if isinstance(other, (Atom, Chunk, Rule, Var)):
+            return Chunk({(self, other): 1.0})
+        else:
+            return Chunk({(self, atom): 1.0 for atom in other})

@@ -5,7 +5,7 @@ import logging
 from .base import Component, Parametric, Priority, ChunkUpdate
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
-from ..knowledge import (Family, Atoms, Chunks, Chunk, Sort, Line, Atom, 
+from ..knowledge import (Family, Atoms, Chunks, Chunk, Sort, Bus, Atom, 
     Compound, Term)
 from ..events import Event, State, Site, ForwardUpdate 
 from ..numdicts.ops.base import Unary, Aggregator
@@ -325,7 +325,6 @@ class ChunkExtractor(Parametric, Component):
             _d, _v = k.split()
             dim = ks_crawl(self.system.root, _d) 
             val = ks_crawl(self.system.root, _v)
-            assert (isinstance(dim, Line) and isinstance(val, Atom | Compound)) \
-                or (isinstance(dim, Atom | Compound) and isinstance(val, Line))
-            chunk += w * dim ** val # type: ignore
+            assert isinstance(dim, Bus) and isinstance(val, Atom | Chunk)
+            chunk += w * dim ** val 
         return chunk

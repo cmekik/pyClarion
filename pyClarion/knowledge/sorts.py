@@ -1,10 +1,10 @@
 from typing import Self, Sequence, overload
 
 from .base import Sort, Var
-from .terms import Line, Atom, Compound, Chunk, Rule
+from .terms import Bus, Atom, Compound, Chunk, Rule
 
 
-class Fundaments[C: Line | Atom](Sort[C]):
+class Fundaments[C: Bus | Atom](Sort[C]):
     """A data sort for atomic terms.""" 
     _vars_: dict[str, Var]
 
@@ -36,10 +36,10 @@ class Atoms(Fundaments[Atom]):
     _mtype_ = Atom
 
 
-class Lines(Fundaments[Line]):
+class Buses(Fundaments[Bus]):
     """A data sort for data lines."""
 
-    _mtype_ = Line
+    _mtype_ = Bus
 
 
 class Compounds[C: Compound](Sort[C]):
