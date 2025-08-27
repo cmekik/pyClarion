@@ -55,7 +55,7 @@ class Site:
             pass
         elif not isinstance(value, State):
             raise TypeError("Process site assigned object of wrong type")
-        elif any(d.d for d in old.data):
+        elif any(d.d for d in old.data) or any(d.d for d in old.grads):
             raise ValueError(f"Site '{self._name}' of process {obj.name} "
                 "contains data")
         elif old.index != value.index and not self.lax \

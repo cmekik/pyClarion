@@ -31,13 +31,17 @@ class Event:
     
     Events are ordered first by time, then by priority, then by number.
 
-    Do not mutate the updates list as this will corrupt the event.
+    Do not directly mutate the updates list as this will corrupt the event, use 
+    event.append() instead.
+
+    Do not mutate any event attribute if the event is marked as scheduled.
     """
     source: Callable
     updates: list[Update]
     time: timedelta = timedelta()
     priority: int = 0
     number: int = 0
+    scheduled: bool = False
     _index: dict[type[Update], dict[Hashable, list[Update]]] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -167,15 +171,19 @@ class Process[R: KSRoot]:
             return Index(self.root, form)
 
         def schedule(self, event: Event) -> None:
+            if event.scheduled:
+                raise ValueError("Cannot reschedule previously scheduled event")
             if event.time < timedelta():
                 raise ValueError("Cannot schedule an event in the past.")
             event.time += self.clock.time
             event.number = next(self.clock.counter)
+            event.scheduled = True
             heapq.heappush(self.queue, event)
 
         def advance(self) -> Event:
             """Process the next event in the queue."""
             event = heapq.heappop(self.queue)
+            self.clock.advance(event.time)
             for update in event.updates:
                 try:
                     update.apply()
@@ -183,7 +191,6 @@ class Process[R: KSRoot]:
                     raise RuntimeError(
                         f"Update scheduled by {event.source.__qualname__} at "
                         f"{event.time} failed") from e
-            self.clock.advance(event.time)
             if self.logger.isEnabledFor(logging.INFO):
                 msg = event.describe()
                 self.logger.info(msg)
