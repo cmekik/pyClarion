@@ -236,13 +236,18 @@ class KeyForm:
 
     def __post_init__(self):
         h = deque(self.h)
-        for (_, degree) in self.k:
+        for i, (_, degree) in enumerate(self.k):
+            if 1 < degree and 0 < i:
+                raise ValueError(f"Unexpected branching at index {i}")
             if 0 < degree:
                 continue
             try:
                 h.popleft()
             except IndexError as e:
                 raise ValueError("Height vector too short") from e
+        if 0 < len(h):
+            raise ValueError("Height vector too long")
+
             
     def __contains__(self, obj) -> bool:
         if not isinstance(obj, Key):
