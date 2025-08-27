@@ -146,4 +146,16 @@ class Family(KSNode[Sort], Symbol):
 
 class Root(KSRoot[Family]):
     """The root of a hierarchy of data symbols."""
-    pass
+    
+    _m_type_ = Family
+    _h_offset_ = 2
+    _required_: frozenset[Key]
+
+    def __init__(self) -> None:
+        super().__init__()
+        cls = type(self)
+        for name, typ in get_type_hints(cls).items():
+            if isinstance(typ, type) and issubclass(typ, self._m_type_):
+                self[name] = typ()
+                setattr(self, name, self[name])
+        self._required_ = frozenset(self._members_)
