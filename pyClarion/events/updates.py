@@ -24,20 +24,23 @@ class StateUpdate(Update[State]):
             not (isnan(data.c) and isnan(state.const) or data.c == state.const):
             raise ValueError(f"Default constant {data.c} of data does not "
                 f"match site {state.const}")
+        if isinstance(data, NumDict):
+            self.data = data.d
 
     def apply(self) -> None:
         data = self.data
-        if not isinstance(data, NumDict):
-            data = self.state.new(data)
+        assert isinstance(data, dict)
         channel = self._get_channel()
+        if self.method == "write":
+            with channel[0].mutable():
+                channel[0].update(data)
+            return
+        data = self.state.new(data)
         match self.method:
             case "push":
                 channel.appendleft(data)
             case "add":
                 channel[0] = channel[0].sum(data)
-            case "write":
-                with channel[0].mutable():
-                    channel[0].update(data.d)
             case _:
                 assert False
 
