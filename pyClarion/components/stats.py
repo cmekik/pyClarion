@@ -7,7 +7,7 @@ from ..knowledge import Family, Atoms, Chunks, Rules, Chunk, Rule, Atom
 from ..numdicts import Key, keyform
 
 
-class BaseLevel[T: Atoms | Chunks | Rules](Parametric):
+class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
     """
     A base-level activation process.
 
@@ -23,7 +23,7 @@ class BaseLevel[T: Atoms | Chunks | Rules](Parametric):
     
     e: Atoms
     p: Params
-    s: T
+    d: D
     unit: timedelta
     ignore: set[Key]
     main: Site = Site()
@@ -38,7 +38,7 @@ class BaseLevel[T: Atoms | Chunks | Rules](Parametric):
         name: str, 
         p: Family, 
         e: Family, 
-        d: T, 
+        d: D, 
         *, 
         unit: timedelta = timedelta(milliseconds=1),
         th: float = 0.0, 
@@ -133,6 +133,7 @@ class MatchStats[D: Atoms | Chunks | Rules](Parametric):
         th_crit: Atom
 
     p: Params
+    d: D
     main: Site = Site()
     posm: Site = Site()
     negm: Site = Site()
@@ -155,6 +156,7 @@ class MatchStats[D: Atoms | Chunks | Rules](Parametric):
         self.system.check_root(d)
         self.p, self.params = self._init_sort(p, type(self).Params, 
             c1=c1, c2=c2, discount=discount, th_cond=th_cond, th_crit=th_crit)
+        self.d = d
         index = self.system.get_index(keyform(d))
         self.main = State(index, {}, math.log(c1/c2, 2))
         self.posm = State(index, {}, 0.0)
