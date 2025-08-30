@@ -1,33 +1,35 @@
-from typing import ClassVar, overload
+from typing import overload
 from datetime import timedelta
 from math import exp
 
-from .base import V, DV, Component, Parametric, Stateful, Priority
+from .base import Component, Parametric, Stateful, Priority
 from ..events import Event, State, Site, ForwardUpdate
-from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var)
+from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var, Nodes)
 from ..numdicts import Key, KeyForm, numdict, keyform
 
 
-class Input(Component):
+class Input[D: Nodes](Component):
     """
     An input receiver process.
     
     Receives activations from external sources.
     """
 
+    d: D
     main: Site = Site()
     reset: bool
 
     def __init__(self, 
         name: str, 
-        s: V | DV,
+        d: D,
         *,
         c: float = 0.0,
         reset: bool = True,
         l: int = 1
     ) -> None:
         super().__init__(name)
-        index, = self._init_indexes(s) 
+        index, = self._init_indexes(d)
+        self.d = d 
         self.main = State(index, {}, c, l)
         self.reset = reset
 
@@ -89,7 +91,7 @@ class Input(Component):
         return data
 
 
-class Choice(Stateful, Parametric):
+class Choice[D: Nodes](Stateful, Parametric):
     """
     A choice process.
     
@@ -106,6 +108,7 @@ class Choice(Stateful, Parametric):
 
     p: Params
     s: State
+    d: D
     by: KeyForm
     main: Site = Site()
     input: Site = Site(lax=True)
@@ -117,8 +120,8 @@ class Choice(Stateful, Parametric):
     def __init__(self, 
         name: str, 
         p: Family,
-        s_: Family, 
-        s: V | DV, 
+        s: Family, 
+        d: D, 
         *, 
         sd: float = 1.0,
         f: float = 1.0,
@@ -126,19 +129,20 @@ class Choice(Stateful, Parametric):
     ) -> None:
         super().__init__(name)
         self.system.check_root(p)
-        index, = self._init_indexes(s)
+        index, = self._init_indexes(d)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, f=f)
-        self.s, self.state = self._init_sort(s_, type(self).State, c=0., free=1.)
+        self.s, self.state = self._init_sort(s, type(self).State, c=0., free=1.)
         self.main = State(index, {}, 0.0, l=l)
         self.input = State(index, {}, 0.0, l=l)
         self.sample = State(index, {}, 0.0, l=l)
-        self.by = self._init_by(s)
+        self.by = self._init_by(d)
         self.locked = False
 
     @staticmethod
-    def _init_by(s: V | DV) -> KeyForm:
+    def _init_by(s: D) -> KeyForm:
         match s:
-            case (d, v):
+            case tuple():
+                (d, v) = s
                 return keyform(d) * keyform(v, -1)
             case s:
                 return keyform(s, -1)
@@ -189,7 +193,7 @@ class Choice(Stateful, Parametric):
             time=dt, priority=priority)
     
 
-class Discriminal(Parametric):
+class Discriminal[D: Nodes](Parametric):
     """
     A discriminal process.
     
@@ -201,6 +205,7 @@ class Discriminal(Parametric):
         th: Atom
 
     p: Params
+    d: D
     main: Site = Site()
     input: Site = Site(lax=True)
     sample: Site = Site()
@@ -209,7 +214,7 @@ class Discriminal(Parametric):
     def __init__(self, 
         name: str, 
         p: Family,
-        s: V | DV, 
+        d: D, 
         *, 
         sd: float = 1e-1,
         th: float = .32905, # critical value for two-tailed alpha = 1e-3
@@ -217,8 +222,9 @@ class Discriminal(Parametric):
     ) -> None:
         super().__init__(name)
         self.system.check_root(p)
-        index, = self._init_indexes(s)
+        index, = self._init_indexes(d)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, th=th)
+        self.d = d
         self.main = State(index, {}, 0.0, l=l)
         self.input = State(index, {}, 0.0, l=l)
         self.sample = State(index, {}, 0.0, l=l)

@@ -30,11 +30,10 @@ class RuleStore(Component):
         name: str, 
         r: Family,
         lhs: Chunks,
-        rhs: Chunks | None = None,
+        rhs: Chunks,
         *,
         b: float = float("-inf")
     ) -> None:
-        rhs = rhs if rhs is not None else lhs
         super().__init__(name)
         self.system.check_root(r, lhs, rhs)
         self.rules = Rules(); r[name] = self.rules
@@ -65,7 +64,8 @@ class RuleStore(Component):
             data.append(str(r).replace("\n", "\n    "))
         self.system.logger.debug("\n    ".join(data))
 
-    def encode(self, *rules: Rule, 
+    def encode(self, 
+        *rules: Rule, 
         dt: timedelta = timedelta(),
         priority: int = Priority.LEARNING
     ) -> Event:
@@ -122,7 +122,7 @@ class RuleStore(Component):
         *, 
         func: Unary[NumDict] | None = None, 
         l: int = 1
-    ) -> Layer:
+    ) -> Layer[Chunks, Rules]:
         layer = Layer(name, self.lhs, self.rules, func=func, l=l)
         layer.weights = self.lhw
         layer.bias = self.bias
@@ -133,7 +133,7 @@ class RuleStore(Component):
         *, 
         func: Unary[NumDict] | None = None, 
         l: int = 1
-    ) -> Layer:
+    ) -> Layer[Rules, Chunks]:
         layer = Layer(name, self.rules, self.rhs, func=func, l=l)
         layer.weights = self.rhw
         return layer

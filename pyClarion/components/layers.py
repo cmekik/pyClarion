@@ -1,17 +1,17 @@
-from typing import Self, Any, Hashable, cast
+from typing import Self, Any, cast
 from datetime import timedelta
 from collections import deque
 
-from .base import Parametric, Backpropagator, Component, V, DV, Priority
+from .base import Parametric, Backpropagator, Component, Priority
 from .ops import cam
-from ..knowledge import Atoms, Family, Atom
+from ..knowledge import Atoms, Family, Atom, Nodes
 from ..events import State, Site, Event, ForwardUpdate, BackwardUpdate
 from ..numdicts import Key, KeyForm, NumDict
 from ..numdicts.ops.base import Unary, Aggregator
 from ..numdicts.ops.tape import GradientTape
 
 
-class Layer(Backpropagator):
+class Layer[I: Nodes, O: Nodes](Backpropagator):
     """
     A neural network layer.
     
@@ -19,6 +19,8 @@ class Layer(Backpropagator):
     propagation of error signals.
     """
 
+    i: I
+    o: O
     main: Site = Site()
     input: Site = Site()
     weights: Site = Site()
@@ -29,15 +31,16 @@ class Layer(Backpropagator):
 
     def __init__(self, 
         name: str, 
-        s1: V | DV,
-        s2: V | DV | None = None,
+        i: I,
+        o: O,
         *, 
         func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> None:
-        s2 = s1 if s2 is None else s2
         super().__init__(name)
-        idx_in, idx_out = self._init_indexes(s1, s2)
+        idx_in, idx_out = self._init_indexes(i, o)
+        self.i = i
+        self.o = o
         self.func = func
         self.main = State(idx_out, {}, 0.0)
         self.input = State(idx_in, {}, 0.0)
@@ -97,7 +100,7 @@ class Layer(Backpropagator):
             dt, priority)
 
 
-class Pool(Parametric, Backpropagator):
+class Pool[D: Nodes](Parametric, Backpropagator):
     """
     An activation pooling process.
 
@@ -108,6 +111,7 @@ class Pool(Parametric, Backpropagator):
         pass
 
     p: Params
+    d: D
     main: Site = Site()
     aggregate: Site = Site()
     params: Site = Site()
@@ -118,16 +122,17 @@ class Pool(Parametric, Backpropagator):
     def __init__(self, 
         name: str, 
         p: Family, 
-        s: V | DV, 
+        d: D, 
         *, 
         agg: Aggregator[NumDict] = cam, 
         post: Unary[NumDict] | None = None,
         l: int = 1
     ) -> None:
         super().__init__(name)
-        index, = self._init_indexes(s)
+        index, = self._init_indexes(d)
         psort, psite = self._init_sort(p, type(self).Params, l=l)
         self.p = psort
+        self.d = d
         self.params = psite
         self.main = State(index, {}, 0.0, l=l)
         self.aggregate = State(index, {}, 0.0, l=l)

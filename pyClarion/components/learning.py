@@ -1,10 +1,10 @@
 from typing import Callable
 from datetime import timedelta
 
-from .base import Component, D, V, DV, Priority
+from .base import Component, Priority
 from .io import Choice
 from ..events import Event, State, Site, ForwardUpdate, BackwardUpdate
-from ..knowledge import Family, Atom, Term
+from ..knowledge import Family, Atom, Term, Nodes
 from ..numdicts import NumDict, Key
 
 
@@ -25,8 +25,10 @@ class LearningSignal(Component):
         raise NotImplementedError()
 
 
-class TDLearning(LearningSignal, Choice):
+class TDLearning[D: Nodes, R: Nodes](LearningSignal, Choice[D]):
     
+    d: D
+    r: R
     func: Callable[["TDLearning"], NumDict]
     actions: Site = Site()
     qvals: Site = Site()
@@ -50,9 +52,9 @@ class TDLearning(LearningSignal, Choice):
     def __init__(self, 
         name: str, 
         p: Family,
-        s_: Family, 
-        s: V | DV, 
-        r: DV | D,
+        s: Family, 
+        d: D, 
+        r: R,
         *, 
         func: Callable[["TDLearning"], NumDict] = max_Q,
         sd: float = 1.0,
@@ -62,10 +64,12 @@ class TDLearning(LearningSignal, Choice):
     ) -> None:
         if l < 2:
             raise ValueError("Arg l must be greater than or equal to 2")
-        super().__init__(name, p, s_, s, sd=sd, f=f)
+        super().__init__(name, p, s, d, sd=sd, f=f)
         self.p["gamma"] = Atom()
-        with self.params[0].mutable() as d:
-            d[~self.p["gamma"]] = gamma
+        with self.params[0].mutable() as data:
+            data[~self.p["gamma"]] = gamma
+        self.d = d
+        self.r = r
         idx_a = self.main.index
         idx_r, = self._init_indexes(r)
         self.cost = State(idx_a, {}, c=0.0)

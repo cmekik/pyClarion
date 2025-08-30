@@ -3,11 +3,11 @@ import math
 
 from .base import Parametric, AtomUpdate, ChunkUpdate, RuleUpdate, Priority
 from ..events import Event, State, Site, ForwardUpdate
-from ..knowledge import Family, Sort, Atoms, Chunk, Rule, Atom, Term
+from ..knowledge import Family, Atoms, Chunks, Rules, Chunk, Rule, Atom
 from ..numdicts import Key, keyform
 
 
-class BaseLevel[T: Term](Parametric):
+class BaseLevel[T: Atoms | Chunks | Rules](Parametric):
     """
     A base-level activation process.
 
@@ -23,7 +23,7 @@ class BaseLevel[T: Term](Parametric):
     
     e: Atoms
     p: Params
-    s: Sort[T]
+    s: T
     unit: timedelta
     ignore: set[Key]
     main: Site = Site()
@@ -38,7 +38,7 @@ class BaseLevel[T: Term](Parametric):
         name: str, 
         p: Family, 
         e: Family, 
-        s: Sort[T], 
+        d: T, 
         *, 
         unit: timedelta = timedelta(milliseconds=1),
         th: float = 0.0, 
@@ -46,23 +46,23 @@ class BaseLevel[T: Term](Parametric):
         de: float = 0.5
     ) -> None:
         super().__init__(name)
-        self.system.check_root(p, e, s)
+        self.system.check_root(p, e, d)
         if e == p:
             raise ValueError("Args p and e must be distinct")
         self.p = type(self).Params(); p[name] = self.p
         self.e = Atoms(); e[name] = self.e
-        self.s = s
+        self.d = d
         idx_p = self.system.get_index(keyform(self.p))
         idx_e = self.system.get_index(keyform(self.e))
-        idx_s = self.system.get_index(keyform(s))
+        idx_d = self.system.get_index(keyform(d))
         self.unit = unit
         self.ignore = set()
-        self.main = State(idx_s, {}, 1.0)
-        self.input = State(idx_s, {}, 0.0)
+        self.main = State(idx_d, {}, 1.0)
+        self.input = State(idx_d, {}, 0.0)
         self.times = State(idx_e, {}, float("nan"))
         self.decay = State(idx_e, {}, float("nan"))
         self.scale = State(idx_e, {}, float("nan"))
-        self.weights = State(idx_e * idx_s, {}, 0.0)
+        self.weights = State(idx_e * idx_d, {}, 0.0)
         self.params = State(idx_p, 
             {~self.p.th: th, ~self.p.sc: sc, ~self.p.de: de}, 
             float("nan"))
@@ -122,7 +122,7 @@ class BaseLevel[T: Term](Parametric):
         return Event(self.advance, [ForwardUpdate(self.main, blas)], dt, priority)
 
 
-class MatchStats(Parametric):
+class MatchStats[D: Atoms | Chunks | Rules](Parametric):
     """A process that maintains match statistics."""
     
     class Params(Atoms):
@@ -143,7 +143,7 @@ class MatchStats(Parametric):
     def __init__(self,
         name: str, 
         p: Family, 
-        s: Sort, 
+        d: D, 
         *, 
         c1=1.0, 
         c2=2.0, 
@@ -152,10 +152,10 @@ class MatchStats(Parametric):
         th_crit=0.0
     ) -> None:
         super().__init__(name)
-        self.system.check_root(s)
+        self.system.check_root(d)
         self.p, self.params = self._init_sort(p, type(self).Params, 
             c1=c1, c2=c2, discount=discount, th_cond=th_cond, th_crit=th_crit)
-        index = self.system.get_index(keyform(s))
+        index = self.system.get_index(keyform(d))
         self.main = State(index, {}, math.log(c1/c2, 2))
         self.posm = State(index, {}, 0.0)
         self.negm = State(index, {}, 0.0)

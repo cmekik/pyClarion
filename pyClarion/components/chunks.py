@@ -5,19 +5,21 @@ import logging
 from .base import Component, Parametric, Priority, ChunkUpdate
 from .ops import cam
 from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
-from ..knowledge import (Family, Atoms, Chunks, Chunk, Sort, Bus, Atom, 
-    Compound, Term)
+from ..knowledge import (Family, Buses, Atoms, Chunks, Chunk, Bus, Atom, 
+    DVPairs, ChunkFamily, DataFamily)
 from ..events import Event, State, Site, ForwardUpdate 
 from ..numdicts.ops.base import Unary, Aggregator
 
 
-class BottomUp(Component):
+class BottomUp[D: DVPairs](Component):
     """
     A bottom-up activation process.
 
     Propagates activations from the bottom level to the top level.
     """
 
+    c: Chunks
+    d: D
     main: Site = Site()
     input: Site = Site()
     weights: Site = Site()
@@ -30,23 +32,25 @@ class BottomUp(Component):
     def __init__(self, 
         name: str, 
         c: Chunks, 
-        d: Family | Sort | Term, 
-        v: Family | Sort,
+        d: D, 
         *,
         pre: Unary | None = None,
         post: Unary | None = None
     ) -> None:
         super().__init__(name)
-        self.system.check_root(c, d, v)
+        b, v = d
+        self.system.check_root(c, b, v)
         idx_c = self.system.get_index(keyform(c))
-        idx_d = self.system.get_index(keyform(d))
+        idx_b = self.system.get_index(keyform(b))
         idx_v = self.system.get_index(keyform(v))
+        self.c = c
+        self.d = d
         self.main = State(idx_c, {}, c=0.0)
-        self.input = State(idx_d * idx_v, {}, c=0.0)
-        self.weights = State(idx_c * idx_d * idx_v, {}, c=0.0)
-        self.mul_by = keyform(c).agg * keyform(d) * keyform(v)
-        self.sum_by = keyform(c) * keyform(d).agg * keyform(v, -1).agg
-        self.max_by = keyform(c) * keyform(d) * keyform(v, -1)
+        self.input = State(idx_b * idx_v, {}, c=0.0)
+        self.weights = State(idx_c * idx_b * idx_v, {}, c=0.0)
+        self.mul_by = keyform(c).agg * keyform(b) * keyform(v)
+        self.sum_by = keyform(c) * keyform(b).agg * keyform(v, -1).agg
+        self.max_by = keyform(c) * keyform(b) * keyform(v, -1)
         self.pre = pre
         self.post = post
 
@@ -70,13 +74,15 @@ class BottomUp(Component):
         return Event(self.forward, [ForwardUpdate(self.main, main)], dt, priority)
     
 
-class TopDown(Component):    
+class TopDown[D: DVPairs](Component):    
     """
     A top-down activation process.
 
     Propagates activations from the top level to the bottom level.
     """
 
+    c: Chunks
+    d: D
     main: Site = Site()
     input: Site = Site()
     weights: Site = Site()
@@ -89,23 +95,25 @@ class TopDown(Component):
     def __init__(self, 
         name: str, 
         c: Chunks, 
-        d: Family | Sort | Term, 
-        v: Family | Sort,
+        d: D,
         *,
         pre: Unary[NumDict] | None = None,
         post: Unary[NumDict] | None = None,
         agg: Aggregator[NumDict] = cam
     ) -> None:
         super().__init__(name)
-        self.system.check_root(c, d, v)
+        b, v = d
+        self.system.check_root(c, b, v)
         idx_c = self.system.get_index(keyform(c))
-        idx_d = self.system.get_index(keyform(d))
+        idx_b = self.system.get_index(keyform(b))
         idx_v = self.system.get_index(keyform(v))
-        self.main = State(idx_d * idx_v, {}, c=0.0)
+        self.c = c
+        self.d = d
+        self.main = State(idx_b * idx_v, {}, c=0.0)
         self.input = State(idx_c, {}, c=0.0)
-        self.weights = State(idx_c * idx_d * idx_v, {}, c=0.0) 
-        self.mul_by = keyform(c) * keyform(d).agg * keyform(v).agg
-        self.agg_by = keyform(c).agg * keyform(d) * keyform(v)
+        self.weights = State(idx_c * idx_b * idx_v, {}, c=0.0) 
+        self.mul_by = keyform(c) * keyform(b).agg * keyform(v).agg
+        self.agg_by = keyform(c).agg * keyform(b) * keyform(v)
         self.pre = pre
         self.post = post
         self.agg = agg         
@@ -128,7 +136,7 @@ class TopDown(Component):
         return Event(self.forward, [ForwardUpdate(self.main, main)], dt, priority)
 
 
-class ChunkStore(Component):
+class ChunkStore[D: DVPairs](Component):
     """
     A chunk store. 
 
@@ -136,40 +144,42 @@ class ChunkStore(Component):
     activation propagation.
     """
 
+    c: Chunks
+    d: D
     ciw: Site = Site()
     tdw: Site = Site()
     buw: Site = Site()
-    chunks: Chunks
     sum_by: KeyForm
     max_by: KeyForm
 
     def __init__(self, 
         name: str, 
-        c: Family, 
-        d: Family | Sort | Atom, 
-        v: Family | Sort
+        c: DataFamily | ChunkFamily, 
+        d: D
     ) -> None:
         super().__init__(name)
-        self.system.check_root(c, d, v)
-        self.chunks = Chunks(); c[name] = self.chunks
-        idx_c = self.system.get_index(keyform(self.chunks))
-        idx_d = self.system.get_index(keyform(d))
+        b, v = d
+        self.system.check_root(c, b, v)
+        self.c = Chunks(); c[name] = self.c
+        self.d = d
+        idx_c = self.system.get_index(keyform(self.c))
+        idx_b = self.system.get_index(keyform(b))
         idx_v = self.system.get_index(keyform(v))
         self.ciw = State(idx_c * idx_c, {}, c=0.0)
-        self.tdw = State(idx_c * idx_d * idx_v, {}, c=0.0)
-        self.buw = State(idx_c * idx_d * idx_v, {}, c=0.0)
-        self.sum_by = keyform(self.chunks)
-        self.max_by = keyform(self.chunks) * keyform(d) * keyform(v, -1)
+        self.tdw = State(idx_c * idx_b * idx_v, {}, c=0.0)
+        self.buw = State(idx_c * idx_b * idx_v, {}, c=0.0)
+        self.sum_by = keyform(self.c)
+        self.max_by = keyform(self.c) * keyform(b) * keyform(v, -1)
 
     def norm(self, d: NumDict) -> NumDict:
         return (d
-            .abs()
+            .pow(2)
             .max(by=self.max_by, c=0.0)
             .sum(by=self.sum_by)
             .shift(1.0))
 
     def resolve(self, event: Event) -> None:
-        updates = event.index(ChunkUpdate).get(self.chunks, [])
+        updates = event.index(ChunkUpdate).get(self.c, [])
         new_chunks = [chunk for ud in updates for chunk in ud.add]
         if new_chunks:
             if event.source == self.encode \
@@ -195,8 +205,8 @@ class ChunkStore(Component):
             chunk._instances_.update(instances)
             new.extend(instances)
         return Event(self.encode, 
-            [ChunkUpdate(self.chunks, add=tuple(new))], 
-        dt, priority)
+            [ChunkUpdate(self.c, add=tuple(new))], 
+            dt, priority)
         
     def encode_weights(self, *chunks: Chunk, 
         dt: timedelta = timedelta(), 
@@ -220,44 +230,32 @@ class ChunkStore(Component):
         *, 
         pre: Unary | None = None, 
         post: Unary | None = None
-    ) -> BottomUp:
-        _, k_d, k_v = self.buw.index.kf.k.split()
-        c = self.chunks
-        d = ks_crawl(self.system.root, k_d)
-        v = ks_crawl(self.system.root, k_v)
-        assert isinstance(d, (Family, Sort, Term))
-        assert isinstance(v, (Family, Sort))
+    ) -> BottomUp[D]:
         with self:
-            obj = BottomUp(name, c, d, v, pre=pre, post=post)
+            obj = BottomUp(name, self.c, self.d, pre=pre, post=post)
         obj.weights = self.buw
         return obj
-
 
     def top_down(self, 
         name: str, 
         *, 
         pre: Unary | None = None, 
         post: Unary | None = None
-    ) -> TopDown:
-        _, k_d, k_v = self.tdw.index.kf.k.split()
-        c = self.chunks
-        d = ks_crawl(self.system.root, k_d)
-        v = ks_crawl(self.system.root, k_v)
-        assert isinstance(d, (Family, Sort, Term))
-        assert isinstance(v, (Family, Sort))
+    ) -> TopDown[D]:
         with self:
-            obj = TopDown(name, c, d, v, pre=pre, post=post)
+            obj = TopDown(name, self.c, self.d, pre=pre, post=post)
         obj.weights = self.tdw
         return obj
 
 
-class ChunkExtractor(Parametric, Component):
+class ChunkExtractor[D: DVPairs](Parametric, Component):
     class Params(Atoms):
         th: Atom
         tol: Atom
 
     p: Params
-    chunks: Chunks
+    c: Chunks
+    d: D
     input_t: Site = Site()
     input_b: Site = Site()
     params: Site = Site()
@@ -267,23 +265,24 @@ class ChunkExtractor(Parametric, Component):
         name: str, 
         p: Family, 
         c: Chunks,
-        d: Family | Sort | Term,
-        v: Family | Sort,
+        d: D,
         *, 
         auto: bool = True,
         th: float = 1.0, 
         tol: float = 1e-6
     ) -> None:
         super().__init__(name)
-        self.system.check_root(p, c, d, v)
+        b, v = d
+        self.system.check_root(p, c, b, v)
         self.p, self.params = self._init_sort(
             p, type(self).Params, th=th, tol=tol)
-        self.chunks = c
+        self.c = c
+        self.d = d
         idx_c = self.system.get_index(keyform(c))
-        idx_d = self.system.get_index(keyform(d))
+        idx_b = self.system.get_index(keyform(b))
         idx_v = self.system.get_index(keyform(v))
         self.input_t = State(idx_c, {}, 0.0)
-        self.input_b = State(idx_d * idx_v, {}, 0.0)
+        self.input_b = State(idx_b * idx_v, {}, 0.0)
         self.auto = auto
 
     def __rrshift__(self: Self, other: Any) -> Self:
@@ -314,7 +313,7 @@ class ChunkExtractor(Parametric, Component):
             return Event(self.update, [], dt, priority)
         chunk = self.extract_chunk(pos.sub(neg)) 
         return Event(self.update, 
-            [ChunkUpdate(self.chunks, add=(chunk,))], 
+            [ChunkUpdate(self.c, add=(chunk,))], 
             dt, priority)
     
     def extract_chunk(self, d: NumDict) -> Chunk:
