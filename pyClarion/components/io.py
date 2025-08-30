@@ -132,6 +132,7 @@ class Choice[D: Nodes](Stateful, Parametric):
         index, = self._init_indexes(d)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, f=f)
         self.s, self.state = self._init_sort(s, type(self).State, c=0., free=1.)
+        self.d = d
         self.main = State(index, {}, 0.0, l=l)
         self.input = State(index, {}, 0.0, l=l)
         self.sample = State(index, {}, 0.0, l=l)
