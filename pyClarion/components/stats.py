@@ -69,7 +69,7 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
 
     def resolve(self, event: Event) -> None:
         state_updates = event.index(ForwardUpdate).get(self.input, [])
-        sort_updates = event.index(self._ud_type[self.s]).get(self.s, [])
+        sort_updates = event.index(self._ud_type[self.d]).get(self.d, [])
         invoked = set()
         if state_updates:
             th = self.params[0][~self.p.th]
