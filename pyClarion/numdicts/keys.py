@@ -236,7 +236,9 @@ class KeyForm:
 
     def __post_init__(self):
         h = deque(self.h)
-        for i, (_, degree) in enumerate(self.k):
+        for i, (label, degree) in enumerate(self.k):
+            if label == "?":
+                raise ValueError(f"Unexpected wildcard node at index {i}")
             if 1 < degree and 0 < i:
                 raise ValueError(f"Unexpected branching at index {i}")
             if 0 < degree:
@@ -247,7 +249,6 @@ class KeyForm:
                 raise ValueError("Height vector too short") from e
         if 0 < len(h):
             raise ValueError("Height vector too long")
-
             
     def __contains__(self, obj) -> bool:
         if not isinstance(obj, Key):
@@ -340,6 +341,9 @@ class KeyForm:
                 indices[i] = i
                 hs[i] = 0
             elif dot_sep_id and any(lb == "?" for lb, _ in children):
+                if label == "":
+                    raise ValidationError("Wildcard '?' cannot appear directly "
+                        "under root node.")
                 if 1 < len(children):
                     raise ValidationError("Wildcard '?' cannot have siblings")
                 leaves.append(i)
