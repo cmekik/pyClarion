@@ -68,7 +68,9 @@ class Input[D: Nodes](Component):
         """Update input data."""
         data = self._parse_input(d)
         method = "push" if self.reset else "write"
-        return Event(self.send, [ForwardUpdate(self.main, data, method)], dt, priority)
+        return Event(self.send, 
+            [ForwardUpdate(self.main, data, method)], 
+            dt, priority)
 
     def _parse_input(self, d: dict | Chunk) -> dict[Key, float]:
         data = {}
@@ -115,7 +117,6 @@ class Choice[D: Nodes](Stateful, Parametric):
     sample: Site = Site()
     params: Site = Site()
     state: Site = Site()
-    locked: bool
 
     def __init__(self, 
         name: str, 
@@ -137,7 +138,6 @@ class Choice[D: Nodes](Stateful, Parametric):
         self.input = State(index, {}, 0.0, l=l)
         self.sample = State(index, {}, 0.0, l=l)
         self.by = self._init_by(d)
-        self.locked = False
 
     @staticmethod
     def _init_by(s: D) -> KeyForm:
@@ -147,23 +147,31 @@ class Choice[D: Nodes](Stateful, Parametric):
                 return keyform(d) * keyform(v, -1)
             case s:
                 return keyform(s, -1)
+    
+    @property
+    def locked(self) -> bool:
+        return self.current_state == ~self.s.busy \
+            or any(event.source == self.trigger for event in self.system.queue)
 
     def poll(self) -> dict[Key, Key]:
         """Return a symbolic representation of current decision."""
         return self.main[0].argmax(by=self.by)
 
     def resolve(self, event: Event) -> None:
-        if event.source == self.trigger and not self.locked:
-            self.locked = True
+        if event.source == self.trigger:
             self.system.schedule(self.select())
-        if event.source == self.select:
-            self.locked = False
-
+            
     def trigger(self, 
         dt: timedelta = timedelta(), 
         priority=Priority.DEFERRED
     ) -> Event:
-        """Generate a dummy event to trigger selection of a new choice."""
+        """
+        Generate a dummy event to trigger selection of a new choice.
+        
+        Raises a RuntimeError if called when self.locked evaluates to True.
+        """
+        if self.locked:
+            raise RuntimeError(f"Process {self.name} already triggered.")
         return Event(self.trigger, 
             [ForwardUpdate(self.state, {~self.s.busy: 1.0})], 
             dt, priority)
