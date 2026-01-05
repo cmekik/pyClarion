@@ -1,4 +1,4 @@
-from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload
+from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload, TypeVar
 from weakref import WeakSet
 from itertools import product
 
@@ -153,7 +153,7 @@ class Chunk(Compound):
         return type(self)({d: -w for d, w in self._dyads_.items()})
     
     def __rmul__(self, other):
-        if isinstance(other, float):
+        if isinstance(other, (int, float)):
             return type(self)({d: other * w for d, w in self._dyads_.items()})
         return NotImplemented
 
@@ -292,7 +292,7 @@ class Rule(Compound):
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
 
 
-type DataVar = Var[Sort[Atom]] | Var[Sort[Chunk]] | Var[Sort[Rule]]
+type DataVar = Var #[Sort[Atom]] | Var[Sort[Chunk]] | Var[Sort[Rule]]
 type Datamer = Atom | Chunk | Rule | DataVar
 
 
