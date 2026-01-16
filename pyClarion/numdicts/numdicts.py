@@ -242,6 +242,8 @@ class NumDict(NumDictBase):
     isinf = defs.IsInf[Self]()
     isbetween = defs.IsBetween[Self]()
 
+    reindex = defs.Reindex[Self]()
+
     neg = defs.Neg[Self]()
     inv = defs.Inv[Self]()
     abs = defs.Abs[Self]()

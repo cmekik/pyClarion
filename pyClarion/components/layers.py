@@ -173,7 +173,7 @@ class Pool[D: Nodes](Parametric, Backpropagator):
         priority: Priority = Priority.PROPAGATION
     ) -> Event:
         with GradientTape() as tape:
-            inputs = [s[0].scale(self.params[0][k]) 
+            inputs = [s[0].scale(self.params[0][k]).reindex(self.main.index.kf) 
                 for k, s in self.inputs.items()]
             aggregate = self.agg(*inputs)
             if (post := self.post) is None:

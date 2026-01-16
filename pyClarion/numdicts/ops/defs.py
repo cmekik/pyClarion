@@ -8,6 +8,7 @@ from .base import (OpBase, Unary, Binary, UnaryDiscrete, BinaryDiscrete,
 from .funcs import unary, binary
 from .tape import GradientTape
 from ..keys import KeyForm
+from ..indices import Index
 from .. import numdicts as nd
 
 
@@ -21,6 +22,25 @@ class IsNaN[D: "nd.NumDict"](UnaryDiscrete[D]):
 
 class IsInf[D: "nd.NumDict"](UnaryDiscrete[D]):
     kernel = math.isinf
+
+
+class Reindex[D: "nd.NumDict"](OpBase[D]):
+    def __call__(self, d: D, /, by: KeyForm) -> D:
+        if not by <= d.i.kf:
+            raise ValueError(f"Keyform {d.i.kf.as_key()} cannot be reduced to "
+                f"{by.as_key()}")
+        if len(by.as_key()) != len(d.i.kf.as_key()):
+            raise ValueError(f"Keyform {d.i.kf.as_key()} not conformal with "
+                f"{by.as_key()}")
+        i = Index(d.i.root, by)
+        r = type(d)(i, d.d, d.c)
+        tape = GradientTape.STACK.get()
+        if tape is not None:
+            tape.record(self, r, d, by)
+        return r
+
+    def grad(self, g: D, r:D, d: D, /, by: KeyForm) -> D:
+        return d.zeros().sum(g)
 
 
 class IsBetween[D: "nd.NumDict"](OpBase[D]):
