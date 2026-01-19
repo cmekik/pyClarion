@@ -17,7 +17,7 @@ class RuleStore(Component):
     Maintains a collection of rules.
     """
 
-    rules: Rules
+    r: Rules
     lhs: Chunks
     rhs: Chunks
     b: float
@@ -36,11 +36,11 @@ class RuleStore(Component):
     ) -> None:
         super().__init__(name)
         self.system.check_root(r, lhs, rhs)
-        self.rules = Rules(); r[name] = self.rules
+        self.r = Rules(); r[name] = self.r
         self.lhs = lhs
         self.rhs = rhs
         self.b = b
-        idx_r = self.system.get_index(keyform(self.rules))
+        idx_r = self.system.get_index(keyform(self.r))
         idx_lhs = self.system.get_index(keyform(lhs))
         idx_rhs = self.system.get_index(keyform(rhs))
         self.main = State(idx_r, {}, c=0.0)
@@ -50,7 +50,7 @@ class RuleStore(Component):
         self.rhw = State(idx_r * idx_rhs, {}, c=0.0)
 
     def resolve(self, event: Event) -> None:
-        updates = event.index(RuleUpdate).get(self.rules, [])
+        updates = event.index(RuleUpdate).get(self.r, [])
         new_rules = [rule for ud in updates for rule in ud.add]
         if new_rules:
             if event.source == self.encode \
@@ -91,7 +91,7 @@ class RuleStore(Component):
             new_rules.append(rule)
             new_rules.extend(rule_instances)
         updates = [
-            RuleUpdate(self.rules, add=tuple(new_rules)),
+            RuleUpdate(self.r, add=tuple(new_rules)),
             ChunkUpdate(self.lhs, add=tuple(new_lhs_chunks))]
         if new_rhs_chunks:
             updates.append(ChunkUpdate(self.rhs, add=tuple(new_rhs_chunks)))
@@ -123,7 +123,7 @@ class RuleStore(Component):
         func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> Layer[Chunks, Rules]:
-        layer = Layer(name, self.lhs, self.rules, func=func, l=l)
+        layer = Layer(name, self.lhs, self.r, func=func, l=l)
         layer.weights = self.lhw
         layer.bias = self.bias
         return layer
@@ -134,6 +134,6 @@ class RuleStore(Component):
         func: Unary[NumDict] | None = None, 
         l: int = 1
     ) -> Layer[Rules, Chunks]:
-        layer = Layer(name, self.rules, self.rhs, func=func, l=l)
+        layer = Layer(name, self.r, self.rhs, func=func, l=l)
         layer.weights = self.rhw
         return layer
