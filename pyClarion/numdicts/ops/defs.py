@@ -9,6 +9,7 @@ from .funcs import unary, binary
 from .tape import GradientTape
 from ..keys import KeyForm
 from ..indices import Index
+from ..undefined import _Undefined
 from .. import numdicts as nd
 
 
@@ -294,7 +295,7 @@ class Sum[D: "nd.NumDict"](Aggregator[D]):
         /, 
         *ds: D, 
         by: KeyForm | Sequence[KeyForm | None] | None = None, 
-        c: float | None = None 
+        c: float | _Undefined | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
             return g
@@ -316,7 +317,7 @@ class Mul[D: "nd.NumDict"](Aggregator[D]):
         /, 
         *ds: D, 
         by: KeyForm | Sequence[KeyForm | None] | None = None, 
-        c: float | None = None 
+        c: float | _Undefined | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
             raise NotImplementedError("Mul reduction gradient not implemented")
@@ -350,7 +351,7 @@ class Max[D: "nd.NumDict"](Aggregator[D]):
         /, 
         *ds: D, 
         by: KeyForm | Sequence[KeyForm | None] | None = None, 
-        c: float | None = None 
+        c: float | _Undefined | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
             assert by is None or isinstance(by, KeyForm)
@@ -375,7 +376,7 @@ class Min[D: "nd.NumDict"](Aggregator[D]):
         /, 
         *ds: D, 
         by: KeyForm | Sequence[KeyForm | None] | None = None, 
-        c: float | None = None 
+        c: float | _Undefined | None = None 
     ) -> D | Sequence[D]:
         if len(ds) == 0:
             assert by is None or isinstance(by, KeyForm)

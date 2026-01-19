@@ -1,8 +1,9 @@
-from typing import Literal, Iterator, Sequence, Callable, Concatenate
+from typing import Literal, Iterator, Sequence, Callable, Concatenate, cast
 from itertools import chain
 
 from ..keys import Key, KeyForm
 from ..indices import Index
+from ..undefined import _Undefined, Undefined
 from .. import numdicts as nd
 
 
@@ -82,7 +83,8 @@ def unary[**P, D: "nd.NumDict"](
     *args: P.args, 
     **kwargs: P.kwargs
 ) -> D:
-    new_c = float(kernel(d._c, *args, **kwargs))
+    new_c = (d._c if isinstance(d._c, _Undefined) 
+        else float(kernel(d._c, *args, **kwargs)))
     new_d = {k: float(new_v) for k, v in d._d.items() 
         if (new_v := kernel(v, *args, **kwargs)) != new_c}
     return type(d)(d._i, new_d, new_c, False)
@@ -92,27 +94,39 @@ def binary[**P, D: "nd.NumDict"](
     d1: D, 
     d2: D, 
     by: KeyForm | None, 
-    c: float | None,
+    c: float | _Undefined | None,
     kernel: Callable[Concatenate[float, float, P], float], 
     *args: P.args, 
     **kwargs: P.kwargs
 ) -> D:
-    it = collect(d1, d2, mode="match", branches=(by,))
-    new_c = c if c is not None else kernel(d1._c, d2._c, *args, **kwargs)
+    mode = "self" if isinstance(d1._c, _Undefined) else "match"
+    it = collect(d1, d2, mode=mode, branches=(by,))
+    if c is not None:
+        new_c = c
+    elif isinstance(d1._c, _Undefined) or isinstance(d2._c, _Undefined):
+        new_c = Undefined
+    else:
+        new_c = kernel(d1._c, d2._c, *args, **kwargs)
     new_d = {k: v for k, (v1, v2) in it 
         if (v := kernel(v1, v2, *args, **kwargs)) != new_c}
     return type(d1)(d1._i, new_d, new_c, False)
     
 
-def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None, c: float | None, kernel: Callable[[Sequence[float]], float], eye: float) -> D:
-    mode = "match" if ds else "self" if d._c == eye else "full"
-    c = c if c is not None else eye
+def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None, c: float | _Undefined | None, kernel: Callable[[Sequence[float]], float], eye: float) -> D:
+    if isinstance(d._c, _Undefined):
+        mode = "self"
+    elif 0 < len(ds):
+        mode = "match"
+    elif d._c == eye:
+        mode = "self"
+    else:
+        mode = "full"
     if len(ds) == 0 and by is None:
         by = d._i.kf.agg
         it = ()
         i = Index(d._i.root, by)
         assert mode != "match"
-        new_c = kernel(group(d, by, mode=mode).get(Key(), (c,)))
+        new_c = kernel(group(d, by, mode=mode).get(Key(), (eye,)))
     elif len(ds) == 0 and isinstance(by, KeyForm):
         if not by <= d._i.kf:
             raise ValueError(f"Keyform {by.as_key()} cannot "
@@ -120,16 +134,18 @@ def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | Non
         assert mode != "match"
         it = group(d, by, mode=mode).items()
         i = Index(d._i.root, by)
-        new_c = d._c if mode == "self" else c
+        new_c = d._c if mode == "self" and c is None else eye if c is None else c
     elif 0 < len(ds):
         if c is not None:
             ValueError("Unexpected float value for arg c")
-        mode = "match"
         it = collect(d, *ds, branches=by, mode=mode)
         i = d._i
-        new_c = kernel((d._c, *(other._c for other in ds)))
+        cs = (d._c, *(other._c for other in ds))
+        if any(isinstance(c, _Undefined) for c in cs):
+            new_c = Undefined
+        else:
+            new_c = kernel(cast(tuple[float, ...], cs))
     else:
         assert False
     new_d = {k: v for k, vs in it if (v := kernel(vs)) != new_c}
     return type(d)(i, new_d, new_c, False)
-    

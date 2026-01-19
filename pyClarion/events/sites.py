@@ -3,18 +3,18 @@ from math import isnan
 from collections import deque
 
 from .system import Process
-from ..numdicts import Index, NumDict, numdict
+from ..numdicts import Index, NumDict, _Undefined, numdict
 
 
 class State:
     """A simulated process state."""
 
     index: Index
-    const: float
+    const: float | _Undefined
     data: deque[NumDict]
     grad: deque[NumDict]
 
-    def __init__(self, i: Index, d: dict, c: float, l: int = 1) -> None:
+    def __init__(self, i: Index, d: dict, c: float | _Undefined, l: int = 1) -> None:
         l = 1 if l < 1 else l
         self.index = i
         self.const = c
@@ -61,8 +61,7 @@ class Site:
         elif old.index != value.index and not self.lax \
             or old.index < value.index:
             raise ValueError("Incompatible index in site assignment")
-        elif not (isnan(old.const) and isnan(value.const) \
-            or old.const == value.const):
+        elif old.const != value.const:
             raise ValueError("Incompatible default value in site assignment")
         elif len(old.data) != len(value.data) and not self.lax:
             raise ValueError("Incompatible lag values")

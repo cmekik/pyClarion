@@ -4,7 +4,7 @@ import logging
 
 from .base import Component, Parametric, Priority, ChunkUpdate
 from .ops import cam
-from ..numdicts import NumDict, KeyForm, keyform, ks_crawl
+from ..numdicts import NumDict, KeyForm, keyform, ks_crawl, Undefined
 from ..knowledge import (Family, Buses, Atoms, Chunks, Chunk, Bus, Atom, 
     DVPairs, ChunkFamily, DataFamily)
 from ..events import Event, State, Site, ForwardUpdate 
@@ -47,7 +47,7 @@ class BottomUp[D: DVPairs](Component):
         self.d = d
         self.main = State(idx_c, {}, c=0.0)
         self.input = State(idx_b * idx_v, {}, c=0.0)
-        self.weights = State(idx_c * idx_b * idx_v, {}, c=0.0)
+        self.weights = State(idx_c * idx_b * idx_v, {}, c=Undefined)
         self.mul_by = keyform(c).agg * keyform(b) * keyform(v)
         self.sum_by = keyform(c) * keyform(b).agg * keyform(v, -1).agg
         self.max_by = keyform(c) * keyform(b) * keyform(v, -1)
@@ -68,7 +68,7 @@ class BottomUp[D: DVPairs](Component):
         main = (self.weights[0]
             .mul(input, by=self.mul_by)
             .max(by=self.max_by)
-            .sum(by=self.sum_by))
+            .sum(by=self.sum_by, c=0.0))
         if self.post is not None:
             main = self.post(main)
         return Event(self.forward, [ForwardUpdate(self.main, main)], dt, priority)
@@ -99,7 +99,7 @@ class TopDown[D: DVPairs](Component):
         *,
         pre: Unary[NumDict] | None = None,
         post: Unary[NumDict] | None = None,
-        agg: Aggregator[NumDict] = cam
+        agg: Aggregator[NumDict] = NumDict.sum
     ) -> None:
         super().__init__(name)
         b, v = d
@@ -167,14 +167,14 @@ class ChunkStore[D: DVPairs](Component):
         idx_v = self.system.get_index(keyform(v))
         self.ciw = State(idx_c * idx_c, {}, c=0.0)
         self.tdw = State(idx_c * idx_b * idx_v, {}, c=0.0)
-        self.buw = State(idx_c * idx_b * idx_v, {}, c=0.0)
+        self.buw = State(idx_c * idx_b * idx_v, {}, c=Undefined)
         self.sum_by = keyform(self.c)
         self.max_by = keyform(self.c) * keyform(b) * keyform(v, -1)
 
     def norm(self, d: NumDict) -> NumDict:
         return (d
             .pow(2)
-            .max(by=self.max_by, c=0.0)
+            .max(by=self.max_by)
             .sum(by=self.sum_by)
             .shift(1.0))
 
@@ -304,7 +304,10 @@ class ChunkExtractor[D: DVPairs](Parametric, Component):
     ) -> Event:        
         pos = self.input_b[0].isbetween(lb=self.params[0][~self.p.th])
         neg = self.input_b[0].isbetween(ub=-self.params[0][~self.p.th])
-        target = (s := pos.sum().c + neg.sum().c) / (1 + s)
+        pos_sum = pos.sum().c
+        neg_sum = neg.sum().c
+        assert isinstance(pos_sum, float) and isinstance(neg_sum, float)
+        target = (s := pos_sum + neg_sum) / (1 + s)
         crit = (self.input_t[0]
             .shift(-(target - self.params[0][~self.p.tol]))
             .isbetween(lb=0.0)

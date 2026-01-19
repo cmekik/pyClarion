@@ -5,6 +5,7 @@ from math import isnan
 from .funcs import collect, unary, binary, variadic
 from .tape import OpProto, GradientTape
 from ..keys import KeyForm
+from ..undefined import _Undefined
 from .. import numdicts as nd
 
 
@@ -119,36 +120,36 @@ class BinaryDiscrete[D: "nd.NumDict"](Binary[D]):
 class UnaryRV[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[float], float]]
 
-    def __call__(self, d: D, /, c: float | None = None) -> D:
-        mode = "self" if isnan(d._c) else "full"
+    def __call__(self, d: D, /, c: float | _Undefined | None = None) -> D:
+        mode = "self" if isinstance(d._c, _Undefined) else "full"
         it = collect(d, mode=mode)
         c = c if c is not None else d._c
-        new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c and not (isnan(v) or isnan(c))}
+        new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
         r = type(d)(d._i, new_d, c, False)
         tape = GradientTape.STACK.get()
         if tape is not None:
             tape.record(self, r, d, c)
         return r
 
-    def grad(self, g: D, r: D, d: D, /, c: float | None = None) -> D:
+    def grad(self, g: D, r: D, d: D, /, c: float | _Undefined | None = None) -> D:
         raise NotImplementedError()
 
 
 class BinaryRV[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[float, float], float]]
 
-    def __call__(self, d1: D, d2: D, /, by: KeyForm | None = None, c: float | None = None) -> D:
-        mode = "self" if isnan(d1._c) else "full"
+    def __call__(self, d1: D, d2: D, /, by: KeyForm | None = None, c: float | _Undefined | None = None) -> D:
+        mode = "self" if isinstance(d1._c, _Undefined) else "full"
         it = collect(d1, d2, branches=by, mode=mode)
         c = c if c is not None else d1._c
-        new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c and not (isnan(v) or isnan(c))}
+        new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
         r = type(d1)(d1._i, new_d, c, False)
         tape = GradientTape.STACK.get()
         if tape is not None:
             tape.record(self, r, d1, d2, by=by, c=c)
         return r
 
-    def grad(self, g: "nd.NumDict", r: D, d1: D, d2: D, /, by: KeyForm | None = None, c: float | None = None) -> tuple[D, D]:
+    def grad(self, g: "nd.NumDict", r: D, d1: D, d2: D, /, by: KeyForm | None = None, c: float | _Undefined | None = None) -> tuple[D, D]:
         raise NotImplementedError()
 
 

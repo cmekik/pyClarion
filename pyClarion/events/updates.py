@@ -20,8 +20,7 @@ class StateUpdate(Update[State]):
         state = self.state
         if isinstance(data, NumDict) and data.i != state.index:
             raise ValueError("Index of data numdict does not match site")
-        if isinstance(data, NumDict) and \
-            not (isnan(data.c) and isnan(state.const) or data.c == state.const):
+        if isinstance(data, NumDict) and data.c != state.const:
             raise ValueError(f"Default constant {data.c} of data does not "
                 f"match site {state.const}")
         if isinstance(data, NumDict):
