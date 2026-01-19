@@ -11,6 +11,82 @@ from ..numdicts.ops.base import Unary, Aggregator
 from ..numdicts.ops.tape import GradientTape
 
 
+class Mapping[I: Nodes, O: Nodes](Backpropagator):
+    """
+    Transforms an input signal according to a given function.
+    
+    Implements forward propagation of activation signals and backward 
+    propagation of error signals.
+    """
+
+    i: I
+    o: O
+    main: Site = Site()
+    input: Site = Site(lax=True)
+    func: Unary[NumDict]
+    fw_by: KeyForm
+    bw_by: KeyForm
+
+    def __init__(self, 
+        name: str, 
+        i: I,
+        o: O,
+        func: Unary[NumDict], 
+        *,
+        l: int = 1
+    ) -> None:
+        super().__init__(name)
+        idx_in, idx_out = self._init_indexes(i, o)
+        self.i = i
+        self.o = o
+        self.func = func
+        self.main = State(idx_out, {}, 0.0)
+        self.input = State(idx_in, {}, 0.0)
+        self.tapes = deque([], maxlen=l)
+
+    def resolve(self, event: Event) -> None:
+        forward = event.index(ForwardUpdate)
+        backward = event.index(BackwardUpdate)
+        if self.input in forward:
+            self.system.schedule(self.forward())
+        if len(self.tapes) == self.tapes.maxlen and self.main in backward:
+            self.system.schedule(self.backward())
+
+    def forward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> Event:
+        """Compute and propagate forward activations."""
+        input = self.input[0]
+        with GradientTape() as tape:
+            main = self.func(self.main.new({}).sum(input))        
+        self.push_tape(tape, main, [input])            
+        return Event(self.forward, 
+            [ForwardUpdate(self.main, main)],
+            dt, priority)
+        
+    def backward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> Event:
+        """
+        Compute gradients and backpropagate errors.
+        
+        Computed gradients from successive calls to this method will accumulate 
+        at gradient sites. This allows layers to receive asynchronous error 
+        signals. 
+        
+        Typically, gradient sites will be cleared by an optimizer after it has 
+        consumed their data for weight updates. 
+        """
+        tape, main, args = self.tapes[-1]
+        g_main = self.main.grad[0]
+        g_i, = tape.gradients(main, args, g_main) 
+        return Event(self.backward,
+            [BackwardUpdate(self.input, g_i)],
+            dt, priority)
+
+
 class Layer[I: Nodes, O: Nodes](Backpropagator):
     """
     A neural network layer.
