@@ -157,12 +157,12 @@ class Aggregator[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[Sequence[float]], float]]
     eye: ClassVar[float]
 
-    def __call__(self, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | None = None) -> D:
+    def __call__(self, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | _Undefined | None = None) -> D:
         r = variadic(d, *ds, by=by, c=c, kernel=type(self).kernel, eye=type(self).eye)
         tape = GradientTape.STACK.get()
         if tape is not None:
             tape.record(self, r, d, *ds, by=by, c=c)
         return r
 
-    def grad(self, g: D, r: D, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | None = None) -> D | Sequence[D]:
+    def grad(self, g: D, r: D, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | _Undefined | None = None) -> D | Sequence[D]:
         raise NotImplementedError()

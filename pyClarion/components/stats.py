@@ -1,10 +1,11 @@
+from typing import overload
 from datetime import timedelta
 import math
 
 from .base import Parametric, AtomUpdate, ChunkUpdate, RuleUpdate, Priority
 from ..events import Event, State, Site, ForwardUpdate
-from ..knowledge import Family, Atoms, Chunks, Rules, Chunk, Rule, Atom
-from ..numdicts import Key, keyform
+from ..knowledge import Family, Atoms, Chunks, Rules, Atom 
+from ..numdicts import Key, keyform, Undefined
 
 
 class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
@@ -13,8 +14,6 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
 
     Maintains and propagates base level activations.
     """
-
-    _ud_type = {Atom: AtomUpdate, Chunk: ChunkUpdate, Rule: RuleUpdate}
 
     class Params(Atoms):
         th: Atom
@@ -33,7 +32,7 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
     scale: Site = Site()
     weights: Site = Site()
     params: Site = Site()
-    
+
     def __init__(self, 
         name: str, 
         p: Family, 
@@ -57,19 +56,22 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
         idx_d = self.system.get_index(keyform(d))
         self.unit = unit
         self.ignore = set()
-        self.main = State(idx_d, {}, 1.0)
+        self.main = State(idx_d, {}, Undefined)
         self.input = State(idx_d, {}, 0.0)
-        self.times = State(idx_e, {}, float("nan"))
-        self.decay = State(idx_e, {}, float("nan"))
-        self.scale = State(idx_e, {}, float("nan"))
-        self.weights = State(idx_e * idx_d, {}, 0.0)
+        self.times = State(idx_e, {}, Undefined)
+        self.decay = State(idx_e, {}, Undefined)
+        self.scale = State(idx_e, {}, Undefined)
+        self.weights = State(idx_e * idx_d, {}, Undefined)
         self.params = State(idx_p, 
             {~self.p.th: th, ~self.p.sc: sc, ~self.p.de: de}, 
-            float("nan"))
+            Undefined)
 
     def resolve(self, event: Event) -> None:
+        if event.source == self.trigger:
+            self.system.schedule(self.advance())
+            return
         state_updates = event.index(ForwardUpdate).get(self.input, [])
-        sort_updates = event.index(self._ud_type[self.d]).get(self.d, [])
+        sort_updates = event.index(self._ud_type(self.d)).get(self.d, [])
         invoked = set()
         if state_updates:
             th = self.params[0][~self.p.th]
@@ -79,7 +81,32 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
             invoked.update((~k for ud in sort_updates for k in ud.add 
                 if k not in self.ignore))
         if invoked:
-            self.invoke(invoked)
+            self.system.schedule(self.invoke(invoked))
+
+    @overload
+    @staticmethod
+    def _ud_type(sort: Atoms) -> type[AtomUpdate]:
+        ...
+
+    @overload
+    @staticmethod
+    def _ud_type(sort: Chunks) -> type[ChunkUpdate]:
+        ...
+
+    @overload
+    @staticmethod
+    def _ud_type(sort: Rules) -> type[RuleUpdate]:
+        ...
+
+    @staticmethod
+    def _ud_type(sort: Atoms | Chunks | Rules) -> type[AtomUpdate | ChunkUpdate | RuleUpdate]:
+        if isinstance(sort, Atoms):
+            return AtomUpdate
+        elif isinstance(sort, Chunks):
+            return ChunkUpdate
+        elif isinstance(sort, Rules):
+            return RuleUpdate
+        raise TypeError()
 
     def invoke(self,
         invoked: set[Key], 
@@ -98,8 +125,15 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
             ForwardUpdate(self.times, {key: time}, "write"),
             ForwardUpdate(self.scale, {key: sc}, "write"),
             ForwardUpdate(self.decay, {key: de}, "write"),
-            ForwardUpdate(self.weights, {ke * k: 1.0 for k in invoked}, "write")],
+            ForwardUpdate(self.weights, {key * k: 1.0 for k in invoked}, "write")],
             dt, priority)
+
+    def trigger(self, 
+        dt: timedelta = timedelta(), 
+        priority=Priority.DEFERRED
+    ) -> Event:
+        """Generate a dummy event to trigger advance BLAs to current time."""
+        return Event(self.trigger, [], dt, priority)
 
     def advance(self, 
         dt: timedelta = timedelta(), 
@@ -115,7 +149,7 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
             .exp())
         blas = (self.weights[0]
             .mul(terms)
-            .sum(by=self.main.index.kf, c=0.0))
+            .sum(by=self.main.index.kf, c=Undefined))
         with blas.mutable():
             for k in self.ignore:
                 blas[k] = 1.0
