@@ -1,9 +1,18 @@
-from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload, TypeVar
+from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload
 from weakref import WeakSet
 from itertools import product
+import enum
 
-from .base import Term, Var, Sort
+from .base import Term, Var
 from ..numdicts import Key
+
+
+class Indexical(enum.Enum):
+    chunk = enum.auto()
+    rule = enum.auto()
+
+
+this = Indexical
 
 
 class Atom(Term):
@@ -45,8 +54,9 @@ class Compound(Term):
         return self
 
     @staticmethod
-    def _collect_vars_(dyads: Iterable[tuple[Term | Var, Term | Var]]) \
-        -> set[Var]:
+    def _collect_vars_(
+        dyads: Iterable[tuple[Term | Indexical | Var, Term | Indexical | Var]]
+    ) -> set[Var]:
         _vars_ = set()
         for dyad in dyads:
             for elt in dyad:
@@ -81,13 +91,13 @@ class Chunk(Compound):
     Symbolically represents a Clarion chunk, together with its dimension-value 
     pairs.
     """
-    _dyads_: dict[tuple[Term | Var, Term | Var], float]
-    
+    _dyads_: dict[tuple[Term | Indexical | Var, Term | Indexical | Var], float]
+    _rule_: "Rule | None"
 
     @overload
     def __init__(
         self, 
-        dyads: dict[tuple[Term | Var, Term | Var], float]
+        dyads: dict[tuple[Term | Indexical | Var, Term | Indexical | Var], float]
     ) -> None:
         ...
     
@@ -129,17 +139,22 @@ class Chunk(Compound):
         return "\n    ".join(data)
 
     @staticmethod
-    def _str_dyad_(d: Term | Var, v: Term | Var, w: float) -> str:
-        if isinstance(d, Term):
-            key = ~d
-            s_d = ".".join([label for label, _ in key[-2:]]) 
-        else:
-            s_d = f"{d.sort._name_}('{d.name}')"
-        if isinstance(v, Term):
-            key = ~v
-            s_v = ".".join([label for label, _ in key[-2:]]) 
-        else:
-            s_v = f"{v.sort._name_}('{v.name}')"
+    def _str_constituent_(x: Term | Indexical | Var) -> str:
+        match x:
+            case Term():
+                key = ~x
+                return ".".join([label for label, _ in key[-2:]])
+            case Indexical():
+                return f"this.{x.name}"
+            case Var():
+                return f"{x.sort._name_}('{x.name}')"
+
+    @classmethod
+    def _str_dyad_(cls, 
+        d: Term | Indexical |  Var, v: Term | Indexical | Var, w: float
+    ) -> str:
+        s_d = cls._str_constituent_(d)
+        s_v = cls._str_constituent_(v)
         sign = "+" if w >= 0 else "-"
         if abs(w) == 1.0:
             return f"{sign} {s_d} ** {s_v}"
@@ -186,11 +201,29 @@ class Chunk(Compound):
         d[self] = 1.0
         return Rule(d)
 
+    def _interpret_constitutent_(self, 
+        x: Term | Indexical | Var, vals: dict[Var, Term]
+    ) -> Term:
+        if isinstance(x, Term):
+            return x
+        elif isinstance(x, Var):
+            return vals[x]
+        elif x is this.chunk:
+            return self if self._template_ is None else self._template_
+        elif x is this.rule:
+            if self._rule_ is None:
+                raise ValueError("Chunk has no parent rule.")
+            return self._rule_
+        else:
+            raise ValueError(f"Unexpected consitutent '{x}' in symbolic chunk " 
+                "annotation.")
+
     def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
-        dyads: dict[tuple[Term, Term], float] = {
-            (vals[t1] if isinstance(t1, Var) else t1, 
-             vals[t2] if isinstance(t2, Var) else t2): w 
-            for (t1, t2), w in self._dyads_.items()}
+        dyads: dict[tuple[Term, Term], float] = {} 
+        for (t1, t2), w in self._dyads_.items():
+            lhs = self._interpret_constitutent_(t1, vals)
+            rhs = self._interpret_constitutent_(t2, vals)
+            dyads[(lhs, rhs)] = w
         inst = type(self)(dyads, self)
         inst._valuation_ = frozenset(vals.items())
         self._instances_.add(inst)
@@ -204,8 +237,9 @@ class Chunk(Compound):
         ciw[kt * kc] = 1.0
         if not self._vars_:
             for (s1, s2), w in self._dyads_.items():
-                assert isinstance(s1, Term) and isinstance(s2, Term)
-                kw = kc * ~s1 * ~s2
+                t1 = self._interpret_constitutent_(s1, {})
+                t2 = self._interpret_constitutent_(s2, {})
+                kw = kc * ~t1 * ~t2
                 tdw[kw] = w 
         return ChunkData(ciw=ciw, tdw=tdw)
 
@@ -235,6 +269,8 @@ class Rule(Compound):
         self._chunks_ = chunks
         self._vars_.update(
             Chunk._collect_vars_(d for c in chunks for d in c._dyads_))
+        for chunk in chunks:
+            chunk._rule_ = self
 
     def __str__(self) -> str:
         try:
@@ -293,7 +329,7 @@ class Rule(Compound):
 
 
 type DataVar = Var #[Sort[Atom]] | Var[Sort[Chunk]] | Var[Sort[Rule]]
-type Datamer = Atom | Chunk | Rule | DataVar
+type Datamer = Atom | Chunk | Rule | Indexical | DataVar
 
 
 class Bus(Term):
@@ -304,7 +340,7 @@ class Bus(Term):
     """
 
     def __pow__(self, other: Datamer | Iterable[Datamer]) -> Chunk:
-        if isinstance(other, (Atom, Chunk, Rule, Var)):
+        if isinstance(other, (Atom, Chunk, Rule, Indexical, Var)):
             return Chunk({(self, other): 1.0})
         else:
             return Chunk({(self, atom): 1.0 for atom in other})

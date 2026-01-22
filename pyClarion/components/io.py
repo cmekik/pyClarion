@@ -5,6 +5,7 @@ from math import exp
 from .base import Component, Parametric, Stateful, Priority
 from ..events import Event, State, Site, ForwardUpdate
 from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var, Nodes)
+from ..knowledge.terms import Indexical
 from ..numdicts import Key, KeyForm, numdict, keyform
 
 
@@ -82,14 +83,18 @@ class Input[D: Nodes](Component):
                 if k not in self.main.index:
                     raise ValueError(f"Unexpected key {k}")
                 data[k] = v
-        if isinstance(d, Chunk):
+        elif isinstance(d, Chunk):
             for (t1, t2), weight in d._dyads_.items():
                 if isinstance(t1, Var) or isinstance(t2, Var):
+                    raise TypeError("Var not allowed in input chunk.")
+                elif isinstance(t1, Indexical) or isinstance(t2, Indexical):
                     raise TypeError("Var not allowed in input chunk.")
                 key = ~t1 * ~t2
                 if key not in self.main.index:
                     raise ValueError(f"Unexpected dimension-value pair {key}")
                 data[key] = weight
+        else:
+            raise TypeError(f"Unexpected input of type '{type(d).__name__}'")
         return data
 
 
