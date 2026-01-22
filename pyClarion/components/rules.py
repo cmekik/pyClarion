@@ -137,3 +137,13 @@ class RuleStore(Component):
         layer = Layer(name, self.r, self.rhs, func=func, l=l)
         layer.weights = self.rhw
         return layer
+    
+    def riw_layer(self, 
+        name: str, 
+        *, 
+        func: Unary[NumDict] | None = None, 
+        l: int = 1
+    ) -> Layer[Rules, Rules]:
+        layer = Layer(name, self.r, self.r, func=func, l=l)
+        layer.weights = self.riw
+        return layer

@@ -318,7 +318,7 @@ class Rule(Compound):
         kt, kr = (~self,) * 2
         if self._template_ is not None:
             kt = ~self._template_
-        riw[kt * kr] = 1.0
+        riw[kr * kt] = 1.0
         if not self._vars_:
             chunks, weights = zip(*self._chunks_.items())
             for c, w in zip(chunks[:-1], weights[:-1]):

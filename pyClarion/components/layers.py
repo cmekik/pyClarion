@@ -23,7 +23,7 @@ class Mapping[I: Nodes, O: Nodes](Backpropagator):
     o: O
     main: Site = Site()
     input: Site = Site(lax=True)
-    func: Unary[NumDict]
+    func: Unary[NumDict] | None
     fw_by: KeyForm
     bw_by: KeyForm
 
@@ -31,7 +31,7 @@ class Mapping[I: Nodes, O: Nodes](Backpropagator):
         name: str, 
         i: I,
         o: O,
-        func: Unary[NumDict], 
+        func: Unary[NumDict] | None = None, 
         *,
         l: int = 1
     ) -> None:
@@ -59,7 +59,80 @@ class Mapping[I: Nodes, O: Nodes](Backpropagator):
         """Compute and propagate forward activations."""
         input = self.input[0]
         with GradientTape() as tape:
-            main = self.func(self.main.new({}).sum(input))        
+            main = self.main.new({}).sum(input)
+            if self.func is not None:
+                main = self.func(main)        
+        self.push_tape(tape, main, [input])            
+        return Event(self.forward, 
+            [ForwardUpdate(self.main, main)],
+            dt, priority)
+        
+    def backward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> Event:
+        """
+        Compute gradients and backpropagate errors.
+        
+        Computed gradients from successive calls to this method will accumulate 
+        at gradient sites. This allows layers to receive asynchronous error 
+        signals. 
+        
+        Typically, gradient sites will be cleared by an optimizer after it has 
+        consumed their data for weight updates. 
+        """
+        tape, main, args = self.tapes[-1]
+        g_main = self.main.grad[0]
+        g_i, = tape.gradients(main, args, g_main) 
+        return Event(self.backward,
+            [BackwardUpdate(self.input, g_i)],
+            dt, priority)
+    
+
+class Accumulator[D: Nodes](Backpropagator):
+    """
+    Transforms an input signal according to a given function.
+    
+    Implements forward propagation of activation signals and backward 
+    propagation of error signals.
+    """
+
+    d: D
+    main: Site = Site()
+    input: Site = Site(lax=True)
+    func: Unary[NumDict] | None
+    fw_by: KeyForm
+    bw_by: KeyForm
+
+    def __init__(self, 
+        name: str, 
+        d: D,
+        *,
+        l: int = 1
+    ) -> None:
+        super().__init__(name)
+        idx, = self._init_indexes(d)
+        self.d = d
+        self.main = State(idx, {}, 0.0)
+        self.input = State(idx, {}, 0.0)
+        self.tapes = deque([], maxlen=l)
+
+    def resolve(self, event: Event) -> None:
+        forward = event.index(ForwardUpdate)
+        backward = event.index(BackwardUpdate)
+        if self.input in forward:
+            self.system.schedule(self.forward())
+        if len(self.tapes) == self.tapes.maxlen and self.main in backward:
+            self.system.schedule(self.backward())
+
+    def forward(self, 
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.PROPAGATION
+    ) -> Event:
+        """Compute and propagate forward activations."""
+        input = self.input[0]
+        with GradientTape() as tape:
+            main = self.main[0].sum(input)
         self.push_tape(tape, main, [input])            
         return Event(self.forward, 
             [ForwardUpdate(self.main, main)],
