@@ -85,10 +85,8 @@ class Input[D: Nodes](Component):
                 data[k] = v
         elif isinstance(d, Chunk):
             for (t1, t2), weight in d._dyads_.items():
-                if isinstance(t1, Var) or isinstance(t2, Var):
-                    raise TypeError("Var not allowed in input chunk.")
-                elif isinstance(t1, Indexical) or isinstance(t2, Indexical):
-                    raise TypeError("Var not allowed in input chunk.")
+                if not isinstance(t1, Term) or not isinstance(t2, Term):
+                    raise TypeError("Input chunk may not contain variables.")
                 key = ~t1 * ~t2
                 if key not in self.main.index:
                     raise ValueError(f"Unexpected dimension-value pair {key}")

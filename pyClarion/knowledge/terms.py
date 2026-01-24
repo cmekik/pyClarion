@@ -1,18 +1,12 @@
 from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload
 from weakref import WeakSet
-from itertools import product
+from itertools import product, count
+from contextlib import contextmanager
 import enum
 
-from .base import Term, Var
-from ..numdicts import Key
-
-
-class Indexical(enum.Enum):
-    chunk = enum.auto()
-    rule = enum.auto()
-
-
-this = Indexical
+from .base import Symbol, Sort, Term
+from ..numdicts import Key, KeyForm, ks_parent
+from ..numdicts.keyspaces import KSProtocol, KSPath
 
 
 class Atom(Term):
@@ -22,6 +16,89 @@ class Atom(Term):
     Represents some basic data element (e.g., a feature, a parameter, etc.).
     """
     pass
+
+
+class Indexical(Symbol, enum.Enum):
+    chunk = enum.auto()
+    rule = enum.auto()
+    chunk_instance = enum.auto()
+    rule_instance = enum.auto()
+
+
+this = Indexical
+
+
+class Var[S: Sort](KSProtocol, Symbol):
+    """A variable data term."""
+    name: str
+    sort: S
+    _subset: frozenset[Term]
+
+    def __init__(self, name: str, sort: S) -> None:
+        self.name = name
+        self.sort = sort
+        self._subset = frozenset()
+
+    def __call__(self, valuation: dict[str, Term]) -> Term:
+        term = valuation[self.name]
+        if self.validate(term):
+            return term
+        raise ValueError(f"Value {term} assigned to Var {self} does not "
+            "belong to the correct sort.")
+
+    def __contains__(self, key: str | Key) -> bool:
+        try:
+            term = self.sort._members_[Key(key)]
+        except KeyError:
+            return False
+        return self.validate(term)
+
+    def __iter__(self) -> Iterator[str]:
+        for key in self._iter_(1):
+            yield key[1][0]
+
+    def __invert__(self) -> Key:
+        return ~self.sort
+
+    __mul__ = KSPath.__mul__
+
+    def _keyform_(self, *hs: int) -> KeyForm:
+        return self.sort._keyform_(*hs)
+    
+    def _iter_(self, *hs: int) -> Iterator[Key]:
+        h, = hs
+        if h <= 0:
+            return
+        if h == 1:
+            for key in self.sort._members_:
+                if key in self:
+                    yield key 
+    
+    def validate(self, term: Term) -> bool:
+        if ks_parent(term) != self.sort:
+            return False
+        if self._subset and term not in self._subset:
+            return False
+        return True
+
+    @contextmanager
+    def subset(self, keys: Iterable[Term]):
+        if keys:
+            _subset = self._subset
+            self._subset = self._subset & frozenset(keys)
+            yield self
+            self._subset = _subset
+        else:
+            yield self
+
+
+class MatchVar[C: "Compound"](Symbol):
+    term: C
+    variables: tuple[Var, ...]
+ 
+    def __init__(self, term: C, *variables: Var) -> None:
+        self.term = term
+        self.variables = variables
 
 
 class Compound(Term):
@@ -37,6 +114,7 @@ class Compound(Term):
     _valuation_: frozenset[tuple[Var, Term]]
     _instances_: WeakSet[Self]
     _template_: Self | None
+    _counter_: count
 
 
     def __init__(self, template: Self | None = None) -> None:
@@ -45,6 +123,7 @@ class Compound(Term):
         self._valuation_ = frozenset()
         self._instances_ = WeakSet()
         self._template_ = template
+        self._counter_ = count()
 
     def __rxor__(self: Self, other: str) -> Self:
         if not other.isidentifier():
@@ -53,9 +132,19 @@ class Compound(Term):
         self._name_ = other
         return self
 
+    def __call__(self, *variables: Var) -> MatchVar[Self]:
+        return MatchVar(self, *variables)
+    
+    def _match_(self, vals: dict[Var, Term]) -> set[Self]:
+        candidates = set(self._instances_)
+        for var, val in vals.items():
+            elim = {_t for _t in candidates if not (var, val) in _t._valuation_}
+            candidates = {_t for _t in candidates if _t not in elim}
+        return candidates
+
     @staticmethod
     def _collect_vars_(
-        dyads: Iterable[tuple[Term | Indexical | Var, Term | Indexical | Var]]
+        dyads: Iterable[tuple[Term | Indexical | Var | MatchVar, Term | Indexical | Var | MatchVar]]
     ) -> set[Var]:
         _vars_ = set()
         for dyad in dyads:
@@ -91,20 +180,20 @@ class Chunk(Compound):
     Symbolically represents a Clarion chunk, together with its dimension-value 
     pairs.
     """
-    _dyads_: dict[tuple[Term | Indexical | Var, Term | Indexical | Var], float]
+    _dyads_: dict[tuple[Term | Indexical | Var | MatchVar, Term | Indexical | Var | MatchVar], float]
     _rule_: "Rule | None"
 
     @overload
     def __init__(
         self, 
-        dyads: dict[tuple[Term | Indexical | Var, Term | Indexical | Var], float]
+        dyads: dict[tuple[Term | Indexical | Var  | MatchVar, Term | Indexical | Var | MatchVar], float]
     ) -> None:
         ...
     
     @overload
     def __init__(
         self: Self, 
-        dyads: dict[tuple[Term, Term], float], 
+        dyads: dict[tuple[Term | Indexical, Term | Indexical], float], 
         template: Self
     ) -> None:
         ...
@@ -138,8 +227,8 @@ class Chunk(Compound):
             data.append("Empty chunk")
         return "\n    ".join(data)
 
-    @staticmethod
-    def _str_constituent_(x: Term | Indexical | Var) -> str:
+    @classmethod
+    def _str_constituent_(cls,x: Term | Indexical | Var | MatchVar) -> str:
         match x:
             case Term():
                 key = ~x
@@ -148,10 +237,13 @@ class Chunk(Compound):
                 return f"this.{x.name}"
             case Var():
                 return f"{x.sort._name_}('{x.name}')"
+            case MatchVar():
+                vs = ', '.join([cls._str_constituent_(v) for v in x.variables])
+                return f"{x.term._name_}({vs})"
 
     @classmethod
     def _str_dyad_(cls, 
-        d: Term | Indexical |  Var, v: Term | Indexical | Var, w: float
+        d: Term | Indexical | Var | MatchVar, v: Term | Indexical | Var | MatchVar, w: float
     ) -> str:
         s_d = cls._str_constituent_(d)
         s_v = cls._str_constituent_(v)
@@ -201,30 +293,53 @@ class Chunk(Compound):
         d[self] = 1.0
         return Rule(d)
 
-    def _interpret_constitutent_(self, 
-        x: Term | Indexical | Var, vals: dict[Var, Term]
-    ) -> Term:
-        if isinstance(x, Term):
-            return x
+    def _evaluate_var_(self, 
+        x: Term | Indexical | Var | MatchVar, vals: dict[Var, Term]
+    ) -> Iterable[Term | Indexical]:
+        if isinstance(x, (Term, Indexical)):
+            return (x,)
         elif isinstance(x, Var):
-            return vals[x]
-        elif x is this.chunk:
-            return self if self._template_ is None else self._template_
-        elif x is this.rule:
-            if self._rule_ is None:
-                raise ValueError("Chunk has no parent rule.")
-            return self._rule_
+            return (vals[x],)
+        elif isinstance(x, MatchVar):
+            return x.term._match_(vals)
         else:
             raise ValueError(f"Unexpected consitutent '{x}' in symbolic chunk " 
                 "annotation.")
 
+    def _evaluate_indexicals_(self, x: Term | Indexical) -> Term:
+        if isinstance(x, Term):
+            return x
+        elif x is this.chunk:
+            return self if self._template_ is None else self._template_
+        elif x is this.rule:
+            rule = (self._rule_ if self._template_ is None 
+                else self._template_._rule_)
+            if rule is None:
+                raise ValueError()
+            return rule
+        elif x is this.chunk_instance:
+            return self
+        elif x is this.rule_instance:
+            rule = self._rule_
+            if rule is None:
+                raise ValueError()
+            return rule
+        raise TypeError()
+
     def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
-        dyads: dict[tuple[Term, Term], float] = {} 
+        num = next(self._counter_)
+        try:
+            name = f"{self._name_}_{num}"
+        except AttributeError as e:
+            raise AttributeError("Unnamed abstract chunk.") from e
+        dyads: dict[tuple[Term | Indexical, Term | Indexical], float] = {} 
         for (t1, t2), w in self._dyads_.items():
-            lhs = self._interpret_constitutent_(t1, vals)
-            rhs = self._interpret_constitutent_(t2, vals)
-            dyads[(lhs, rhs)] = w
+            lhs = self._evaluate_var_(t1, vals)
+            rhs = self._evaluate_var_(t2, vals)
+            for _lhs, _rhs in product(lhs, rhs):
+                dyads[(_lhs, _rhs)] = w
         inst = type(self)(dyads, self)
+        inst._name_ = name
         inst._valuation_ = frozenset(vals.items())
         self._instances_.add(inst)
         return inst
@@ -234,11 +349,13 @@ class Chunk(Compound):
         kt, kc = (~self,) * 2
         if self._template_ is not None:
             kt = ~self._template_
-        ciw[kt * kc] = 1.0
+        ciw[kc * kt] = 1.0
+        ciw[kc * kc] = 1.0
         if not self._vars_:
             for (s1, s2), w in self._dyads_.items():
-                t1 = self._interpret_constitutent_(s1, {})
-                t2 = self._interpret_constitutent_(s2, {})
+                assert not isinstance(s1, (Var, MatchVar)) and not isinstance(s2, (Var, MatchVar))
+                t1 = self._evaluate_indexicals_(s1)
+                t2 = self._evaluate_indexicals_(s2)
                 kw = kc * ~t1 * ~t2
                 tdw[kw] = w 
         return ChunkData(ciw=ciw, tdw=tdw)
@@ -257,6 +374,7 @@ class Rule(Compound):
     Symbolically represents a Clarion rule, together with its constituent 
     chunks.
     """
+    _name__ : str
     _chunks_ : dict[Chunk, float]
 
     def __init__(
@@ -297,7 +415,36 @@ class Rule(Compound):
             data.append("Empty rule")
         return "\n    ".join(data)
 
+    @property
+    def _name_(self) -> str:
+        return self._name__
+
+    @_name_.setter
+    def _name_(self, name: str) -> None:
+        try:
+            self._name_
+        except AttributeError:
+            pass
+        else:
+            try:
+                self._parent_
+            except AttributeError:
+                pass
+            else:
+                raise ValueError("Name already set.")
+        self._name__ = name
+        for i, chunk in enumerate(self._chunks_):
+            try:
+                chunk._name_
+            except AttributeError:
+                chunk._name_ = f"{self._name_}_{i}"
+
     def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
+        num = next(self._counter_)
+        try: 
+            name = f"{self._name_}_{num}"
+        except AttributeError as e:
+            raise AttributeError("Unnamed abstract rule.") from e
         chunks = {}
         for c, w in self._chunks_.items():
             if not c._vars_:
@@ -311,7 +458,11 @@ class Rule(Compound):
                 raise ValueError("Vals does not select unique instance")
             i, = matches 
             chunks[i] = w
-        return type(self)(chunks, self)
+        inst = type(self)(chunks, self)
+        inst._name_ = name
+        inst._valuation_ = frozenset(vals.items())
+        self._instances_.add(inst)
+        return inst
 
     def _compile_(self: "Rule") -> RuleData:
         riw = {}; lhw = {}; rhw = {}
@@ -319,6 +470,7 @@ class Rule(Compound):
         if self._template_ is not None:
             kt = ~self._template_
         riw[kr * kt] = 1.0
+        riw[kr * kr] = 1.0
         if not self._vars_:
             chunks, weights = zip(*self._chunks_.items())
             for c, w in zip(chunks[:-1], weights[:-1]):
@@ -328,8 +480,7 @@ class Rule(Compound):
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
 
 
-type DataVar = Var #[Sort[Atom]] | Var[Sort[Chunk]] | Var[Sort[Rule]]
-type Datamer = Atom | Chunk | Rule | Indexical | DataVar
+type Datamer = Atom | Chunk | Rule | Indexical | Var | MatchVar
 
 
 class Bus(Term):
@@ -340,7 +491,7 @@ class Bus(Term):
     """
 
     def __pow__(self, other: Datamer | Iterable[Datamer]) -> Chunk:
-        if isinstance(other, (Atom, Chunk, Rule, Indexical, Var)):
+        if isinstance(other, (Atom, Chunk, Rule, Indexical, Var, MatchVar)):
             return Chunk({(self, other): 1.0})
         else:
             return Chunk({(self, atom): 1.0 for atom in other})

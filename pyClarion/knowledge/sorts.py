@@ -1,7 +1,7 @@
 from typing import Self, Sequence, overload
 
-from .base import Sort, Var
-from .terms import Bus, Atom, Compound, Chunk, Rule
+from .base import Sort
+from .terms import Var, Bus, Atom, Compound, Chunk, Rule
 
 
 class Fundaments[C: Bus | Atom](Sort[C]):

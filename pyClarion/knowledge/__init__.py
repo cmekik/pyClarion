@@ -1,5 +1,5 @@
-from .base import Symbol, Term, Sort, Var, Family, Root
-from .terms import Bus, Atom, Compound, Chunk, Rule
+from .base import Symbol, Term, Sort, Family, Root
+from .terms import Var, Bus, Atom, Compound, Chunk, Rule
 from .sorts import Buses, Atoms, Compounds, Chunks, Rules
 from .families import DataFamily, AtomFamily, ChunkFamily, RuleFamily, BusFamily
 

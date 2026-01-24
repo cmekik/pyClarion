@@ -74,6 +74,11 @@ class RuleStore(Component):
         new_lhs_chunks = []
         new_rhs_chunks = []
         for rule in rules:
+            num = next(self.r._counter_)
+            try:
+                rule._name_
+            except AttributeError:
+                rule._name_ = f"rule_{num}"
             for i, chunk in enumerate(rule._chunks_):
                 chunk_instances = list(chunk._instantiations_())
                 chunk._instances_.update(chunk_instances)

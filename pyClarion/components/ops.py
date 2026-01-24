@@ -13,6 +13,10 @@ class Cost(OpBase[NumDict]):
         if isinstance(by, KeyForm):
             by = (by, by)
         it = collect(est, tgt, msk, mode="match", branches=by)
+        if (not isinstance(est._c, float) 
+            or not isinstance(tgt._c, float) 
+            or not isinstance(msk._c, float)):
+            raise ValueError()
         new_c = type(self).kernel(est._c, tgt._c, msk._c)
         new_d = {k: v for k, (v1, v2, v3) in it 
             if (v := type(self).kernel(v1, v2, v3)) != new_c}

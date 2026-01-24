@@ -201,6 +201,11 @@ class ChunkStore[D: DVPairs](Component):
         """Encode a collection of new chunks."""
         new = [*chunks]
         for chunk in chunks:
+            num = next(self.c._counter_)
+            try:
+                chunk._name_
+            except AttributeError:
+                chunk._name_ = f"chunk_{num}"
             instances = list(chunk._instantiations_())
             chunk._instances_.update(instances)
             new.extend(instances)
