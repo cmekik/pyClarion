@@ -1,4 +1,4 @@
-from typing import Self, Sequence, overload
+from typing import Self, Sequence, Generator, Never, overload
 
 from .base import Sort
 from .terms import Var, Bus, Atom, Compound, Chunk, Rule
@@ -8,8 +8,8 @@ class Fundaments[C: Bus | Atom](Sort[C]):
     """A data sort for atomic terms.""" 
     _vars_: dict[str, Var]
 
-    def __init__(self, name: str = "") -> None:
-        super().__init__(name)
+    def __init__(self, name: str = "", prefix: str = "") -> None:
+        super().__init__(name, prefix)
         self._vars_ = {}
 
     @overload
@@ -34,12 +34,15 @@ class Atoms(Fundaments[Atom]):
     (e.g., color terms, shape terms, etc.).
     """
     _mtype_ = Atom
+    def __init__(self, name: str = "", prefix: str = "atom"):
+        super().__init__(name, prefix)
 
 
 class Buses(Fundaments[Bus]):
     """A data sort for data lines."""
-
     _mtype_ = Bus
+    def __init__(self, name: str = "", prefix: str = "atom"):
+        super().__init__(name, prefix)
 
 
 class Compounds[C: Compound](Sort[C]):
@@ -57,8 +60,8 @@ class Chunks(Compounds[Chunk]):
     _mtype_ = Chunk
     nil: Chunk
 
-    def __init__(self, name: str = ""):
-        super().__init__(name)
+    def __init__(self, name: str = "", prefix: str = "chunk"):
+        super().__init__(name, prefix)
 
 
 class Rules(Compounds[Rule]):
@@ -71,5 +74,5 @@ class Rules(Compounds[Rule]):
     _mtype_ = Rule
     nil: Rule 
 
-    def __init__(self, name: str = ""):
-        super().__init__(name)
+    def __init__(self, name: str = "", prefix: str = "rule"):
+        super().__init__(name, prefix)

@@ -1,9 +1,8 @@
-from typing import Type, Iterable, Iterator, ClassVar, get_type_hints
-from contextlib import contextmanager
+from typing import Type, Generator, ClassVar, Never, get_type_hints
 from itertools import count
 
-from ..numdicts import ValidationError, Key, KeyForm, ks_parent
-from ..numdicts.keyspaces import KSProtocol, KSPath, KSRoot, KSNode, KSChild
+from ..numdicts import ValidationError, Key
+from ..numdicts.keyspaces import KSRoot, KSNode, KSChild
 
 
 class Symbol:
@@ -26,6 +25,9 @@ class Term(KSChild, Symbol):
     `Rule` instead.
     """
     _h_offset_ = 0
+    def __init__(self, name: str = "") -> None:
+        if name:
+            self._name_ = name
 
 
 class Sort[C: Term](KSNode[C], Symbol):
@@ -41,9 +43,10 @@ class Sort[C: Term](KSNode[C], Symbol):
     _h_offset_ = 1
     _mtype_: Type[C]
     _required_: frozenset[Key]
+    _prefix_: str
     _counter_: count
 
-    def __init__(self, name: str = "") -> None:
+    def __init__(self, name: str = "", prefix: str = "") -> None:
         super().__init__(name)
         cls = type(self)
         for name, typ in get_type_hints(cls).items():
@@ -51,11 +54,17 @@ class Sort[C: Term](KSNode[C], Symbol):
                 self[name] = typ()
                 setattr(self, name, self[name])
         self._required_ = frozenset(self._members_)
+        self._prefix_ = prefix
         self._counter_ = count()
+        self._namer_ = self._name_generator_()
 
     def __delattr__(self, name: str) -> None:
         if Key(name) in self._required_:
             raise ValidationError(f"Cannot remove required key '{name}'")
+    
+    def _name_generator_(self) -> Generator[str, None, Never]:
+        while True:
+            yield f"{self._prefix_}_{next(self._counter_)}"
 
 
 class Family(KSNode[Sort], Symbol):

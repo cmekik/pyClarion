@@ -49,14 +49,14 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
         if e == p:
             raise ValueError("Args p and e must be distinct")
         self.p = type(self).Params(); p[name] = self.p
-        self.e = Atoms(); e[name] = self.e
+        self.e = Atoms(prefix="e"); e[name] = self.e
         self.d = d
         idx_p = self.system.get_index(keyform(self.p))
         idx_e = self.system.get_index(keyform(self.e))
         idx_d = self.system.get_index(keyform(d))
         self.unit = unit
         self.ignore = set()
-        self.main = State(idx_d, {}, Undefined)
+        self.main = State(idx_d, {}, 0.0)
         self.input = State(idx_d, {}, 0.0)
         self.times = State(idx_e, {}, Undefined)
         self.decay = State(idx_e, {}, Undefined)
@@ -113,13 +113,12 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
         dt: timedelta = timedelta(), 
         priority: int = Priority.LEARNING
     ) -> Event:
-        ke = ~self.e; name = f"e{next(self.e._counter_)}"
-        key = ke.link(Key(name), ke.size)
+        ke = ~self.e 
+        atom = Atom(name=next(self.e._namer_))
+        key = ke.link(~atom, ke.size)
         time = self.system.clock.time / self.unit
         sc = self.params[0][~self.p.sc] 
         de = self.params[0][~self.p.de]
-        atom = Atom()
-        atom._name_ = name
         return Event(self.invoke, 
             [AtomUpdate(self.e, add=(atom,)),
             ForwardUpdate(self.times, {key: time}, "write"),
@@ -149,7 +148,7 @@ class BaseLevel[D: Atoms | Chunks | Rules](Parametric):
             .exp())
         blas = (self.weights[0]
             .mul(terms)
-            .sum(by=self.main.index.kf, c=Undefined))
+            .sum(by=self.main.index.kf, c=0.0))
         with blas.mutable():
             for k in self.ignore:
                 blas[k] = 1.0

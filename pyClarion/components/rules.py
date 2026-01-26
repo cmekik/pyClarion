@@ -74,11 +74,14 @@ class RuleStore(Component):
         new_lhs_chunks = []
         new_rhs_chunks = []
         for rule in rules:
-            num = next(self.r._counter_)
-            try:
-                rule._name_
-            except AttributeError:
-                rule._name_ = f"rule_{num}"
+            if hasattr(rule, "_parent_"):
+                if rule not in self.system.root:
+                    raise ValueError(f"The following rule belongs to a "
+                        f"different system:\n {rule}")
+                continue
+            name = next(self.r._namer_)
+            if not hasattr(rule, "_name_"):
+                rule._name_ = name
             for i, chunk in enumerate(rule._chunks_):
                 chunk_instances = list(chunk._instantiations_())
                 chunk._instances_.update(chunk_instances)

@@ -1,12 +1,11 @@
-from typing import overload
+from typing import overload, Callable
 from datetime import timedelta
 from math import exp
 
 from .base import Component, Parametric, Stateful, Priority
 from ..events import Event, State, Site, ForwardUpdate
-from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Var, Nodes)
-from ..knowledge.terms import Indexical
-from ..numdicts import Key, KeyForm, numdict, keyform
+from ..knowledge import (Family, Term, Atoms, Atom, Chunk, Bus, Nodes)
+from ..numdicts import NumDict, Key, KeyForm, numdict, keyform
 
 
 class Input[D: Nodes](Component):
@@ -265,3 +264,35 @@ class Discriminal[D: Nodes](Parametric):
              ForwardUpdate(self.sample, sample)],
             time=dt, priority=priority)
 
+
+class Controller(Component):
+    
+    input: Site = Site(lax=True)
+    callbacks: dict[Key, Callable[[], Event]]
+    _const: NumDict
+
+    def __init__(self, 
+        name: str, 
+        b: Bus, 
+        v: Atoms, 
+        **kwargs: Callable[[], Event]
+    ) -> None:
+        for atom in v:
+            if atom != "nil" and atom not in kwargs:
+                raise ValueError(f"Unbound action key '{atom}'")
+        super().__init__(name)
+        self.system.check_root(b, v)
+        idx_b, idx_v = self._init_indexes(b, v)
+        self.input = State(idx_b * idx_v, {}, 0.0)
+        self._const = numdict(idx_b * idx_v, {}, 0.0)
+        self.callbacks = {~b * ~v[kwd]: cb for kwd, cb in kwargs.items()}
+
+    def resolve(self, event: Event) -> None:
+        forward = event.index(ForwardUpdate)
+        if self.input in forward:
+            action = self.callbacks.get(self.poll(), None)
+            if action is not None: 
+                self.system.schedule(action())
+
+    def poll(self) -> Key:
+        return self._const.sum(self.input[0]).argmax()

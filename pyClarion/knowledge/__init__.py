@@ -10,7 +10,7 @@ type SemanticFamily = DataFamily | AtomFamily | ChunkFamily | RuleFamily
 type SemanticSubspace = SemanticFamily | SemanticSort
 type SemanticKeySpace = SemanticFamily | SemanticSort | SemanticTerm
 type StructuralKeySpace = BusFamily | Buses | Bus
-type DVPairs = tuple[Buses | Bus, SemanticSubspace]
+type DVPairs = tuple[StructuralKeySpace, SemanticSubspace]
 type Nodes = DVPairs | Chunks | Rules
 
 __all__ = [

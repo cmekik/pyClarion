@@ -199,13 +199,17 @@ class ChunkStore[D: DVPairs](Component):
         priority=Priority.LEARNING
     ) -> Event:
         """Encode a collection of new chunks."""
-        new = [*chunks]
+        new = []
         for chunk in chunks:
-            num = next(self.c._counter_)
-            try:
-                chunk._name_
-            except AttributeError:
-                chunk._name_ = f"chunk_{num}"
+            if not hasattr(chunk, "_parent_"):
+                new.append(chunk)
+            elif chunk not in self.system.root:
+                raise ValueError(f"The following chunk belongs to a "
+                    f"different system:\n {chunk}")
+        for chunk in new:
+            name = next(self.c._namer_)
+            if not hasattr(chunk, "_name_"):
+                chunk._name_ = name
             instances = list(chunk._instantiations_())
             chunk._instances_.update(instances)
             new.extend(instances)
