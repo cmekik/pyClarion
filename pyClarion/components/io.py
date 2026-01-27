@@ -118,7 +118,7 @@ class Choice[D: Nodes](Stateful, Parametric):
     input: Site = Site(lax=True)
     sample: Site = Site()
     params: Site = Site()
-    state: Site = Site()
+    status: Site = Site()
 
     def __init__(self, 
         name: str, 
@@ -134,12 +134,13 @@ class Choice[D: Nodes](Stateful, Parametric):
         self.system.check_root(p)
         index, = self._init_indexes(d)
         self.p, self.params = self._init_sort(p, type(self).Params, sd=sd, f=f)
-        self.s, self.state = self._init_sort(s, type(self).State, c=0., free=1.)
+        self.s, self.status = self._init_sort(s, type(self).State, c=0., free=1.)
         self.d = d
         self.main = State(index, {}, 0.0, l=l)
         self.input = State(index, {}, 0.0, l=l)
         self.sample = State(index, {}, 0.0, l=l)
         self.by = self._init_by(d)
+        self._triggers = {self.trigger}
 
     @staticmethod
     def _init_by(s: D) -> KeyForm:
@@ -149,11 +150,6 @@ class Choice[D: Nodes](Stateful, Parametric):
                 return keyform(d) * keyform(v, -1)
             case s:
                 return keyform(s, -1)
-    
-    @property
-    def locked(self) -> bool:
-        return self.current_state == ~self.s.busy \
-            or any(event.source == self.trigger for event in self.system.queue)
 
     def poll(self) -> dict[Key, Key]:
         """Return a symbolic representation of current decision."""
@@ -172,11 +168,7 @@ class Choice[D: Nodes](Stateful, Parametric):
         
         Raises a RuntimeError if called when self.locked evaluates to True.
         """
-        if self.locked:
-            raise RuntimeError(f"Process {self.name} already triggered.")
-        return Event(self.trigger, 
-            [ForwardUpdate(self.state, {~self.s.busy: 1.0})], 
-            dt, priority)
+        return self._trigger(self.trigger, self.s.busy, dt, priority)
 
     def select(self, 
         dt: timedelta = timedelta(), 
@@ -200,7 +192,7 @@ class Choice[D: Nodes](Stateful, Parametric):
         return Event(self.select,
             [ForwardUpdate(self.main, {v: 1.0 for v in choices.values()}),
              ForwardUpdate(self.sample, sample),
-             ForwardUpdate(self.state, {~self.s.free: 1.0})],
+             ForwardUpdate(self.status, {~self.s.free: 1.0})],
             time=dt, priority=priority)
     
 

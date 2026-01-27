@@ -117,12 +117,46 @@ class Parametric[P: Atoms](Component):
 
 class Stateful[S: Atoms](Component):
     s: S
-    state: Site = Site()
+    status: Site = Site()
+    _triggers: set[Callable[..., Event]]
+
+    def __init__(self, name: str, *triggers: Callable[..., Event]) -> None:
+        super().__init__(name)
+        self._triggers = set(triggers)
 
     @property
-    def current_state(self) -> Key:
-        return self.state[0].argmax()
+    def current_status(self) -> Key:
+        return self.status[0].argmax()
     
+    @property
+    def locked(self) -> bool:
+        if self.current_status != ~self.s[next(iter(self.s))]:
+            return True
+        elif any(event.source in self._triggers for event in self.system.queue):
+            return True
+        return False
+
+    def _trigger(self, 
+        source: Callable[..., Event],
+        state: Atom,
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.DEFERRED
+    ) -> Event:
+        if self.locked:
+            raise RuntimeError(f"Process {self.name} already triggered.")
+        return Event(source, 
+            [ForwardUpdate(self.status, {~state: 1.0})], 
+            dt, priority)
+
+    def _terminate(self, 
+        source: Callable[..., Event],
+        dt: timedelta = timedelta(), 
+        priority: Priority = Priority.DEFERRED
+    ) -> Event:
+        return Event(source, 
+            [ForwardUpdate(self.status, {~self.s[next(iter(self.s))]: 1.0})], 
+            dt, priority)
+
 
 class Backpropagator(Component):
     tapes: deque[tuple[GradientTape[NumDict], NumDict, list[NumDict]]]
