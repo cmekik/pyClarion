@@ -198,7 +198,7 @@ class Sin[D: "nd.NumDict"](Unary[D]):
     
 
 class Tan[D: "nd.NumDict"](Unary[D]):
-    kernel = math.tanh
+    kernel = math.tan
     def grad(self, g: D, r: D, d: D, /) -> D:
         return d.cos().inv(0.0).pow(2).mul(g)
 
@@ -216,7 +216,7 @@ class Sinh[D: "nd.NumDict"](Unary[D]):
 
 
 class Tanh[D: "nd.NumDict"](Unary[D]):
-    kernel = math.expm1
+    kernel = math.tanh
     def grad(self, g: D, r: D, d: D, /) -> D:
         return d.cosh().inv(0.0).pow(2).mul(g)
 
@@ -246,13 +246,13 @@ class Acosh[D: "nd.NumDict"](Unary[D]):
     
 
 class Asinh[D: "nd.NumDict"](Unary[D]):
-    kernel = math.acosh
+    kernel = math.sinh
     def grad(self, g: D, r: D, d: D, /) -> D:
         return d.pow(2).shift(1.0).pow(.5).inv(0.0).mul(g)
 
 
 class Atanh[D: "nd.NumDict"](Unary[D]):
-    kernel = math.acosh
+    kernel = math.atanh
     def grad(self, g: D, r: D, d: D, /) -> D:
         return d.pow(2).neg().shift(1.0).inv(0.0).mul(g)
 
