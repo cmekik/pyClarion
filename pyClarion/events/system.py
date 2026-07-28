@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from inspect import ismethod
 from itertools import count
-from enum import IntEnum
 import logging
 import heapq
 
@@ -156,6 +155,8 @@ class Process[R: KSRoot]:
         """
 
         root: R_
+        main: "Process"
+        depth: int = 1
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
@@ -194,8 +195,7 @@ class Process[R: KSRoot]:
             if self.logger.isEnabledFor(logging.INFO):
                 msg = event.describe()
                 self.logger.info(msg)
-            for proc in self.procs:
-                proc.resolve(event)
+            self.main.resolve(event)
             return event
         
         def run_all(self) -> None:
@@ -222,7 +222,7 @@ class Process[R: KSRoot]:
             if root is None:
                 raise ValueError("Root must not be None.")
             self.name = name
-            self.system = self.System(root)
+            self.system = self.System(root, self)
         else:
             if any(proc.name == name for proc in sup.system.procs):
                 raise ValueError(f"Duplicate process name '{name}'")
