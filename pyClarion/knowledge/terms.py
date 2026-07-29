@@ -18,6 +18,20 @@ class Atom(Term):
     pass
 
 
+class Param(Term):
+    """
+    An atomic parameter term.
+
+    Represents some basic model parameter.
+    """
+
+    init_val: float
+
+    def __init__(self, name: str = ""):
+        super().__init__(name)
+        self.init_val = float("nan")
+
+
 class Indexical(Symbol, enum.Enum):
     chunk = enum.auto()
     rule = enum.auto()

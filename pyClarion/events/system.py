@@ -23,16 +23,18 @@ class Update[I: Hashable](Protocol):
         ...
 
 
-class Action:
-    __slots__ = ("source", "updates", "duration", "priority")
+class Action[P: Process]:
+    __slots__ = ("source", "fluent", "updates", "duration", "priority")
 
-    source: "Process"
+    source: P
+    fluent: Enum | None
     updates: list[Update]
     duration: timedelta
     priority: int
 
-    def __init__(self, source: "Process") -> None:
+    def __init__(self, source: P) -> None:
         self.source = source
+        self.fluent = None
         self.updates = []
         self.duration = timedelta()
         self.priority = 0
@@ -171,6 +173,8 @@ class Process[R: KSRoot]:
                     raise RuntimeError(
                         f"Update scheduled by {event.action.source.name} at "
                         f"{event.time} failed") from e
+            if event.action.fluent is not None:
+                self.states[event.action.source] = event.action.fluent
             if event.action.source.is_blocking:
                 self.active.remove(event.action.source)
             if self.logger.isEnabledFor(logging.INFO):

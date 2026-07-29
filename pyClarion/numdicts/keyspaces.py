@@ -60,20 +60,9 @@ class KSProduct[*Ts](KSProtocol):
             k = k * ~p
         return k
 
-    @overload
     def __mul__[T: KSPath](self, other: T) -> "KSProduct[*Ts, T]":
-        ...
-    
-    @overload
-    def __mul__[*Us](self, other: "KSProduct[*Us]") \
-        -> "KSProduct[*Ts, *Us]":
-        ...
-
-    def __mul__(self, other):
         if isinstance(other, KSPath):
             return KSProduct(*self.paths, other)
-        if isinstance(other, KSProduct):
-            return KSProduct(*self.paths, *other.paths)
         return NotImplemented
 
     def _keyform_(self, *hs: int) -> KeyForm:

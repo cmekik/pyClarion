@@ -1,6 +1,6 @@
 from .base import Symbol, Term, Sort, Family, Root
 from .terms import Var, Bus, Atom, Compound, Chunk, Rule
-from .sorts import Buses, Atoms, Compounds, Chunks, Rules
+from .sorts import Buses, Atoms, Compounds, Chunks, Rules, Params
 from .families import DataFamily, AtomFamily, ChunkFamily, RuleFamily, BusFamily
 
 
@@ -16,7 +16,7 @@ type Nodes = DVPairs | Chunks | Rules
 __all__ = [
     "Symbol", "Term", "Sort", "Var", "Family", "Root", 
     "Bus", "Atom", "Compound", "Chunk", "Rule",
-    "Buses", "Atoms", "Compounds", "Chunks", "Rules",
+    "Buses", "Atoms", "Compounds", "Chunks", "Rules", "Params",
     "DataFamily", "AtomFamily", "ChunkFamily", "RuleFamily", "BusFamily",
     "SemanticKeySpace", "StructuralKeySpace", "SemanticSubspace",
     "SemanticFamily", "SemanticSort", "SemanticTerm", "DVPairs", "Nodes"

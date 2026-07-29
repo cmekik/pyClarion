@@ -1,10 +1,11 @@
-from typing import Self, Sequence, Generator, Never, overload
+from typing import Self, Sequence, ClassVar, overload
 
 from .base import Sort
-from .terms import Var, Bus, Atom, Compound, Chunk, Rule
+from .terms import Var, Bus, Atom, Param, Compound, Chunk, Rule
+from ..numdicts import Key
 
 
-class Fundaments[C: Bus | Atom](Sort[C]):
+class Fundaments[C: Bus | Param | Atom](Sort[C]):
     """A data sort for atomic terms.""" 
     _vars_: dict[str, Var]
 
@@ -36,6 +37,25 @@ class Atoms(Fundaments[Atom]):
     _mtype_ = Atom
     def __init__(self, name: str = "", prefix: str = "atom"):
         super().__init__(name, prefix)
+
+
+class Params(Fundaments[Param]):
+    """
+    A data sort for parameter atoms.
+
+    Represents a collection of parameter terms.
+    """
+
+    _mtype_ = Param
+    _init_val_defaults_: ClassVar[dict[str, float]]
+
+    def __init__(self, name: str = "", prefix: str = "params"):
+        super().__init__(name, prefix)
+        for label, value in self._init_val_defaults_.items():
+            self[label].init_val = value
+
+    def _init_values_(self) -> dict[Key, float]:
+        return {~self[label]: self[label].init_val for label in self}
 
 
 class Buses(Fundaments[Bus]):
