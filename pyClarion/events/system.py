@@ -1,4 +1,4 @@
-from typing import Callable, Protocol, Hashable, cast
+from typing import Callable, Protocol, Hashable, ClassVar, cast
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -51,6 +51,15 @@ class Event:
                 .setdefault(ud.target, [])
                 .append(ud))
 
+    def __lt__(self, other) -> bool:
+        if isinstance(other, Event):
+            if self.time == other.time:
+                if self.priority == other.priority:
+                    return self.number < other.number
+                return self.priority > other.priority
+            return self.time < other.time
+        return NotImplemented
+
     def __repr__(self) -> str:
         if ismethod(self.source) and isinstance(self.source.__self__, Process):
             source = f"{self.source.__self__.name}.{self.source.__name__}"
@@ -85,15 +94,6 @@ class Event:
     def index[U: Update](self, update_type: type[U]) \
         -> dict[Hashable, list[U]]:
         return cast(dict[Hashable, list[U]], self._index.get(update_type, {}))
-
-    def __lt__(self, other) -> bool:
-        if isinstance(other, Event):
-            if self.time == other.time:
-                if self.priority == other.priority:
-                    return self.number < other.number
-                return self.priority > other.priority
-            return self.time < other.time
-        return NotImplemented
 
 
 @dataclass(slots=True)
@@ -160,6 +160,7 @@ class Process[R: KSRoot]:
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
+        locked: set["Process"] = field(default_factory=set)
         logger: logging.Logger = logging.getLogger(__name__)
 
         def check_root(self, *keyspaces: KSPath) -> None:
@@ -209,8 +210,11 @@ class Process[R: KSRoot]:
             while self.queue and self.clock.has_time:
                 self.advance()
 
+    is_blocking: ClassVar[bool] = True
+
     name: str
     system: System
+    parent: "Process | None" 
     __tokens: list[Token]
 
     def __init__(self, name: str, root: R | None = None) -> None:
@@ -223,11 +227,16 @@ class Process[R: KSRoot]:
                 raise ValueError("Root must not be None.")
             self.name = name
             self.system = self.System(root, self)
+            self.parent = None
         else:
             if any(proc.name == name for proc in sup.system.procs):
                 raise ValueError(f"Duplicate process name '{name}'")
+            if sup.is_blocking and not self.is_blocking:
+                raise ValueError("Cannot subordinate non-blocking process "
+                    "to a blocking process.")
             self.name = name
             self.system = sup.system
+            self.parent = sup
         self.__tokens = []
         self.system.procs.append(self)
 
@@ -241,6 +250,12 @@ class Process[R: KSRoot]:
     def __exit__(self, exc_type, exc_value, traceback):
         PROCESS.reset(self.__tokens.pop())
 
+    def lineage(self) -> "list[Process]":
+        l, current = [], self
+        while current.parent is not None:
+            l.append(current)
+        return l
+        
     def resolve(self, event: Event) -> None:
         """
         Analyze an event and schedule new events as needed.
