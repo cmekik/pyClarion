@@ -1,9 +1,9 @@
-from typing import Callable, Protocol, Hashable, ClassVar, cast
+from typing import Protocol, Hashable, ClassVar
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import timedelta
-from inspect import ismethod
 from itertools import count
+from enum import Enum
 import logging
 import heapq
 
@@ -23,6 +23,21 @@ class Update[I: Hashable](Protocol):
         ...
 
 
+class Action:
+    __slots__ = ("source", "updates", "duration", "priority")
+
+    source: "Process"
+    updates: list[Update]
+    duration: timedelta
+    priority: int
+
+    def __init__(self, source: "Process") -> None:
+        self.source = source
+        self.updates = []
+        self.duration = timedelta()
+        self.priority = 0
+
+
 @dataclass(slots=True)
 class Event:
     """
@@ -35,65 +50,25 @@ class Event:
 
     Do not mutate any event attribute if the event is marked as scheduled.
     """
-    source: Callable
-    updates: list[Update]
-    time: timedelta = timedelta()
-    priority: int = 0
-    number: int = 0
-    scheduled: bool = False
-    _index: dict[type[Update], dict[Hashable, list[Update]]] = field(init=False)
 
-    def __post_init__(self) -> None:
-        self._index = {}
-        for ud in self.updates:
-            (self._index
-                .setdefault(type(ud), dict())
-                .setdefault(ud.target, [])
-                .append(ud))
+    action: Action
+    time: tuple[timedelta, int, int]
 
     def __lt__(self, other) -> bool:
-        if isinstance(other, Event):
-            if self.time == other.time:
-                if self.priority == other.priority:
-                    return self.number < other.number
-                return self.priority > other.priority
-            return self.time < other.time
-        return NotImplemented
-
-    def __repr__(self) -> str:
-        if ismethod(self.source) and isinstance(self.source.__self__, Process):
-            source = f"{self.source.__self__.name}.{self.source.__name__}"
-        else:
-            source = self.source.__qualname__        
-        return (f"<{self.__class__.__qualname__} "
-            f"source={source} time={repr(self.time)} "
-            f"at {hex(id(self))}>")
-    
-    def append(self, *updates) -> None:
-        self.updates.extend(updates)
-        for ud in updates:
-            (self._index
-                .setdefault(type(ud), dict())
-                .setdefault(ud.target, [])
-                .append(ud))
+        return self.time < other.time
     
     def describe(self) -> str:
-        if ismethod(self.source) and isinstance(self.source.__self__, Process):
-            source = f"{self.source.__self__.name}.{self.source.__name__}"
-        else:
-            source = self.source.__qualname__
-        days = self.time.days
-        hours = (self.time.seconds // 86400) % 24
-        minutes = (self.time.seconds // 3600) % 60 
-        seconds = self.time.seconds % 60
-        centiseconds = int(self.time.microseconds / 10000)
+        action = self.action.__class__.__name__
+        source = self.action.source.name
+        t, p, n = self.time
+        days = t.days
+        hours = (t.seconds // 86400) % 24
+        minutes = (t.seconds // 3600) % 60 
+        seconds = t.seconds % 60
+        centiseconds = int(t.microseconds / 10000)
         time = (f"{days:#06x} {hours:02d}:{minutes:02d}:"
             f"{seconds:02d}.{centiseconds:02d}")
-        return f"event {time} {self.priority:03d} {self.number} {source}"
-    
-    def index[U: Update](self, update_type: type[U]) \
-        -> dict[Hashable, list[U]]:
-        return cast(dict[Hashable, list[U]], self._index.get(update_type, {}))
+        return f"{action} {source} {time} {p:03d} {n}"
 
 
 @dataclass(slots=True)
@@ -160,7 +135,8 @@ class Process[R: KSRoot]:
         clock: Clock = field(default_factory=Clock)
         queue: list[Event] = field(default_factory=list)
         procs: list["Process"] = field(default_factory=list)
-        locked: set["Process"] = field(default_factory=set)
+        active: set["Process"] = field(default_factory=set)
+        states: dict["Process", Enum] = field(default_factory=dict)
         logger: logging.Logger = logging.getLogger(__name__)
 
         def check_root(self, *keyspaces: KSPath) -> None:
@@ -172,27 +148,31 @@ class Process[R: KSRoot]:
         def get_index(self, form: KeyForm | Key | str) -> Index:
             return Index(self.root, form)
 
-        def schedule(self, event: Event) -> None:
-            if event.scheduled:
-                raise ValueError("Cannot reschedule previously scheduled event")
-            if event.time < timedelta():
-                raise ValueError("Cannot schedule an event in the past.")
-            event.time += self.clock.time
-            event.number = next(self.clock.counter)
-            event.scheduled = True
-            heapq.heappush(self.queue, event)
+        def schedule(self, action: Action) -> None:
+            if action.source.is_locked:
+                raise ValueError("Cannot generate event from a locked process.")
+            if action.duration < timedelta():
+                raise ValueError("Action has negative duration")
+            t = self.clock.time + action.duration
+            p = action.priority
+            n = next(self.clock.counter)
+            heapq.heappush(self.queue, Event(action, (t, p, n)))
+            if action.source.is_blocking:
+                self.active.add(action.source)
 
         def advance(self) -> Event:
             """Process the next event in the queue."""
             event = heapq.heappop(self.queue)
-            self.clock.advance(event.time)
-            for update in event.updates:
+            self.clock.advance(event.time[0])
+            for update in event.action.updates:
                 try:
                     update.apply()
                 except Exception as e:
                     raise RuntimeError(
-                        f"Update scheduled by {event.source.__qualname__} at "
+                        f"Update scheduled by {event.action.source.name} at "
                         f"{event.time} failed") from e
+            if event.action.source.is_blocking:
+                self.active.remove(event.action.source)
             if self.logger.isEnabledFor(logging.INFO):
                 msg = event.describe()
                 self.logger.info(msg)
@@ -214,7 +194,8 @@ class Process[R: KSRoot]:
 
     name: str
     system: System
-    parent: "Process | None" 
+    parent: "Process | None"
+    children: "list[Process]"
     __tokens: list[Token]
 
     def __init__(self, name: str, root: R | None = None) -> None:
@@ -228,6 +209,7 @@ class Process[R: KSRoot]:
             self.name = name
             self.system = self.System(root, self)
             self.parent = None
+            self.children = []
         else:
             if any(proc.name == name for proc in sup.system.procs):
                 raise ValueError(f"Duplicate process name '{name}'")
@@ -237,8 +219,19 @@ class Process[R: KSRoot]:
             self.name = name
             self.system = sup.system
             self.parent = sup
+            self.parent.children.append(self)
         self.__tokens = []
         self.system.procs.append(self)
+
+    @property
+    def is_locked(self) -> bool:
+        if not self.is_blocking:
+            return False
+        elif self.parent is None or not self.parent.is_blocking:
+            return any(p in self.system.active for p in self.descendants())
+        else:
+            cluster = self.cluster()
+            return cluster.is_locked 
 
     def __repr__(self) -> str:
         return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"        
@@ -250,21 +243,15 @@ class Process[R: KSRoot]:
     def __exit__(self, exc_type, exc_value, traceback):
         PROCESS.reset(self.__tokens.pop())
 
-    def lineage(self) -> "list[Process]":
-        l, current = [], self
-        while current.parent is not None:
-            l.append(current)
-        return l
+    def cluster(self) -> "Process":
+        current = self
+        while current.parent is not None and current.parent.is_blocking:
+            current = current.parent
+        return current
+
+    def descendants(self) -> "list[Process]":
+        return [self, *(p for c in self.children for p in c.descendants())]
         
     def resolve(self, event: Event) -> None:
-        """
-        Analyze an event and schedule new events as needed.
-        
-        Typically, dispatches calls to various event scheduling methods.
-        """
+        """Analyze current event and schedule new events as needed."""
         pass
-
-    def breakpoint(self, dt: timedelta, priority: int = 0) \
-        -> Event:
-        """Schedule a dummy event at specified time."""
-        return Event(self.breakpoint, [], dt, priority, 0)
