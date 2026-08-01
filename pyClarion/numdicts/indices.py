@@ -5,7 +5,8 @@ from weakref import WeakSet
 from math import prod
 
 from.keys import Key, KeyForm
-from .keyspaces import (Path, Root, Parent, Child, KSObserver, KeyGroup, find_root)
+from .keyspaces import (Path, Parent, Root, Node, Child, KSObserver, KeyGroup, 
+    find_root)
 
 
 class Index[R: Root](KSObserver):
@@ -42,12 +43,12 @@ class Index[R: Root](KSObserver):
         self.observers = WeakSet()
         self.groups = {i: KeyGroup(levels[i], heights[i]) for i in leaves}
         for ksp in levels:
-            if isinstance(ksp, Parent):
+            if isinstance(ksp, (Root, Node)):
                 self.subscribe(ksp)
 
     @staticmethod
     def _init(root: Root, keyform: KeyForm) \
-        -> tuple[list[int], dict[int, int], list[Path]]:
+        -> tuple[list[int], dict[int, int], list[Node | Child]]:
         keyspaces, parents = [], []
         leaves, hs, heights = [], iter(keyform.h), {}
         for i, (label, degree) in enumerate(keyform.k):

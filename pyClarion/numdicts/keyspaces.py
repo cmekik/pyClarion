@@ -365,9 +365,12 @@ def crawl(ks: Parent, star: Key) -> Path | Dyad | Triad | Product:
         raise ValueError(f"Key {star} is not a star")
     if star[0][1] == 1:
         ksp = ks
-        for label, _ in star[1:]:
-            if not isinstance(ks, Parent):
-                raise ValidationError(f"{key} not a member of {ks}")
+        for key in star[1:]:
+            label, deg = key
+            if 1 < deg:
+                raise ValueError(f"{key} is not star-shaped")
+            if not isinstance(ksp, Parent):
+                raise ValidationError(f"{key} not a member of {ksp}")
             ksp = ksp[label]
         return ksp  
     elif star[0][1] == 2:
@@ -378,15 +381,15 @@ def crawl(ks: Parent, star: Key) -> Path | Dyad | Triad | Product:
     elif star[0][1] == 3:
         l, c, r = star.split()
         ks_l, ks_c, ks_r = crawl(ks, l), crawl(ks, c), crawl(ks, r)
-        assert isinstance(ks_l, Path) \
-            and isinstance(ks_c, Path) \
-            and isinstance(ks_r, Path)
+        assert isinstance(ks_l, Unit) 
+        assert isinstance(ks_c, Unit) 
+        assert isinstance(ks_r, Unit)
         return Triad((ks_l, ks_c, ks_r))
     else:
         split = star.split()
-        paths = tuple(crawl(ks, path) for path in split)
-        assert all(isinstance(path, Path) for path in paths)
-        return Product(paths)
+        units = tuple(crawl(ks, branch) for branch in split)
+        assert all(isinstance(unit, Unit) for unit in units)
+        return Product(units)
 
 
 @overload
