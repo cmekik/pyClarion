@@ -119,7 +119,7 @@ class Path(Unit):
 class Parent[M: Child](Path):
     """Abstract base class for parent keyspaces."""
     _h_offset_ = 1
-    _required_: ClassVar[frozenset[Key]]
+    _required_: "ClassVar[dict[Key, type[Child]]]"
     _members_: dict[Key, M]
     _observers_: WeakSet["KSObserver"]
     _namer_: Iterator[str]
@@ -136,17 +136,17 @@ class Parent[M: Child](Path):
         except NotImplementedError:
             pass
         else:
-            required = set()
+            required = dict()
             for name, annotation_type in get_type_hints(cls).items():
                 if not isinstance(annotation_type, type):
                     continue
                 elif issubclass(annotation_type, member_type):
-                    required.add(Key(name))
+                    required[Key(name)] = annotation_type
                 elif name != "_parent_" and issubclass(annotation_type, Path):
                     raise TypeError(
                         f"Attribute '{name}' has incompatible type "
                         f"{annotation_type}")
-            cls._required_ = frozenset(required)
+            cls._required_ = required
 
     def __init__(self, init_required: bool = True) -> None:
         super().__init__()
@@ -231,10 +231,9 @@ class Parent[M: Child](Path):
             raise AttributeError() from e
 
     def _initialize_required_members_(self):
-        hints = get_type_hints(type(self))
-        for key in self._required_:
+        for key, required_type in self._required_.items():
             name, _ = key[-1]
-            self[name] = hints[name]()
+            self[name] = cast(M, required_type())
 
 
 class Root[M: Child](Parent[M]):
