@@ -1,12 +1,16 @@
-from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload
+__all__ = ["Atom", "Param", "Indexical", "this", "Var", "MatchVar", "Compound", 
+    "Chunk", "ChunkData", "Rule", "RuleData", "Bus"]
+
+
+from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload, cast
 from weakref import WeakSet
 from itertools import product, count
 from contextlib import contextmanager
 import enum
 
-from .base import Symbol, Sort, Term
-from ..numdicts import Key, KeyForm, ks_parent
-from ..numdicts.keyspaces import KSProtocol, KSPath
+from .base import Sort, Term
+from ..numdicts.keys import Key, KeyForm
+from ..numdicts.keyspaces import Unit, Child, Dyad, Triad, find_parent
 
 
 class Atom(Term):
@@ -32,7 +36,7 @@ class Param(Term):
         self.init_val = float("nan")
 
 
-class Indexical(Symbol, enum.Enum):
+class Indexical(enum.Enum):
     chunk = enum.auto()
     rule = enum.auto()
     chunk_instance = enum.auto()
@@ -42,7 +46,7 @@ class Indexical(Symbol, enum.Enum):
 this = Indexical
 
 
-class Var[S: Sort](KSProtocol, Symbol):
+class Var[S: Sort](Unit):
     """A variable data term."""
     name: str
     sort: S
@@ -74,7 +78,11 @@ class Var[S: Sort](KSProtocol, Symbol):
     def __invert__(self) -> Key:
         return ~self.sort
 
-    __mul__ = KSPath.__mul__
+    def __mul__[T: Child](self: Self, other: T) -> "Dyad[Self, T]":
+        """Return the keyspace obtained by crossing self with other"""
+        if isinstance(other, Child):
+            return Dyad((self, other))
+        return NotImplemented
 
     def _keyform_(self, *hs: int) -> KeyForm:
         return self.sort._keyform_(*hs)
@@ -89,7 +97,7 @@ class Var[S: Sort](KSProtocol, Symbol):
                     yield key 
     
     def validate(self, term: Term) -> bool:
-        if ks_parent(term) != self.sort:
+        if find_parent(term) != self.sort:
             return False
         if self._subset and term not in self._subset:
             return False
@@ -106,13 +114,33 @@ class Var[S: Sort](KSProtocol, Symbol):
             yield self
 
 
-class MatchVar[C: "Compound"](Symbol):
+class MatchVar[C: "Compound"]:
     term: C
     variables: tuple[Var, ...]
  
     def __init__(self, term: C, *variables: Var) -> None:
         self.term = term
         self.variables = variables
+
+
+type Constant = Term | Indexical
+type Variable = Var | MatchVar
+type Symbol = Constant | Variable
+
+
+class Bus(Term):
+    """
+    A data line.
+    
+    Represents some address for activations.
+
+    """
+
+    def __pow__(self, other: Symbol | Iterable[Symbol]) -> "Chunk":
+        if isinstance(other, (Term, Indexical, Var, MatchVar)):
+            return Chunk({(self, other): 1.0})
+        else:
+            return Chunk({(self, atom): 1.0 for atom in other})
 
 
 class Compound(Term):
@@ -157,9 +185,7 @@ class Compound(Term):
         return candidates
 
     @staticmethod
-    def _collect_vars_(
-        dyads: Iterable[tuple[Term | Indexical | Var | MatchVar, Term | Indexical | Var | MatchVar]]
-    ) -> set[Var]:
+    def _collect_vars_(dyads: Iterable[tuple[Symbol, Symbol]]) -> set[Var]:
         _vars_ = set()
         for dyad in dyads:
             for elt in dyad:
@@ -183,8 +209,8 @@ class Compound(Term):
 
 
 class ChunkData(TypedDict):
-    ciw: dict[Key, float]
-    tdw: dict[Key, float]
+    ciw: "dict[Dyad[Chunk, Chunk], float]"
+    tdw: "dict[Triad[Chunk, Bus, Term], float]"
 
 
 class Chunk(Compound):
@@ -194,20 +220,17 @@ class Chunk(Compound):
     Symbolically represents a Clarion chunk, together with its dimension-value 
     pairs.
     """
-    _dyads_: dict[tuple[Term | Indexical | Var | MatchVar, Term | Indexical | Var | MatchVar], float]
+    _dyads_: dict[tuple[Bus, Symbol], float]
     _rule_: "Rule | None"
 
     @overload
-    def __init__(
-        self, 
-        dyads: dict[tuple[Term | Indexical | Var  | MatchVar, Term | Indexical | Var | MatchVar], float]
-    ) -> None:
+    def __init__(self, dyads: dict[tuple[Bus, Symbol], float]) -> None:
         ...
     
     @overload
     def __init__(
         self: Self, 
-        dyads: dict[tuple[Term | Indexical, Term | Indexical], float], 
+        dyads: dict[tuple[Bus, Constant], float], 
         template: Self
     ) -> None:
         ...
@@ -242,7 +265,7 @@ class Chunk(Compound):
         return "\n    ".join(data)
 
     @classmethod
-    def _str_constituent_(cls,x: Term | Indexical | Var | MatchVar) -> str:
+    def _str_constituent_(cls, x: Symbol) -> str:
         match x:
             case Term():
                 key = ~x
@@ -256,16 +279,14 @@ class Chunk(Compound):
                 return f"{x.term._name_}({vs})"
 
     @classmethod
-    def _str_dyad_(cls, 
-        d: Term | Indexical | Var | MatchVar, v: Term | Indexical | Var | MatchVar, w: float
-    ) -> str:
-        s_d = cls._str_constituent_(d)
-        s_v = cls._str_constituent_(v)
+    def _str_dyad_(cls, b: Bus, s: Symbol, w: float) -> str:
+        s_b = cls._str_constituent_(b)
+        s_s = cls._str_constituent_(s)
         sign = "+" if w >= 0 else "-"
         if abs(w) == 1.0:
-            return f"{sign} {s_d} ** {s_v}"
+            return f"{sign} {s_b} ** {s_s}"
         else:           
-            return f"{sign}{abs(w)} * {s_d} ** {s_v}"
+            return f"{sign}{abs(w)} * {s_b} ** {s_s}"
 
     def __pos__(self: Self) -> Self:
         return self
@@ -307,9 +328,8 @@ class Chunk(Compound):
         d[self] = 1.0
         return Rule(d)
 
-    def _evaluate_var_(self, 
-        x: Term | Indexical | Var | MatchVar, vals: dict[Var, Term]
-    ) -> Iterable[Term | Indexical]:
+    def _evaluate_var_(self, x: Symbol, vals: dict[Var, Term]) \
+        -> Iterable[Constant]:
         if isinstance(x, (Term, Indexical)):
             return (x,)
         elif isinstance(x, Var):
@@ -320,7 +340,7 @@ class Chunk(Compound):
             raise ValueError(f"Unexpected consitutent '{x}' in symbolic chunk " 
                 "annotation.")
 
-    def _evaluate_indexicals_(self, x: Term | Indexical) -> Term:
+    def _evaluate_indexicals_(self, x: Constant) -> Term:
         if isinstance(x, Term):
             return x
         elif x is this.chunk:
@@ -346,12 +366,11 @@ class Chunk(Compound):
             name = f"{self._name_}_{num}"
         except AttributeError as e:
             raise AttributeError("Unnamed abstract chunk.") from e
-        dyads: dict[tuple[Term | Indexical, Term | Indexical], float] = {} 
-        for (t1, t2), w in self._dyads_.items():
-            lhs = self._evaluate_var_(t1, vals)
-            rhs = self._evaluate_var_(t2, vals)
-            for _lhs, _rhs in product(lhs, rhs):
-                dyads[(_lhs, _rhs)] = w
+        dyads: dict[tuple[Bus, Constant], float] = {} 
+        for (bus, symbol), w in self._dyads_.items():
+            constants = self._evaluate_var_(symbol, vals)
+            for constant in constants:
+                dyads[(bus, constant)] = w
         inst = type(self)(dyads, self)
         inst._name_ = name
         inst._valuation_ = frozenset(vals.items())
@@ -359,18 +378,18 @@ class Chunk(Compound):
         return inst
 
     def _compile_(self) -> "ChunkData":
-        ciw, tdw = {}, {}
-        kt, kc = (~self,) * 2
+        ciw: dict[Dyad[Chunk, Chunk], float] = {}
+        tdw: dict[Triad[Chunk, Bus, Term], float] = {}
+        kt, kc = (cast(Chunk, self),) * 2
         if self._template_ is not None:
-            kt = ~self._template_
+            kt = cast(Chunk, self._template_)
         ciw[kc * kt] = 1.0
         ciw[kc * kc] = 1.0
         if not self._vars_:
-            for (s1, s2), w in self._dyads_.items():
-                assert not isinstance(s1, (Var, MatchVar)) and not isinstance(s2, (Var, MatchVar))
-                t1 = self._evaluate_indexicals_(s1)
-                t2 = self._evaluate_indexicals_(s2)
-                kw = kc * ~t1 * ~t2
+            for (bus, symbol), w in self._dyads_.items():
+                assert not isinstance(symbol, (Var, MatchVar))
+                term = self._evaluate_indexicals_(symbol)
+                kw = kc * bus * term
                 tdw[kw] = w 
         return ChunkData(ciw=ciw, tdw=tdw)
 
@@ -492,20 +511,3 @@ class Rule(Compound):
             c, w = chunks[-1], weights[-1]
             rhw[kr * ~c] = w
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
-
-
-type Datamer = Atom | Chunk | Rule | Indexical | Var | MatchVar
-
-
-class Bus(Term):
-    """
-    A data line.
-    
-    Represents some address for activations.
-    """
-
-    def __pow__(self, other: Datamer | Iterable[Datamer]) -> Chunk:
-        if isinstance(other, (Atom, Chunk, Rule, Indexical, Var, MatchVar)):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})

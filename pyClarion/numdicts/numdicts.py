@@ -7,7 +7,7 @@ import math
 
 from .keys import KeyForm, Key
 from .indices import Index, IndexObserver
-from .undefined import _Undefined
+from .sentinel import Sentinel, UndefinedType
 from .ops.base import Constant
 
 from .ops import defs
@@ -16,10 +16,10 @@ from .ops import defs
 def numdict(
     i: Index, 
     d: dict[Key, float] | dict[str, SupportsFloat], 
-    c: SupportsFloat | _Undefined
+    c: SupportsFloat | UndefinedType
 ) -> "NumDict":
     d = {Key(k): float(v) for k, v in d.items()}
-    c = c if isinstance(c, _Undefined) else float(c) 
+    c = c if c is Sentinel.UNDEFINED else float(c) 
     return NumDict(i, d, c)
 
 
@@ -39,14 +39,14 @@ class NumDictBase(IndexObserver):
 
     _i: Index
     _d: dict[Key, float]
-    _c: float | _Undefined
+    _c: float | UndefinedType
     _p: bool
 
     def __init__(
         self, 
         i: Index,
         d: dict[Key, float], 
-        c: float | _Undefined,
+        c: float | UndefinedType,
         _v: bool = True
     ) -> None:
         if _v: 
@@ -68,7 +68,7 @@ class NumDictBase(IndexObserver):
         return {k: self._d[k] for k in self._d}
 
     @property
-    def c(self) -> float | _Undefined:
+    def c(self) -> float | UndefinedType:
         return self._c
 
     def __len__(self) -> int:
@@ -77,23 +77,21 @@ class NumDictBase(IndexObserver):
     def __iter__(self) -> Iterator[Key]:
         yield from self._i
 
-    def __contains__(self, key: str | Key) -> bool:
-        k = Key(key)
-        return k in self._i
+    def __contains__(self, key: Key) -> bool:
+        return key in self._i
     
-    def __getitem__(self, key: str | Key) -> float:
-        k = Key(key)
+    def __getitem__(self, key: Key) -> float:
         try:
-            return self._d[k]
+            return self._d[key]
         except KeyError as e:
-            if k in self:
+            if key in self:
                 c = self._c
-                if isinstance(c, _Undefined):
-                    raise KeyError(f"Key '{k}' is undefined") from e
+                if c is Sentinel.UNDEFINED:
+                    raise KeyError(f"Key '{key}' is undefined") from e
                 else:
                     return c
             else:
-                raise KeyError(f"Key '{k}' not a member") from e
+                raise KeyError(f"Key '{key}' not a member") from e
 
     def __repr__(self) -> str:
         return (f"<{type(self).__qualname__} '{self.i.kf.as_key()}' "
@@ -141,13 +139,11 @@ class NumDictBase(IndexObserver):
         ...
 
     @overload
-    def argmax(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
+    def argmax(self, *, by: KeyForm) -> dict[Key, Key]:
         ...
 
-    def argmax(
-        self, *, by: str | Key | KeyForm | None = None
-    ) -> Key | dict[Key, Key]:
-        it = self._d if isinstance(self._c, _Undefined) else self._i
+    def argmax(self, *, by: KeyForm | None = None) -> Key | dict[Key, Key]:
+        it = self._d if self._c is Sentinel.UNDEFINED else self._i
         match by:
             case None:
                 kmax, vmax = None, -math.inf
@@ -173,13 +169,11 @@ class NumDictBase(IndexObserver):
         ...
 
     @overload
-    def argmin(self, *, by: str | Key | KeyForm) -> dict[Key, Key]:
+    def argmin(self, *, by: KeyForm) -> dict[Key, Key]:
         ...
 
-    def argmin(
-        self, *, by: str | Key | KeyForm | None = None
-    ) -> Key | dict[Key, Key]:
-        it = self._d if isinstance(self._c, _Undefined) else self._i
+    def argmin(self, *, by: KeyForm | None = None) -> Key | dict[Key, Key]:
+        it = self._d if self._c is Sentinel.UNDEFINED else self._i
         match by:
             case None:
                 kmin, vmin = None, math.inf
@@ -188,9 +182,7 @@ class NumDictBase(IndexObserver):
                         kmin, vmin = k, self[k] 
                 assert kmin is not None
                 return kmin
-            case by:
-                if isinstance(by, (str, Key)):
-                    by = KeyForm.from_key(Key(by))
+            case KeyForm():
                 reduce = by.reductor(self.i.kf)
                 kmin, vmin = {}, {}
                 for k in it:
@@ -207,10 +199,9 @@ class NumDictBase(IndexObserver):
         self._p = True
 
     @inplace
-    def __setitem__(self, key: str | Key, value: float) -> None:
-        k = Key(key)
-        if k in self:
-            self._d[k] = float(value)
+    def __setitem__(self, key: Key, value: float) -> None:
+        if key in self:
+            self._d[key] = float(value)
         else:
             raise ValueError(f"Key '{key}' not a member")
 
@@ -224,10 +215,7 @@ class NumDictBase(IndexObserver):
         self._d.clear()
     
     @inplace
-    def update(
-        self: Self, 
-        data: Mapping[Key, SupportsFloat] | Mapping[str, SupportsFloat]
-    ) -> None:
+    def update(self: Self, data: Mapping[Key, float]) -> None:
         for k in data:
             if k not in self:
                 raise ValueError(f"Key '{k}' not a member")

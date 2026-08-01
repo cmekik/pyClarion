@@ -1,32 +1,9 @@
-from .numdicts import (ValidationError, Key, KeyForm,
-    Index, NumDict, ks_root, ks_parent, ks_crawl, keyform, numdict)
-from .events import Update, Event, Clock, Process, Site 
-from .knowledge import (Symbol, Term, Sort, Family, Atom, Compound, Chunk, Rule, 
-    Atoms, Chunks, Rules)
-from .components import (Environment, Agent, Input, Choice, Pool, 
-    TopDown, BottomUp, ChunkStore, Layer, Priority 
-    # RuleStore, FixedRules, 
-    # BaseLevel,
-    # Layer, Optimizer, Activation, Cost, ErrorSignal, Supervised, 
-    # TDError, SGD, Adam, MLP, IDN, Train, LeastSquares, Tanh
-    )
+"""
+pyClarion: Experimental implementation of the Clarion cognitive architecture
 
-__all__ = [
-    # from numdicts
-    "ValidationError", "Key", "KeyForm", "Index", "NumDict", 
-    "ks_root", "ks_parent", "ks_crawl", "keyform", "numdict",
-    # from system
-    "Update", "Event", "Clock", "Process", "Site", "Priority",
-    # from knowledge,
-    "Symbol", "Term", "Sort", "Family", "Atom", "Compound", "Chunk", "Rule", 
-    "Atoms", "Chunks", "Rules",
-    # from components
-    "Environment", "Agent", "Input", "Choice", "Pool", "TopDown", "BottomUp", 
-    "ChunkStore", "Layer" 
-    #"RuleStore", "FixedRules", 
-    # "BaseLevel",
-    # "Optimizer", "Activation", "Cost", "ErrorSignal",
-    # "Supervised", "TDError", "LeastSquares", "Tanh",
-    # "SGD", "Adam",
-    # "MLP", "IDN", "Train"
-]
+Submodules:
+- pyClarion.numdicts   : Numerical dictionaries.
+- pyClarion.events     : Discrete event simulation kernel.
+- pyClarion.knowledge  : Knowledge representation.
+- pyClarion.components : Elementary model components and actions.
+"""

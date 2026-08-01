@@ -1,12 +1,15 @@
+__all__ = ["StateUpdate", "ForwardUpdate", "BackwardUpdate", "KeyspaceUpdate"]
+
+
 from typing import Literal
 from dataclasses import dataclass
 from collections import deque
-from math import isnan
 
 from .system import Update
 from .sites import State
-from ..numdicts import Key, NumDict
-from ..numdicts.keyspaces import KSParent, KSChild
+from ..numdicts.keys import Key
+from ..numdicts.numdicts import NumDict
+from ..numdicts.keyspaces import Parent, Child
 
 
 @dataclass(slots=True)
@@ -68,7 +71,7 @@ class BackwardUpdate(StateUpdate):
 
 
 @dataclass(slots=True)
-class KeyspaceUpdate[P: KSParent, C: KSChild](Update[P]):
+class KeyspaceUpdate[P: Parent, C: Child](Update[P]):
     node: P
     add: tuple[C, ...] = ()
     remove: tuple[str, ...] = ()
@@ -87,5 +90,5 @@ class KeyspaceUpdate[P: KSParent, C: KSChild](Update[P]):
             del self.node[name]
 
     @property
-    def target(self) -> KSParent:
+    def target(self) -> Parent:
         return self.node

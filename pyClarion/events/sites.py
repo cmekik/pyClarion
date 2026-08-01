@@ -1,20 +1,24 @@
-from typing import Iterator
-from math import isnan
+__all__ = ["State", "Site"]
+
+
+from typing import Iterator, Any
 from collections import deque
 
 from .system import Process
-from ..numdicts import Index, NumDict, _Undefined, numdict
+from ..numdicts.indices import Index
+from ..numdicts.numdicts import NumDict, numdict
+from ..numdicts.sentinel import UndefinedType
 
 
-class State:
+class State[C : float | UndefinedType]:
     """A simulated process state."""
 
     index: Index
-    const: float | _Undefined
+    const: C
     data: deque[NumDict]
     grad: deque[NumDict]
 
-    def __init__(self, i: Index, d: dict, c: float | _Undefined, l: int = 1) -> None:
+    def __init__(self, i: Index, d: dict, c: C, l: int) -> None:
         l = 1 if l < 1 else l
         self.index = i
         self.const = c
@@ -30,26 +34,26 @@ class State:
     def __getitem__(self, i: int) -> NumDict:
         return self.data[i]
     
-    def new(self, d: dict, c: float | None = None) -> NumDict:
+    def new(self, d: dict, c: C | None = None) -> NumDict:
         return numdict(self.index, d, self.const if c is None else c)
 
 
-class Site:
+class Site[C : float | UndefinedType]:
     def __init__(self, lax: bool = False) -> None:
         self.lax = lax
 
-    def __set_name__(self, owner: Process, name: str) -> None:
+    def __set_name__(self, owner: Process[Any], name: str) -> None:
         self._name = "_" + name
 
-    def __get__(self, obj: Process, objtype: type[Process] | None = None) \
-        -> State:
+    def __get__(self, obj: Process[Any], objtype: type[Process] | None = None) \
+        -> State[C]:
         return getattr(obj, self._name)
 
-    def __set__(self, obj: Process, value: State) -> None:
+    def __set__(self, obj: Process[Any], value: State[C]) -> None:
         self.validate(obj, value)
         setattr(obj, self._name, value)
 
-    def validate(self, obj: Process, value: State) -> None:
+    def validate(self, obj: Process[Any], value: State[C]) -> None:
         old = getattr(obj, self._name, None)
         if old is None:
             pass

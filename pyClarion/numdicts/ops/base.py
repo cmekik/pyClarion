@@ -1,11 +1,10 @@
 from typing import ClassVar, Self, Sequence, Callable, overload
 from inspect import Signature, signature
-from math import isnan
 
 from .funcs import collect, unary, binary, variadic
 from .tape import OpProto, GradientTape
 from ..keys import KeyForm
-from ..undefined import _Undefined
+from ..sentinel import Sentinel, UndefinedType
 from .. import numdicts as nd
 
 
@@ -120,8 +119,8 @@ class BinaryDiscrete[D: "nd.NumDict"](Binary[D]):
 class UnaryRV[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[float], float]]
 
-    def __call__(self, d: D, /, c: float | _Undefined | None = None) -> D:
-        mode = "self" if isinstance(d._c, _Undefined) else "full"
+    def __call__(self, d: D, /, c: float | UndefinedType | None = None) -> D:
+        mode = "self" if d._c is Sentinel.UNDEFINED else "full"
         it = collect(d, mode=mode)
         c = c if c is not None else d._c
         new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
@@ -131,15 +130,15 @@ class UnaryRV[D: "nd.NumDict"](OpBase[D]):
             tape.record(self, r, d, c)
         return r
 
-    def grad(self, g: D, r: D, d: D, /, c: float | _Undefined | None = None) -> D:
+    def grad(self, g: D, r: D, d: D, /, c: float | UndefinedType | None = None) -> D:
         raise NotImplementedError()
 
 
 class BinaryRV[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[float, float], float]]
 
-    def __call__(self, d1: D, d2: D, /, by: KeyForm | None = None, c: float | _Undefined | None = None) -> D:
-        mode = "self" if isinstance(d1._c, _Undefined) else "full"
+    def __call__(self, d1: D, d2: D, /, by: KeyForm | None = None, c: float | UndefinedType | None = None) -> D:
+        mode = "self" if d1._c is Sentinel.UNDEFINED else "full"
         it = collect(d1, d2, branches=by, mode=mode)
         c = c if c is not None else d1._c
         new_d = {k: v for k, vs in it if (v := self.kernel(*vs)) != c}
@@ -149,7 +148,7 @@ class BinaryRV[D: "nd.NumDict"](OpBase[D]):
             tape.record(self, r, d1, d2, by=by, c=c)
         return r
 
-    def grad(self, g: "nd.NumDict", r: D, d1: D, d2: D, /, by: KeyForm | None = None, c: float | _Undefined | None = None) -> tuple[D, D]:
+    def grad(self, g: "nd.NumDict", r: D, d1: D, d2: D, /, by: KeyForm | None = None, c: float | UndefinedType | None = None) -> tuple[D, D]:
         raise NotImplementedError()
 
 
@@ -157,12 +156,12 @@ class Aggregator[D: "nd.NumDict"](OpBase[D]):
     kernel: ClassVar[Callable[[Sequence[float]], float]]
     eye: ClassVar[float]
 
-    def __call__(self, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | _Undefined | None = None) -> D:
+    def __call__(self, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | UndefinedType | None = None) -> D:
         r = variadic(d, *ds, by=by, c=c, kernel=type(self).kernel, eye=type(self).eye)
         tape = GradientTape.STACK.get()
         if tape is not None:
             tape.record(self, r, d, *ds, by=by, c=c)
         return r
 
-    def grad(self, g: D, r: D, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | _Undefined | None = None) -> D | Sequence[D]:
+    def grad(self, g: D, r: D, d: D, /, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None = None, c: float | UndefinedType | None = None) -> D | Sequence[D]:
         raise NotImplementedError()

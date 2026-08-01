@@ -4,13 +4,11 @@ from itertools import product
 from weakref import WeakSet
 from math import prod
 
-from pyClarion.numdicts.keyspaces import KSChild
-
 from.keys import Key, KeyForm
-from .keyspaces import KSPath, KSRoot, KSParent, KSObserver, KeyGroup, ks_root
+from .keyspaces import (Path, Root, Parent, Child, KSObserver, KeyGroup, find_root)
 
 
-class Index[R: KSRoot](KSObserver):
+class Index[R: Root](KSObserver):
     root: R
     kf: KeyForm
     observers: WeakSet["IndexObserver"]
@@ -44,12 +42,12 @@ class Index[R: KSRoot](KSObserver):
         self.observers = WeakSet()
         self.groups = {i: KeyGroup(levels[i], heights[i]) for i in leaves}
         for ksp in levels:
-            if isinstance(ksp, KSParent):
+            if isinstance(ksp, Parent):
                 self.subscribe(ksp)
 
     @staticmethod
-    def _init(root: KSRoot, keyform: KeyForm) \
-        -> tuple[list[int], dict[int, int], list[KSPath]]:
+    def _init(root: Root, keyform: KeyForm) \
+        -> tuple[list[int], dict[int, int], list[Path]]:
         keyspaces, parents = [], []
         leaves, hs, heights = [], iter(keyform.h), {}
         for i, (label, degree) in enumerate(keyform.k):
@@ -97,8 +95,8 @@ class Index[R: KSRoot](KSObserver):
     def __mul__(self, other: "Index") -> "Index":
         return Index(self.root, self.kf * other.kf)
 
-    def requires(self, ksp: KSPath) -> bool:
-        if ks_root(ksp) != self.root:
+    def requires(self, ksp: Path) -> bool:
+        if find_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
         for group in self.groups.values():
@@ -107,8 +105,8 @@ class Index[R: KSRoot](KSObserver):
                 return True
         return False
 
-    def depends_on(self, ksp: KSPath) -> bool:
-        if ks_root(ksp) != self.root:
+    def depends_on(self, ksp: Path) -> bool:
+        if find_root(ksp) != self.root:
             raise ValueError("Incompatible keyspace: Non-identical roots")
         key = ~ksp
         for group in self.groups.values():
@@ -118,7 +116,7 @@ class Index[R: KSRoot](KSObserver):
                 return True
         return False        
     
-    def on_del(self, parent: KSParent, child: KSChild) -> None:
+    def on_del(self, parent: Parent, child: Child) -> None:
         if self.requires(child):
             raise RuntimeError(f"Cannot delete key {~child}: "
                 f"Required by index {self}")

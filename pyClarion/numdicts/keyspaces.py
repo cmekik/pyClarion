@@ -1,4 +1,5 @@
-from typing import Iterator, Self, Protocol, ClassVar, overload, cast
+from typing import Iterator, Self, ClassVar, overload, cast, get_type_hints
+from abc import ABC, abstractmethod
 from weakref import WeakSet
 from itertools import product
 
@@ -6,75 +7,73 @@ from .exc import ValidationError
 from .keys import Key, KeyForm
 
 
-class KSProtocol(Protocol):
-    """Protocol for keyspace classes."""
-    
+class KeySpace(ABC):
+    """Abstract base class for keyspaces."""
+
+    @abstractmethod
     def __contains__(self, key: str | Key) -> bool:
         """True iff key is a member of self"""
-        ...
+        raise NotImplementedError()
 
+    @abstractmethod
     def __invert__(self) -> Key:
         """Return a Key instance representing self"""
-        ...
+        raise NotImplementedError()
 
-    def __mul__(self, other) -> "KSProduct":
-        """Return the keyspace obtained by crossing self with other"""
-        ...
-
+    @abstractmethod
     def _keyform_(self, *hs: int) -> KeyForm:
         """Construct a keyform from self."""
-        ...
+        raise NotImplementedError()
 
+    @abstractmethod
     def _iter_(self, *hs: int) -> Iterator[Key]:
         """Iterate keys in self."""
-        ...
+        raise NotImplementedError()
 
 
-class KSProduct[*Ts](KSProtocol):
+class Unit(KeySpace):
+    """Abstract base class for elementary keyspaces."""
+    pass
+
+
+class Product[*Ts](KeySpace):
     """A product of elementary keyspaces."""
     paths: tuple[*Ts]
 
-    def __init__(self, *paths: *Ts) -> None:
+    def __init__(self, paths: tuple[*Ts]) -> None:
         # This check is necessary b/c TypeVarTuple does not support bounds as
         # of the time of writing
         for ks in paths:
-            if not isinstance(ks, KSPath):
+            if not isinstance(ks, Unit):
                 raise TypeError(f"Arguments to {type(self).__name__} must be "
-                    f"of type {KSPath}")
+                    f"{Unit} instances")
         self.paths = paths
-
-    @property
-    def _paths(self) -> tuple["KSPath", ...]:
-        # This property works around lack of bound support on TypeVarTuples
-        return cast(tuple[KSPath, ...], self.paths)
 
     def __contains__(self, key: str | Key) -> bool:
         branches = Key(key).split()
         if len(branches) != len(self.paths):
             return False
-        return all(k in ks for k, ks in zip(branches, self._paths))
+        paths = cast(tuple[Unit, ...], self.paths)
+        return all(k in ks for k, ks in zip(branches, paths))
 
     def __invert__(self) -> Key:
-        k = ~self._paths[0]
-        for p in self._paths[1:]:
+        paths = cast(tuple[Unit, ...], self.paths) 
+        k = ~paths[0]
+        for p in paths[1:]:
             k = k * ~p
         return k
 
-    def __mul__[T: KSPath](self, other: T) -> "KSProduct[*Ts, T]":
-        if isinstance(other, KSPath):
-            return KSProduct(*self.paths, other)
-        return NotImplemented
-
     def _keyform_(self, *hs: int) -> KeyForm:
+        paths = cast(tuple[Unit, ...], self.paths)
         match hs:
             case ():
-                kf = self._paths[0]._keyform_()
-                for path in self._paths[1:]:
+                kf = paths[0]._keyform_()
+                for path in paths[1:]:
                     kf = kf * path._keyform_()
                 return kf
-            case hs if len(hs) == len(self._paths):
-                kf = self._paths[0]._keyform_(hs[0])
-                for h, path in zip(hs[1:], self._paths[1:], strict=True):
+            case hs if len(hs) == len(paths):
+                kf = paths[0]._keyform_(hs[0])
+                for h, path in zip(hs[1:], paths[1:], strict=True):
                     kf = kf * path._keyform_(h)
                 return kf
             case _:
@@ -82,7 +81,7 @@ class KSProduct[*Ts](KSProtocol):
                     f"got {len(hs)}")
 
     def _iter_(self, *hs: int) -> Iterator[Key]:
-        iterables = [KeyGroup(ks, h) if isinstance(ks, KSParent) else ()
+        iterables = [KeyGroup(ks, h) if isinstance(ks, Parent) else ()
             for ks, h in zip(self.paths, hs, strict=True)]
         for keys in product(*iterables):
             k = keys[0]
@@ -92,32 +91,9 @@ class KSProduct[*Ts](KSProtocol):
         return
 
 
-class KSPath(KSProtocol):
-    """Abstract base class for all elementary keyspaces."""
-
-    _name_: str
+class Path(Unit):
+    """Abstract base class for keyspace paths."""
     _h_offset_: ClassVar[int] = 0
-
-    def __contains__(self, key: str | Key) -> bool:
-        return Key(key) == ~self
-
-    def __invert__(self) -> Key:
-        return Key(self._name_)
-
-    @overload
-    def __mul__[T: KSPath](self: Self, other: T) -> KSProduct[Self, T]:
-        ...
-    
-    @overload
-    def __mul__[*Ts](self: Self, other: KSProduct[*Ts]) -> KSProduct[Self, *Ts]:
-        ...
-
-    def __mul__(self, other):
-        if isinstance(other, KSPath):
-            return KSProduct(self, other)
-        if isinstance(other, KSProduct):
-            return KSProduct(self, *other.paths)
-        return NotImplemented
     
     def _keyform_(self, *hs: int) -> KeyForm:
         match hs:
@@ -140,16 +116,44 @@ class KSPath(KSProtocol):
         yield
 
 
-class KSParent[M: "KSChild"](KSPath):
-    """
-    Base class for parent keyspaces.
-    
-    Do not instantiate this class directly.
-    """
+class Parent[M: Child](Path):
+    """Abstract base class for parent keyspaces."""
     _h_offset_ = 1
+    _required_: ClassVar[frozenset[Key]]
     _members_: dict[Key, M]
     _observers_: WeakSet["KSObserver"]
     _namer_: Iterator[str]
+
+    @classmethod
+    @abstractmethod
+    def _get_member_type_(cls) -> type[M]:
+        raise NotImplementedError()
+
+    @classmethod
+    def __init_subclass__(cls: type[Self]) -> None:
+        try:
+            member_type = cls._get_member_type_()
+        except NotImplementedError:
+            pass
+        else:
+            required = set()
+            for name, annotation_type in get_type_hints(cls).items():
+                if not isinstance(annotation_type, type):
+                    continue
+                elif issubclass(annotation_type, member_type):
+                    required.add(Key(name))
+                elif name != "_parent_" and issubclass(annotation_type, Path):
+                    raise TypeError(
+                        f"Attribute '{name}' has incompatible type "
+                        f"{annotation_type}")
+            cls._required_ = frozenset(required)
+
+    def __init__(self, init_required: bool = True) -> None:
+        super().__init__()
+        self._members_ = {}
+        self._observers_ = WeakSet()
+        if init_required:
+            self._initialize_required_members_()
 
     def __iter__(self) -> Iterator[str]:
         for k in self._members_:
@@ -170,7 +174,7 @@ class KSParent[M: "KSChild"](KSPath):
         k, ksp = Key(key), self
         while k and k[0][1] <= 1:
             node, k = k.cut(1)
-            if not isinstance(ksp, KSParent):
+            if not isinstance(ksp, Parent):
                 return False
             try:
                 ksp = ksp._members_[node]
@@ -179,7 +183,7 @@ class KSParent[M: "KSChild"](KSPath):
         else:
             while k.size:
                 k, branch = k.cut(0, (0,))
-                if not isinstance(ksp, KSParent) or branch not in ksp:
+                if not isinstance(ksp, Parent) or branch not in ksp:
                     return False
         return True
 
@@ -192,8 +196,11 @@ class KSParent[M: "KSChild"](KSPath):
                 name = next(self._namer_)
             except AttributeError as e:
                 raise ValueError("Automatic naming not enabled.") from e
-        if not name or any(not s.isidentifier() for s in name.split(".")):
+        if any(not s.isidentifier() for s in name.split(".")):
             raise ValueError(f"Invalid keyspace name: '{name}'")
+        member_type = self._get_member_type_()
+        if not isinstance(value, member_type):
+            raise TypeError(f"Incompatible member type {type(value)}")
         try:
             value._parent_
         except AttributeError:
@@ -211,49 +218,73 @@ class KSParent[M: "KSChild"](KSPath):
             obs.on_del(self, child)
         del self._members_[key]
 
+    def __setattr__(self, name, value) -> None:
+        if Key(name) in type(self)._required_:
+            self[name] = value
+        else:
+            super().__setattr__(name, value)
 
-class KSChild(KSPath):
-    """
-    Base class for child keyspaces.
-    
-    Do not instantiate this class directly.
-    """
-    _parent_: KSParent
+    def __getattr__(self, name) -> M:
+        try:
+            return self._members_[Key(name)]
+        except KeyError as e:
+            raise AttributeError() from e
+
+    def _initialize_required_members_(self):
+        hints = get_type_hints(type(self))
+        for key in self._required_:
+            name, _ = key[-1]
+            self[name] = hints[name]()
+
+
+class Root[M: Child](Parent[M]):
+    """Base class for keyspace roots."""
+    def __invert__(self) -> Key:
+        return Key()
+
+
+class Child(Path):
+    """Base class for child keyspaces."""
+    _parent_: Parent
+    _name_: str
+
+    def __init__(self, name: str = "") -> None:
+        if name:
+            self._name_ = name
 
     def __contains__(self, key: str | Key) -> bool:
         return Key(key) == ~self
 
     def __invert__(self) -> Key:
-        try:
-            p = ~self._parent_
-        except AttributeError:
-            return super().__invert__()
-        k = super().__invert__()
-        return p.link(k, p.size)
+        p = ~self._parent_
+        return p.link(Key(self._name_), p.size)
+
+    def __mul__[T: Path](self, other: T) -> "Dyad[Self, T]":
+        """Return the keyspace obtained by crossing self with other"""
+        if isinstance(other, Path):
+            return Dyad((self, other))
+        return NotImplemented
 
 
-class KSRoot[M: KSChild](KSParent[M]):
-    """
-    A generic keyspace root.
-    
-    Do not instantiate this class directly.
-    """
-    def __init__(self):
-        self._name_ = ""
-        self._members_ = {}
-        self._observers_ = WeakSet()
+class Node[M: Child](Child, Parent[M]):
+    """Base class for internal keyspace nodes."""
+    def __init__(self, name: str = "", init_required: bool = True):
+        Child.__init__(self, name)
+        Parent.__init__(self, init_required)
 
 
-class KSNode[M: "KSChild"](KSChild, KSParent[M]):
-    """
-    A generic keyspace node.
-    
-    Do not instantiate this class directly.
-    """
-    def __init__(self, name: str = ""):
-        self._name_ = name
-        self._members_ = {}
-        self._observers_ = WeakSet()
+class Dyad[L: Unit, R: Unit](Product[L, R]):
+    """A dyad of elementary keyspaces."""
+    def __mul__[T: Unit](self, other: T) -> "Triad[L, R, T]":
+        """Return the keyspace obtained by crossing self with other"""
+        if isinstance(other, Unit):
+            return Triad((*self.paths, other))
+        return NotImplemented
+
+
+class Triad[L: Unit, C: Unit, R: Unit](Product[L, C, R]):
+    """A triad of elementary keyspaces."""
+    pass
 
 
 class KeyGroup:
@@ -264,28 +295,27 @@ class KeyGroup:
     height of the keyspace relative to the units of analysis.
     """
     __slots__ = ("ks", "h")
-    ks: KSPath
+    ks: Unit
     h: int
 
-    def __init__(self, ks: KSPath, h: int) -> None:
+    def __init__(self, ks: Unit, h: int) -> None:
         self.ks = ks
         self.h = h
 
-    def __contains__(self, obj: str | Key) -> bool:
-        k = Key(obj)
-        return k in self.ks and (~self.ks).size + self.h == k.size
+    def __contains__(self, key: Key) -> bool:
+        return key in self.ks and (~self.ks).size + self.h == key.size
 
     def __len__(self) -> int:
         if self.h <= 0:
             return 1
-        elif isinstance(self.ks, KSParent):
+        elif isinstance(self.ks, Parent):
             return sum([len(KeyGroup(ks, self.h - 1)) 
                 for ks in self.ks._members_.values()])
         else:
             return 0
 
     def __iter__(self) -> Iterator[Key]:
-        if 0 < self.h and isinstance(self.ks, KSParent):
+        if 0 < self.h and isinstance(self.ks, Parent):
             yield from self.ks._iter_(self.h)
         elif self.h == 0:
             yield Key()
@@ -298,62 +328,79 @@ class KSObserver:
     Do not instantiate this class directly.
     """
 
-    def subscribe(self, parent: "KSParent") -> None:
+    def subscribe(self, parent: Parent) -> None:
         """Register self as an observer of parent keyspace."""
         parent._observers_.add(self)
 
-    def on_add(self, parent: "KSParent", child: "KSChild") -> None:
+    def on_add(self, parent: Parent, child: Child) -> None:
         """Called when a child keyspace is added to parent."""
         pass
 
-    def on_del(self, parent: "KSParent", child: "KSChild") -> None:
+    def on_del(self, parent: Parent, child: Child) -> None:
         """Called when child keyspace is deleted from parent."""
         pass
 
 
-def ks_root(ks: KSPath) -> KSRoot | None:
+def find_root(ks: Path) -> Root | None:
     """Return the root of keyspace ks if it exists, otherwise return None."""
     ret = ks
-    while isinstance(ret, KSChild):
+    while isinstance(ret, Child):
         try:
             ret = ret._parent_
         except AttributeError:
             return None
-    if isinstance(ret, KSRoot):
+    if isinstance(ret, Root):
         return ret
     return None
 
 
-def ks_parent(ks: KSChild) -> KSParent:
+def find_parent(ks: Child) -> Parent:
     """Return parent of child keyspace ks."""
     return ks._parent_
 
 
-def ks_crawl(ks: KSParent, path: str | Key) -> KSPath:
+def crawl(ks: Parent, star: Key) -> Path | Dyad | Triad | Product:
     """Find and return the keyspace located at path relative to ks."""
-    key = Key(path)
-    if any(1 < deg for _, deg in key):
-        raise ValueError(f"Key {key} is not a path")
-    ksp = ks
-    for label, _ in key[1:]:
-        if not isinstance(ks, KSParent):
-            raise ValidationError(f"{key} not a member of {ks}")
-        ksp = ksp[label]
-    return ksp 
+    if any(1 < deg for _, deg in star[1:]):
+        raise ValueError(f"Key {star} is not a star")
+    if star[0][1] == 1:
+        ksp = ks
+        for label, _ in star[1:]:
+            if not isinstance(ks, Parent):
+                raise ValidationError(f"{key} not a member of {ks}")
+            ksp = ksp[label]
+        return ksp  
+    elif star[0][1] == 2:
+        l, r = star.split()
+        ks_l, ks_r = crawl(ks, l), crawl(ks, r)
+        assert isinstance(ks_l, Unit) and isinstance(ks_r, Unit)
+        return Dyad((ks_l, ks_r))
+    elif star[0][1] == 3:
+        l, c, r = star.split()
+        ks_l, ks_c, ks_r = crawl(ks, l), crawl(ks, c), crawl(ks, r)
+        assert isinstance(ks_l, Path) \
+            and isinstance(ks_c, Path) \
+            and isinstance(ks_r, Path)
+        return Triad((ks_l, ks_c, ks_r))
+    else:
+        split = star.split()
+        paths = tuple(crawl(ks, path) for path in split)
+        assert all(isinstance(path, Path) for path in paths)
+        return Product(paths)
 
 
 @overload
-def keyform(__ks: KSPath | KSProduct) -> KeyForm:
+def keyform(__ks: Path | Product) -> KeyForm:
     ...
 
 @overload
-def keyform(__ks: KSPath, __h: int) -> KeyForm:
+def keyform(__ks: Path, __h: int) -> KeyForm:
     ...
 
 @overload
-def keyform(__ks: KSProtocol, *hs: int) -> KeyForm:
+def keyform(__ks: KeySpace, *hs: int) -> KeyForm:
     ...
 
-def keyform(__ks: KSProtocol, *hs: int) -> KeyForm:
+def keyform(__ks: KeySpace, *hs: int) -> KeyForm:
     """Construct a keyform from a keyspace."""
     return __ks._keyform_(*hs)

@@ -3,7 +3,7 @@ from itertools import chain
 
 from ..keys import Key, KeyForm
 from ..indices import Index
-from ..undefined import _Undefined, Undefined
+from ..sentinel import Sentinel, UndefinedType
 from .. import numdicts as nd
 
 
@@ -83,7 +83,7 @@ def unary[**P, D: "nd.NumDict"](
     *args: P.args, 
     **kwargs: P.kwargs
 ) -> D:
-    new_c = (d._c if isinstance(d._c, _Undefined) 
+    new_c = (d._c if d._c is Sentinel.UNDEFINED
         else float(kernel(d._c, *args, **kwargs)))
     new_d = {k: float(new_v) for k, v in d._d.items() 
         if (new_v := kernel(v, *args, **kwargs)) != new_c}
@@ -94,17 +94,17 @@ def binary[**P, D: "nd.NumDict"](
     d1: D, 
     d2: D, 
     by: KeyForm | None, 
-    c: float | _Undefined | None,
+    c: float | UndefinedType | None,
     kernel: Callable[Concatenate[float, float, P], float], 
     *args: P.args, 
     **kwargs: P.kwargs
 ) -> D:
-    mode = "self" if isinstance(d1._c, _Undefined) else "match"
+    mode = "self" if d1._c is Sentinel.UNDEFINED else "match"
     it = collect(d1, d2, mode=mode, branches=(by,))
     if c is not None:
         new_c = c
-    elif isinstance(d1._c, _Undefined) or isinstance(d2._c, _Undefined):
-        new_c = Undefined
+    elif d1._c is Sentinel.UNDEFINED or d2._c is Sentinel.UNDEFINED:
+        new_c = Sentinel.UNDEFINED
     else:
         new_c = kernel(d1._c, d2._c, *args, **kwargs)
     new_d = {k: v for k, (v1, v2) in it 
@@ -112,8 +112,8 @@ def binary[**P, D: "nd.NumDict"](
     return type(d1)(d1._i, new_d, new_c, False)
     
 
-def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None, c: float | _Undefined | None, kernel: Callable[[Sequence[float]], float], eye: float) -> D:
-    if isinstance(d._c, _Undefined):
+def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | None] | None, c: float | UndefinedType | None, kernel: Callable[[Sequence[float]], float], eye: float) -> D:
+    if d._c is Sentinel.UNDEFINED:
         mode = "self"
     elif 0 < len(ds):
         mode = "match"
@@ -141,8 +141,8 @@ def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | Non
         it = collect(d, *ds, branches=by, mode=mode)
         i = d._i
         cs = (d._c, *(other._c for other in ds))
-        if any(isinstance(c, _Undefined) for c in cs):
-            new_c = Undefined
+        if any(c is Sentinel.UNDEFINED for c in cs):
+            new_c = Sentinel.UNDEFINED
         else:
             new_c = kernel(cast(tuple[float, ...], cs))
     else:

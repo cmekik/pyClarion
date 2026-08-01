@@ -1,8 +1,12 @@
+__all__ = ["Fundaments", "Atoms", "Params", "Buses", "Compounds", "Chunks", 
+    "Rules"]
+
+
 from typing import Self, Sequence, ClassVar, overload
 
 from .base import Sort
 from .terms import Var, Bus, Atom, Param, Compound, Chunk, Rule
-from ..numdicts import Key
+from ..numdicts.keys import Key
 
 
 class Fundaments[C: Bus | Param | Atom](Sort[C]):
@@ -34,10 +38,13 @@ class Atoms(Fundaments[Atom]):
     Represents a collection of atomic data terms that are alike in content 
     (e.g., color terms, shape terms, etc.).
     """
-    _mtype_ = Atom
+
     def __init__(self, name: str = "", prefix: str = "atom"):
         super().__init__(name, prefix)
 
+    @classmethod
+    def _get_member_type_(cls) -> type[Atom]:
+        return Atom
 
 class Params(Fundaments[Param]):
     """
@@ -45,11 +52,9 @@ class Params(Fundaments[Param]):
 
     Represents a collection of parameter terms.
     """
-
-    _mtype_ = Param
     _init_val_defaults_: ClassVar[dict[str, float]]
 
-    def __init__(self, name: str = "", prefix: str = "params"):
+    def __init__(self, name: str = "", prefix: str = "param"):
         super().__init__(name, prefix)
         for label, value in self._init_val_defaults_.items():
             self[label].init_val = value
@@ -57,12 +62,19 @@ class Params(Fundaments[Param]):
     def _init_values_(self) -> dict[Key, float]:
         return {~self[label]: self[label].init_val for label in self}
 
+    @classmethod
+    def _get_member_type_(cls) -> type[Param]:
+        return Param
+
 
 class Buses(Fundaments[Bus]):
     """A data sort for data lines."""
-    _mtype_ = Bus
-    def __init__(self, name: str = "", prefix: str = "atom"):
+    def __init__(self, name: str = "", prefix: str = "bus"):
         super().__init__(name, prefix)
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Bus]:
+        return Bus
 
 
 class Compounds[C: Compound](Sort[C]):
@@ -83,6 +95,10 @@ class Chunks(Compounds[Chunk]):
     def __init__(self, name: str = "", prefix: str = "chunk"):
         super().__init__(name, prefix)
 
+    @classmethod
+    def _get_member_type_(cls) -> type[Chunk]:
+        return Chunk
+
 
 class Rules(Compounds[Rule]):
     """
@@ -96,3 +112,7 @@ class Rules(Compounds[Rule]):
 
     def __init__(self, name: str = "", prefix: str = "rule"):
         super().__init__(name, prefix)
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Rule]:
+        return Rule
