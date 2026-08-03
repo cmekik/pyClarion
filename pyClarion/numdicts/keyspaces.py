@@ -1,4 +1,4 @@
-from typing import Iterator, Self, ClassVar, overload, cast, get_type_hints
+from typing import Iterator, Self, ClassVar, Any, overload, cast, get_type_hints, no_type_check
 from abc import ABC, abstractmethod
 from weakref import WeakSet
 from itertools import product
@@ -136,9 +136,14 @@ class Parent[M: Child](Path):
             for name, annotation_type in get_type_hints(cls).items():
                 if not isinstance(annotation_type, type):
                     continue
+                elif name.startswith("_") and name.endswith("_"):
+                    continue
                 elif issubclass(annotation_type, member_type):
                     required[Key(name)] = annotation_type
-                elif name != "_parent_" and issubclass(annotation_type, Path):
+                    descriptor = annotation_type()
+                    setattr(cls, name, descriptor)
+                    descriptor.__set_name__(cls, name)
+                else:
                     raise TypeError(
                         f"Attribute '{name}' has incompatible type "
                         f"{annotation_type}")
@@ -227,12 +232,6 @@ class Parent[M: Child](Path):
         else:
             super().__setattr__(name, value)
 
-    def __getattr__(self, name) -> M:
-        try:
-            return self._members_[Key(name)]
-        except KeyError as e:
-            raise AttributeError() from e
-
     def _initialize_required_members_(self):
         for key, required_type in self._required_.items():
             if key not in self._members_:
@@ -276,6 +275,19 @@ class Child(Path):
         if isinstance(other, Path):
             return Dyad((self, other))
         return NotImplemented
+
+    def __set_name__(self, owner: Any, name: str) -> None:
+        if issubclass(owner, Parent):
+            self._name_ = name
+
+    def __get__(self, obj: Any, objtype: Any | None) -> Self:
+        if not isinstance(obj, Parent):
+            return self
+        return obj._members_[Key(self._name_)]
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        if isinstance(obj, Parent):
+            raise ValidationError(f"Cannot mutate required path {~self}")
 
 
 class Node[M: Child](Child, Parent[M]):

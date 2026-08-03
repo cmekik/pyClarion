@@ -448,29 +448,29 @@ class Rule(Compound):
             data.append("Empty rule")
         return "\n    ".join(data)
 
-    @property
-    def _name_(self) -> str:
-        return self._name__
+    # @property
+    # def _name_(self) -> str:
+    #     return self._name__
 
-    @_name_.setter
-    def _name_(self, name: str) -> None:
-        try:
-            self._name_
-        except AttributeError:
-            pass
-        else:
-            try:
-                self._parent_
-            except AttributeError:
-                pass
-            else:
-                raise ValueError("Name already set.")
-        self._name__ = name
-        for i, chunk in enumerate(self._chunks_):
-            try:
-                chunk._name_
-            except AttributeError:
-                chunk._name_ = f"{self._name_}_{i}"
+    # @_name_.setter
+    # def _name_(self, name: str) -> None:
+    #     try:
+    #         self._name_
+    #     except AttributeError:
+    #         pass
+    #     else:
+    #         try:
+    #             self._parent_
+    #         except AttributeError:
+    #             pass
+    #         else:
+    #             raise ValueError("Name already set.")
+    #     self._name__ = name
+    #     for i, chunk in enumerate(self._chunks_):
+    #         try:
+    #             chunk._name_
+    #         except AttributeError:
+    #             chunk._name_ = f"{self._name_}_{i}"
 
     def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
         num = next(self._counter_)
