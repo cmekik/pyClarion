@@ -1,5 +1,6 @@
 from .base.parametric import Parametric, ParamUpdate
-from .io.polytomous import Polytomous, PolytomousParams, PolytomousSelection
+from .io.polytomous import (Polytomous, PolytomousParams, PolytomousSelection, 
+    RetrievalParams, Retrieval)
 from .io.discriminal import Discriminal, DiscriminalParams, DiscriminalSelection
 from .io.source import Source, Input
 from .toplevel.chunks import ChunkStore, BottomUp, TopDown

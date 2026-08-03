@@ -15,8 +15,8 @@ from datetime import timedelta
 from textwrap import indent
 
 from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom, Param 
-from pyClarion.components import (Source, Input, Polytomous, 
-    PolytomousSelection, PolytomousParams)
+from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
+    RetrievalParams)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
     Status, ForwardUpdate)
 
@@ -36,16 +36,9 @@ class ModelData(AtomFamily):
     """Keyspace family housing all semantic simulation data."""
     options: Options
 
-class ResponseParams(PolytomousParams):
-    """Keyspace family housing response time parameters."""
-    _init_val_defaults_ = {
-        "c": 0, "f": 1, **PolytomousParams._init_val_defaults_}
-    c: Param
-    f: Param
-
 class ModelParams(ParamFamily):
     """Keyspace family housing all simulation parameters."""
-    response: ResponseParams
+    response: RetrievalParams
 
 class ModelKeySpace(Root):
     """Choice model root keyspace."""
@@ -57,29 +50,17 @@ class ModelKeySpace(Root):
 # Action Definitions #
 ######################
 
-class Response[P: Polytomous[Any, ResponseParams]](PolytomousSelection[P]):
+class Response[P: Polytomous[Any, RetrievalParams]](Retrieval[P]):
     """
     A simulated item response.
     
     The response is stochastically selected via a competition with noisy 
     activations. The duration of the response process is determined by the 
     following latency equation, where a* is the activation of the maximally 
-    activated element, F is a scaling constant, and c is non-decision time: 
-        latency = c + F * exp(-a*) 
+    activated element: 
+        latency = offset + scale * exp(-a*) 
     """
-    def __init__(self, source: P) -> None:
-        super(PolytomousSelection, self).__init__(source)
-        input = source.output.new({}).sum(source.input[0])
-        sd = source.output.new({}, c=source.params[0][~source.p.sd])
-        sample = input.normalvariate(sd)
-        choices = sample.argmax(by=source.by)   
-        c = source.params[0][~source.p.c]
-        f = source.params[0][~source.p.f]     
-        seconds = c + f * math.exp(-sample.valmax())
-        self.updates.extend([
-            ForwardUpdate(source.output, {v: 1.0 for v in choices.values()}),
-            ForwardUpdate(source.sample, sample)])
-        self.duration = timedelta(seconds=seconds)
+    pass
 
 
 class Presentation[P: Source](Input[P]):
@@ -105,16 +86,16 @@ class ChoiceAgent(Process[ModelKeySpace]):
     This agent maintains an input source and a choice process, allowing it to 
     respond to item presentations.
     """
-    source: Source[Options, float]
-    response: Polytomous[Options, ResponseParams]
+    stimulus: Source[Options, float]
+    response: Polytomous[Options, RetrievalParams]
 
     def __init__(self, name: str, root: ModelKeySpace | None = None) -> None:
         super().__init__(name, root)
         d, p = self.system.root.d, self.system.root.p
         with self:
-            self.source = Source(f"{name}.source", d.options)
+            self.stimulus = Source(f"{name}.source", d.options)
             self.response = Polytomous(f"{name}.choice", p.response, d.options)
-        self.response.input = self.source.output
+        self.response.input = self.stimulus.output
 
     def resolve(self, event: Event) -> None:
         """
@@ -124,7 +105,7 @@ class ChoiceAgent(Process[ModelKeySpace]):
         ValueError.
         """
         match event.action:
-            case Presentation(p) if p is self.source:
+            case Presentation(p) if p is self.stimulus:
                 self.system.schedule(Response(self.response))
             case _:
                 raise ValueError(f"Unexpected event {event}")
@@ -203,10 +184,9 @@ class ChoiceModel(Process[ModelKeySpace]):
         match event.action:
             case Transition(p, ModelStatus.ITEM) if p is self:
                 item = self.items[self.item]
-                source = self.agent.source
                 self.system.schedule(
-                    Presentation(source, item, rate=30))
-            case Presentation(p) if p is self.agent.source:
+                    Presentation(self.agent.stimulus, item, rate=30))
+            case Presentation(p) if p is self.agent.stimulus:
                 self._log(self._presentation_report(event))
                 self.agent.resolve(event)
             case Response(p) if p is self.agent.response:
@@ -271,8 +251,8 @@ def main() -> None:
     """Initialize a choice model instance and run it on a small item set."""
     ks = ModelKeySpace()
     ks.p.response.sd.init_val = 1e-1
-    ks.p.response.c.init_val = .2
-    ks.p.response.f.init_val = 2
+    ks.p.response.offset.init_val = .2
+    ks.p.response.scale.init_val = 2
     stimuli = [{ks.d.options.a: -1.0}, {ks.d.options.c: .3}]
     logging.basicConfig(
         filename="choice_model_log.txt", 

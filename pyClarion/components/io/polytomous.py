@@ -1,6 +1,11 @@
 __all__ = ["PolytomousParams", "Polytomous", "PolytomousSelection"]
 
 
+import math
+
+from typing import Any
+from datetime import timedelta
+
 from ..base.parametric import Parametric
 from ...events.system import Action
 from ...events.sites import State, Site 
@@ -70,3 +75,27 @@ class PolytomousSelection[C: Polytomous](Action[C]):
         self.updates.extend([
             ForwardUpdate(source.output, {v: 1.0 for v in choices.values()}),
             ForwardUpdate(source.sample, sample)])
+
+
+class RetrievalParams(PolytomousParams):
+    _init_val_defaults_ = {"offset": 0.0, "scale": 1.0, 
+        **PolytomousParams._init_val_defaults_}
+    offset: Param
+    scale: Param
+
+
+class Retrieval[C: Polytomous[Any, RetrievalParams]](PolytomousSelection[C]):
+    __slots__ = ()
+    def __init__(self, source: C) -> None:
+        super(PolytomousSelection, self).__init__(source)
+        input = source.output.new({}).sum(source.input[0])
+        sd = source.output.new({}, c=source.params[0][~source.p.sd])
+        sample = input.normalvariate(sd)
+        choices = sample.argmax(by=source.by)   
+        offset = source.params[0][~source.p.offset]
+        scale = source.params[0][~source.p.scale]     
+        seconds = offset + scale * math.exp(-sample.valmax())
+        self.updates.extend([
+            ForwardUpdate(source.output, {v: 1.0 for v in choices.values()}),
+            ForwardUpdate(source.sample, sample)])
+        self.duration = timedelta(seconds=seconds)
