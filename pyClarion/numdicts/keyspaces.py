@@ -36,35 +36,30 @@ class Unit(KeySpace):
     pass
 
 
-class Product[*Ts](KeySpace):
+class Product[T: tuple[Unit, ...]](KeySpace):
     """A product of elementary keyspaces."""
-    paths: tuple[*Ts]
+    paths: T
 
-    def __init__(self, paths: tuple[*Ts]) -> None:
-        # This check is necessary b/c TypeVarTuple does not support bounds as
-        # of the time of writing
-        for ks in paths:
-            if not isinstance(ks, Unit):
-                raise TypeError(f"Arguments to {type(self).__name__} must be "
-                    f"{Unit} instances")
+    def __init__(self, paths: T) -> None:
+        if not paths:
+            raise ValueError("Cannot construct empty product.")
         self.paths = paths
 
     def __contains__(self, key: str | Key) -> bool:
         branches = Key(key).split()
         if len(branches) != len(self.paths):
             return False
-        paths = cast(tuple[Unit, ...], self.paths)
-        return all(k in ks for k, ks in zip(branches, paths))
+        return all(k in ks for k, ks in zip(branches, self.paths, strict=True))
 
     def __invert__(self) -> Key:
-        paths = cast(tuple[Unit, ...], self.paths) 
+        paths = self.paths 
         k = ~paths[0]
         for p in paths[1:]:
             k = k * ~p
         return k
 
     def _keyform_(self, *hs: int) -> KeyForm:
-        paths = cast(tuple[Unit, ...], self.paths)
+        paths = self.paths
         match hs:
             case ():
                 kf = paths[0]._keyform_()
@@ -119,6 +114,7 @@ class Path(Unit):
 class Parent[M: Child](Path):
     """Abstract base class for parent keyspaces."""
     _h_offset_ = 1
+    _init_required_: ClassVar[bool] = True
     _required_: "ClassVar[dict[Key, type[Child]]]"
     _members_: dict[Key, M]
     _observers_: WeakSet["KSObserver"]
@@ -148,11 +144,11 @@ class Parent[M: Child](Path):
                         f"{annotation_type}")
             cls._required_ = required
 
-    def __init__(self, init_required: bool = True) -> None:
+    def __init__(self) -> None:
         super().__init__()
         self._members_ = {}
         self._observers_ = WeakSet()
-        if init_required:
+        if self._init_required_:
             self._initialize_required_members_()
 
     def __iter__(self) -> Iterator[str]:
@@ -190,17 +186,21 @@ class Parent[M: Child](Path):
     def __getitem__(self, name: str | Key) -> M:
         return self._members_[Key(name)]
 
-    def __setitem__(self, name: str | None, value: M) -> None:
-        if name is None:
+    def __setitem__(self, name: str, value: M) -> None:
+        if not name:
             try:
                 name = next(self._namer_)
             except AttributeError as e:
                 raise ValueError("Automatic naming not enabled.") from e
-        if any(not s.isidentifier() for s in name.split(".")):
+        elif any(not s.isidentifier() for s in name.split(".")):
             raise ValueError(f"Invalid keyspace name: '{name}'")
+        elif Key(name) in self._members_:
+            raise ValueError(f"Member '{name}' already exists")
         member_type = self._get_member_type_()
         if not isinstance(value, member_type):
             raise TypeError(f"Incompatible member type {type(value)}")
+        elif hasattr(value, "_parent_"):
+            raise ValueError("Value is already bound to a parent")
         try:
             value._parent_
         except AttributeError:
@@ -213,10 +213,13 @@ class Parent[M: Child](Path):
             raise ValidationError(f"{value} already has a parent")
 
     def __delitem__(self, name: str) -> None:
+        if (key := Key(name)) in self._required_:
+            raise ValueError(f"Child '{name}' is a required member of {~self}")
         child = self._members_[(key := Key(name))]
         for obs in self._observers_:
             obs.on_del(self, child)
         del self._members_[key]
+        del child._parent_
 
     def __setattr__(self, name, value) -> None:
         if Key(name) in type(self)._required_:
@@ -232,8 +235,19 @@ class Parent[M: Child](Path):
 
     def _initialize_required_members_(self):
         for key, required_type in self._required_.items():
-            name, _ = key[-1]
-            self[name] = cast(M, required_type())
+            if key not in self._members_:
+                name, _ = key[-1]
+                self[name] = cast(M, required_type())
+
+    def _check_required_members_(self) -> None:
+        missing = [key for key in self._required_ if key not in self._members_]
+        if missing:
+            missing_members = ", ".join(key[-1][0] for key in missing)
+            raise ValidationError(f"Uninitialized required members in {~self}: "
+                f"{missing_members}")
+        for v in self._members_.values():
+            if isinstance(v, Parent):
+                v._check_required_members_()
 
 
 class Root[M: Child](Parent[M]):
@@ -248,8 +262,7 @@ class Child(Path):
     _name_: str
 
     def __init__(self, name: str = "") -> None:
-        if name:
-            self._name_ = name
+        self._name_ = name
 
     def __contains__(self, key: str | Key) -> bool:
         return Key(key) == ~self
@@ -267,12 +280,12 @@ class Child(Path):
 
 class Node[M: Child](Child, Parent[M]):
     """Base class for internal keyspace nodes."""
-    def __init__(self, name: str = "", init_required: bool = True):
-        Child.__init__(self, name)
-        Parent.__init__(self, init_required)
+    def __init__(self, name: str = ""):
+        super(Child, self).__init__()
+        self._name_ = name
 
 
-class Dyad[L: Unit, R: Unit](Product[L, R]):
+class Dyad[L: Unit, R: Unit](Product):
     """A dyad of elementary keyspaces."""
     def __mul__[T: Unit](self, other: T) -> "Triad[L, R, T]":
         """Return the keyspace obtained by crossing self with other"""
@@ -281,7 +294,7 @@ class Dyad[L: Unit, R: Unit](Product[L, R]):
         return NotImplemented
 
 
-class Triad[L: Unit, C: Unit, R: Unit](Product[L, C, R]):
+class Triad[L: Unit, C: Unit, R: Unit](Product):
     """A triad of elementary keyspaces."""
     pass
 
@@ -388,7 +401,7 @@ def crawl(ks: Parent, star: Key) -> Path | Dyad | Triad | Product:
         split = star.split()
         units = tuple(crawl(ks, branch) for branch in split)
         assert all(isinstance(unit, Unit) for unit in units)
-        return Product(units)
+        return Product(cast(tuple[Unit, ...], units))
 
 
 @overload

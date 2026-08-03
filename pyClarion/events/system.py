@@ -200,8 +200,11 @@ class Process[R: Root]:
         status: dict["Process", Fluent] = field(default_factory=dict)
         logger: logging.Logger = logging.getLogger(__name__)
 
-        def check_root(self, *keyspaces: Child | Product) -> None:
-            for ks in keyspaces:
+        def __post_init__(self):
+            self.root._check_required_members_()
+
+        def check_root(self, *ksps: Child | Product[tuple[Child, ...]]) -> None:
+            for ks in ksps:
                 match ks:
                     case Child():
                         if self.root == find_root(ks):
@@ -263,7 +266,7 @@ class Process[R: Root]:
     is_blocking: ClassVar[bool] = True
 
     name: str
-    system: System
+    system: System[R]
     parent: "Process | None"
     children: "list[Process]"
     __tokens: list[Token]
@@ -315,6 +318,12 @@ class Process[R: Root]:
     @property
     def status(self) -> Fluent:
         return self.system.status[self]
+
+    def __contains__(self, other: "Process") -> bool:
+        if other in self.children:
+            return True
+        else:
+            return any(other in child for child in self.children)
 
     def __repr__(self) -> str:
         return f"<{type(self).__qualname__} '{self.name}' at {hex(id(self))}>"        

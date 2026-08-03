@@ -209,8 +209,8 @@ class Compound(Term):
 
 
 class ChunkData(TypedDict):
-    ciw: "dict[Dyad[Chunk, Chunk], float]"
-    tdw: "dict[Triad[Chunk, Bus, Term], float]"
+    ciw: "dict[Key, float]"
+    tdw: "dict[Key, float]"
 
 
 class Chunk(Compound):
@@ -378,18 +378,18 @@ class Chunk(Compound):
         return inst
 
     def _compile_(self) -> "ChunkData":
-        ciw: dict[Dyad[Chunk, Chunk], float] = {}
-        tdw: dict[Triad[Chunk, Bus, Term], float] = {}
+        ciw: dict[Key, float] = {}
+        tdw: dict[Key, float] = {}
         kt, kc = (cast(Chunk, self),) * 2
         if self._template_ is not None:
             kt = cast(Chunk, self._template_)
-        ciw[kc * kt] = 1.0
-        ciw[kc * kc] = 1.0
+        ciw[~kc * ~kt] = 1.0
+        ciw[~kc * ~kc] = 1.0
         if not self._vars_:
             for (bus, symbol), w in self._dyads_.items():
                 assert not isinstance(symbol, (Var, MatchVar))
                 term = self._evaluate_indexicals_(symbol)
-                kw = kc * bus * term
+                kw = ~kc * ~bus * ~term
                 tdw[kw] = w 
         return ChunkData(ciw=ciw, tdw=tdw)
 

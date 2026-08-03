@@ -10,13 +10,15 @@ import logging
 import random
 import math
 
+from typing import Any
 from datetime import timedelta
 from textwrap import indent
 
-from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom 
-from pyClarion.components import Source, Choice, Input, Selection, ChoiceParams
+from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom, Param 
+from pyClarion.components import (Source, Input, Polytomous, 
+    PolytomousSelection, PolytomousParams)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
-    Status)
+    Status, ForwardUpdate)
 
 
 ########################
@@ -34,9 +36,16 @@ class ModelData(AtomFamily):
     """Keyspace family housing all semantic simulation data."""
     options: Options
 
+class ResponseParams(PolytomousParams):
+    """Keyspace family housing response time parameters."""
+    _init_val_defaults_ = {
+        "c": 0, "f": 1, **PolytomousParams._init_val_defaults_}
+    c: Param
+    f: Param
+
 class ModelParams(ParamFamily):
     """Keyspace family housing all simulation parameters."""
-    choice: ChoiceParams
+    response: ResponseParams
 
 class ModelKeySpace(Root):
     """Choice model root keyspace."""
@@ -48,21 +57,30 @@ class ModelKeySpace(Root):
 # Action Definitions #
 ######################
 
-class Response[P: Choice](Selection[P]):
+class Response[P: Polytomous[Any, ResponseParams]](PolytomousSelection[P]):
     """
     A simulated item response.
     
-    The response is modeled as a Selection instance, which stochastically 
-    selects an option via a competition with noisy activations. The duration of 
-    the response selection process is determined by the following latency 
-    equation, where a* is the activation of the maximally activated element, F 
-    is a scaling constant, and c is non-decision time: 
+    The response is stochastically selected via a competition with noisy 
+    activations. The duration of the response process is determined by the 
+    following latency equation, where a* is the activation of the maximally 
+    activated element, F is a scaling constant, and c is non-decision time: 
         latency = c + F * exp(-a*) 
     """
-    def __init__(self, source: P, c: float, f: float) -> None:
-        super().__init__(source)
-        seconds = c + f * math.exp(-self.sample.valmax())
+    def __init__(self, source: P) -> None:
+        super(PolytomousSelection, self).__init__(source)
+        input = source.output.new({}).sum(source.input[0])
+        sd = source.output.new({}, c=source.params[0][~source.p.sd])
+        sample = input.normalvariate(sd)
+        choices = sample.argmax(by=source.by)   
+        c = source.params[0][~source.p.c]
+        f = source.params[0][~source.p.f]     
+        seconds = c + f * math.exp(-sample.valmax())
+        self.updates.extend([
+            ForwardUpdate(source.output, {v: 1.0 for v in choices.values()}),
+            ForwardUpdate(source.sample, sample)])
         self.duration = timedelta(seconds=seconds)
+
 
 class Presentation[P: Source](Input[P]):
     """
@@ -88,15 +106,15 @@ class ChoiceAgent(Process[ModelKeySpace]):
     respond to item presentations.
     """
     source: Source[Options, float]
-    choice: Choice[Options, ChoiceParams]
+    response: Polytomous[Options, ResponseParams]
 
     def __init__(self, name: str, root: ModelKeySpace | None = None) -> None:
         super().__init__(name, root)
         d, p = self.system.root.d, self.system.root.p
         with self:
             self.source = Source(f"{name}.source", d.options)
-            self.choice = Choice(f"{name}.choice", p.choice, d.options)
-        self.choice.input = self.source.main
+            self.response = Polytomous(f"{name}.choice", p.response, d.options)
+        self.response.input = self.source.output
 
     def resolve(self, event: Event) -> None:
         """
@@ -107,7 +125,7 @@ class ChoiceAgent(Process[ModelKeySpace]):
         """
         match event.action:
             case Presentation(p) if p is self.source:
-                self.system.schedule(Response(self.choice, c=.2, f=2))
+                self.system.schedule(Response(self.response))
             case _:
                 raise ValueError(f"Unexpected event {event}")
 
@@ -191,7 +209,7 @@ class ChoiceModel(Process[ModelKeySpace]):
             case Presentation(p) if p is self.agent.source:
                 self._log(self._presentation_report(event))
                 self.agent.resolve(event)
-            case Response(p) if p is self.agent.choice:
+            case Response(p) if p is self.agent.response:
                 self._log(self._response_report(event))
                 self.system.schedule(Transition(self, Status.FREE))
             case _:
@@ -226,8 +244,8 @@ class ChoiceModel(Process[ModelKeySpace]):
         return message
 
     def _response_report(self, event: Event[Response]) -> str:
-        choice = str(self.agent.choice.main[0])
-        sample = str(self.agent.choice.sample[0])
+        choice = str(self.agent.response.output[0])
+        sample = str(self.agent.response.sample[0])
         head = self._event_report(event)
         tail = "\n".join([
             "Agent successfully selected an option.",
@@ -252,7 +270,9 @@ class ChoiceModel(Process[ModelKeySpace]):
 def main() -> None:
     """Initialize a choice model instance and run it on a small item set."""
     ks = ModelKeySpace()
-    ks.p.choice.sd.init_val = 1e-1
+    ks.p.response.sd.init_val = 1e-1
+    ks.p.response.c.init_val = .2
+    ks.p.response.f.init_val = 2
     stimuli = [{ks.d.options.a: -1.0}, {ks.d.options.c: .3}]
     logging.basicConfig(
         filename="choice_model_log.txt", 

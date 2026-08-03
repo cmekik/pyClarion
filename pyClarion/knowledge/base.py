@@ -33,12 +33,8 @@ class Sort[C: Term](Node[C]):
     _prefix_: str
     _counter_: count
 
-    def __init__(self, 
-        name: str = "", 
-        prefix: str = "", 
-        init_required: bool = True
-    ) -> None:
-        super().__init__(name, init_required)
+    def __init__(self, name: str = "", prefix: str = "") -> None:
+        super().__init__(name)
         self._prefix_ = prefix
         self._counter_ = count()
         self._namer_ = self._name_generator_()

@@ -89,10 +89,9 @@ class Chunks(Compounds[Chunk]):
     Represents a collection of chunk terms. This sort includes a `nil` term as 
     a necessary member.
     """
-    _mtype_ = Chunk
     nil: Chunk
 
-    def __init__(self, name: str = "", prefix: str = "chunk"):
+    def __init__(self, name: str = "", prefix: str = "chunk") -> None:
         super().__init__(name, prefix)
 
     @classmethod
@@ -107,10 +106,9 @@ class Rules(Compounds[Rule]):
     Represents a collection of rule terms. This sort includes a `nil` term as a 
     necessary member.
     """
-    _mtype_ = Rule
     nil: Rule 
 
-    def __init__(self, name: str = "", prefix: str = "rule"):
+    def __init__(self, name: str = "", prefix: str = "rule") -> None:
         super().__init__(name, prefix)
 
     @classmethod
