@@ -20,18 +20,21 @@ class Source[D: Nodes, C: float | UndefinedType](Process[Root]):
     
     Receives activations from external sources.
     """
-    d: D
     output: Site[C] = Site()
+
+    @property
+    def d(self) -> D:
+        return self._d
 
     def __init__(self, name: str, d: D, *, c: C = 0.0) -> None:
         super().__init__(name)
         self.system.check_root(d)
         i, l = self.system.get_index(keyform(d)), self.system.depth
-        self.d = d 
+        self._d = d 
         self.output = State(i, {}, c, l)
 
 
-class Input[S: Source](Action[S]):
+class Input[S: Source[Nodes, float | UndefinedType]](Action[S]):
     __slots__ = ()
 
     @overload

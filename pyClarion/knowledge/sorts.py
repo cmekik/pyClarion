@@ -7,6 +7,7 @@ from typing import Self, Sequence, ClassVar, overload
 from .base import Sort
 from .terms import Var, Bus, Atom, Param, Compound, Chunk, Rule
 from ..numdicts.keys import Key
+from ..numdicts.keyspaces import Dyad
 
 
 class Fundaments[C: Bus | Param | Atom](Sort[C]):
@@ -79,37 +80,43 @@ class Buses(Fundaments[Bus]):
 
 class Compounds[C: Compound](Sort[C]):
     """A data sort for compound terms."""
-    pass
+    _init_required_ = False
 
 
-class Chunks(Compounds[Chunk]):
+class Chunks[D: Dyad](Compounds[Chunk]):
     """
     A data sort for chunk terms.
 
     Represents a collection of chunk terms. This sort includes a `nil` term as 
     a necessary member.
     """
+    _dyads_: D
     nil: Chunk
 
-    def __init__(self, name: str = "", prefix: str = "chunk") -> None:
+    def __init__(self, d: D, name: str = "", prefix: str = "chunk") -> None:
         super().__init__(name, prefix)
+        self._dyads_ = d
 
     @classmethod
     def _get_member_type_(cls) -> type[Chunk]:
         return Chunk
 
 
-class Rules(Compounds[Rule]):
+class Rules[L: Chunks, R: Chunks](Compounds[Rule]):
     """
     A data sort for rule terms.
 
     Represents a collection of rule terms. This sort includes a `nil` term as a 
     necessary member.
     """
+    _lhs_: L
+    _rhs_: R
     nil: Rule 
 
-    def __init__(self, name: str = "", prefix: str = "rule") -> None:
+    def __init__(self, name: str, lhs: L, rhs: R, prefix: str = "rule") -> None:
         super().__init__(name, prefix)
+        self._lhs_ = lhs
+        self._rhs_ = rhs
 
     @classmethod
     def _get_member_type_(cls) -> type[Rule]:

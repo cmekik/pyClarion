@@ -26,7 +26,7 @@ from pyClarion.numdicts import Dyad
 from pyClarion.knowledge import (Root, DataFamily, ParamFamily, ChunkFamily, 
     BusFamily, Buses, Atoms, Chunks, Bus, Atom, Chunk) 
 from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
-    RetrievalParams, ChunkStore, TopDown, BottomUp)
+    RetrievalParams, ChunkStore, TopDown, BottomUp, ChunkStoreParams)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
     Status, Action)
 
@@ -56,15 +56,6 @@ class Place(Atoms):
     middle: Atom
     back: Atom
 
-class Phonemes(Chunks):
-    """A collection of phoneme chunks"""
-    _init_required_ = False
-    p: Chunk; t: Chunk; k: Chunk
-    f: Chunk; θ: Chunk; s: Chunk; ʃ: Chunk
-    b: Chunk; d: Chunk; g: Chunk
-    v: Chunk; ð: Chunk; z: Chunk; ʒ: Chunk
-    m: Chunk; n: Chunk        
-
 class Implicit(DataFamily):
     """The family of implicit (micro)features defined by the model"""
     voicing: Voicing
@@ -73,9 +64,6 @@ class Implicit(DataFamily):
     duration: Duration
     place: Place
 
-class Explicit(ChunkFamily):
-    """The family of explicit chunks defined by the model"""
-    phonemes: Phonemes
 
 class WM(Bus):
     """A working memory bus"""
@@ -89,9 +77,24 @@ class Layout(BusFamily):
     """The model's structural layout"""
     main: Main
 
+
+class Phonemes(Chunks[Dyad[WM, Implicit]]):
+    """A collection of phoneme chunks"""
+    p: Chunk; t: Chunk; k: Chunk
+    f: Chunk; θ: Chunk; s: Chunk; ʃ: Chunk
+    b: Chunk; d: Chunk; g: Chunk
+    v: Chunk; ð: Chunk; z: Chunk; ʒ: Chunk
+    m: Chunk; n: Chunk        
+
+
+class Explicit(ChunkFamily):
+    """The family of explicit chunks defined by the model"""
+    phonemes: Phonemes
+
 class Parameters(ParamFamily):
     """The family of model parameters"""
     retrieval: RetrievalParams
+    chunks: ChunkStoreParams
 
 class ModelKeySpace(Root):
     """The complete model keyspace"""
@@ -111,7 +114,9 @@ class ModelKeySpace(Root):
         af = self.d.affrication
         du = self.d.duration
         pl = self.d.place
-        ph = self.c.phonemes
+
+        ph = Phonemes(main.wm * self.d)
+        self.c["phonemes"] = ph
 
         ph["p"] = main.wm ** (vo.no, na.no, af.no, du.short, pl.front)
         ph["t"] = main.wm ** (vo.no, na.no, af.no, du.short, pl.middle)
@@ -134,7 +139,7 @@ class ModelKeySpace(Root):
         ph["m"] = main.wm ** (vo.yes, na.yes, af.yes, du.short, pl.front)
         ph["n"] = main.wm ** (vo.yes, na.yes, af.yes, du.short, pl.middle)
 
-        ph._initialize_required_members_()
+        ph._initialize_required_()
 
 
 class Presentation[P: Source](Input[P]):
@@ -146,18 +151,16 @@ class Agent(Process[ModelKeySpace]):
     """A simulated participant."""
 
     source: Source[Phonemes, float]
-    chunks: ChunkStore[Phonemes, Dyad[WM, Implicit]]
+    chunks: ChunkStore[Phonemes, ChunkStoreParams]
     ret: Polytomous[Phonemes, RetrievalParams]
 
     def __init__(self, name: str, root: ModelKeySpace | None = None) -> None:
         super().__init__(name, root)
-        wm = self.system.root.b.main.wm
         c = self.system.root.c
-        d = self.system.root.d
         p = self.system.root.p
         with self:
             self.source = Source(f"{name}.source", c.phonemes)
-            self.chunks = ChunkStore(f"{name}.chunks", c.phonemes, wm * d)
+            self.chunks = ChunkStore(f"{name}.chunks", p.chunks, c.phonemes)
             self.ret = Polytomous(f"{name}.ret", p.retrieval, c.phonemes)
         self.chunks.input_td = self.source.output
         self.chunks.input_bu = self.chunks.output_td

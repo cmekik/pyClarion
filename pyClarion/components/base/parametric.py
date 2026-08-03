@@ -1,6 +1,8 @@
 __all__ = ["Parametric", "ParamUpdate"]
 
 
+from typing import Final
+
 from ...events.system import Action, Process
 from ...events.sites import Site, State
 from ...events.updates import ForwardUpdate
@@ -17,12 +19,17 @@ class Parametric[P: Params](Process[Root]):
     A process is parametric iff it has defined metaparameters. This mixin class
     provides a uniform interface for metaparameter initialziation and updating.
     """
-    p: P
     params: Site[UndefinedType] = Site()
-    def _init_parametric(self, p: P) -> None:
+
+    @property
+    def p(self) -> P:
+        return self._p
+
+    def __init__(self, name: str, p: P) -> None:
+        super().__init__(name)
         self.system.check_root(p)
         i, d = self.system.get_index(keyform(p)), p._init_values_()
-        self.p = p
+        self._p = p
         self.params = State(i, d, Sentinel.UNDEFINED, self.system.depth)
 
 

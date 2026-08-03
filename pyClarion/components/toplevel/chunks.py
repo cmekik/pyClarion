@@ -1,17 +1,30 @@
-__all__ = ["ChunkStore", "BottomUp", "TopDown"]
+__all__ = ["ChunkStore", "ChunkStoreParams", "BottomUp", "TopDown"]
 
 
-from ...knowledge.sorts import Chunks
+import random
+
+from datetime import timedelta
+from typing import Final
+
+from ..base.parametric import Parametric
+from ...knowledge.terms import Param
+from ...knowledge.sorts import Chunks, Params
 from ...knowledge.types import DVPairs
 from ...events.updates import ForwardUpdate
-from ...events.system import Process, Action
+from ...events.system import Action
 from ...events.sites import Site, State
 from ...numdicts.keyspaces import KeyForm, keyform
 from ...numdicts.sentinel import Sentinel, UndefinedType
 from ...numdicts.numdicts import NumDict
 
 
-class ChunkStore[C: Chunks, D: DVPairs](Process):
+class ChunkStoreParams(Params):
+    bu_latency: Param
+    td_latency: Param
+    _init_val_defaults_ = {"bu_latency": .01, "td_latency": .01}
+
+
+class ChunkStore[C: Chunks, P: ChunkStoreParams](Parametric[P]):
     """
     A chunk store. 
 
@@ -19,8 +32,6 @@ class ChunkStore[C: Chunks, D: DVPairs](Process):
     activation propagation.
     """
 
-    c: C
-    d: D
     output_bu: Site[float] = Site()
     output_td: Site[float] = Site() 
     input_bu: Site[float] = Site()
@@ -33,16 +44,20 @@ class ChunkStore[C: Chunks, D: DVPairs](Process):
     by_dim: KeyForm
     dim_by_chunk: KeyForm
 
-    def __init__(self, name: str, c: C, d: D) -> None:
-        super().__init__(name)
+    @property
+    def c(self) -> C:
+        return self._c
+
+    def __init__(self, name: str, p: P, c: C) -> None:
+        super().__init__(name, p)
+        d = c._dyads_
         l = self.system.depth
         b, v = d.paths
         self.system.check_root(c, d)
         idx_c = self.system.get_index(keyform(c))
         idx_d = self.system.get_index(keyform(d))
         ciw, tdw = self.initialize_chunk_weights(c)
-        self.c = c
-        self.d = d
+        self._c = c
         self.by_chunk = keyform(c) * keyform(b).agg * keyform(v).agg
         self.by_bus_value = keyform(c).agg * keyform(d)
         self.by_dim = keyform(c) * keyform(b) * keyform(v, -1)
@@ -57,7 +72,7 @@ class ChunkStore[C: Chunks, D: DVPairs](Process):
         self.buw = State(idx_c * idx_d, buw, Sentinel.UNDEFINED, l)
 
     @staticmethod
-    def initialize_chunk_weights(c: C):
+    def initialize_chunk_weights(c: Chunks):
         ciw, tdw = {}, {}
         for name in c:
             chunk = c[name]
@@ -74,20 +89,29 @@ class ChunkStore[C: Chunks, D: DVPairs](Process):
             .shift(1.0)) 
 
 
-class BottomUp[S: ChunkStore](Action[S]):
+type AnyChunkStore = ChunkStore[Chunks, ChunkStoreParams]
+
+
+class BottomUp[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
         super().__init__(source)
         output = (source.buw[0]
             .mul(source.input_bu[0], by=source.by_bus_value)
             .max(by=source.by_dim)
             .sum(by=source.dim_by_chunk, c=0.0))
+        latency = source.params[0][~source.p.bu_latency]
         self.updates.append(ForwardUpdate(source.output_bu, output))
+        if 0 < latency:
+            self.duration = timedelta(seconds=random.expovariate(1 / latency))
 
 
-class TopDown[S: ChunkStore](Action[S]):
+class TopDown[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
         super().__init__(source)
         output = (source.tdw[0]
             .mul(source.input_td[0], by=source.by_chunk)
             .sum(by=source.by_bus_value))
+        latency = random.expovariate(1/source.params[0][~source.p.td_latency])
         self.updates.append(ForwardUpdate(source.output_td, output))
+        if 0 < latency:
+            self.duration = timedelta(seconds=random.expovariate(1 / latency))

@@ -25,24 +25,25 @@ class Discriminal[D: Nodes, P: DiscriminalParams](Parametric[P]):
     
     Makes discrete stochastic decisions based on activation strengths.
     """
-    d: D
-    p: P
     input: Site[float] = Site(lax=True)
     output: Site[float] = Site()
     sample: Site[float] = Site()
 
+    @property
+    def d(self) -> D:
+        return self._d
+
     def __init__(self, name: str, p: P, d: D) -> None:
-        super().__init__(name)
+        super().__init__(name, p)
         self.system.check_root(d)
-        self._init_parametric(p)
         i, l = self.system.get_index(keyform(d)), self.system.depth
-        self.d = d
+        self._d = d
         self.input = State(i, {}, 0.0, l)
         self.output = State(i, {}, 0.0, l)
         self.sample = State(i, {}, 0.0, l)
 
 
-class DiscriminalSelection[D: Discriminal](Action[D]):
+class DiscriminalSelection[D: Discriminal[Nodes, DiscriminalParams]](Action[D]):
     __slots__ = ()
     def __init__(self, source: D) -> None:
         super().__init__(source)

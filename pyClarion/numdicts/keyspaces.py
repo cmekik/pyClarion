@@ -140,7 +140,7 @@ class Parent[M: Child](Path):
                     continue
                 elif issubclass(annotation_type, member_type):
                     required[Key(name)] = annotation_type
-                    descriptor = annotation_type()
+                    descriptor = ChildSlot()
                     setattr(cls, name, descriptor)
                     descriptor.__set_name__(cls, name)
                 else:
@@ -149,12 +149,12 @@ class Parent[M: Child](Path):
                         f"{annotation_type}")
             cls._required_ = required
 
-    def __init__(self) -> None:
+    def __init__(self, skip: "tuple[type[Child], ...]" = ()) -> None:
         super().__init__()
         self._members_ = {}
         self._observers_ = WeakSet()
         if self._init_required_:
-            self._initialize_required_members_()
+            self._initialize_required_(skip)
 
     def __iter__(self) -> Iterator[str]:
         for k in self._members_:
@@ -232,8 +232,10 @@ class Parent[M: Child](Path):
         else:
             super().__setattr__(name, value)
 
-    def _initialize_required_members_(self):
+    def _initialize_required_(self, skip: "tuple[type[Child],...]" = ()) -> None:
         for key, required_type in self._required_.items():
+            if issubclass(required_type, skip):
+                continue
             if key not in self._members_:
                 name, _ = key[-1]
                 self[name] = cast(M, required_type())
@@ -276,24 +278,26 @@ class Child(Path):
             return Dyad((self, other))
         return NotImplemented
 
+
+class ChildSlot[T: Child]:
     def __set_name__(self, owner: Any, name: str) -> None:
         if issubclass(owner, Parent):
             self._name_ = name
 
-    def __get__(self, obj: Any, objtype: Any | None) -> Self:
+    def __get__(self, obj: Any, objtype: Any | None) -> T:
         if not isinstance(obj, Parent):
-            return self
+            raise TypeError()
         return obj._members_[Key(self._name_)]
 
-    def __set__(self, obj: Any, value: Any) -> None:
+    def __set__(self, obj: Any, value: T) -> None:
         if isinstance(obj, Parent):
-            raise ValidationError(f"Cannot mutate required path {~self}")
+            raise ValidationError(f"Cannot mutate required path")
 
 
 class Node[M: Child](Child, Parent[M]):
     """Base class for internal keyspace nodes."""
-    def __init__(self, name: str = ""):
-        super(Child, self).__init__()
+    def __init__(self, name: str = "", skip: "tuple[type[Child],...]" = ()):
+        super(Child, self).__init__(skip)
         self._name_ = name
 
 
