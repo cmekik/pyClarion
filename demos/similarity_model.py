@@ -78,7 +78,7 @@ class Layout(BusFamily):
     main: Main
 
 
-class Phonemes(Chunks[Dyad[WM, Implicit]]):
+class Phonemes(Chunks[WM, Implicit]):
     """A collection of phoneme chunks"""
     p: Chunk; t: Chunk; k: Chunk
     f: Chunk; θ: Chunk; s: Chunk; ʃ: Chunk
