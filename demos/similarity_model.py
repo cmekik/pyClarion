@@ -316,7 +316,7 @@ def main() -> None:
     ks = ModelKeySpace()
     ks.p.retrieval.sd.init_val = 1e-1
     ks.p.retrieval.offset.init_val = .2
-    ks.p.retrieval.scale.init_val = 1
+    ks.p.retrieval.scale.init_val = 2
     stimuli = [ks.c.phonemes.p, ks.c.phonemes.ʒ]
     logging.basicConfig(
         filename="similarity_model_log.txt", 

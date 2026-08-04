@@ -7,7 +7,7 @@ from ...events.system import Action, Process
 from ...events.sites import Site, State
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root
-from ...knowledge.sorts import Params
+from ...knowledge.data import Params
 from ...numdicts.keyspaces import keyform
 from ...numdicts.sentinel import Sentinel, UndefinedType
 

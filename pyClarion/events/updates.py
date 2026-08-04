@@ -85,7 +85,7 @@ class KeyspaceUpdate[P: Parent, C: Child](Update[P]):
                 self.node[child._name_] = child
             except AttributeError:
                 # attempt automatic name generation
-                self.node[None] = child
+                self.node[""] = child
         for name in self.remove:
             del self.node[name]
 

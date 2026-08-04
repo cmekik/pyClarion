@@ -7,9 +7,8 @@ from datetime import timedelta
 from typing import Any
 
 from ..base.parametric import Parametric
-from ...knowledge.terms import Param
-from ...knowledge.sorts import Chunks, Params
-from ...knowledge.types import DVPairs
+from ...knowledge.data import Params, Param
+from ...knowledge.compounds import AnyDVPairs, Chunks
 from ...events.updates import ForwardUpdate
 from ...events.system import Action
 from ...events.sites import Site, State
@@ -24,7 +23,7 @@ class ChunkStoreParams(Params):
     _init_val_defaults_ = {"bu_latency": .01, "td_latency": .01}
 
 
-class ChunkStore[C: Chunks[DVPairs], P: ChunkStoreParams](Parametric[P]):
+class ChunkStore[C: Chunks[AnyDVPairs], P: ChunkStoreParams](Parametric[P]):
     """
     A chunk store. 
 

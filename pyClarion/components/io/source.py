@@ -6,9 +6,9 @@ from typing import overload
 from ...events.system import Action, Process
 from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
-from ...knowledge.base import Root
-from ...knowledge.terms import Term, Indexical, Var, MatchVar, Chunk
-from ...knowledge.types import Nodes
+from ...knowledge.base import Root, Term
+from ...knowledge.compounds import Var, Indexical, MatchVar, Chunk
+from ...knowledge.data import Nodes
 from ...numdicts.keys import Key
 from ...numdicts.keyspaces import keyform
 from ...numdicts.sentinel import UndefinedType

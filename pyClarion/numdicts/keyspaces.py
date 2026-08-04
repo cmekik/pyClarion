@@ -1,4 +1,4 @@
-from typing import Iterator, Self, ClassVar, Any, overload, cast, get_type_hints, no_type_check
+from typing import Iterator, Self, ClassVar, Any, overload, cast, get_type_hints, Mapping
 from abc import ABC, abstractmethod
 from weakref import WeakSet
 from itertools import product
@@ -118,14 +118,14 @@ class Parent[M: Child](Path):
     """Abstract base class for parent keyspaces."""
     _h_offset_ = 1
     _init_required_: ClassVar[bool] = True
+    _members_: Mapping[Key, M]
     _required_: "ClassVar[dict[Key, type[Child]]]"
-    _members_: dict[Key, M]
     _observers_: WeakSet["KSObserver"]
     _namer_: Iterator[str]
 
     @classmethod
     @abstractmethod
-    def _get_member_type_(cls) -> type[M]:
+    def _get_member_type_(cls) -> "type[Child]":
         raise NotImplementedError()
 
     @classmethod
@@ -194,7 +194,7 @@ class Parent[M: Child](Path):
     def __getitem__(self, name: str | Key) -> M:
         return self._members_[Key(name)]
 
-    def __setitem__(self, name: str, value: M) -> None:
+    def __setitem__(self, name: str, value: "Child") -> None:
         if not name:
             try:
                 name = next(self._namer_)
@@ -214,7 +214,7 @@ class Parent[M: Child](Path):
         except AttributeError:
             value._name_ = name
             value._parent_ = self
-            self._members_[Key(name)] = value
+            cast(dict, self._members_)[Key(name)] = value
             for obs in self._observers_:
                 obs.on_add(self, value)
         else:
@@ -226,7 +226,7 @@ class Parent[M: Child](Path):
         child = self._members_[(key := Key(name))]
         for obs in self._observers_:
             obs.on_del(self, child)
-        del self._members_[key]
+        del cast(dict, self._members_)[key]
         del child._parent_
 
     def __setattr__(self, name, value) -> None:
@@ -267,7 +267,6 @@ class ChildSlot[T: Child]:
     def __set__(self, obj: Any, value: T) -> None:
         if isinstance(obj, Parent):
             raise ValidationError(f"Cannot mutate required path")
-
 
 
 class Root[M: Child](Parent[M]):

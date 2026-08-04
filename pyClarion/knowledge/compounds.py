@@ -1,39 +1,17 @@
-__all__ = ["Atom", "Param", "Indexical", "this", "Var", "MatchVar", "Compound", 
-    "Chunk", "ChunkData", "Rule", "RuleData", "Bus"]
+__all__ = ["Indexical", "this", "Var", "Compound", "MatchVar", "Constant", 
+    "Variable", "Symbol", "Bus", "Buses", "BusFamily", "BusStructure", 
+    "DataStructure", "DVPairs", "AnyDVPairs", "Chunk", "Rule", "Compounds", 
+    "Chunks", "Rules", "CompoundFamily", "ChunkFamily", "RuleFamily"]
 
-
-from typing import Self, Iterator, Iterable, Sequence, TypedDict, overload, cast
-from weakref import WeakSet
-from itertools import product, count
-from contextlib import contextmanager
 import enum
+from weakref import WeakSet
+from itertools import count, product
+from typing import Iterator, Iterable, Self, TypedDict, Sequence, cast, overload
+from contextlib import contextmanager
 
-from .base import Sort, Term
+from .base import Family, Sort, Term
+from ..numdicts.keyspaces import Unit, Dyad, find_parent
 from ..numdicts.keys import Key, KeyForm
-from ..numdicts.keyspaces import Unit, Child, Dyad, Triad, find_parent
-
-
-class Atom(Term):
-    """
-    An atomic data term.
-
-    Represents some basic data element (e.g., a feature, a parameter, etc.).
-    """
-    pass
-
-
-class Param(Term):
-    """
-    An atomic parameter term.
-
-    Represents some basic model parameter.
-    """
-
-    init_val: float
-
-    def __init__(self, name: str = ""):
-        super().__init__(name)
-        self.init_val = float("nan")
 
 
 class Indexical(enum.Enum):
@@ -78,12 +56,6 @@ class Var[S: Sort](Unit):
     def __invert__(self) -> Key:
         return ~self.sort
 
-    def __mul__[T: Child](self: Self, other: T) -> "Dyad[Self, T]":
-        """Return the keyspace obtained by crossing self with other"""
-        if isinstance(other, Child):
-            return Dyad((self, other))
-        return NotImplemented
-
     def _keyform_(self, *hs: int) -> KeyForm:
         return self.sort._keyform_(*hs)
     
@@ -112,35 +84,6 @@ class Var[S: Sort](Unit):
             self._subset = _subset
         else:
             yield self
-
-
-class MatchVar[C: "Compound"]:
-    term: C
-    variables: tuple[Var, ...]
- 
-    def __init__(self, term: C, *variables: Var) -> None:
-        self.term = term
-        self.variables = variables
-
-
-type Constant = Term | Indexical
-type Variable = Var | MatchVar
-type Symbol = Constant | Variable
-
-
-class Bus(Term):
-    """
-    A data line.
-    
-    Represents some address for activations.
-
-    """
-
-    def __pow__(self, other: Symbol | Iterable[Symbol]) -> "Chunk":
-        if isinstance(other, (Term, Indexical, Var, MatchVar)):
-            return Chunk({(self, other): 1.0})
-        else:
-            return Chunk({(self, atom): 1.0 for atom in other})
 
 
 class Compound(Term):
@@ -174,7 +117,7 @@ class Compound(Term):
         self._name_ = other
         return self
 
-    def __call__(self, *variables: Var) -> MatchVar[Self]:
+    def __call__(self, *variables: Var) -> "MatchVar[Self]":
         return MatchVar(self, *variables)
     
     def _match_(self, vals: dict[Var, Term]) -> set[Self]:
@@ -183,16 +126,6 @@ class Compound(Term):
             elim = {_t for _t in candidates if not (var, val) in _t._valuation_}
             candidates = {_t for _t in candidates if _t not in elim}
         return candidates
-
-    @staticmethod
-    def _collect_vars_(dyads: Iterable[tuple[Symbol, Symbol]]) -> set[Var]:
-        _vars_ = set()
-        for dyad in dyads:
-            for elt in dyad:
-                if not isinstance(elt, Var):
-                    continue
-                _vars_.add(elt)
-        return _vars_
 
     def _instantiations_(self) -> Iterator[Self]:
         for vals in self._valuations_():
@@ -206,6 +139,70 @@ class Compound(Term):
 
     def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
         raise NotImplementedError()
+
+
+class MatchVar[C: "Compound"]:
+    term: C
+    variables: tuple[Var, ...]
+ 
+    def __init__(self, term: C, *variables: Var) -> None:
+        self.term = term
+        self.variables = variables
+
+
+class Compounds[C: Compound](Sort[C]):
+    """A data sort for compound terms."""
+    _init_required_ = False
+
+
+class CompoundFamily(Family[Compounds[Compound]]):
+    _init_required_ = False
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Compounds]:
+        return Compounds
+
+
+type Constant = Term | Indexical
+type Variable = Var | MatchVar
+type Symbol = Constant | Variable
+
+
+class Bus(Term):
+    """
+    A data line.
+    
+    Represents some address for activations.
+
+    """
+
+    def __pow__(self, other: Symbol | Iterable[Symbol]) -> "Chunk":
+        if isinstance(other, (Term, Indexical, Var, MatchVar)):
+            return Chunk({(self, other): 1.0})
+        else:
+            return Chunk({(self, atom): 1.0 for atom in other})
+
+
+class Buses(Sort[Bus]):
+    """A data sort for data lines."""
+    def __init__(self, name: str = "", prefix: str = "bus"):
+        super().__init__(name, prefix)
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Bus]:
+        return Bus
+
+
+class BusFamily(Family[Buses]):
+    @classmethod
+    def _get_member_type_(cls) -> type[Buses]:
+        return Buses
+
+
+type BusStructure = BusFamily | Buses | Bus
+type DataStructure = Family[Sort[Term]] | Sort[Term]
+type DVPairs[B: BusStructure, D: DataStructure] = Dyad[B, D]
+type AnyDVPairs = DVPairs[BusStructure, DataStructure]
 
 
 class ChunkData(TypedDict):
@@ -328,6 +325,16 @@ class Chunk(Compound):
         d[self] = 1.0
         return Rule(d)
 
+    @staticmethod
+    def _collect_vars_(dyads: Iterable[tuple[Symbol, Symbol]]) -> set[Var]:
+        _vars_ = set()
+        for dyad in dyads:
+            for elt in dyad:
+                if not isinstance(elt, Var):
+                    continue
+                _vars_.add(elt)
+        return _vars_
+
     def _evaluate_var_(self, x: Symbol, vals: dict[Var, Term]) \
         -> Iterable[Constant]:
         if isinstance(x, (Term, Indexical)):
@@ -394,10 +401,40 @@ class Chunk(Compound):
         return ChunkData(ciw=ciw, tdw=tdw)
 
 
+class Chunks[D: DVPairs[BusStructure, DataStructure]](Compounds[Chunk]):
+    """
+    A data sort for chunk terms.
+
+    Represents a collection of chunk terms. This sort includes a `nil` term as 
+    a necessary member.
+    """
+    nil: Chunk
+
+    @property
+    def _dyads_(self) -> D:
+        return self._dyads__
+
+    def __init__(self, d: D, name: str = "", prefix: str = "chunk") -> None:
+        super().__init__(name, prefix)
+        self._dyads__ = d
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Chunk]:
+        return Chunk
+
+    
 class RuleData(TypedDict):
     riw: dict[Key, float]
     lhw: dict[Key, float]
     rhw: dict[Key, float]
+
+
+class ChunkFamily(Family[Chunks]):
+    _init_required_ = False
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Chunks]:
+        return Chunks
 
 
 class Rule(Compound):
@@ -511,3 +548,32 @@ class Rule(Compound):
             c, w = chunks[-1], weights[-1]
             rhw[kr * ~c] = w
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
+
+
+class Rules[L: Chunks, R: Chunks](Compounds[Rule]):
+    """
+    A data sort for rule terms.
+
+    Represents a collection of rule terms. This sort includes a `nil` term as a 
+    necessary member.
+    """
+    _lhs_: L
+    _rhs_: R
+    nil: Rule 
+
+    def __init__(self, name: str, lhs: L, rhs: R, prefix: str = "rule") -> None:
+        super().__init__(name, prefix)
+        self._lhs_ = lhs
+        self._rhs_ = rhs
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Rule]:
+        return Rule
+
+
+class RuleFamily(Family[Rules]):
+    _init_required_ = False
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Rules]:
+        return Rules

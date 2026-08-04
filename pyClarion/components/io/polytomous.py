@@ -10,9 +10,9 @@ from ..base.parametric import Parametric
 from ...events.system import Action
 from ...events.sites import State, Site 
 from ...events.updates import ForwardUpdate
-from ...knowledge.types import Nodes
-from ...knowledge.sorts import Params
-from ...knowledge.terms import Param, Term, Bus
+from ...knowledge.base import Term
+from ...knowledge.buses import Bus
+from ...knowledge.data import Nodes, Params, Param
 from ...numdicts.keys import KeyForm
 from ...numdicts.keyspaces import Dyad, keyform, crawl
 
