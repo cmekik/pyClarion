@@ -5,7 +5,7 @@ from ..base.parametric import Parametric, ParamUpdate
 from ...events.system import Action, Event
 from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
-from ...knowledge.data import Nodes, Params, Param 
+from ...knowledge.primitives import Nodes, Params, Param 
 from ...numdicts.keyspaces import keyform
 
 

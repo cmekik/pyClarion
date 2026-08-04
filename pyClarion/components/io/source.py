@@ -8,7 +8,7 @@ from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root, Term
 from ...knowledge.compounds import Var, Indexical, MatchVar, Chunk
-from ...knowledge.data import Nodes
+from ...knowledge.primitives import Nodes
 from ...numdicts.keys import Key
 from ...numdicts.keyspaces import keyform
 from ...numdicts.sentinel import UndefinedType

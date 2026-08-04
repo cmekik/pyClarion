@@ -6,7 +6,7 @@ import random
 from datetime import timedelta
 
 from ..base.parametric import Parametric
-from ...knowledge.data import Params, Param
+from ...knowledge.primitives import Params, Param
 from ...knowledge.compounds import Chunks, AnyChunks
 from ...events.updates import ForwardUpdate
 from ...events.system import Action, Event
