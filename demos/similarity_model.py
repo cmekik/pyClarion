@@ -77,7 +77,11 @@ class Layout(BusFamily):
     main: Main
 
 class Phonemes(Chunks[WM, Implicit]):
-    """A collection of phoneme chunks"""
+    """
+    A data sort for phonemes.
+    
+    Represents a collection of phoneme chunks.
+    """
     p: Chunk; t: Chunk; k: Chunk
     f: Chunk; θ: Chunk; s: Chunk; ʃ: Chunk
     b: Chunk; d: Chunk; g: Chunk
