@@ -1,9 +1,7 @@
 __all__ = ["Parametric", "ParamUpdate"]
 
 
-from typing import Final
-
-from ...events.system import Action, Process
+from ...events.system import Action, Event, Process
 from ...events.sites import Site, State
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root
@@ -31,6 +29,13 @@ class Parametric[P: Params](Process[Root]):
         i, d = self.system.get_index(keyform(p)), p._init_values_()
         self._p = p
         self.params = State(i, d, Sentinel.UNDEFINED, self.system.depth)
+
+    def resolve(self, event: Event) -> None:
+        match event.action:
+            case ParamUpdate(p) if p is self:
+                pass
+            case _:
+                raise ValueError(f"Unexpected event {event}")
 
 
 class ParamUpdate[P: Parametric](Action[P]):

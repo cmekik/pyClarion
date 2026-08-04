@@ -3,7 +3,7 @@ __all__ = ["Source", "Input"]
 
 from typing import overload
 
-from ...events.system import Action, Process
+from ...events.system import Action, Event, Process
 from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root, Term
@@ -32,6 +32,13 @@ class Source[D: Nodes, C: float | UndefinedType](Process[Root]):
         i, l = self.system.get_index(keyform(d)), self.system.depth
         self._d = d 
         self.output = State(i, {}, c, l)
+
+    def resolve(self, event: Event) -> None:
+        match event.action:
+            case Input(p) if p is self:
+                pass
+            case _:
+                raise ValueError(f"Unexpected event {event}")
 
 
 class Input[S: Source[Nodes, float | UndefinedType]](Action[S]):

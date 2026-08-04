@@ -4,15 +4,14 @@ __all__ = ["ChunkStore", "ChunkStoreParams", "BottomUp", "TopDown"]
 import random
 
 from datetime import timedelta
-from typing import Any
 
 from ..base.parametric import Parametric
 from ...knowledge.data import Params, Param
-from ...knowledge.compounds import AnyDVPairs, Chunks
+from ...knowledge.compounds import Chunks, AnyChunks
 from ...events.updates import ForwardUpdate
-from ...events.system import Action
+from ...events.system import Action, Event
 from ...events.sites import Site, State
-from ...numdicts.keyspaces import KeyForm, keyform, Dyad
+from ...numdicts.keyspaces import KeyForm, keyform
 from ...numdicts.sentinel import Sentinel, UndefinedType
 from ...numdicts.numdicts import NumDict
 
@@ -23,7 +22,7 @@ class ChunkStoreParams(Params):
     _init_val_defaults_ = {"bu_latency": .01, "td_latency": .01}
 
 
-class ChunkStore[C: Chunks[AnyDVPairs], P: ChunkStoreParams](Parametric[P]):
+class ChunkStore[C: AnyChunks, P: ChunkStoreParams](Parametric[P]):
     """
     A chunk store. 
 
@@ -87,8 +86,15 @@ class ChunkStore[C: Chunks[AnyDVPairs], P: ChunkStoreParams](Parametric[P]):
             .sum(by=self.dim_by_chunk)
             .shift(1.0)) 
 
+    def resolve(self, event: Event) -> None:
+        match event.action:
+            case BottomUp(p) | TopDown(p) if p is self:
+                pass
+            case _:
+                super().resolve(event)
 
-type AnyChunkStore = ChunkStore[Chunks, ChunkStoreParams]
+
+type AnyChunkStore = ChunkStore[AnyChunks, ChunkStoreParams]
 
 
 class BottomUp[S: AnyChunkStore](Action[S]):

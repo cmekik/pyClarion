@@ -3,15 +3,14 @@ __all__ = ["PolytomousParams", "Polytomous", "PolytomousSelection"]
 
 import math
 
-from typing import Any, Final
 from datetime import timedelta
 
-from ..base.parametric import Parametric
-from ...events.system import Action
+from ..base.parametric import Parametric, ParamUpdate
+from ...events.system import Action, Event
 from ...events.sites import State, Site 
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Term
-from ...knowledge.buses import Bus
+from ...knowledge.compounds import Bus
 from ...knowledge.data import Nodes, Params, Param
 from ...numdicts.keys import KeyForm
 from ...numdicts.keyspaces import Dyad, keyform, crawl
@@ -64,6 +63,13 @@ class Polytomous[D: Nodes, P: PolytomousParams](Parametric[P]):
             choices.append(crawl(self.system.root, v))
         return choices
 
+    def resolve(self, event: Event) -> None:
+        match event.action:
+            case PolytomousSelection(p) | ParamUpdate(p) if p is self:
+                pass
+            case _:
+                raise ValueError(f"Unexpected event {event}")
+
 
 class PolytomousSelection[C: Polytomous[Nodes, PolytomousParams]](Action[C]):
     __slots__ = ()
@@ -79,8 +85,7 @@ class PolytomousSelection[C: Polytomous[Nodes, PolytomousParams]](Action[C]):
 
 
 class RetrievalParams(PolytomousParams):
-    _init_val_defaults_ = {"offset": 0.0, "scale": 1.0, 
-        **PolytomousParams._init_val_defaults_}
+    _init_val_defaults_ = {"offset": 0.0, "scale": 1.0}
     offset: Param
     scale: Param
 

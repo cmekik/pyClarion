@@ -1,7 +1,8 @@
 __all__ = ["Indexical", "this", "Var", "Compound", "MatchVar", "Constant", 
     "Variable", "Symbol", "Bus", "Buses", "BusFamily", "BusStructure", 
     "DataStructure", "DVPairs", "AnyDVPairs", "Chunk", "Rule", "Compounds", 
-    "Chunks", "Rules", "CompoundFamily", "ChunkFamily", "RuleFamily"]
+    "Chunks", "AnyChunks", "Rules", "CompoundFamily", "ChunkFamily", 
+    "RuleFamily"]
 
 import enum
 from weakref import WeakSet
@@ -401,7 +402,7 @@ class Chunk(Compound):
         return ChunkData(ciw=ciw, tdw=tdw)
 
 
-class Chunks[D: DVPairs[BusStructure, DataStructure]](Compounds[Chunk]):
+class Chunks[B: BusStructure, D: DataStructure](Compounds[Chunk]):
     """
     A data sort for chunk terms.
 
@@ -411,10 +412,10 @@ class Chunks[D: DVPairs[BusStructure, DataStructure]](Compounds[Chunk]):
     nil: Chunk
 
     @property
-    def _dyads_(self) -> D:
+    def _dyads_(self) -> Dyad[B, D]:
         return self._dyads__
 
-    def __init__(self, d: D, name: str = "", prefix: str = "chunk") -> None:
+    def __init__(self, d: Dyad[B, D], name: str = "", prefix: str = "chunk") -> None:
         super().__init__(name, prefix)
         self._dyads__ = d
 
@@ -422,11 +423,8 @@ class Chunks[D: DVPairs[BusStructure, DataStructure]](Compounds[Chunk]):
     def _get_member_type_(cls) -> type[Chunk]:
         return Chunk
 
-    
-class RuleData(TypedDict):
-    riw: dict[Key, float]
-    lhw: dict[Key, float]
-    rhw: dict[Key, float]
+
+type AnyChunks = Chunks[BusStructure, DataStructure]
 
 
 class ChunkFamily(Family[Chunks]):
@@ -435,6 +433,12 @@ class ChunkFamily(Family[Chunks]):
     @classmethod
     def _get_member_type_(cls) -> type[Chunks]:
         return Chunks
+
+    
+class RuleData(TypedDict):
+    riw: dict[Key, float]
+    lhw: dict[Key, float]
+    rhw: dict[Key, float]
 
 
 class Rule(Compound):

@@ -1,8 +1,8 @@
 __all__ = ["DiscriminalParams", "Discriminal", "DiscriminalSelection"]
 
 
-from ..base.parametric import Parametric
-from ...events.system import Action
+from ..base.parametric import Parametric, ParamUpdate
+from ...events.system import Action, Event
 from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
 from ...knowledge.data import Nodes, Params, Param 
@@ -38,6 +38,14 @@ class Discriminal[D: Nodes, P: DiscriminalParams](Parametric[P]):
         self.input = State(i, {}, 0.0, l)
         self.output = State(i, {}, 0.0, l)
         self.sample = State(i, {}, 0.0, l)
+
+    def resolve(self, event: Event) -> None:
+        match event.action:
+            case DiscriminalSelection(p) | ParamUpdate(p) if p is self:
+                pass
+            case _:
+                raise ValueError(f"Unexpected event {event}")
+
 
 
 class DiscriminalSelection[D: Discriminal[Nodes, DiscriminalParams]](Action[D]):

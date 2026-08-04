@@ -95,6 +95,10 @@ class Params(Fundaments[Param]):
     def _get_member_type_(cls) -> type[Param]:
         return Param
 
+    @classmethod
+    def __init_subclass__(cls) -> None:
+        super().__init_subclass__()
+        
 
 class DataFamily(Family[Sort]):
     def __init__(self, name: str = ""):
