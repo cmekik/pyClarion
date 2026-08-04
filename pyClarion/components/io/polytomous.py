@@ -11,7 +11,7 @@ from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Term
 from ...knowledge.compounds import Bus
-from ...knowledge.data import Nodes, Params, Param
+from ...knowledge.primitives import Nodes, Params, Param
 from ...numdicts.keys import KeyForm
 from ...numdicts.keyspaces import Dyad, keyform, crawl
 

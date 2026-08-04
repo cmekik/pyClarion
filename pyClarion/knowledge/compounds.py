@@ -15,16 +15,6 @@ from ..numdicts.keyspaces import Unit, Dyad, find_parent
 from ..numdicts.keys import Key, KeyForm
 
 
-class Indexical(enum.Enum):
-    chunk = enum.auto()
-    rule = enum.auto()
-    chunk_instance = enum.auto()
-    rule_instance = enum.auto()
-
-
-this = Indexical
-
-
 class Var[S: Sort](Unit):
     """A variable data term."""
     name: str
@@ -76,15 +66,15 @@ class Var[S: Sort](Unit):
             return False
         return True
 
-    @contextmanager
-    def subset(self, keys: Iterable[Term]):
-        if keys:
-            _subset = self._subset
-            self._subset = self._subset & frozenset(keys)
-            yield self
-            self._subset = _subset
-        else:
-            yield self
+    # @contextmanager
+    # def subset(self, keys: Iterable[Term]):
+    #     if keys:
+    #         _subset = self._subset
+    #         self._subset = self._subset & frozenset(keys)
+    #         yield self
+    #         self._subset = _subset
+    #     else:
+    #         yield self
 
 
 class Compound(Term):
@@ -164,6 +154,28 @@ class CompoundFamily(Family[Compounds[Compound]]):
         return Compounds
 
 
+class Indexical(enum.Enum):
+    """
+    A relative reference for a compound term.
+
+    Indexicals are constants that point to current chunk or rule instances or 
+    their templates from within a chunk or rule declaration.
+
+    For instance, the following notation spawns a chunk containing a single 
+    self-referential feature on some bus: `bus ** this.chunk`.
+
+    See `Bus` and `Chunk` for further details on symbolic `Chunk` instance 
+    construction.
+    """
+    chunk = enum.auto()
+    rule = enum.auto()
+    chunk_instance = enum.auto()
+    rule_instance = enum.auto()
+
+
+this = Indexical
+
+
 type Constant = Term | Indexical
 type Variable = Var | MatchVar
 type Symbol = Constant | Variable
@@ -173,8 +185,17 @@ class Bus(Term):
     """
     A data line.
     
-    Represents some address for activations.
+    Represents some address for activations and constructs `Chunk` instances 
+    via the exponential operator. For example, `bus ** term` yields a chunk of 
+    the form `Chunk({(bus, term): 1.0})`. 
 
+    It is also possible to use the exponential operator with an iterable of 
+    `Term` instances as well. The resulting `Chunk` instance contains each 
+    corresponding bus-term pairing. Thus, `b ** (t1, t2)` yields a `Chunk` 
+    instance of the form `Chunk({(b, t1): 1.0, (b, t2): 1.0})`.
+    
+    See `Chunk` for information on symbolic construction of more complex 
+    `Chunk` instances.
     """
 
     def __pow__(self, other: Symbol | Iterable[Symbol]) -> "Chunk":
@@ -216,8 +237,32 @@ class Chunk(Compound):
     A chunk term.
     
     Symbolically represents a Clarion chunk, together with its dimension-value 
-    pairs.
+    pairs. Structurally, a `Chunk` instance maps a collection of bus-and-data 
+    terms dyads to weights.
+
+    `Chunk` instances may be constructed symbolically within Python via the use 
+    of mathematical operators. See `Bus` for syntax supporting construction of 
+    elementary `Chunk` instances containing exactly one feature. Complex 
+    `Chunk` instances may then be constructed via the use of addition, 
+    subtraction, and multiplication operators. 
+
+    The addition operator constructs a new `Chunk` by merging the contents of 
+    the two operands. If both operands contain the same dimension-value pair, 
+    only the weight associated with the right operand is retained. Thus, 
+    `Chunk({a: 1.0, b: 1.0}) + Chunk({b: 2.0})` yields an instance of the form
+    `Chunk({a: 1.0, b: 2.0})`.
+
+    The subtraction operator negates all dimensional weights associated with 
+    the right-hand operand, then merges the two operands in the same manner as 
+    the addition operator. Thus, `Chunk({a: 1.0, b: 1.0}) - Chunk({b: 2.0})` 
+    yields an instance of the form `Chunk({a: 1.0, b: -2.0})`.
+
+    Pre-multiplication of a float into a `Chunk` instance yields a new instance 
+    where all weights are scaled by the left-hand operand. Thus, 
+    `0.5 * Chunk({a: 1.0, b: -2.0})` yields an instance of the form 
+    `Chunk({a: 0.5, b: -1.0})`.
     """
+
     _dyads_: dict[tuple[Bus, Symbol], float]
     _rule_: "Rule | None"
 
@@ -409,6 +454,7 @@ class Chunks[B: BusStructure, D: DataStructure](Compounds[Chunk]):
     Represents a collection of chunk terms. This sort includes a `nil` term as 
     a necessary member.
     """
+
     nil: Chunk
 
     @property
@@ -561,8 +607,10 @@ class Rules[L: Chunks, R: Chunks](Compounds[Rule]):
     Represents a collection of rule terms. This sort includes a `nil` term as a 
     necessary member.
     """
+
     _lhs_: L
     _rhs_: R
+
     nil: Rule 
 
     def __init__(self, name: str, lhs: L, rhs: R, prefix: str = "rule") -> None:

@@ -2,7 +2,7 @@ __all__ = ["Atom", "Param", "Atoms", "Params", "DataFamily", "AtomFamily",
     "ParamFamily", "Nodes"]
 
 
-from typing import Self, ClassVar, Sequence, overload
+from typing import Self, ClassVar, Sequence, Any, overload
 
 from .base import Family, Sort, Term
 from .compounds import (Var, Compounds, Bus, AnyDVPairs, Chunk)
@@ -24,6 +24,32 @@ class Atom(Primitive):
     pass
 
 
+class Level(Primitive):
+    """
+    An atomic scale level.
+
+    Represents some basic ordered data element.
+    """
+
+    def __lt__(self, other: Any) -> bool:
+        if other is self:
+            return False
+        else:
+            return self.__le__(other)
+
+    def __le__(self, other: Any) -> bool:
+        if not isinstance(other, Level):
+            pass
+        elif self._parent_ == other._parent_:
+            for ks in self._parent_._members_.values():
+                if ks is self:
+                    return True
+                elif ks is other:
+                    return False
+            assert False # This should never happen in practice.
+        return NotImplemented
+
+
 class Param(Primitive):
     """
     An atomic parameter term.
@@ -38,7 +64,7 @@ class Param(Primitive):
         self.init_val = float("nan")
 
 
-class Fundaments[C: Atom | Param](Sort[C]):
+class Primitives[C: Primitive](Sort[C]):
     """A data sort for atomic terms.""" 
     _vars_: dict[str, Var]
 
@@ -60,13 +86,14 @@ class Fundaments[C: Atom | Param](Sort[C]):
         return [self[val] for val in self]
 
 
-class Atoms(Fundaments[Atom]):
+class Atoms(Primitives[Atom]):
     """
     A data sort for data atoms.
 
     Represents a collection of atomic data terms that are alike in content 
     (e.g., color terms, shape terms, etc.).
     """
+    nil: Atom
 
     def __init__(self, name: str = "", prefix: str = "atom"):
         super().__init__(name, prefix)
@@ -75,7 +102,24 @@ class Atoms(Fundaments[Atom]):
     def _get_member_type_(cls) -> type[Atom]:
         return Atom
 
-class Params(Fundaments[Param]):
+
+class Levels(Primitives[Level]):
+    """
+    A data sort for scalar terms.
+
+    Represents an ordered collection of primitive values.
+    """
+    nil: Level
+
+    def __init__(self, name: str = "", prefix: str = "scalar"):
+        super().__init__(name, prefix)
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Level]:
+        return Level
+
+
+class Params(Primitives[Param]):
     """
     A data sort for parameter atoms.
 
@@ -106,6 +150,7 @@ class Params(Fundaments[Param]):
             if issubclass(sup, Params):
                 cls._init_val_defaults_.update(sup._init_val_defaults_)
 
+
 class DataFamily(Family[Sort]):
     def __init__(self, name: str = ""):
         super().__init__(name, skip=(Compounds,))
@@ -119,6 +164,12 @@ class AtomFamily(Family[Atoms]):
     @classmethod
     def _get_member_type_(cls) -> type[Atoms]:
         return Atoms
+
+
+class LevelFamily(Family[Levels]):
+    @classmethod
+    def _get_member_type_(cls) -> type[Levels]:
+        return Levels
 
 
 class ParamFamily(Family[Params]):
