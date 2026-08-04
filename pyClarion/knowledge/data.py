@@ -85,7 +85,11 @@ class Params(Fundaments[Param]):
 
     def __init__(self, name: str = "", prefix: str = "param"):
         super().__init__(name, prefix)
-        for label, value in self._init_val_defaults_.items():
+        defaults = {}
+        for cls in reversed(type(self).mro()):
+            if issubclass(cls, Params):
+                defaults.update(cls._init_val_defaults_)
+        for label, value in defaults.items():
             self[label].init_val = value
 
     def _init_values_(self) -> dict[Key, float]:
@@ -98,7 +102,9 @@ class Params(Fundaments[Param]):
     @classmethod
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        
+        for sup in cls.mro():
+            if issubclass(sup, Params):
+                cls._init_val_defaults_.update(sup._init_val_defaults_)
 
 class DataFamily(Family[Sort]):
     def __init__(self, name: str = ""):
