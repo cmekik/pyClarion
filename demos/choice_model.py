@@ -8,13 +8,12 @@ Implements and runs a simple model of multiple-choice item responses.
 import enum
 import logging
 import random
-import math
 
 from typing import Any
 from datetime import timedelta
 from textwrap import indent
 
-from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom, Param 
+from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom 
 from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
     RetrievalParams)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
@@ -32,18 +31,18 @@ class Options(Atoms):
     c: Atom
     d: Atom    
 
-class ModelData(AtomFamily):
+class Domain(AtomFamily):
     """Keyspace family housing all semantic simulation data."""
     options: Options
 
-class ModelParams(ParamFamily):
+class Params(ParamFamily):
     """Keyspace family housing all simulation parameters."""
     response: RetrievalParams
 
 class ModelKeySpace(Root):
     """Choice model root keyspace."""
-    d: ModelData
-    p: ModelParams
+    d: Domain
+    p: Params
 
 
 ######################

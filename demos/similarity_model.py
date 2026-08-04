@@ -64,7 +64,6 @@ class Implicit(DataFamily):
     duration: Duration
     place: Place
 
-
 class WM(Bus):
     """A working memory bus"""
     pass
@@ -77,7 +76,6 @@ class Layout(BusFamily):
     """The model's structural layout"""
     main: Main
 
-
 class Phonemes(Chunks[WM, Implicit]):
     """A collection of phoneme chunks"""
     p: Chunk; t: Chunk; k: Chunk
@@ -85,7 +83,6 @@ class Phonemes(Chunks[WM, Implicit]):
     b: Chunk; d: Chunk; g: Chunk
     v: Chunk; ð: Chunk; z: Chunk; ʒ: Chunk
     m: Chunk; n: Chunk        
-
 
 class Explicit(ChunkFamily):
     """The family of explicit chunks defined by the model"""
