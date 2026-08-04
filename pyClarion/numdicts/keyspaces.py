@@ -38,46 +38,49 @@ class Unit(KeySpace):
 
 class Product[T: tuple[Unit, ...]](KeySpace):
     """A product of elementary keyspaces."""
-    paths: T
 
-    def __init__(self, paths: T) -> None:
-        if not paths:
+    @property
+    def units(self) -> T:
+        return self._units
+
+    def __init__(self, units: T) -> None:
+        if not units:
             raise ValueError("Cannot construct empty product.")
-        self.paths = paths
+        self._units = units
 
     def __contains__(self, key: str | Key) -> bool:
         branches = Key(key).split()
-        if len(branches) != len(self.paths):
+        if len(branches) != len(self.units):
             return False
-        return all(k in ks for k, ks in zip(branches, self.paths, strict=True))
+        return all(k in ks for k, ks in zip(branches, self.units, strict=True))
 
     def __invert__(self) -> Key:
-        paths = self.paths 
-        k = ~paths[0]
-        for p in paths[1:]:
-            k = k * ~p
+        units = self.units 
+        k = ~units[0]
+        for u in units[1:]:
+            k = k * ~u
         return k
 
     def _keyform_(self, *hs: int) -> KeyForm:
-        paths = self.paths
+        units = self.units
         match hs:
             case ():
-                kf = paths[0]._keyform_()
-                for path in paths[1:]:
-                    kf = kf * path._keyform_()
+                kf = units[0]._keyform_()
+                for unit in units[1:]:
+                    kf = kf * unit._keyform_()
                 return kf
-            case hs if len(hs) == len(paths):
-                kf = paths[0]._keyform_(hs[0])
-                for h, path in zip(hs[1:], paths[1:], strict=True):
+            case hs if len(hs) == len(units):
+                kf = units[0]._keyform_(hs[0])
+                for h, path in zip(hs[1:], units[1:], strict=True):
                     kf = kf * path._keyform_(h)
                 return kf
             case _:
-                raise ValueError(f"Expected exactly {len(self.paths)} heights, "
+                raise ValueError(f"Expected exactly {len(self.units)} heights, "
                     f"got {len(hs)}")
 
     def _iter_(self, *hs: int) -> Iterator[Key]:
         iterables = [KeyGroup(ks, h) if isinstance(ks, Parent) else ()
-            for ks, h in zip(self.paths, hs, strict=True)]
+            for ks, h in zip(self.units, hs, strict=True)]
         for keys in product(*iterables):
             k = keys[0]
             for k_i in keys[1:]:
@@ -251,6 +254,22 @@ class Parent[M: Child](Path):
                 v._check_required_members_()
 
 
+class ChildSlot[T: Child]:
+    def __set_name__(self, owner: Any, name: str) -> None:
+        if issubclass(owner, Parent):
+            self._name_ = name
+
+    def __get__(self, obj: Any, objtype: Any | None) -> T:
+        if not isinstance(obj, Parent):
+            raise TypeError()
+        return obj._members_[Key(self._name_)]
+
+    def __set__(self, obj: Any, value: T) -> None:
+        if isinstance(obj, Parent):
+            raise ValidationError(f"Cannot mutate required path")
+
+
+
 class Root[M: Child](Parent[M]):
     """Base class for keyspace roots."""
     def __invert__(self) -> Key:
@@ -279,21 +298,6 @@ class Child(Path):
         return NotImplemented
 
 
-class ChildSlot[T: Child]:
-    def __set_name__(self, owner: Any, name: str) -> None:
-        if issubclass(owner, Parent):
-            self._name_ = name
-
-    def __get__(self, obj: Any, objtype: Any | None) -> T:
-        if not isinstance(obj, Parent):
-            raise TypeError()
-        return obj._members_[Key(self._name_)]
-
-    def __set__(self, obj: Any, value: T) -> None:
-        if isinstance(obj, Parent):
-            raise ValidationError(f"Cannot mutate required path")
-
-
 class Node[M: Child](Child, Parent[M]):
     """Base class for internal keyspace nodes."""
     def __init__(self, name: str = "", skip: "tuple[type[Child],...]" = ()):
@@ -301,16 +305,16 @@ class Node[M: Child](Child, Parent[M]):
         self._name_ = name
 
 
-class Dyad[L: Unit, R: Unit](Product):
+class Dyad[L: Unit, R: Unit](Product[tuple[L, R]]):
     """A dyad of elementary keyspaces."""
     def __mul__[T: Unit](self, other: T) -> "Triad[L, R, T]":
         """Return the keyspace obtained by crossing self with other"""
         if isinstance(other, Unit):
-            return Triad((*self.paths, other))
+            return Triad((*self.units, other))
         return NotImplemented
 
 
-class Triad[L: Unit, C: Unit, R: Unit](Product):
+class Triad[L: Unit, C: Unit, R: Unit](Product[tuple[L, C, R]]):
     """A triad of elementary keyspaces."""
     pass
 

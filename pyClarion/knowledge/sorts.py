@@ -2,9 +2,9 @@ __all__ = ["Fundaments", "Atoms", "Params", "Buses", "Compounds", "Chunks",
     "Rules"]
 
 
-from typing import Self, Sequence, ClassVar, overload
+from typing import Self, Sequence, ClassVar, overload, Any
 
-from .base import Sort
+from .base import Family, Sort, Term
 from .terms import Var, Bus, Atom, Param, Compound, Chunk, Rule
 from ..numdicts.keys import Key
 from ..numdicts.keyspaces import Dyad
@@ -83,19 +83,22 @@ class Compounds[C: Compound](Sort[C]):
     _init_required_ = False
 
 
-class Chunks[D: Dyad](Compounds[Chunk]):
+class Chunks[D: Dyad[Family | Sort | Term, Family | Sort]](Compounds[Chunk]):
     """
     A data sort for chunk terms.
 
     Represents a collection of chunk terms. This sort includes a `nil` term as 
     a necessary member.
     """
-    _dyads_: D
     nil: Chunk
+
+    @property
+    def _dyads_(self) -> D:
+        return self._dyads__
 
     def __init__(self, d: D, name: str = "", prefix: str = "chunk") -> None:
         super().__init__(name, prefix)
-        self._dyads_ = d
+        self._dyads__ = d
 
     @classmethod
     def _get_member_type_(cls) -> type[Chunk]:

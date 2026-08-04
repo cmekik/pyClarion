@@ -18,7 +18,7 @@ from pyClarion.knowledge import Root, AtomFamily, ParamFamily, Atoms, Atom, Para
 from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
     RetrievalParams)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
-    Status, ForwardUpdate)
+    Status)
 
 
 ########################

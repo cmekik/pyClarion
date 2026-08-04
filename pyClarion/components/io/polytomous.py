@@ -51,7 +51,7 @@ class Polytomous[D: Nodes, P: PolytomousParams](Parametric[P]):
     def _init_by(s: Nodes) -> KeyForm:
         match s:
             case Dyad():
-                (d, v) = s.paths
+                (d, v) = s.units
                 return keyform(d) * keyform(v, -1)
             case s:
                 return keyform(s, -1)

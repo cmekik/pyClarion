@@ -211,7 +211,7 @@ class Process[R: Root]:
                             continue
                         raise ValueError(f"Root of {ks} does not match system")
                     case Product():
-                        self.check_root(*ks.paths)
+                        self.check_root(*ks.units)
                     case _:
                         raise TypeError(f"Unexpected object of type {type(ks)}")
 

@@ -4,7 +4,7 @@ __all__ = ["ChunkStore", "ChunkStoreParams", "BottomUp", "TopDown"]
 import random
 
 from datetime import timedelta
-from typing import Final
+from typing import Any
 
 from ..base.parametric import Parametric
 from ...knowledge.terms import Param
@@ -13,7 +13,7 @@ from ...knowledge.types import DVPairs
 from ...events.updates import ForwardUpdate
 from ...events.system import Action
 from ...events.sites import Site, State
-from ...numdicts.keyspaces import KeyForm, keyform
+from ...numdicts.keyspaces import KeyForm, keyform, Dyad
 from ...numdicts.sentinel import Sentinel, UndefinedType
 from ...numdicts.numdicts import NumDict
 
@@ -24,7 +24,7 @@ class ChunkStoreParams(Params):
     _init_val_defaults_ = {"bu_latency": .01, "td_latency": .01}
 
 
-class ChunkStore[C: Chunks, P: ChunkStoreParams](Parametric[P]):
+class ChunkStore[C: Chunks[DVPairs], P: ChunkStoreParams](Parametric[P]):
     """
     A chunk store. 
 
@@ -52,7 +52,7 @@ class ChunkStore[C: Chunks, P: ChunkStoreParams](Parametric[P]):
         super().__init__(name, p)
         d = c._dyads_
         l = self.system.depth
-        b, v = d.paths
+        b, v = d.units
         self.system.check_root(c, d)
         idx_c = self.system.get_index(keyform(c))
         idx_d = self.system.get_index(keyform(d))
