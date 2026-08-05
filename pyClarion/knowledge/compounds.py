@@ -1,7 +1,7 @@
 __all__ = ["Indexical", "this", "Var", "Compound", "MatchVar", "Constant", 
     "Variable", "Symbol", "Bus", "Buses", "BusFamily", "BusStructure", 
     "DataStructure", "DVPairs", "AnyDVPairs", "Chunk", "Rule", "Compounds", 
-    "Chunks", "AnyChunks", "Rules", "CompoundFamily", "ChunkFamily", 
+    "Chunks", "Rules", "CompoundFamily", "ChunkFamily", 
     "RuleFamily"]
 
 import enum
@@ -447,7 +447,7 @@ class Chunk(Compound):
         return ChunkData(ciw=ciw, tdw=tdw)
 
 
-class Chunks[B: BusStructure, D: DataStructure](Compounds[Chunk]):
+class Chunks(Compounds[Chunk]):
     """
     A data sort for chunk terms.
 
@@ -457,20 +457,15 @@ class Chunks[B: BusStructure, D: DataStructure](Compounds[Chunk]):
 
     nil: Chunk
 
-    @property
-    def _dyads_(self) -> Dyad[B, D]:
-        return self._dyads__
+    _dyads_: AnyDVPairs
 
-    def __init__(self, d: Dyad[B, D], name: str = "", prefix: str = "chunk") -> None:
+    def __init__(self, d: AnyDVPairs, name: str = "", prefix: str = "chunk") -> None:
         super().__init__(name, prefix)
-        self._dyads__ = d
+        self._dyads_ = d
 
     @classmethod
     def _get_member_type_(cls) -> type[Chunk]:
         return Chunk
-
-
-type AnyChunks = Chunks[BusStructure, DataStructure]
 
 
 class ChunkFamily(Family[Chunks]):
@@ -600,7 +595,7 @@ class Rule(Compound):
         return RuleData(riw=riw, lhw=lhw, rhw=rhw)
 
 
-class Rules[L: Chunks, R: Chunks](Compounds[Rule]):
+class Rules(Compounds[Rule]):
     """
     A data sort for rule terms.
 
@@ -608,12 +603,12 @@ class Rules[L: Chunks, R: Chunks](Compounds[Rule]):
     necessary member.
     """
 
-    _lhs_: L
-    _rhs_: R
+    _lhs_: Chunks
+    _rhs_: Chunks
 
     nil: Rule 
 
-    def __init__(self, name: str, lhs: L, rhs: R, prefix: str = "rule") -> None:
+    def __init__(self, lhs: Chunks, rhs: Chunks, name: str = "", prefix: str = "rule") -> None:
         super().__init__(name, prefix)
         self._lhs_ = lhs
         self._rhs_ = rhs

@@ -1,12 +1,14 @@
 __all__ = ["Parametric", "ParamUpdate"]
 
 
+from typing import cast
+
 from ...events.system import Action, Event, Process
 from ...events.sites import Site, State
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root
 from ...knowledge.primitives import Params
-from ...numdicts.keyspaces import keyform
+from ...numdicts.keyspaces import keyform, find_root
 from ...numdicts.sentinel import Sentinel, UndefinedType
 
 
@@ -24,7 +26,7 @@ class Parametric[P: Params](Process[Root]):
         return self._p
 
     def __init__(self, name: str, p: P) -> None:
-        super().__init__(name)
+        super().__init__(name, cast(Root | None, find_root(p)))
         self.system.check_root(p)
         i, d = self.system.get_index(keyform(p)), p._init_values_()
         self._p = p

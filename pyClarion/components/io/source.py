@@ -1,7 +1,7 @@
 __all__ = ["Source", "Input"]
 
 
-from typing import overload
+from typing import overload, cast
 
 from ...events.system import Action, Event, Process
 from ...events.sites import State, Site
@@ -10,7 +10,7 @@ from ...knowledge.base import Root, Term
 from ...knowledge.compounds import Var, Indexical, MatchVar, Chunk
 from ...knowledge.primitives import Nodes
 from ...numdicts.keys import Key
-from ...numdicts.keyspaces import keyform
+from ...numdicts.keyspaces import keyform, find_root, Dyad
 from ...numdicts.sentinel import UndefinedType
 
 
@@ -27,7 +27,11 @@ class Source[D: Nodes, C: float | UndefinedType](Process[Root]):
         return self._d
 
     def __init__(self, name: str, d: D, *, c: C = 0.0) -> None:
-        super().__init__(name)
+        if isinstance(d, Dyad):
+            r = find_root(d.units[0])
+        else:
+            r = find_root(d)
+        super().__init__(name, cast(Root | None, r))
         self.system.check_root(d)
         i, l = self.system.get_index(keyform(d)), self.system.depth
         self._d = d 

@@ -1,28 +1,19 @@
-__all__ = ["ChunkStore", "ChunkStoreParams", "BottomUp", "TopDown"]
+__all__ = ["ChunkStore", "BottomUp", "TopDown"]
 
 
-import random
+from typing import cast
 
-from datetime import timedelta
-
-from ..base.parametric import Parametric
-from ...knowledge.primitives import Params, Param
-from ...knowledge.compounds import Chunks, AnyChunks
+from ...knowledge.base import Root
+from ...knowledge.compounds import Chunks
 from ...events.updates import ForwardUpdate
-from ...events.system import Action, Event
+from ...events.system import Action, Event, Process
 from ...events.sites import Site, State
-from ...numdicts.keyspaces import KeyForm, keyform
+from ...numdicts.keyspaces import KeyForm, keyform, find_root
 from ...numdicts.sentinel import Sentinel, UndefinedType
 from ...numdicts.numdicts import NumDict
 
 
-class ChunkStoreParams(Params):
-    bu_latency: Param
-    td_latency: Param
-    _init_val_defaults_ = {"bu_latency": .01, "td_latency": .01}
-
-
-class ChunkStore[C: AnyChunks, P: ChunkStoreParams](Parametric[P]):
+class ChunkStore[C: Chunks](Process[Root]):
     """
     A chunk store. 
 
@@ -46,8 +37,8 @@ class ChunkStore[C: AnyChunks, P: ChunkStoreParams](Parametric[P]):
     def c(self) -> C:
         return self._c
 
-    def __init__(self, name: str, p: P, c: C) -> None:
-        super().__init__(name, p)
+    def __init__(self, name: str, c: C) -> None:
+        super().__init__(name, cast(Root | None, find_root(c)))
         d = c._dyads_
         l = self.system.depth
         b, v = d.units
@@ -94,7 +85,7 @@ class ChunkStore[C: AnyChunks, P: ChunkStoreParams](Parametric[P]):
                 super().resolve(event)
 
 
-type AnyChunkStore = ChunkStore[AnyChunks, ChunkStoreParams]
+type AnyChunkStore = ChunkStore[Chunks]
 
 
 class BottomUp[S: AnyChunkStore](Action[S]):
@@ -104,10 +95,7 @@ class BottomUp[S: AnyChunkStore](Action[S]):
             .mul(source.input_bu[0], by=source.by_bus_value)
             .max(by=source.by_dim)
             .sum(by=source.dim_by_chunk, c=0.0))
-        latency = source.params[0][~source.p.bu_latency]
         self.updates.append(ForwardUpdate(source.output_bu, output))
-        if 0 < latency:
-            self.duration = timedelta(seconds=random.expovariate(1 / latency))
 
 
 class TopDown[S: AnyChunkStore](Action[S]):
@@ -116,7 +104,4 @@ class TopDown[S: AnyChunkStore](Action[S]):
         output = (source.tdw[0]
             .mul(source.input_td[0], by=source.by_chunk)
             .sum(by=source.by_bus_value))
-        latency = random.expovariate(1/source.params[0][~source.p.td_latency])
         self.updates.append(ForwardUpdate(source.output_td, output))
-        if 0 < latency:
-            self.duration = timedelta(seconds=random.expovariate(1 / latency))

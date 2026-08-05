@@ -195,7 +195,7 @@ class ChoiceModel(Process[ModelKeySpace]):
                 raise ValueError(f"Unexpected event {event}")
 
     def _log(self, message: str) -> None:
-        self.system.logger.info(message)
+        logging.info(message)
 
     def _event_report(self, event: Event) -> str:
         wall_time = self.system.clock.wall_time

@@ -3,4 +3,4 @@ from .io.polytomous import (Polytomous, PolytomousParams, PolytomousSelection,
     RetrievalParams, Retrieval)
 from .io.discriminal import Discriminal, DiscriminalParams, DiscriminalSelection
 from .io.source import Source, Input
-from .toplevel.chunks import ChunkStore, ChunkStoreParams, BottomUp, TopDown
+from .toplevel.chunks import ChunkStore, BottomUp, TopDown

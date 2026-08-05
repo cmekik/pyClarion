@@ -131,7 +131,7 @@ class Params(Primitives[Param]):
         super().__init__(name, prefix)
         defaults = {}
         for cls in reversed(type(self).mro()):
-            if issubclass(cls, Params):
+            if cls is not Params and issubclass(cls, Params):
                 defaults.update(cls._init_val_defaults_)
         for label, value in defaults.items():
             self[label].init_val = value
@@ -142,13 +142,6 @@ class Params(Primitives[Param]):
     @classmethod
     def _get_member_type_(cls) -> type[Param]:
         return Param
-
-    @classmethod
-    def __init_subclass__(cls) -> None:
-        super().__init_subclass__()
-        for sup in cls.mro():
-            if issubclass(sup, Params):
-                cls._init_val_defaults_.update(sup._init_val_defaults_)
 
 
 class DataFamily(Family[Sort]):

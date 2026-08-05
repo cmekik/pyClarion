@@ -372,7 +372,7 @@ class KSObserver:
         pass
 
 
-def find_root(ks: Path) -> Root | None:
+def find_root(ks: Path) -> Root[Child] | None:
     """Return the root of keyspace ks if it exists, otherwise return None."""
     ret = ks
     while isinstance(ret, Child):

@@ -26,7 +26,7 @@ from pyClarion.numdicts import Dyad
 from pyClarion.knowledge import (Root, DataFamily, ParamFamily, ChunkFamily, 
     BusFamily, Buses, Atoms, Chunks, Bus, Atom, Chunk) 
 from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
-    RetrievalParams, ChunkStore, TopDown, BottomUp, ChunkStoreParams)
+    RetrievalParams, ChunkStore, TopDown, BottomUp)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
     Status, Action)
 
@@ -76,7 +76,7 @@ class Layout(BusFamily):
     """The model's structural layout"""
     main: Main
 
-class Phonemes(Chunks[WM, Implicit]):
+class Phonemes(Chunks):
     """
     A data sort for phonemes.
     
@@ -95,7 +95,6 @@ class Explicit(ChunkFamily):
 class Parameters(ParamFamily):
     """The family of model parameters"""
     retrieval: RetrievalParams
-    chunks: ChunkStoreParams
 
 class ModelKeySpace(Root):
     """The complete model keyspace"""
@@ -152,7 +151,7 @@ class Agent(Process[ModelKeySpace]):
     """A simulated participant."""
 
     source: Source[Phonemes, float]
-    chunks: ChunkStore[Phonemes, ChunkStoreParams]
+    chunks: ChunkStore[Phonemes]
     ret: Polytomous[Phonemes, RetrievalParams]
 
     def __init__(self, name: str, root: ModelKeySpace | None = None) -> None:
@@ -161,7 +160,7 @@ class Agent(Process[ModelKeySpace]):
         p = self.system.root.p
         with self:
             self.source = Source(f"{name}.source", c.phonemes)
-            self.chunks = ChunkStore(f"{name}.chunks", p.chunks, c.phonemes)
+            self.chunks = ChunkStore(f"{name}.chunks", c.phonemes)
             self.ret = Polytomous(f"{name}.ret", p.retrieval, c.phonemes)
         self.chunks.input_td = self.source.output
         self.chunks.input_bu = self.chunks.output_td
@@ -180,10 +179,10 @@ class Agent(Process[ModelKeySpace]):
                 self.system.schedule(TopDown(self.chunks))
             case TopDown(p) if p is self.chunks:
                 self.system.schedule(BottomUp(self.chunks))
-                self.system.logger.info(event.describe())
+                logging.info(event.describe())
             case BottomUp(p) if p is self.chunks:
                 self.system.schedule(Retrieval(self.ret))
-                self.system.logger.info(event.describe())
+                logging.info(event.describe())
             case _:
                 raise ValueError(f"Unexpected event {event}")
 
@@ -263,7 +262,7 @@ class Model(Process[ModelKeySpace]):
                 raise ValueError(f"Unexpected event {event}")
 
     def _log(self, message: str) -> None:
-        self.system.logger.info(message)
+        logging.info(message)
 
     def _event_report(self, event: Event) -> str:
         wall_time = self.system.clock.wall_time
