@@ -5,3 +5,4 @@ from .compounds import (Indexical, this, Var, Compound, Constant, Variable,
     CompoundFamily, ChunkFamily, RuleFamily)
 from .primitives import (Primitive, Atom, Param, Atoms, Params, DataFamily, 
     AtomFamily, ParamFamily, Nodes)
+from .utils import get_dyads, get_chunks, get_lhs, get_rhs

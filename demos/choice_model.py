@@ -217,8 +217,12 @@ class ChoiceModel(Process[ModelKeySpace]):
 
     def _presentation_report(self, event: Event[Presentation]) -> str:
         item = self.item
+        stimulus = str(self.agent.stimulus.output[0])
         head = self._event_report(event)
-        tail = f"Presenting item {item}."
+        tail = "\n".join([
+            f"Presenting item {item}.",
+            "Here is the stimulus vector.",
+            indent(stimulus, "    ")])
         message = "\n".join([head, indent(tail, "    ")])
         return message
 
