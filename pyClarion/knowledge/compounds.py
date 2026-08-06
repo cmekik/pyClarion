@@ -1,187 +1,52 @@
-__all__ = ["Indexical", "this", "Var", "Compound", "MatchVar", "Constant", 
-    "Variable", "Symbol", "Bus", "Buses", "BusFamily", "BusStructure", 
+__all__ = ["Compound", "Bus", "Buses", "BusFamily", "BusStructure", 
     "DataStructure", "DVPairs", "AnyDVPairs", "Chunk", "Rule", "Compounds", 
     "Chunks", "Rules", "CompoundFamily", "ChunkFamily", 
     "RuleFamily"]
 
-import enum
+from abc import abstractmethod
 from weakref import WeakSet
 from itertools import count, product
 from typing import Iterator, Iterable, Self, TypedDict, Sequence, cast, overload
-from contextlib import contextmanager
 
-from .base import Family, Sort, Term
-from ..numdicts.keyspaces import Unit, Dyad, find_parent
-from ..numdicts.keys import Key, KeyForm
-
-
-class Var[S: Sort](Unit):
-    """A variable data term."""
-    name: str
-    sort: S
-    _subset: frozenset[Term]
-
-    def __init__(self, name: str, sort: S) -> None:
-        self.name = name
-        self.sort = sort
-        self._subset = frozenset()
-
-    def __call__(self, valuation: dict[str, Term]) -> Term:
-        term = valuation[self.name]
-        if self.validate(term):
-            return term
-        raise ValueError(f"Value {term} assigned to Var {self} does not "
-            "belong to the correct sort.")
-
-    def __contains__(self, key: str | Key) -> bool:
-        try:
-            term = self.sort._members_[Key(key)]
-        except KeyError:
-            return False
-        return self.validate(term)
-
-    def __iter__(self) -> Iterator[str]:
-        for key in self._iter_(1):
-            yield key[1][0]
-
-    def __invert__(self) -> Key:
-        return ~self.sort
-
-    def _keyform_(self, *hs: int) -> KeyForm:
-        return self.sort._keyform_(*hs)
-    
-    def _iter_(self, *hs: int) -> Iterator[Key]:
-        h, = hs
-        if h <= 0:
-            return
-        if h == 1:
-            for key in self.sort._members_:
-                if key in self:
-                    yield key 
-    
-    def validate(self, term: Term) -> bool:
-        if find_parent(term) != self.sort:
-            return False
-        if self._subset and term not in self._subset:
-            return False
-        return True
-
-    # @contextmanager
-    # def subset(self, keys: Iterable[Term]):
-    #     if keys:
-    #         _subset = self._subset
-    #         self._subset = self._subset & frozenset(keys)
-    #         yield self
-    #         self._subset = _subset
-    #     else:
-    #         yield self
+from .base import (Family, Sort, Term, Var, MatchVar, Indexical, Constant, 
+    Symbol, this)
+from ..numdicts.keyspaces import Dyad
+from ..numdicts.keys import Key
 
 
-class Compound(Term):
-    """
-    Base class for compound terms.
-
-    A compound term represents a data element with some constituency structure 
-    (i.e., chunks and rules).
-
-    Do not directly instantiate this class.
-    """
-    _vars_: set[Var]
-    _valuation_: frozenset[tuple[Var, Term]]
-    _instances_: WeakSet[Self]
-    _template_: Self | None
-    _counter_: count
+class Primitive(Term):
+    pass
 
 
-    def __init__(self, template: Self | None = None) -> None:
-        super().__init__()
-        self._vars_ = set()
-        self._valuation_ = frozenset()
-        self._instances_ = WeakSet()
-        self._template_ = template
-        self._counter_ = count()
+class Primitives[C: Primitive](Sort[C]):
+    """A data sort for atomic terms.""" 
+    _vars_: dict[str, Var]
 
-    def __rxor__(self: Self, other: str) -> Self:
-        if not other.isidentifier():
-            ValueError("Compound term identifier must be a valid "
-                "python identifier")
-        self._name_ = other
-        return self
+    def __init__(self, name: str = "", prefix: str = "") -> None:
+        super().__init__(name, prefix)
+        self._vars_ = {}
 
-    def __call__(self, *variables: Var) -> "MatchVar[Self]":
-        return MatchVar(self, *variables)
-    
-    def _match_(self, vals: dict[Var, Term]) -> set[Self]:
-        candidates = set(self._instances_)
-        for var, val in vals.items():
-            elim = {_t for _t in candidates if not (var, val) in _t._valuation_}
-            candidates = {_t for _t in candidates if _t not in elim}
-        return candidates
+    @overload
+    def __call__(self) -> Sequence[C]:
+        ...
 
-    def _instantiations_(self) -> Iterator[Self]:
-        for vals in self._valuations_():
-            yield self._instantiate_(vals)
+    @overload
+    def __call__(self, name: str) -> Var[Self]:
+        ...
 
-    def _valuations_(self) -> Iterator[dict[Var, Term]]:
-        _vars_ = list(self._vars_)
-        for vals in product(*_vars_):
-            if vals:
-                yield {var: var.sort[val] for var, val in zip(_vars_, vals)}
-
-    def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
-        raise NotImplementedError()
+    def __call__(self, name: str | None = None) -> Var[Self] | Sequence[C]:
+        if name is not None:
+            return self._vars_.setdefault(name, Var(name, self))
+        return [self[val] for val in self]
 
 
-class MatchVar[C: "Compound"]:
-    term: C
-    variables: tuple[Var, ...]
- 
-    def __init__(self, term: C, *variables: Var) -> None:
-        self.term = term
-        self.variables = variables
-
-
-class Compounds[C: Compound](Sort[C]):
-    """A data sort for compound terms."""
-    _init_required_ = False
-
-
-class CompoundFamily(Family[Compounds[Compound]]):
-    _init_required_ = False
-
+class PrimitiveFamily(Family[Primitives]):
     @classmethod
-    def _get_member_type_(cls) -> type[Compounds]:
-        return Compounds
+    def _get_member_type_(cls) -> type[Primitives]:
+        return Primitives
 
 
-class Indexical(enum.Enum):
-    """
-    A relative reference for a compound term.
-
-    Indexicals are constants that point to current chunk or rule instances or 
-    their templates from within a chunk or rule declaration.
-
-    For instance, the following notation spawns a chunk containing a single 
-    self-referential feature on some bus: `bus ** this.chunk`.
-
-    See `Bus` and `Chunk` for further details on symbolic `Chunk` instance 
-    construction.
-    """
-    chunk = enum.auto()
-    rule = enum.auto()
-    chunk_instance = enum.auto()
-    rule_instance = enum.auto()
-
-
-this = Indexical
-
-
-type Constant = Term | Indexical
-type Variable = Var | MatchVar
-type Symbol = Constant | Variable
-
-
-class Bus(Term):
+class Bus(Primitive):
     """
     A data line.
     
@@ -225,6 +90,75 @@ type BusStructure = BusFamily | Buses | Bus
 type DataStructure = Family[Sort[Term]] | Sort[Term]
 type DVPairs[B: BusStructure, D: DataStructure] = Dyad[B, D]
 type AnyDVPairs = DVPairs[BusStructure, DataStructure]
+
+
+class Compound(Term):
+    """
+    Base class for compound terms.
+
+    A compound term represents a data element with some constituency structure 
+    (i.e., chunks and rules).
+
+    Do not directly instantiate this class.
+    """
+    _vars_: set[Var]
+    _valuation_: frozenset[tuple[Var, Term]]
+    _instances_: WeakSet[Self]
+    _template_: Self | None
+    _counter_: count
+
+
+    def __init__(self, template: Self | None = None) -> None:
+        super().__init__()
+        self._vars_ = set()
+        self._valuation_ = frozenset()
+        self._instances_ = WeakSet()
+        self._template_ = template
+        self._counter_ = count()
+
+    def __rxor__(self: Self, other: str) -> Self:
+        if not other.isidentifier():
+            ValueError("Compound term identifier must be a valid "
+                "python identifier")
+        self._name_ = other
+        return self
+
+    def __call__(self, *variables: Var) -> MatchVar[Self]:
+        return MatchVar(self, *variables)
+    
+    def _match_(self, vals: dict[Var, Term]) -> set[Self]:
+        candidates = set(self._instances_)
+        for var, val in vals.items():
+            elim = {t for t in candidates if not (var, val) in t._valuation_}
+            candidates = {t for t in candidates if t not in elim}
+        return candidates
+
+    def _instantiations_(self) -> Iterator[Self]:
+        for vals in self._valuations_():
+            yield self._instantiate_(vals)
+
+    def _valuations_(self) -> Iterator[dict[Var, Term]]:
+        _vars_ = list(self._vars_)
+        for vals in product(*_vars_):
+            if vals:
+                yield {var: var.sort[val] for var, val in zip(_vars_, vals)}
+
+    @abstractmethod
+    def _instantiate_(self: Self, vals: dict[Var, Term]) -> Self:
+        raise NotImplementedError()
+
+
+class Compounds[C: Compound](Sort[C]):
+    """A data sort for compound terms."""
+    _init_required_ = False
+
+
+class CompoundFamily(Family[Compounds[Compound]]):
+    _init_required_ = False
+
+    @classmethod
+    def _get_member_type_(cls) -> type[Compounds]:
+        return Compounds
 
 
 class ChunkData(TypedDict):

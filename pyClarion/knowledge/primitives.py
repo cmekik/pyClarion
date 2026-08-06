@@ -2,17 +2,11 @@ __all__ = ["Atom", "Param", "Atoms", "Params", "DataFamily", "AtomFamily",
     "ParamFamily", "Nodes"]
 
 
-from typing import Self, ClassVar, Sequence, Any, overload
+from typing import ClassVar, Any
 
 from .base import Family, Sort, Term
-from .compounds import (Var, Compounds, Bus, AnyDVPairs, Chunk)
+from .compounds import (Primitive, Primitives, Compounds, AnyDVPairs)
 from ..numdicts.keys import Key
-
-
-class Primitive(Term):
-    def __rpow__(self, other: Bus) -> "Chunk":
-        if isinstance(other, Bus):
-            return Chunk({(other, self): 1.0})
 
 
 class Atom(Primitive):
@@ -62,28 +56,6 @@ class Param(Primitive):
     def __init__(self, name: str = ""):
         super().__init__(name)
         self.init_val = float("nan")
-
-
-class Primitives[C: Primitive](Sort[C]):
-    """A data sort for atomic terms.""" 
-    _vars_: dict[str, Var]
-
-    def __init__(self, name: str = "", prefix: str = "") -> None:
-        super().__init__(name, prefix)
-        self._vars_ = {}
-
-    @overload
-    def __call__(self) -> Sequence[C]:
-        ...
-
-    @overload
-    def __call__(self, name: str) -> Var[Self]:
-        ...
-
-    def __call__(self, name: str | None = None) -> Var[Self] | Sequence[C]:
-        if name is not None:
-            return self._vars_.setdefault(name, Var(name, self))
-        return [self[val] for val in self]
 
 
 class Atoms(Primitives[Atom]):
