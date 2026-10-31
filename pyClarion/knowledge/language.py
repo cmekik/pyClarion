@@ -103,22 +103,13 @@ class Expr[N: VarNode]:
         self.node = node
         self.scope = scope
 
-    def __copy__(self) -> Self:
-        return self.__class__(self.name, self.node, self.scope)
-
-    def __rxor__(self, other: str) -> Self:
-        if not isinstance(other, str):
-            return NotImplemented
-        elif not other.isidentifier():
-            raise ValueError(f"'{other}' is not a valid name")
-        return type(self)(other, self.node, self.scope)
-
     @overload
     def _propagate(self, other: "Expr[None]") -> N:
         ...
 
     @overload
-    def _propagate[T: VarNode](self, other: "Expr[T]") -> T:
+    def _propagate[T: VarNode](self, other: "Expr[T]") \
+        -> T:
         ...
 
     def _propagate(self, other):

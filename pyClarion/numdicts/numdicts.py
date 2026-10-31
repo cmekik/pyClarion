@@ -103,7 +103,19 @@ class NumDictBase(IndexObserver):
         for k in self.d:
             width = max(width, len(str(k)))
         for k, v in self.d.items():
-            data.append(f"{str(k):<{width}} {v}")
+            data.append(f"{str(k):<{width}} {v:=8.4f}")
+        return "\n    ".join(data)
+
+    def top(self, n: int | None = None) -> str:
+        data = [f"{type(self).__qualname__} '{self.i.kf.as_key()}' c={self.c}"]
+        width = 0
+        for k in self.d:
+            width = max(width, len(str(k)))
+        sorted_items = sorted(self.d.items(), key=lambda x: x[1], reverse=True)
+        for i, (k, v) in enumerate(sorted_items):
+            if i == n:
+                break
+            data.append(f"{str(k):<{width}} {v:=8.4f}")
         return "\n    ".join(data)
 
     def copy(self: Self) -> Self:

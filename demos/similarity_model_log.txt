@@ -1,5 +1,5 @@
 Start model 0x0000 00:00:00.00 000 0
-    Wall time is 0:00:00.003575.
+    Wall time is 0:00:00.010009.
     Welcome to pyClarion!
     This demo presents some more advanced library features.
     It also showcases Clarion's dual-representational structure.
@@ -8,66 +8,66 @@ Start model 0x0000 00:00:00.00 000 0
     A phoneme is detected if the corresponding chunk is retrieved.
     Retrieval involves implicit-explicit knowledge interaction.
     This interaction drives competition among phoneme chunks.
-Presentation model.agent.source 0x0000 00:00:00.00 000 2
-    Wall time is 0:00:00.009717.
+Presentation model.agent.source 0x0000 00:00:00.01 000 2
+    Wall time is 0:00:00.011952.
     Presenting phoneme c:phonemes:p.
-TopDown model.agent.chunks 0x0000 00:00:00.02 000 3
+TopDown model.agent.chunks 0x0000 00:00:00.01 000 3
 BottomUp model.agent.chunks 0x0000 00:00:00.02 000 4
-Retrieval model.agent.ret 0x0000 00:00:01.86 000 5
-    Wall time is 0:00:01.865578.
+Retrieval model.agent.ret 0x0000 00:00:01.13 000 5
+    Wall time is 0:00:01.138820.
     Agent retrieved a phoneme chunk.
     Here is the selection vector:
         NumDict 'c:phonemes:?' c=0.0
-            c:phonemes:ʒ 1.0
+            c:phonemes:p   1.0000
     Here is the corresponding activation vector:
         NumDict 'c:phonemes:?' c=0.0
-            c:phonemes:_ -0.12171321243926835
-            c:phonemes:p 0.10866872444415401
-            c:phonemes:t 0.03535981707128814
-            c:phonemes:k -0.02216489231189054
-            c:phonemes:f 0.02799617596847301
-            c:phonemes:θ 0.01912719307372655
-            c:phonemes:s -0.015780977527571755
-            c:phonemes:ʃ -0.12634031161871537
-            c:phonemes:b 0.09016299379848429
-            c:phonemes:d -0.06989899664131138
-            c:phonemes:g -0.06648768926508535
-            c:phonemes:v -0.09655898229906927
-            c:phonemes:ð -0.047553584819797
-            c:phonemes:z 0.0093926315874346
-            c:phonemes:ʒ 0.19745350784496932
-            c:phonemes:m -0.034266640484839364
-            c:phonemes:n -0.05815209031150229
-Presentation model.agent.source 0x0000 00:00:01.87 000 8
-    Wall time is 0:00:01.873858.
+            c:phonemes:p   0.7807
+            c:phonemes:b   0.7474
+            c:phonemes:k   0.6303
+            c:phonemes:θ   0.6264
+            c:phonemes:d   0.5902
+            c:phonemes:f   0.5896
+            c:phonemes:t   0.5520
+            c:phonemes:v   0.5405
+            c:phonemes:g   0.4913
+            c:phonemes:ʃ   0.3090
+            c:phonemes:m   0.2378
+            c:phonemes:z   0.1938
+            c:phonemes:ð   0.1750
+            c:phonemes:s   0.1536
+            c:phonemes:_   0.1308
+            c:phonemes:ʒ   0.1170
+            c:phonemes:n   0.1143
+Presentation model.agent.source 0x0000 00:00:01.14 000 8
+    Wall time is 0:00:01.147891.
     Presenting phoneme c:phonemes:ʒ.
-TopDown model.agent.chunks 0x0000 00:00:01.87 000 9
-BottomUp model.agent.chunks 0x0000 00:00:01.87 000 10
-Retrieval model.agent.ret 0x0000 00:00:03.64 000 11
-    Wall time is 0:00:03.646254.
+TopDown model.agent.chunks 0x0000 00:00:01.15 000 9
+BottomUp model.agent.chunks 0x0000 00:00:01.15 000 10
+Retrieval model.agent.ret 0x0000 00:00:02.01 000 11
+    Wall time is 0:00:02.015998.
     Agent retrieved a phoneme chunk.
     Here is the selection vector:
         NumDict 'c:phonemes:?' c=0.0
-            c:phonemes:t 1.0
+            c:phonemes:ʒ   1.0000
     Here is the corresponding activation vector:
         NumDict 'c:phonemes:?' c=0.0
-            c:phonemes:_ 0.05470449315711998
-            c:phonemes:p 0.0031402458962907125
-            c:phonemes:t 0.2445508754722282
-            c:phonemes:k -0.17453934729918208
-            c:phonemes:f 0.049088405468243876
-            c:phonemes:θ 0.052190830471269024
-            c:phonemes:s -0.03907414453960589
-            c:phonemes:ʃ 0.07779603208340129
-            c:phonemes:b 0.008567383367405807
-            c:phonemes:d 0.13113572472525
-            c:phonemes:g 0.0394714006922984
-            c:phonemes:v 0.08151278371841969
-            c:phonemes:ð -0.011652454634348023
-            c:phonemes:z -0.014555995548007654
-            c:phonemes:ʒ -0.027358759038414296
-            c:phonemes:m -0.08104756603018738
-            c:phonemes:n 0.10823943769349176
-Stop model 0x0000 00:00:03.65 000 13
-    Wall time is 0:00:03.650971.
+            c:phonemes:ʒ   1.1079
+            c:phonemes:z   0.7802
+            c:phonemes:ʃ   0.7062
+            c:phonemes:v   0.6424
+            c:phonemes:ð   0.5758
+            c:phonemes:g   0.5453
+            c:phonemes:s   0.4820
+            c:phonemes:θ   0.4609
+            c:phonemes:m   0.4326
+            c:phonemes:f   0.3262
+            c:phonemes:b   0.2907
+            c:phonemes:d   0.2513
+            c:phonemes:k   0.2271
+            c:phonemes:t   0.1792
+            c:phonemes:p   0.1775
+            c:phonemes:n   0.1737
+            c:phonemes:_ - 0.1227
+Stop model 0x0000 00:00:02.03 000 13
+    Wall time is 0:00:02.032618.
     Simulation complete.

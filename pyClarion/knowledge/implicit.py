@@ -25,7 +25,7 @@ class Atoms(Primitives[Atom]):
     Represents a collection of atomic data terms that are alike in content 
     (e.g., color terms, shape terms, etc.).
     """
-    nil: Atom
+    _: Atom
 
     def __init__(self, name: str = "", prefix: str = "atom"):
         super().__init__(name, prefix)

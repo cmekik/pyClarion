@@ -295,7 +295,7 @@ class Chunks(Compounds[Chunk]):
         try:
             self._
         except KeyError:
-            self._ = Chunk()
+            self._ = Chunk(ChunkExpr("_"))
 
     @classmethod
     def _get_member_type_(cls) -> type[Chunk]:
@@ -369,10 +369,10 @@ class Rule[N: VarNode](Compound[RuleExpr[N]]):
         else:
             template = self._template_
             self._lhs_ = self._init_chunks_(
-                spec=self._expr_._lhs,
+                spec=self._expr_.lhs,
                 template=None if template is None else template._lhs_)
             self._rhs_ = self._init_chunks_(
-                spec=self._expr_._rhs,
+                spec=self._expr_.rhs,
                 template=None if template is None else template._rhs_)
 
     def _init_chunks_(self, 
@@ -544,7 +544,7 @@ class Rules(Compounds[Rule]):
         try:
             self._
         except KeyError:
-            self._ = Rule()
+            self._ = Rule(RuleExpr("_"))
 
     @classmethod
     def _get_member_type_(cls) -> type[Rule]:

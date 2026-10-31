@@ -1,4 +1,4 @@
-from typing import Self, Iterator, overload, final
+from typing import Self, Iterator, overload, final, Final
 from textwrap import indent
 
 from .base import Family, Sort, Term
@@ -18,10 +18,9 @@ class Bus(Primitive):
         expr = ChunkExpr()
         match other:
             case Term() | Indexical():
-                expr.update({(self, other): 1.0})
+                expr = ChunkExpr(dyads={(self, other): 1.0})
             case Var(node=n) | Constraint(node=n):
-                expr = ChunkExpr(node=n)
-                expr.update({(self, other): 1.0})
+                expr = ChunkExpr(node=n, dyads={(self, other): 1.0})
             case tuple():
                 if not other:
                     raise ValueError("Cannot parse empty tuple")
@@ -53,53 +52,57 @@ class BusFamily(Family[Buses]):
 @final
 class ChunkExpr[N: VarNode](Expr[N]):
 
-    def update(self, dyads: dict[tuple[Bus, Symbol], float]) -> None:
-        for (bus, symbol), w in dyads.items():
-            self._dyads[(bus, symbol)] = w
-            match symbol:
-                case Var(scope=Scope.DIM) \
-                    | Constraint(scope=Scope.DIM) \
-                    | this.chunk_group \
-                    | this.rule_group:
-                    self._scope |= Scope.DIM
-                case Var(scope=Scope.VAL) \
-                    | Constraint(scope=Scope.VAL) \
-                    | this.chunk_instance \
-                    | this.rule_instance:
-                    self._scope |= Scope.VAL
-                case _:
-                    pass
-
+    dyads: Final[dict[tuple[Bus, Symbol], float]]
+        
     def __init__(self, 
         name: str = "", 
         node: N = None, 
-        scope: Scope = Scope.NIL
+        dyads: dict[tuple[Bus, Symbol], float] | None = None
     ) -> None:
+        scope = Scope.NIL
+        if dyads is None:
+            dyads = {}
+        else:
+            scope = Scope.NIL
+            for (_, symbol) in dyads:
+                match symbol:
+                    case Var(scope=Scope.DIM) \
+                        | Constraint(scope=Scope.DIM) \
+                        | this.chunk_group \
+                        | this.rule_group:
+                        scope |= Scope.DIM
+                    case Var(scope=Scope.VAL) \
+                        | Constraint(scope=Scope.VAL) \
+                        | this.chunk_instance \
+                        | this.rule_instance:
+                        scope |= Scope.VAL
+                    case _:
+                        pass
         super().__init__(name, node, scope)
-        self._dyads = {}
+        self.dyads = dyads
 
     def __str__(self) -> str:
         clsname = self.__class__.__name__
         lines = self.lines()
         return f"{clsname}(\n{indent(lines, '    ')})"
 
-    def __copy__(self) -> Self:
-        new = super().__copy__()
-        new.update(self._dyads)
-        return new
-
     def __pos__(self) -> Self:
         return self
 
     def __neg__(self) -> Self:
-        new = self.__copy__()
-        new.update({k: -v for k, v in new._dyads.items()})
-        return new
+        dyads = {k: -v for k, v in self.dyads.items()}
+        return type(self)(self.name, self.node, dyads)
 
     def __rmul__(self, other: float) -> Self:
-        new = self.__copy__()
-        new.update({k: other * v for k, v in new._dyads.items()})
-        return new
+        dyads = {k: other * v for k, v in self.dyads.items()}
+        return type(self)(self.name, self.node, dyads)
+
+    def __rxor__(self, other: str) -> Self:
+        if not isinstance(other, str):
+            return NotImplemented
+        elif not other.isidentifier():
+            raise ValueError(f"'{other}' is not a valid name")
+        return type(self)(other, self.node, self.dyads)
 
     @overload
     def __add__(self, other: "ChunkExpr[None]") -> "ChunkExpr[N]":
@@ -115,11 +118,8 @@ class ChunkExpr[N: VarNode](Expr[N]):
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in chunk expr")
-        new = ChunkExpr(other.name, self._propagate(other))
-        new.update(self._dyads)
-        new.update(other._dyads)
-        return new
-
+        dyads = {**self.dyads, **other.dyads}
+        return type(self)(other.name, self._propagate(other), dyads)
 
     @overload
     def __sub__(self, other: "ChunkExpr[None]") -> "ChunkExpr[N]":
@@ -135,10 +135,8 @@ class ChunkExpr[N: VarNode](Expr[N]):
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in chunk expr")
-        new = ChunkExpr(other.name, self._propagate(other))
-        new.update(self._dyads)
-        new.update({k: -v for k, v in other._dyads.items()})
-        return new
+        dyads = {**self.dyads, **{k: -v for k, v in other.dyads.items()}}
+        return type(self)(other.name, self._propagate(other), dyads)
 
     @overload
     def __rshift__(self, other: "ChunkExpr[None]") -> "RuleExpr[N]":
@@ -154,11 +152,10 @@ class ChunkExpr[N: VarNode](Expr[N]):
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in rule expr")
-        scope = self.scope | other.scope
-        expr = RuleExpr(other.name, self._propagate(other), scope)
-        expr._lhs[self] = 1.0
-        expr._rhs[other] = 1.0
-        return expr
+        lhs: dict[ChunkExpr[N], float] = {self: 1.0}
+        rhs: dict[ChunkExpr[N], float] = {other: 1.0}
+        return RuleExpr[N](other.name, self._propagate(other), lhs, rhs)
+
 
     @overload
     def __rrshift__(self, other: tuple["ChunkExpr[None]", ...]) \
@@ -173,18 +170,17 @@ class ChunkExpr[N: VarNode](Expr[N]):
     def __rrshift__(self, other: tuple["ChunkExpr", ...]) -> "RuleExpr":
         if not isinstance(other, tuple):
             return NotImplemented
-        rule_expr = RuleExpr(self.name, self.node, self.scope)
-        rule_expr._rhs[self] = 1.0
+        rule_expr = RuleExpr(self.name, self.node)
         for chunk_expr in other:
             rule_expr = chunk_expr + rule_expr
-        return rule_expr
+        return rule_expr + self
 
     def items(self) -> Iterator[tuple[tuple[Bus, Symbol], float]]:
-        yield from self._dyads.items()
+        yield from self.dyads.items()
 
     def lines(self) -> str:
         lines = []
-        for (d, v), w in self._dyads.items():
+        for (d, v), w in self.dyads.items():
             lines.append(self._str_dyad_(d, v, w))
         return '\n'.join(lines)        
 
@@ -220,35 +216,32 @@ class ChunkExpr[N: VarNode](Expr[N]):
 
 @final
 class RuleExpr[N: VarNode](Expr[N]):
-    _lhs: dict[ChunkExpr, float]
-    _rhs: dict[ChunkExpr, float]
+    lhs: Final[dict[ChunkExpr[N], float]]
+    rhs: Final[dict[ChunkExpr[N], float]]
 
     def __init__(self, 
         name: str = "", 
         node: N = None, 
-        scope: Scope = Scope.NIL
+        lhs: dict[ChunkExpr[N], float] | None = None,
+        rhs: dict[ChunkExpr[N], float] | None = None
     ) -> None:
+        scope = Scope.NIL
+        lhs = {} if lhs is None else lhs
+        rhs = {} if rhs is None else rhs
+        for chunk_expr in lhs:
+            scope |= chunk_expr.scope
+        for chunk_expr in rhs:
+            scope |= chunk_expr.scope
         super().__init__(name, node, scope)
-        self._lhs = {}
-        self._rhs = {}
-
-    def __copy__(self) -> Self:
-        new = super().__copy__()
-        new._lhs.update(self._lhs)
-        new._rhs.update(self._rhs)
-        return new
+        self.lhs = lhs
+        self.rhs = rhs
 
     def __rxor__(self, other: str) -> Self:
         if not isinstance(other, str):
             return NotImplemented
         elif not other.isidentifier():
             raise ValueError(f"'{other}' is not a valid name")
-        new = type(self)(other, self.node, self.scope)
-        new._lhs.update({f"{other}_L{i}" ^ expr: w 
-            for i, (expr, w) in enumerate(self._lhs.items())})
-        new._rhs.update({f"{other}_R{i}" ^ expr: w 
-            for i, (expr, w) in enumerate(self._rhs.items())})
-        return new
+        return type(self)(other, self.node, self.lhs, self.rhs)
 
     @overload
     def __add__(self, other: "ChunkExpr[None] | RuleExpr[None]") \
@@ -266,18 +259,15 @@ class RuleExpr[N: VarNode](Expr[N]):
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in rule expr")
-        scope = self.scope | other.scope
-        new = RuleExpr(other.name, self._propagate(other), scope)
-        new._rhs.update(self._rhs)
-        new._lhs.update(self._lhs)
+        node = self._propagate(other)
         match other:
             case ChunkExpr():
-                new._rhs[other] = 1.0
+                lhs = self.lhs
+                rhs = {**self.rhs, other: 1.0}
             case RuleExpr():
-                new._rhs.update(other._rhs)
-                new._lhs.update(other._lhs)
-
-        return new
+                lhs = {**self.lhs, **other.lhs}
+                rhs = {**self.rhs, **other.rhs}
+        return type(self)(self.name, node, lhs, rhs)
 
     @overload
     def __radd__(self, other: "ChunkExpr[None] | RuleExpr[None]") \
@@ -295,14 +285,12 @@ class RuleExpr[N: VarNode](Expr[N]):
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in rule expr")
-        scope = self.scope | other.scope
-        new = RuleExpr(self.name, other._propagate(self), scope)
+        node = other._propagate(self)
         match other:
             case ChunkExpr():
-                new._lhs[other] = 1.0
+                lhs = {**self.lhs, other: 1.0}
+                rhs = self.rhs
             case RuleExpr():
-                new._rhs.update(other._rhs)
-                new._lhs.update(other._lhs)
-        new._rhs.update(self._rhs)
-        new._lhs.update(self._lhs)
-        return new
+                lhs = {**self.lhs, **other.lhs}
+                rhs = {**self.rhs, **other.rhs}
+        return type(self)(self.name, node, lhs, rhs)

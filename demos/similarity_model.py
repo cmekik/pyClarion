@@ -433,8 +433,8 @@ class Model(Process[ModelKeySpace]):
         return message
 
     def _retrieval_report(self, event: Event[Retrieval]) -> str:
-        choice = str(self.agent.ret.output[0])
-        sample = str(self.agent.ret.sample[0])
+        choice = self.agent.ret.output[0].top()
+        sample = self.agent.ret.sample[0].top()
         head = self._event_report(event)
         tail = "\n".join([
             "Agent retrieved a phoneme chunk.",
