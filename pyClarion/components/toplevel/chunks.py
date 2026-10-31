@@ -4,7 +4,7 @@ __all__ = ["ChunkStore", "BottomUp", "TopDown"]
 from typing import cast
 
 from ...knowledge.base import Root
-from ...knowledge.compounds import Chunks
+from ...knowledge.explicit import Chunks
 from ...events.updates import ForwardUpdate
 from ...events.system import Action, Event, Process
 from ...events.sites import Site, State
@@ -28,10 +28,10 @@ class ChunkStore[C: Chunks](Process[Root]):
     ciw: Site[float] = Site()
     tdw: Site[float] = Site()
     buw: Site[UndefinedType] = Site()
-    by_chunk: KeyForm
-    by_bus_value: KeyForm
-    by_dim: KeyForm
-    dim_by_chunk: KeyForm
+    weights_by_chunk: KeyForm
+    weights_by_value: KeyForm
+    weights_by_dim: KeyForm
+    dims_by_chunk: KeyForm
 
     @property
     def c(self) -> C:
@@ -47,10 +47,10 @@ class ChunkStore[C: Chunks](Process[Root]):
         idx_d = self.system.get_index(keyform(d))
         ciw, tdw = self.initialize_chunk_weights(c)
         self._c = c
-        self.by_chunk = keyform(c) * keyform(b).agg * keyform(v).agg
-        self.by_bus_value = keyform(c).agg * keyform(d)
-        self.by_dim = keyform(c) * keyform(b) * keyform(v, -1)
-        self.dim_by_chunk = keyform(c) * keyform(b).agg * keyform(v, -1).agg
+        self.weights_by_chunk = keyform(c) * keyform(b).agg * keyform(v).agg
+        self.weights_by_value = keyform(c).agg * keyform(d)
+        self.weights_by_dim = keyform(c) * keyform(b) * keyform(v, -1)
+        self.dims_by_chunk = keyform(c) * keyform(b).agg * keyform(v, -1).agg
         self.output_bu = State(idx_c, {}, 0.0, l)
         self.output_td = State(idx_d, {}, 0.0, l)
         self.input_bu = State(idx_d, {}, 0.0, l)
@@ -60,21 +60,20 @@ class ChunkStore[C: Chunks](Process[Root]):
         buw = self.tdw[0].div(self.norm(self.tdw[0])).d
         self.buw = State(idx_c * idx_d, buw, Sentinel.UNDEFINED, l)
 
-    @staticmethod
-    def initialize_chunk_weights(c: Chunks):
+    def initialize_chunk_weights(self, c: Chunks):
         ciw, tdw = {}, {}
         for name in c:
             chunk = c[name]
-            data = chunk._compile_()
-            ciw.update(data["ciw"])
-            tdw.update(data["tdw"])
+            _tdw, _ciw = chunk.compile()
+            ciw.update(_ciw)
+            tdw.update(_tdw)
         return ciw, tdw
 
     def norm(self, d: NumDict) -> NumDict:
         return (d
             .pow(2)
-            .max(by=self.by_dim)
-            .sum(by=self.dim_by_chunk)
+            .max(by=self.weights_by_dim)
+            .sum(by=self.dims_by_chunk)
             .shift(1.0)) 
 
     def resolve(self, event: Event) -> None:
@@ -92,9 +91,9 @@ class BottomUp[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
         super().__init__(source)
         output = (source.buw[0]
-            .mul(source.input_bu[0], by=source.by_bus_value)
-            .max(by=source.by_dim)
-            .sum(by=source.dim_by_chunk, c=0.0))
+            .mul(source.input_bu[0], by=source.weights_by_value)
+            .max(by=source.weights_by_dim)
+            .sum(by=source.dims_by_chunk, c=0.0))
         self.updates.append(ForwardUpdate(source.output_bu, output))
 
 
@@ -102,6 +101,7 @@ class TopDown[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
         super().__init__(source)
         output = (source.tdw[0]
-            .mul(source.input_td[0], by=source.by_chunk)
-            .sum(by=source.by_bus_value))
+            .mul(source.input_td[0], 
+                 by=source.weights_by_chunk)
+            .sum(by=source.weights_by_value))
         self.updates.append(ForwardUpdate(source.output_td, output))

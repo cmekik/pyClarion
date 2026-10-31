@@ -1,8 +1,8 @@
 __all__ = ["AtomUpdate", "ChunkUpdate", "RuleUpdate"]
 
 
-from ...knowledge.primitives import Atom, Atoms
-from ...knowledge.compounds import Chunk, Rule, Chunks, Rules
+from ...knowledge.implicit import Atom, Atoms
+from ...knowledge.explicit import Chunk, Rule, Chunks, Rules
 from ...events.updates import KeyspaceUpdate
 
 

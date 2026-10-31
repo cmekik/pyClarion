@@ -1,4 +1,4 @@
-from typing import Iterator, Self, ClassVar, Any, overload, cast, get_type_hints, Mapping
+from typing import Iterator, Self, ClassVar, Any, overload, cast, get_type_hints, Mapping, Final
 from abc import ABC, abstractmethod
 from weakref import WeakSet
 from itertools import product
@@ -31,12 +31,32 @@ class KeySpace(ABC):
         raise NotImplementedError()
 
 
-class Unit(KeySpace):
-    """Abstract base class for elementary keyspaces."""
-    pass
+class Path(KeySpace):
+    """Abstract base class for keyspace paths."""
+    _h_offset_: ClassVar[int] = 0
+    
+    def _keyform_(self, *hs: int) -> KeyForm:
+        match hs:
+            case ():
+                return KeyForm(~self, (self._h_offset_,))
+            case (h,):
+                h_effective = h + self._h_offset_
+                if 0 <= h_effective:
+                    return KeyForm(~self, (h_effective,))
+                if (i := (key := ~self).size + h_effective) < 0:
+                    raise ValueError(f"Cannot prune {h + self._h_offset_} "
+                        f"nodes off {key}")
+                key, _ = key.cut(i)
+                return KeyForm(key, (h + self._h_offset_,))
+            case _:
+                raise ValueError(f"Unexpected arguments {hs}")
+
+    def _iter_(self, *hs: int) -> Iterator[Key]:
+        return
+        yield
 
 
-class Product[T: tuple[Unit, ...]](KeySpace):
+class Product[T: tuple[Path, ...]](KeySpace):
     """A product of elementary keyspaces."""
 
     @property
@@ -89,38 +109,13 @@ class Product[T: tuple[Unit, ...]](KeySpace):
         return
 
 
-class Path(Unit):
-    """Abstract base class for keyspace paths."""
-    _h_offset_: ClassVar[int] = 0
-    
-    def _keyform_(self, *hs: int) -> KeyForm:
-        match hs:
-            case ():
-                return KeyForm(~self, (self._h_offset_,))
-            case (h,):
-                h_effective = h + self._h_offset_
-                if 0 <= h_effective:
-                    return KeyForm(~self, (h_effective,))
-                if (i := (key := ~self).size + h_effective) < 0:
-                    raise ValueError(f"Cannot prune {h + self._h_offset_} "
-                        f"nodes off {key}")
-                key, _ = key.cut(i)
-                return KeyForm(key, (h + self._h_offset_,))
-            case _:
-                raise ValueError(f"Unexpected arguments {hs}")
-
-    def _iter_(self, *hs: int) -> Iterator[Key]:
-        return
-        yield
-
-
 class Parent[M: Child](Path):
     """Abstract base class for parent keyspaces."""
     _h_offset_ = 1
     _init_required_: ClassVar[bool] = True
-    _members_: Mapping[Key, M]
     _required_: "ClassVar[dict[Key, type[Child]]]"
-    _observers_: WeakSet["KSObserver"]
+    _members_: Final[Mapping[Key, M]]
+    _observers_: Final[WeakSet["KSObserver"]]
     _namer_: Iterator[str]
 
     @classmethod
@@ -139,7 +134,8 @@ class Parent[M: Child](Path):
             for name, annotation_type in get_type_hints(cls).items():
                 if not isinstance(annotation_type, type):
                     continue
-                elif name.startswith("_") and name.endswith("_"):
+                elif name != "_" \
+                    and name.startswith("_") and name.endswith("_"):
                     continue
                 elif issubclass(annotation_type, member_type):
                     required[Key(name)] = annotation_type
@@ -204,6 +200,8 @@ class Parent[M: Child](Path):
             raise ValueError(f"Invalid keyspace name: '{name}'")
         elif Key(name) in self._members_:
             raise ValueError(f"Member '{name}' already exists")
+        elif value._name_ and value._name_ != name:
+            raise ValueError(f"Value carries name other than '{name}'")
         member_type = self._get_member_type_()
         if not isinstance(value, member_type):
             raise TypeError(f"Incompatible member type {type(value)}")
@@ -304,16 +302,16 @@ class Node[M: Child](Child, Parent[M]):
         self._name_ = name
 
 
-class Dyad[L: Unit, R: Unit](Product[tuple[L, R]]):
+class Dyad[L: Path, R: Path](Product[tuple[L, R]]):
     """A dyad of elementary keyspaces."""
-    def __mul__[T: Unit](self, other: T) -> "Triad[L, R, T]":
+    def __mul__[T: Path](self, other: T) -> "Triad[L, R, T]":
         """Return the keyspace obtained by crossing self with other"""
-        if isinstance(other, Unit):
+        if isinstance(other, Path):
             return Triad((*self.units, other))
         return NotImplemented
 
 
-class Triad[L: Unit, C: Unit, R: Unit](Product[tuple[L, C, R]]):
+class Triad[L: Path, C: Path, R: Path](Product[tuple[L, C, R]]):
     """A triad of elementary keyspaces."""
     pass
 
@@ -326,10 +324,10 @@ class KeyGroup:
     height of the keyspace relative to the units of analysis.
     """
     __slots__ = ("ks", "h")
-    ks: Unit
+    ks: Path
     h: int
 
-    def __init__(self, ks: Unit, h: int) -> None:
+    def __init__(self, ks: Path, h: int) -> None:
         self.ks = ks
         self.h = h
 
@@ -407,20 +405,20 @@ def crawl(ks: Parent, star: Key) -> Path | Dyad | Triad | Product:
     elif star[0][1] == 2:
         l, r = star.split()
         ks_l, ks_r = crawl(ks, l), crawl(ks, r)
-        assert isinstance(ks_l, Unit) and isinstance(ks_r, Unit)
+        assert isinstance(ks_l, Path) and isinstance(ks_r, Path)
         return Dyad((ks_l, ks_r))
     elif star[0][1] == 3:
         l, c, r = star.split()
         ks_l, ks_c, ks_r = crawl(ks, l), crawl(ks, c), crawl(ks, r)
-        assert isinstance(ks_l, Unit) 
-        assert isinstance(ks_c, Unit) 
-        assert isinstance(ks_r, Unit)
+        assert isinstance(ks_l, Path) 
+        assert isinstance(ks_c, Path) 
+        assert isinstance(ks_r, Path)
         return Triad((ks_l, ks_c, ks_r))
     else:
         split = star.split()
-        units = tuple(crawl(ks, branch) for branch in split)
-        assert all(isinstance(unit, Unit) for unit in units)
-        return Product(cast(tuple[Unit, ...], units))
+        paths = tuple(crawl(ks, branch) for branch in split)
+        assert all(isinstance(path, Path) for path in paths)
+        return Product(cast(tuple[Path, ...], paths))
 
 
 @overload

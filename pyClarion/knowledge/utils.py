@@ -3,15 +3,15 @@ __all__ = ["get_dyads", "get_lhs", "get_rhs"]
 
 from typing import overload
 
-from .compounds import Chunks, Rules, AnyDVPairs
+from .explicit import Chunks, Rules, Dyads
 
 
 @overload
-def get_dyads(sort: Chunks) -> AnyDVPairs:
+def get_dyads(sort: Chunks) -> Dyads:
     pass
 
 @overload
-def get_dyads(sort: Rules) -> tuple[AnyDVPairs, AnyDVPairs]:
+def get_dyads(sort: Rules) -> tuple[Dyads, Dyads]:
     pass
 
 def get_dyads(sort):

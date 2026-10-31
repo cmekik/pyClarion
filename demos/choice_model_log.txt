@@ -1,48 +1,48 @@
 Start model 0x0000 00:00:00.00 000 0
-    Wall time is 0:00:00.000706.
+    Wall time is 0:00:00.001182.
     Welcome to pyClarion!
     This model demonstrates many core features of the library.
     The model simulates multiple-choice item responses.
     Each item is displayed until a response is received.
     Responses are generated stochastically from option activations.
-Presentation model.agent.source 0x0000 00:00:00.10 000 2
-    Wall time is 0:00:00.101762.
+Presentation model.agent.source 0x0000 00:00:00.02 000 2
+    Wall time is 0:00:00.029476.
     Presenting item 0.
     Here is the stimulus vector.
         NumDict 'd:options:?' c=0.0
             d:options:a -1.0
-Response model.agent.choice 0x0000 00:00:02.01 000 3
-    Wall time is 0:00:02.012705.
+Response model.agent.choice 0x0000 00:00:01.93 000 3
+    Wall time is 0:00:01.938513.
     Agent successfully selected an option.
     Here is the selection vector:
         NumDict 'd:options:?' c=0.0
-            d:options:d 1.0
+            d:options:nil 1.0
     Here is the corresponding activation vector:
         NumDict 'd:options:?' c=0.0
-            d:options:nil 0.07828297584806533
-            d:options:a   -1.0264438425880373
-            d:options:b   -0.060309384924902634
-            d:options:c   -0.13631335512280537
-            d:options:d   0.15612251050695136
-Presentation model.agent.source 0x0000 00:00:02.03 000 6
-    Wall time is 0:00:02.035103.
+            d:options:nil 0.15747889502482273
+            d:options:a   -1.0546466392490232
+            d:options:b   0.03503734775576319
+            d:options:c   0.019675659208521046
+            d:options:d   -0.02812168597370703
+Presentation model.agent.source 0x0000 00:00:01.97 000 6
+    Wall time is 0:00:01.976762.
     Presenting item 1.
     Here is the stimulus vector.
         NumDict 'd:options:?' c=0.0
             d:options:c 0.3
-Response model.agent.choice 0x0000 00:00:03.57 000 7
-    Wall time is 0:00:03.575916.
+Response model.agent.choice 0x0000 00:00:03.55 000 7
+    Wall time is 0:00:03.557183.
     Agent successfully selected an option.
     Here is the selection vector:
         NumDict 'd:options:?' c=0.0
             d:options:c 1.0
     Here is the corresponding activation vector:
         NumDict 'd:options:?' c=0.0
-            d:options:nil 0.08218654300794805
-            d:options:a   0.07683075821977993
-            d:options:b   0.1094920034430808
-            d:options:c   0.39995912138868395
-            d:options:d   -0.10594884432214313
-Stop model 0x0000 00:00:03.57 000 9
-    Wall time is 0:00:03.579101.
+            d:options:nil -0.14595265784069897
+            d:options:a   0.027351453998109006
+            d:options:b   0.04209879145666029
+            d:options:c   0.3709652752700103
+            d:options:d   -0.20415124947624796
+Stop model 0x0000 00:00:03.56 000 9
+    Wall time is 0:00:03.568286.
     Simulation complete.

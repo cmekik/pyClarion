@@ -10,8 +10,9 @@ from ...events.system import Action, Event
 from ...events.sites import State, Site 
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Term
-from ...knowledge.compounds import Bus
-from ...knowledge.primitives import Nodes, Params, Param
+from ...knowledge.expressions import Bus
+from ...knowledge.explicit import Nodes
+from ...knowledge.implicit import Params, Param
 from ...numdicts.keys import KeyForm
 from ...numdicts.keyspaces import Dyad, keyform, crawl
 

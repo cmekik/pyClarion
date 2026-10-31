@@ -12,7 +12,7 @@ def nd_iter(d: "nd.NumDict", *others: "nd.NumDict") -> Iterator[Key]:
         yield from d._d
     else:
         seen = set()
-        for obj in chain(nd_iter(d), *(nd_iter(d) for d in others)):
+        for obj in chain(nd_iter(d), *(nd_iter(_d) for _d in others)):
             if obj not in seen and obj in d:
                 yield obj
             seen.add(obj)
@@ -51,10 +51,13 @@ def collect[D: "nd.NumDict"](
             it = d._i
         case _:
             raise ValueError()
+    nan = float("nan")
+    paired_reductors = tuple(zip(others, reductors))
+    nan_tail = [nan] * len(paired_reductors)
     for k in it:
-        data = [d[k]]
-        for oth, reduce in zip(others, reductors):
-            data.append(oth[reduce(k)])
+        data = [d[k]] + nan_tail
+        for i, (oth, reduce) in enumerate(paired_reductors):
+            data[i + 1] = oth[reduce(k)]
         yield k, data
 
 
@@ -137,7 +140,7 @@ def variadic[D: "nd.NumDict"](d: D, *ds: D, by: KeyForm | Sequence[KeyForm | Non
         new_c = d._c if mode == "self" and c is None else eye if c is None else c
     elif 0 < len(ds):
         if c is not None:
-            ValueError("Unexpected float value for arg c")
+            raise ValueError("Unexpected float value for arg c")
         it = collect(d, *ds, branches=by, mode=mode)
         i = d._i
         cs = (d._c, *(other._c for other in ds))

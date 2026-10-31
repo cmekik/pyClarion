@@ -22,9 +22,9 @@ import logging
 
 from textwrap import indent
 
-from pyClarion.numdicts import Dyad
 from pyClarion.knowledge import (Root, DataFamily, ParamFamily, ChunkFamily, 
     BusFamily, Buses, Atoms, Chunks, Bus, Atom, Chunk) 
+from pyClarion.knowledge.explicit import chunk
 from pyClarion.components import (Source, Input, Polytomous, Retrieval, 
     RetrievalParams, ChunkStore, TopDown, BottomUp)
 from pyClarion.events import (Event, Process, Start, Transition, Stop, Fluent, 
@@ -109,37 +109,177 @@ class ModelKeySpace(Root):
         # Initialization of phoneme chunks
 
         main = self.b.main
-        vo = self.d.voicing
-        na = self.d.nasality
-        af = self.d.affrication
-        du = self.d.duration
-        pl = self.d.place
+        voicing = self.d.voicing
+        nasality = self.d.nasality
+        affrication = self.d.affrication
+        duration = self.d.duration
+        place = self.d.place
 
-        ph = Phonemes(main.wm * self.d)
-        self.c["phonemes"] = ph
 
-        ph["p"] = main.wm ** (vo.no, na.no, af.no, du.short, pl.front)
-        ph["t"] = main.wm ** (vo.no, na.no, af.no, du.short, pl.middle)
-        ph["k"] = main.wm ** (vo.no, na.no, af.no, du.short, pl.back)
+        self.c.phonemes = Phonemes(main.wm * self.d)
+        with self.c.phonemes:
+            chunk(
+                "p" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.front
+                )
+            )
+            chunk(
+                "t" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.middle
+                )
+            )
+            chunk(
+                "k" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.back))
 
-        ph["f"] = main.wm ** (vo.no, na.no, af.yes, du.short, pl.front)
-        ph["θ"] = main.wm ** (vo.no, na.no, af.yes, du.short, pl.middle)
-        ph["s"] = main.wm ** (vo.no, na.no, af.yes, du.long, pl.middle)
-        ph["ʃ"] = main.wm ** (vo.no, na.no, af.yes, du.long, pl.back)
-        
-        ph["b"] = main.wm ** (vo.yes, na.no, af.no, du.short, pl.front)
-        ph["d"] = main.wm ** (vo.yes, na.no, af.no, du.short, pl.middle)
-        ph["g"] = main.wm ** (vo.yes, na.no, af.no, du.short, pl.back)
+            chunk(
+                "f" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.front
+                )
+            )
+            chunk(
+                "θ" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.middle
+                )
+            )
+            chunk(
+                "s" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.long, 
+                    place.middle
+                )
+            )
+            chunk(
+                "ʃ" ^ 
+                main.wm ** (
+                    voicing.no, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.long, 
+                    place.back
+                )
+            )
+            
+            chunk(
+                "b" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.front
+                )
+            )
+            chunk(
+                "d" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.middle
+                )
+            )
+            chunk(
+                "g" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.no, 
+                    duration.short, 
+                    place.back
+                )
+            )
+            chunk(
+                "v" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.front
+                )
+            )
 
-        ph["v"] = main.wm ** (vo.yes, na.no, af.yes, du.short, pl.front)
-        ph["ð"] = main.wm ** (vo.yes, na.no, af.yes, du.short, pl.middle)
-        ph["z"] = main.wm ** (vo.yes, na.no, af.yes, du.long, pl.middle)
-        ph["ʒ"] = main.wm ** (vo.yes, na.no, af.yes, du.long, pl.back)
+            chunk(
+                "ð" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.middle
+                )
+            )
+            chunk(
+                "z" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.long, 
+                    place.middle
+                )
+            )
+            chunk(
+                "ʒ" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.no, 
+                    affrication.yes, 
+                    duration.long, 
+                    place.back
+                )
+            )
 
-        ph["m"] = main.wm ** (vo.yes, na.yes, af.yes, du.short, pl.front)
-        ph["n"] = main.wm ** (vo.yes, na.yes, af.yes, du.short, pl.middle)
-
-        ph._initialize_required_()
+            chunk(
+                "m" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.yes, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.front
+                )
+            )
+            chunk(
+                "n" ^ 
+                main.wm ** (
+                    voicing.yes, 
+                    nasality.yes, 
+                    affrication.yes, 
+                    duration.short, 
+                    place.middle
+                )
+            )
 
 
 class Presentation[P: Source](Input[P]):

@@ -1,8 +1,8 @@
 
 from typing import cast
 
+from ...knowledge.explicit import Nodes
 from ...knowledge.base import Root
-from ...knowledge.primitives import Nodes
 from ...events.sites import Site, State
 from ...events.system import Process, Action, Event
 from ...events.updates import ForwardUpdate

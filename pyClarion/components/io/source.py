@@ -7,8 +7,8 @@ from ...events.system import Action, Event, Process
 from ...events.sites import State, Site
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Root, Term
-from ...knowledge.compounds import Var, Indexical, MatchVar, Chunk
-from ...knowledge.primitives import Nodes
+from ...knowledge.language import Var, Indexical, Constraint
+from ...knowledge.explicit import Chunk, Nodes
 from ...numdicts.keys import Key
 from ...numdicts.keyspaces import keyform, find_root, Dyad
 from ...numdicts.sentinel import UndefinedType
@@ -78,13 +78,14 @@ class Input[S: Source[Nodes, float | UndefinedType]](Action[S]):
                     _data[k] = v
             case Chunk():
                 for (bus, symbol), weight in data._dyads_.items():
-                    if isinstance(symbol, (Var, MatchVar)):
+                    if isinstance(symbol, (Var, Constraint)):
                         raise TypeError("Input chunk contains variables.")
                     constant = symbol
                     if isinstance(constant, Indexical):
-                        constant = data._evaluate_indexicals_(constant)
-                    source.system.check_root(bus, constant)
-                    _data[~bus * ~constant] = weight
+                        constant = data._interpret_indexical_(constant)
+                    if constant is not None:
+                        source.system.check_root(bus, constant)
+                        _data[~bus * ~constant] = weight
             case _:
                 raise TypeError(f"Unexpected type '{type(data).__name__}'")
         for k in _data:
