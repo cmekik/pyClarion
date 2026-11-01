@@ -344,12 +344,12 @@ class Rule[N: VarNode](Compound[RuleExpr[N]]):
                 data.append(indent("(empty)", "   "))
             else:
                 for c in lhs:
-                    data.append(indent(c.lines(), "    "))
+                    data.append(indent(str(c), "    "))
                 if not lhs:
                     data.append(indent("(empty LHS)", "   "))
                 data.append(indent(">>", "    "))
                 for c in rhs:
-                    data.append(indent(c.lines(), "    "))
+                    data.append(indent(str(c), "    "))
                 if not rhs:
                     data.append(indent("(empty RHS)", "    "))
         return "\n".join(data)
@@ -456,21 +456,19 @@ class Rule[N: VarNode](Compound[RuleExpr[N]]):
             self._instances_[val] = instance
             return instance
 
-    # def compile(self) \
-    #     -> tuple[dict[Key, float], dict[Key, float], dict[Key, float]]:
-    #     riw = {}; lhw = {}; rhw = {}
-    #     kt, kr = (~self,) * 2
-    #     if self._template_ is not None:
-    #         kt = ~self._template_
-    #     riw[kr * kt] = 1.0
-    #     riw[kr * kr] = 1.0
-    #     if not self._vars_:
-    #         chunks, weights = zip(*self._chunks_.items())
-    #         for c, w in zip(chunks[:-1], weights[:-1]):
-    #             lhw[~c * kr] = w
-    #         c, w = chunks[-1], weights[-1]
-    #         rhw[kr * ~c] = w
-    #     return RuleData(riw=riw, lhw=lhw, rhw=rhw)
+    def compile(self) \
+        -> tuple[dict[Key, float], dict[Key, float], dict[Key, float]]:
+        riw = {}; lhw = {}; rhw = {}
+        kt, kr = (~self,) * 2
+        if self._template_ is not None:
+            kt = ~self._template_
+        riw[kr * kt] = 1.0
+        riw[kr * kr] = 1.0
+        for c, w in self._lhs_.items():
+            lhw[~c * kr] = w
+        for c, w in self._rhs_.items():
+            rhw[kr * ~c] = w
+        return riw, lhw, rhw
 
     @classmethod
     def rule_factory(cls, expr: RuleExpr[N]) -> "Rule[N]":

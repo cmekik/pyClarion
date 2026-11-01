@@ -139,6 +139,10 @@ class ChunkExpr[N: VarNode](Expr[N]):
         return type(self)(other.name, self._propagate(other), dyads)
 
     @overload
+    def __rshift__(self, other: None) -> "RuleExpr[N]":
+        ...
+
+    @overload
     def __rshift__(self, other: "ChunkExpr[None]") -> "RuleExpr[N]":
         ...
 
@@ -146,16 +150,20 @@ class ChunkExpr[N: VarNode](Expr[N]):
     def __rshift__[T: VarNode](self, other: "ChunkExpr[T]") -> "RuleExpr[T]":
         ...
 
-    def __rshift__(self, other) -> "RuleExpr":
-        if not isinstance(other, ChunkExpr):
+    def __rshift__(self, other: "ChunkExpr | None") -> "RuleExpr":
+        if other is None:
+            return self + RuleExpr()
+        elif not isinstance(other, ChunkExpr):
             return NotImplemented
         elif self.node is not None and other.node is not None \
             and self.node is not other.node:
             raise ValueError("Multiple variables not allowed in rule expr")
-        lhs: dict[ChunkExpr[N], float] = {self: 1.0}
-        rhs: dict[ChunkExpr[N], float] = {other: 1.0}
-        return RuleExpr[N](other.name, self._propagate(other), lhs, rhs)
+        return self + RuleExpr() + other
 
+
+    @overload
+    def __rrshift__(self, other: None) -> "RuleExpr[N]":
+        ...
 
     @overload
     def __rrshift__(self, other: tuple["ChunkExpr[None]", ...]) \
@@ -167,13 +175,15 @@ class ChunkExpr[N: VarNode](Expr[N]):
         -> "RuleExpr[T]":
         ...
 
-    def __rrshift__(self, other: tuple["ChunkExpr", ...]) -> "RuleExpr":
-        if not isinstance(other, tuple):
+    def __rrshift__(self, other: tuple["ChunkExpr", ...] | None) -> "RuleExpr":
+        if other is None:
+            return RuleExpr() + self
+        elif not isinstance(other, tuple):
             return NotImplemented
-        rule_expr = RuleExpr(self.name, self.node)
+        rule_expr = RuleExpr() + self
         for chunk_expr in other:
             rule_expr = chunk_expr + rule_expr
-        return rule_expr + self
+        return rule_expr
 
     def items(self) -> Iterator[tuple[tuple[Bus, Symbol], float]]:
         yield from self.dyads.items()
@@ -241,7 +251,19 @@ class RuleExpr[N: VarNode](Expr[N]):
             return NotImplemented
         elif not other.isidentifier():
             raise ValueError(f"'{other}' is not a valid name")
-        return type(self)(other, self.node, self.lhs, self.rhs)
+        len_lhs = len(self.lhs)
+        len_rhs = len(self.rhs)
+        if 1 < len_lhs:
+            lhs = {f"{other}_{i}" ^ c: w 
+                for i, (c, w) in enumerate(self.lhs.items())}
+        else:
+            lhs = {other ^ c: w for c, w in self.lhs.items()}
+        if 1 < len_rhs:
+            rhs = {f"{other}_{i}" ^ c: w 
+                for i, (c, w) in enumerate(self.rhs.items())}
+        else:
+            rhs = {other ^ c: w for c, w in self.rhs.items()}
+        return type(self)(other, self.node, lhs, rhs)
 
     @overload
     def __add__(self, other: "ChunkExpr[None] | RuleExpr[None]") \
