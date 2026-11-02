@@ -1,7 +1,7 @@
 __all__ = ["State", "Site"]
 
 
-from typing import Iterator, Any
+from typing import Iterator, Any, Final
 from collections import deque
 
 from .system import Process
@@ -13,10 +13,10 @@ from ..numdicts.sentinel import UndefinedType
 class State[C : float | UndefinedType]:
     """A simulated process state."""
 
-    index: Index
-    const: C
-    data: deque[NumDict]
-    grad: deque[NumDict]
+    index: Final[Index]
+    const: Final[C]
+    data: Final[deque[NumDict]]
+    grad: Final[deque[NumDict]]
 
     def __init__(self, i: Index, d: dict, c: C, l: int) -> None:
         l = 1 if l < 1 else l
@@ -39,6 +39,10 @@ class State[C : float | UndefinedType]:
 
 
 class Site[C : float | UndefinedType]:
+
+    lax: Final[bool]
+    _name: str
+
     def __init__(self, lax: bool = False) -> None:
         self.lax = lax
 

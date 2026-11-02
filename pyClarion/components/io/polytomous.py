@@ -3,6 +3,7 @@ __all__ = ["PolytomousParams", "Polytomous", "PolytomousSelection"]
 
 import math
 
+from typing import Final
 from datetime import timedelta
 
 from ..base.parametric import Parametric, ParamUpdate
@@ -28,20 +29,20 @@ class Polytomous[D: Nodes, P: PolytomousParams](Parametric[P]):
     
     Makes discrete stochastic k-way choices based on activation strengths.
     """
-    by: KeyForm
+
+    d: Final[D]
+
     input: Site[float] = Site(lax=True)
     output: Site[float] = Site()
     sample: Site[float] = Site()
 
-    @property
-    def d(self) -> D:
-        return self._d
+    by: KeyForm
 
     def __init__(self, name: str, p: P, d: D) -> None:
         super().__init__(name, p)
         self.system.check_root(d)
         i, l = self.system.get_index(keyform(d)), self.system.depth
-        self._d = d
+        self.d = d
         self.input = State(i, {}, 0.0, l)
         self.output = State(i, {}, 0.0, l)
         self.sample = State(i, {}, 0.0, l)

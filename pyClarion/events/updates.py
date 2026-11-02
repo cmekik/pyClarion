@@ -14,7 +14,7 @@ from ..numdicts.keyspaces import Parent, Child
 
 @dataclass(slots=True)
 class StateUpdate(Update[State]):
-    state: "State"
+    state: State
     data: NumDict | dict[Key, float]
     method: Literal["push", "add", "write"] = "push"
 

@@ -1,7 +1,7 @@
 __all__ = ["Source", "Input"]
 
 
-from typing import overload, cast
+from typing import overload, cast, Final
 
 from ...events.system import Action, Event, Process
 from ...events.sites import State, Site
@@ -20,11 +20,10 @@ class Source[D: Nodes, C: float | UndefinedType](Process[Root]):
     
     Receives activations from external sources.
     """
-    output: Site[C] = Site()
 
-    @property
-    def d(self) -> D:
-        return self._d
+    d: Final[D]
+
+    output: Site[C] = Site()
 
     def __init__(self, name: str, d: D, *, c: C = 0.0) -> None:
         if isinstance(d, Dyad):
@@ -34,7 +33,7 @@ class Source[D: Nodes, C: float | UndefinedType](Process[Root]):
         super().__init__(name, cast(Root | None, r))
         self.system.check_root(d)
         i, l = self.system.get_index(keyform(d)), self.system.depth
-        self._d = d 
+        self.d = d 
         self.output = State(i, {}, c, l)
 
     def resolve(self, event: Event) -> None:

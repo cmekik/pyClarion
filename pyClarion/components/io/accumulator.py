@@ -1,5 +1,5 @@
 
-from typing import cast
+from typing import cast, Final
 
 from ...knowledge.explicit import Nodes
 from ...knowledge.base import Root
@@ -10,12 +10,11 @@ from ...numdicts.keyspaces import find_root, Dyad, keyform
 
 
 class Accumulator[D: Nodes](Process[Root]):
+
+    d: Final[D]
+
     input: Site = Site(lax=True)
     output: Site = Site()
-
-    @property 
-    def d(self) -> D:
-        return self._d
 
     def __init__(self, name: str, d: D) -> None:
         if isinstance(d, Dyad):
@@ -25,7 +24,7 @@ class Accumulator[D: Nodes](Process[Root]):
         super().__init__(name, cast(Root | None, r))
         l = self.system.depth
         self.system.check_root(d)
-        self._d = d
+        self.d = d
         index = self.system.get_index(keyform(d))
         self.input = State(index, {}, 0.0, l)
         self.output = State(index, {}, 0.0, l)

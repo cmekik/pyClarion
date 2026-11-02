@@ -1,7 +1,7 @@
 __all__ = ["ChunkStore", "BottomUp", "TopDown"]
 
 
-from typing import cast
+from typing import cast, Final
 
 from ...knowledge.base import Root
 from ...knowledge.explicit import Chunks
@@ -20,7 +20,7 @@ class ChunkStore[C: Chunks](Process[Root]):
     Maintains a collection of chunks and facilitates top-down and bottom-up 
     activation propagation.
     """
-
+    c: Final[C]
     output_bu: Site[float] = Site()
     output_td: Site[float] = Site() 
     input_bu: Site[float] = Site()
@@ -33,10 +33,6 @@ class ChunkStore[C: Chunks](Process[Root]):
     weights_by_dim: KeyForm
     dims_by_chunk: KeyForm
 
-    @property
-    def c(self) -> C:
-        return self._c
-
     def __init__(self, name: str, c: C) -> None:
         super().__init__(name, cast(Root | None, find_root(c)))
         d = c._dyads_
@@ -46,7 +42,7 @@ class ChunkStore[C: Chunks](Process[Root]):
         idx_c = self.system.get_index(keyform(c))
         idx_d = self.system.get_index(keyform(d))
         ciw, tdw = self.initialize_chunk_weights(c)
-        self._c = c
+        self.c = c
         self.weights_by_chunk = keyform(c) * keyform(b).agg * keyform(v).agg
         self.weights_by_value = keyform(c).agg * keyform(d)
         self.weights_by_dim = keyform(c) * keyform(b) * keyform(v, -1)

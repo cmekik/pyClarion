@@ -2,7 +2,7 @@ __all__ = ["Update", "Fluent", "Status", "Action", "Start", "Stop",
     "Transition", "Event", "Clock", "Process"]
 
 
-from typing import Protocol, Hashable, ClassVar, Iterator, Any, final
+from typing import Protocol, Hashable, ClassVar, Iterator, Any, final, Final
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -108,8 +108,8 @@ class Event[A: Action]:
     Do not mutate any event attribute if the event is marked as scheduled.
     """
 
-    action: A
-    time: tuple[timedelta, int, int]
+    action: Final[A]
+    time: Final[tuple[timedelta, int, int]]
 
     def __lt__(self, other) -> bool:
         return self.time < other.time
@@ -179,6 +179,15 @@ class System[R: Root[Child]]:
 
     Maintains global simulation data.
     """
+
+    root: Final[R]
+    main: Final["Process"]
+    depth: Final[int]
+    clock: Final[Clock]
+    queue: Final[list[Event]]
+    procs: Final[list["Process"]]
+    status: Final[dict["Process", Fluent]]
+    latency: Final[float]
         
     def __init__(self, 
         root: R, 
@@ -188,48 +197,28 @@ class System[R: Root[Child]]:
     ) -> None:
         if latency <= 0:
             raise ValueError("Non-positive latency value")
-        self._root = root
-        self._main = main
-        self._depth = depth
-        self._clock = Clock()
-        self._queue: list[Event] = []
-        self._procs: list["Process"] = []
-        self._status: dict["Process", Fluent] = {}
-        self._latency = latency
-        self._root._check_required_members_()
+        self.root = root
+        self.main = main
+        self.depth = depth
+        self.clock = Clock()
+        self.queue: list[Event] = []
+        self.procs: list["Process"] = []
+        self.status: dict["Process", Fluent] = {}
+        self.latency = latency
+        self.root._check_required_members_()
 
     def __iter__(self) -> Iterator["Process"]:
-        yield from self._procs
+        yield from self.procs
 
     def __contains__(self, proc: "Process") -> bool:
-        for p in self._procs:
+        for p in self.procs:
             if proc is p:
                 return True
         return False
 
-    @property
-    def root(self) -> R:
-        return self._root
-
-    @property
-    def clock(self) -> Clock:
-        return self._clock
-
-    @property
-    def depth(self) -> int:
-        return self._depth
-
-    @property
-    def status(self) -> dict["Process", Fluent]:
-        return self._status
-
-    @property
-    def latency(self) -> float:
-        return self._latency
-
     def register(self, proc: "Process") -> None:
-        self._procs.append(proc)
-        self._status[proc] = Status.FREE
+        self.procs.append(proc)
+        self.status[proc] = Status.FREE
 
     def check_root(self, *ksps: Child | Product[tuple[Child, ...]]) -> None:
         for ks in ksps:
@@ -251,12 +240,12 @@ class System[R: Root[Child]]:
             raise ValueError("Cannot generate event from a locked process.")
         if action.duration < timedelta():
             raise ValueError("Action has negative duration")
-        t = self._clock.time + action.duration
+        t = self.clock.time + action.duration
         p = action.priority
-        n = next(self._clock.counter)
-        heapq.heappush(self._queue, Event(action, (t, p, n)))
+        n = next(self.clock.counter)
+        heapq.heappush(self.queue, Event(action, (t, p, n)))
         if action.source.is_blocking:
-            self._status[action.source] = Status.BUSY
+            self.status[action.source] = Status.BUSY
     
     def run(self, sync: float = float("-inf")) -> None:
         """
@@ -265,17 +254,17 @@ class System[R: Root[Child]]:
         Processes queued events in temporal order. If 0.0 < sync, events 
         are synchronized with real time at the given rate.
         """
-        self.schedule(Start(self._main))
-        self._clock.punch_in()
-        while self._queue:
+        self.schedule(Start(self.main))
+        self.clock.punch_in()
+        while self.queue:
             if 0.0 < sync:
-                t_next = self._queue[0].time[0] / sync
-                t_wall = self._clock.wall_time
+                t_next = self.queue[0].time[0] / sync
+                t_wall = self.clock.wall_time
                 dt = (t_next - t_wall).total_seconds()
                 if 0.0 < dt:
                     time.sleep(dt)
-            event = heapq.heappop(self._queue)
-            self._clock.advance(event.time[0])
+            event = heapq.heappop(self.queue)
+            self.clock.advance(event.time[0])
             for update in event.action.updates:
                 try:
                     update.apply()
@@ -283,13 +272,12 @@ class System[R: Root[Child]]:
                     n, t = event.action.source.name, event.time
                     raise RuntimeError(f"Failed '{repr(update)}' to "
                         f"process '{n}' at {t}") from e
-            self._status[event.action.source] = event.action.fluent
-            self._main.resolve(event)
+            self.status[event.action.source] = event.action.fluent
+            self.main.resolve(event)
             if type(event.action) is Stop: 
-                if event.action.source is not self._main:
-                    raise ValueError("Stop signaled from child process")
-                break
-        self._clock.punch_out()
+                if event.action.source is self.main:                
+                    break
+        self.clock.punch_out()
 
 
 class Process[R: Root[Child]]:
@@ -307,7 +295,14 @@ class Process[R: Root[Child]]:
     ...     assert p1.system is p2.system
     
     """
+
     is_blocking: ClassVar[bool] = True
+
+    name: Final[str]
+    system: Final[System[R]]
+    parent: Final["Process | None"]
+    children: Final[list["Process"]]
+    __tokens: Final[list[Token]]
 
     def __init__(self, name: str, root: R | None = None) -> None:
         if not all(s.isidentifier() for s in name.split(".")):
@@ -317,9 +312,9 @@ class Process[R: Root[Child]]:
         except LookupError:
             if root is None:
                 raise ValueError("Root must not be None.")
-            self._name = name
-            self._system: System[R] = System(root, self)
-            self._parent = None
+            self.name = name
+            self.system: System[R] = System(root, self)
+            self.parent = None
         else:
             if any(proc.name == name for proc in sup.system):
                 raise ValueError(f"Duplicate process name '{name}'")
@@ -328,25 +323,13 @@ class Process[R: Root[Child]]:
             if sup.is_blocking and not self.is_blocking:
                 raise ValueError("Cannot subordinate non-blocking process "
                     "to a blocking process.")
-            self._name = name
-            self._system = sup.system
-            self._parent = sup
-            self._parent._children.append(self)
-        self._children: list["Process"] = []
-        self.__tokens: list[Token] = []
+            self.name = name
+            self.system = sup.system
+            self.parent = sup
+            self.parent.children.append(self)
+        self.children = []
+        self.__tokens = []
         self.system.register(self)
-
-    @property
-    def name(self) -> str:
-        return self._name
-
-    @property
-    def system(self) -> System[R]:
-        return self._system
-
-    @property
-    def parent(self) -> "Process | None":
-        return self._parent
 
     @property
     def is_locked(self) -> bool:
@@ -369,8 +352,8 @@ class Process[R: Root[Child]]:
         return self.system.status[self]
 
     def __iter__(self) -> Iterator["Process"]:
-        yield from self._children
-        for p in self._children:
+        yield from self.children
+        for p in self.children:
             yield from p
 
     def __contains__(self, other: "Process") -> bool:
