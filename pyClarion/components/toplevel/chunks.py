@@ -20,7 +20,9 @@ class ChunkStore[C: Chunks](Process[Root]):
     Maintains a collection of chunks and facilitates top-down and bottom-up 
     activation propagation.
     """
+
     c: Final[C]
+
     output_bu: Site[float] = Site()
     output_td: Site[float] = Site() 
     input_bu: Site[float] = Site()
@@ -28,6 +30,7 @@ class ChunkStore[C: Chunks](Process[Root]):
     ciw: Site[float] = Site()
     tdw: Site[float] = Site()
     buw: Site[UndefinedType] = Site()
+
     weights_by_chunk: KeyForm
     weights_by_value: KeyForm
     weights_by_dim: KeyForm
