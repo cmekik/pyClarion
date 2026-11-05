@@ -243,9 +243,10 @@ class Chunk[N: VarNode](Compound[ChunkExpr[N]]):
             kt = self._template_
         ciw[~kc * ~kt] = 1.0
         ciw[~kc * ~kc] = 1.0
-        for (bus, term), w in self._dyads_.items():
-            kw = ~kc * ~bus * ~term
-            tdw[kw] = w
+        if len(self._instances_) == 0:
+            for (bus, term), w in self._dyads_.items():
+                kw = ~kc * ~bus * ~term
+                tdw[kw] = w
         return tdw, ciw
 
     @classmethod
@@ -464,10 +465,11 @@ class Rule[N: VarNode](Compound[RuleExpr[N]]):
             kt = ~self._template_
         riw[kr * kt] = 1.0
         riw[kr * kr] = 1.0
-        for c, w in self._lhs_.items():
-            lhw[~c * kr] = w
-        for c, w in self._rhs_.items():
-            rhw[kr * ~c] = w
+        if len(self._instances_) == 0:
+            for c, w in self._lhs_.items():
+                lhw[~c * kr] = w
+            for c, w in self._rhs_.items():
+                rhw[kr * ~c] = w
         return riw, lhw, rhw
 
     @classmethod
@@ -559,28 +561,3 @@ class RuleFamily(Family[Rules]):
 
 def rule[N: VarNode](expr: RuleExpr[N]) -> Rule[N]:
     return Rule.rule_factory(expr)
-
-
-
-
-
-    
-# class RuleData(TypedDict):
-#     riw: dict[Key, float]
-#     lhw: dict[Key, float]
-#     rhw: dict[Key, float]
-
-#     # def _compile_(self: "Rule") -> RuleData:
-#     #     riw = {}; lhw = {}; rhw = {}
-#     #     kt, kr = (~self,) * 2
-#     #     if self._template_ is not None:
-#     #         kt = ~self._template_
-#     #     riw[kr * kt] = 1.0
-#     #     riw[kr * kr] = 1.0
-#     #     if not self._vars_:
-#     #         chunks, weights = zip(*self._chunks_.items())
-#     #         for c, w in zip(chunks[:-1], weights[:-1]):
-#     #             lhw[~c * kr] = w
-#     #         c, w = chunks[-1], weights[-1]
-#     #         rhw[kr * ~c] = w
-#     #     return RuleData(riw=riw, lhw=lhw, rhw=rhw)

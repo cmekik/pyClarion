@@ -116,6 +116,8 @@ class NumDictBase(IndexObserver):
             if i == n:
                 break
             data.append(f"{str(k):<{width}} {v:=8.4f}")
+        if n is not None and 0 < len(self._d) - n:
+            data.append(f"Omitted {len(self._d) - n} additional entries.")
         return "\n    ".join(data)
 
     def copy(self: Self) -> Self:

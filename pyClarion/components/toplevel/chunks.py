@@ -1,7 +1,8 @@
 __all__ = ["ChunkStore", "BottomUp", "TopDown"]
 
 
-from typing import cast, Final
+from typing import cast, Final, Protocol, ClassVar
+from math import sqrt
 
 from ...knowledge.base import Root
 from ...knowledge.explicit import Chunks
@@ -10,7 +11,50 @@ from ...events.system import Action, Event, Process
 from ...events.sites import Site, State
 from ...numdicts.keyspaces import KeyForm, keyform, find_root
 from ...numdicts.sentinel import Sentinel, UndefinedType
-from ...numdicts.numdicts import NumDict
+from ...numdicts.numdicts import Key, NumDict
+
+PHI = (1 + sqrt(5)) / 2 
+
+
+# class ChunkWeights:
+#     __slots__ = ("ciw", "tdw", "buw")
+
+#     ciw: Final[dict[Key, float]]
+#     tdw: Final[dict[Key, float]]
+#     buw: Final[dict[Key, float]]
+
+#     def __init__(self, 
+#         ciw: dict[Key, float] | None = None, 
+#         tdw: dict[Key, float] | None = None, 
+#         buw: dict[Key, float] | None = None
+#     ) -> None:
+#         self.ciw = {} if ciw is None else ciw
+#         self.tdw = {} if tdw is None else tdw
+#         self.buw = {} if buw is None else buw
+
+
+# class ChunkCompiler(Protocol):
+#     def __call__(self, chunks: Chunks) -> ChunkWeights:
+#         ...
+
+
+# class DefaultChunkCompiler:
+#     const: ClassVar[float] = (1 + sqrt(5)) / 2 
+
+#     def __call__(self, chunks: Chunks) -> ChunkWeights:
+#         weights = ChunkWeights()
+#         for c in chunks:
+#             chunk = chunks[c]
+#             kt, kc = (chunk,) * 2
+#             if chunk._template_ is not None:
+#                 kt = chunk._template_
+#             weights.ciw[~kc * ~kt] = 1.0
+#             weights.ciw[~kc * ~kc] = 1.0
+#             if len(chunk._instances_) == 0:
+#                 for (bus, term), w in chunk._dyads_.items():
+#                     kw = ~kc * ~bus * ~term
+#                     weights.tdw[kw] = w
+#         return weights
 
 
 class ChunkStore[C: Chunks](Process[Root]):
@@ -73,7 +117,7 @@ class ChunkStore[C: Chunks](Process[Root]):
             .pow(2)
             .max(by=self.weights_by_dim)
             .sum(by=self.dims_by_chunk)
-            .shift(1.0)) 
+            .shift(PHI)) 
 
     def resolve(self, event: Event) -> None:
         match event.action:

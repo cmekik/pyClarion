@@ -52,6 +52,10 @@ class Input[S: Source[Nodes, float | UndefinedType]](Action[S]):
         ...
 
     @overload
+    def __init__[D: Dyad](self, source: S, data: dict[D, float]) -> None: 
+        ...
+
+    @overload
     def __init__[T: Term](self, source: S, data: dict[T, float]) -> None: 
         ...
 
@@ -59,21 +63,20 @@ class Input[S: Source[Nodes, float | UndefinedType]](Action[S]):
     def __init__(self, source: S, data: Chunk) -> None: 
         ...
 
-    def __init__(self, source, data):
+    def __init__(self, source: S, data: dict | Chunk) -> None:
         super().__init__(source)
         _data = {}
         match data:
             case dict():
                 for k, v in data.items():
                     if not isinstance(v, float):
-                        raise TypeError("Encountered non-float value for"
-                            f" key {k}")
-                    elif isinstance(k, Term):
+                        raise TypeError(f"Non-float value for key {k}")
+                    elif isinstance(k, (Dyad, Term)):
                         source.system.check_root(k)
                         k = ~k
                     elif not isinstance(k, Key):
-                        raise TypeError("Unexpected key type" 
-                            f" {type(k).__name__}")
+                        key_type = type(k).__name__
+                        raise TypeError(f"Unexpected key type {key_type}")
                     _data[k] = v
             case Chunk():
                 for (bus, symbol), weight in data._dyads_.items():

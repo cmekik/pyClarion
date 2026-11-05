@@ -48,7 +48,6 @@ class Discriminal[D: Nodes, P: DiscriminalParams](Parametric[P]):
                 raise ValueError(f"Unexpected event {event}")
 
 
-
 class DiscriminalSelection[D: Discriminal[Nodes, DiscriminalParams]](Action[D]):
     __slots__ = ()
     def __init__(self, source: D) -> None:
