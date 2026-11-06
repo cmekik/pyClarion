@@ -1,0 +1,584 @@
+Start model 0x0000 00:00:00.00 000 0
+    Wall time is 0:00:00.000005.
+Transition model 0x0000 00:00:00.00 000 1
+    Wall time is 0:00:00.000150.
+Input model.agent.src 0x0000 00:00:00.00 000 2
+    Wall time is 0:00:00.000524.
+    Presenting the following input state.
+    NumDict '(b,d):(main,?):(?,?)' c=0.0
+        (b,d):(main,match):(gs,by_dim)   1.0000
+        (b,d):(main,shape):(gs,circle)   1.0000
+        (b,d):(main,shape):(gs,square)   1.0000
+        (b,d):(main,color):(gs,green)    1.0000
+        (b,d):(main,shape):(wm,circle)   1.0000
+        (b,d):(main,color):(wm,green)    1.0000
+Start model.agent 0x0000 00:00:00.00 000 3
+    Wall time is 0:00:00.000683.
+PoolPropagation model.agent.pool 0x0000 00:00:00.01 000 4
+    Wall time is 0:00:00.001130.
+BottomUp model.agent.lhs 0x0000 00:00:00.01 000 5
+    Wall time is 0:00:00.005603.
+Start model.agent.rules 0x0000 00:00:00.02 000 6
+    Wall time is 0:00:00.005720.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.03 000 7
+    Wall time is 0:00:00.181333.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.09 000 8
+    Wall time is 0:00:00.183243.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_shape_circle   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_shape_circle     0.5344
+            d:rules:dim_match_found_color_green      0.5341
+            d:rules:dim_match_false_color            0.4336
+            d:rules:dim_match_false_shape            0.4330
+            d:rules:dim_match_true                   0.3826
+            d:rules:val_match_found_shape_circle     0.3573
+            d:rules:val_match_found_color_green      0.3567
+            d:rules:dim_match_found_shape_square     0.3546
+            d:rules:val_match_false_match_by_dim     0.2778
+            d:rules:dim_match_false_match            0.2761
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.09 000 9
+    Wall time is 0:00:00.364171.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.09 000 10
+    Wall time is 0:00:00.380023.
+Stop model.agent.rules 0x0000 00:00:00.10 000 11
+    Wall time is 0:00:00.380126.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.10 000 12
+    Wall time is 0:00:00.382658.
+TopDown model.agent.rhs 0x0000 00:00:00.10 000 13
+    Wall time is 0:00:00.383288.
+PolytomousSelection model.agent.action 0x0000 00:00:00.10 000 14
+    Wall time is 0:00:00.383615.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       1.0005
+            (b,d):(main,eval):(wm,true)    0.0019
+            (b,d):(main,eval):(wm,false) - 0.0003
+Stop model.agent 0x0000 00:00:00.10 000 15
+    Wall time is 0:00:00.383770.
+Start model.agent 0x0000 00:00:00.11 000 16
+    Wall time is 0:00:00.383920.
+PoolPropagation model.agent.pool 0x0000 00:00:00.11 000 17
+    Wall time is 0:00:00.384388.
+BottomUp model.agent.lhs 0x0000 00:00:00.11 000 18
+    Wall time is 0:00:00.386299.
+Start model.agent.rules 0x0000 00:00:00.13 000 19
+    Wall time is 0:00:00.386351.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.13 000 20
+    Wall time is 0:00:00.435856.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.19 000 21
+    Wall time is 0:00:00.437096.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_color_green   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_color_green      0.5345
+            d:rules:dim_match_false_color            0.4350
+            d:rules:dim_match_true                   0.3810
+            d:rules:dim_match_found_shape_circle     0.3582
+            d:rules:val_match_found_shape_circle     0.3566
+            d:rules:val_match_found_color_green      0.3558
+            d:rules:val_match_false_match_by_dim     0.2771
+            d:rules:dim_match_false_match            0.2763
+            d:rules:dim_match_found_match__          0.2181
+            d:rules:val_match_false_shape_square     0.2172
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.21 000 22
+    Wall time is 0:00:00.496468.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.21 000 23
+    Wall time is 0:00:00.506265.
+Stop model.agent.rules 0x0000 00:00:00.21 000 24
+    Wall time is 0:00:00.506481.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.21 000 25
+    Wall time is 0:00:00.508878.
+TopDown model.agent.rhs 0x0000 00:00:00.22 000 26
+    Wall time is 0:00:00.510015.
+PolytomousSelection model.agent.action 0x0000 00:00:00.22 000 27
+    Wall time is 0:00:00.510522.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       0.9987
+            (b,d):(main,eval):(wm,false)   0.0017
+            (b,d):(main,eval):(wm,true)  - 0.0011
+Stop model.agent 0x0000 00:00:00.23 000 28
+    Wall time is 0:00:00.510751.
+Start model.agent 0x0000 00:00:00.23 000 29
+    Wall time is 0:00:00.510917.
+PoolPropagation model.agent.pool 0x0000 00:00:00.23 000 30
+    Wall time is 0:00:00.511971.
+BottomUp model.agent.lhs 0x0000 00:00:00.24 000 31
+    Wall time is 0:00:00.514249.
+Start model.agent.rules 0x0000 00:00:00.24 000 32
+    Wall time is 0:00:00.514335.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.25 000 33
+    Wall time is 0:00:00.580363.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.33 000 34
+    Wall time is 0:00:00.581719.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_true   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_true                   0.3825
+            d:rules:val_match_found_shape_circle     0.3556
+            d:rules:val_match_found_color_green      0.3556
+            d:rules:dim_match_found_color_green      0.3552
+            d:rules:dim_match_found_shape_circle     0.3547
+            d:rules:val_match_false_match_by_dim     0.2753
+            d:rules:dim_match_false_match            0.2751
+            d:rules:dim_match_false_shape            0.2179
+            d:rules:dim_match_false_color            0.2164
+            d:rules:dim_match_found_match_by_dim     0.2164
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.33 000 35
+    Wall time is 0:00:00.640579.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.34 000 36
+    Wall time is 0:00:00.647418.
+Stop model.agent.rules 0x0000 00:00:00.34 000 37
+    Wall time is 0:00:00.647529.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.34 000 38
+    Wall time is 0:00:00.648649.
+TopDown model.agent.rhs 0x0000 00:00:00.35 000 39
+    Wall time is 0:00:00.649119.
+PolytomousSelection model.agent.action 0x0000 00:00:00.35 000 40
+    Wall time is 0:00:00.649345.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,true)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,true)    1.0011
+            (b,d):(main,eval):(wm,_)       0.0007
+            (b,d):(main,eval):(wm,false) - 0.0004
+Stop model.agent 0x0000 00:00:00.35 000 41
+    Wall time is 0:00:00.649496.
+AccumulatorReset model.agent.ctx 0x0000 00:00:00.35 000 42
+    Wall time is 0:00:00.649629.
+Transition model 0x0000 00:00:00.36 000 43
+    Wall time is 0:00:00.649664.
+Transition model 0x0000 00:00:00.36 000 44
+    Wall time is 0:00:00.649710.
+Input model.agent.src 0x0000 00:00:00.37 000 45
+    Wall time is 0:00:00.649901.
+    Presenting the following input state.
+    NumDict '(b,d):(main,?):(?,?)' c=0.0
+        (b,d):(main,match):(gs,by_dim)   1.0000
+        (b,d):(main,shape):(gs,circle)   1.0000
+        (b,d):(main,shape):(gs,square)   1.0000
+        (b,d):(main,color):(gs,green)    1.0000
+        (b,d):(main,shape):(wm,circle)   1.0000
+Start model.agent 0x0000 00:00:00.38 000 46
+    Wall time is 0:00:00.650022.
+PoolPropagation model.agent.pool 0x0000 00:00:00.38 000 47
+    Wall time is 0:00:00.650376.
+BottomUp model.agent.lhs 0x0000 00:00:00.38 000 48
+    Wall time is 0:00:00.652500.
+Start model.agent.rules 0x0000 00:00:00.39 000 49
+    Wall time is 0:00:00.652556.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.39 000 50
+    Wall time is 0:00:00.716816.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.39 000 51
+    Wall time is 0:00:00.718247.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_shape_circle   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_found_shape_circle     0.5320
+            d:rules:dim_match_false_color            0.4364
+            d:rules:dim_match_false_shape            0.4346
+            d:rules:dim_match_true                   0.3816
+            d:rules:dim_match_found_color_green      0.3565
+            d:rules:dim_match_found_shape_square     0.3559
+            d:rules:val_match_found_shape_circle     0.3556
+            d:rules:val_match_false_match_by_dim     0.2762
+            d:rules:dim_match_false_match            0.2757
+            d:rules:dim_match_false_eval             0.2175
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.40 000 52
+    Wall time is 0:00:00.773373.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.40 000 53
+    Wall time is 0:00:00.779418.
+Stop model.agent.rules 0x0000 00:00:00.40 000 54
+    Wall time is 0:00:00.779520.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.41 000 55
+    Wall time is 0:00:00.780953.
+TopDown model.agent.rhs 0x0000 00:00:00.41 000 56
+    Wall time is 0:00:00.781571.
+PolytomousSelection model.agent.action 0x0000 00:00:00.42 000 57
+    Wall time is 0:00:00.781843.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       1.0006
+            (b,d):(main,eval):(wm,false) - 0.0002
+            (b,d):(main,eval):(wm,true)  - 0.0005
+Stop model.agent 0x0000 00:00:00.43 000 58
+    Wall time is 0:00:00.782009.
+Start model.agent 0x0000 00:00:00.43 000 59
+    Wall time is 0:00:00.782123.
+PoolPropagation model.agent.pool 0x0000 00:00:00.43 000 60
+    Wall time is 0:00:00.782712.
+BottomUp model.agent.lhs 0x0000 00:00:00.44 000 61
+    Wall time is 0:00:00.785068.
+Start model.agent.rules 0x0000 00:00:00.44 000 62
+    Wall time is 0:00:00.785142.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.44 000 63
+    Wall time is 0:00:00.856947.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.44 000 64
+    Wall time is 0:00:00.859093.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_false_color   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:dim_match_false_color            0.4332
+            d:rules:dim_match_true                   0.3833
+            d:rules:val_match_found_shape_circle     0.3578
+            d:rules:dim_match_found_shape_circle     0.3566
+            d:rules:dim_match_found_color_green      0.3545
+            d:rules:val_match_false_match_by_dim     0.2756
+            d:rules:dim_match_false_match            0.2746
+            d:rules:dim_match_false_eval             0.2186
+            d:rules:val_match_false_shape_square     0.2175
+            d:rules:dim_match_found_match__          0.2174
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.44 000 65
+    Wall time is 0:00:00.933819.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.45 000 66
+    Wall time is 0:00:00.941183.
+Stop model.agent.rules 0x0000 00:00:00.46 000 67
+    Wall time is 0:00:00.941309.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.46 000 68
+    Wall time is 0:00:00.943241.
+TopDown model.agent.rhs 0x0000 00:00:00.46 000 69
+    Wall time is 0:00:00.943806.
+PolytomousSelection model.agent.action 0x0000 00:00:00.47 000 70
+    Wall time is 0:00:00.944128.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,false)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,false)   1.0001
+            (b,d):(main,eval):(wm,_)     - 0.0001
+            (b,d):(main,eval):(wm,true)  - 0.0016
+Stop model.agent 0x0000 00:00:00.47 000 71
+    Wall time is 0:00:00.944281.
+AccumulatorReset model.agent.ctx 0x0000 00:00:00.47 000 72
+    Wall time is 0:00:00.944400.
+Transition model 0x0000 00:00:00.47 000 73
+    Wall time is 0:00:00.944437.
+Transition model 0x0000 00:00:00.47 000 74
+    Wall time is 0:00:00.944470.
+Input model.agent.src 0x0000 00:00:00.48 000 75
+    Wall time is 0:00:00.944647.
+    Presenting the following input state.
+    NumDict '(b,d):(main,?):(?,?)' c=0.0
+        (b,d):(main,match):(gs,by_val)   1.0000
+        (b,d):(main,shape):(gs,circle)   1.0000
+        (b,d):(main,shape):(gs,square)   1.0000
+        (b,d):(main,shape):(wm,circle)   1.0000
+        (b,d):(main,shape):(wm,square)   1.0000
+Start model.agent 0x0000 00:00:00.49 000 76
+    Wall time is 0:00:00.944755.
+PoolPropagation model.agent.pool 0x0000 00:00:00.49 000 77
+    Wall time is 0:00:00.945114.
+BottomUp model.agent.lhs 0x0000 00:00:00.49 000 78
+    Wall time is 0:00:00.947314.
+Start model.agent.rules 0x0000 00:00:00.49 000 79
+    Wall time is 0:00:00.947403.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.50 000 80
+    Wall time is 0:00:01.006612.
+RuleSelection model.agent.rules.selector 0x0000 00:00:00.54 000 81
+    Wall time is 0:00:01.008066.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_circle   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_circle     0.5354
+            d:rules:val_match_found_shape_square     0.5333
+            d:rules:val_match_false_shape_circle     0.4325
+            d:rules:val_match_false_shape_square     0.4316
+            d:rules:val_match_true                   0.3828
+            d:rules:dim_match_found_shape_circle     0.3566
+            d:rules:dim_match_found_shape_square     0.3560
+            d:rules:val_match_false_match__          0.2779
+            d:rules:dim_match_false_match            0.2769
+            d:rules:val_match_false_match_by_val     0.2759
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:00.54 000 82
+    Wall time is 0:00:01.065959.
+RHSPropagation model.agent.rules.store 0x0000 00:00:00.54 000 83
+    Wall time is 0:00:01.072074.
+Stop model.agent.rules 0x0000 00:00:00.54 000 84
+    Wall time is 0:00:01.072187.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:00.55 000 85
+    Wall time is 0:00:01.073365.
+TopDown model.agent.rhs 0x0000 00:00:00.55 000 86
+    Wall time is 0:00:01.073905.
+PolytomousSelection model.agent.action 0x0000 00:00:00.56 000 87
+    Wall time is 0:00:01.074180.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       1.0002
+            (b,d):(main,eval):(wm,true)  - 0.0002
+            (b,d):(main,eval):(wm,false) - 0.0003
+Stop model.agent 0x0000 00:00:00.56 000 88
+    Wall time is 0:00:01.074347.
+Start model.agent 0x0000 00:00:00.58 000 89
+    Wall time is 0:00:01.074465.
+PoolPropagation model.agent.pool 0x0000 00:00:00.59 000 90
+    Wall time is 0:00:01.074910.
+BottomUp model.agent.lhs 0x0000 00:00:00.59 000 91
+    Wall time is 0:00:01.077401.
+Start model.agent.rules 0x0000 00:00:00.59 000 92
+    Wall time is 0:00:01.077673.
+LHSPropagation model.agent.rules.store 0x0000 00:00:00.60 000 93
+    Wall time is 0:00:01.130635.
+RuleSelection model.agent.rules.selector 0x0000 00:00:01.00 000 94
+    Wall time is 0:00:01.131967.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_square   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_square     0.5329
+            d:rules:val_match_false_shape_square     0.4312
+            d:rules:val_match_true                   0.3824
+            d:rules:val_match_found_shape_circle     0.3583
+            d:rules:dim_match_found_shape_circle     0.3559
+            d:rules:dim_match_found_shape_square     0.3557
+            d:rules:val_match_false_match_by_dim     0.2771
+            d:rules:val_match_false_match_by_val     0.2766
+            d:rules:val_match_false_match__          0.2757
+            d:rules:dim_match_false_match            0.2751
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:01.01 000 95
+    Wall time is 0:00:01.190288.
+RHSPropagation model.agent.rules.store 0x0000 00:00:01.01 000 96
+    Wall time is 0:00:01.197249.
+Stop model.agent.rules 0x0000 00:00:01.01 000 97
+    Wall time is 0:00:01.197400.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:01.02 000 98
+    Wall time is 0:00:01.198878.
+TopDown model.agent.rhs 0x0000 00:00:01.03 000 99
+    Wall time is 0:00:01.199487.
+PolytomousSelection model.agent.action 0x0000 00:00:01.03 000 100
+    Wall time is 0:00:01.199785.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       1.0000
+            (b,d):(main,eval):(wm,false)   0.0005
+            (b,d):(main,eval):(wm,true)  - 0.0001
+Stop model.agent 0x0000 00:00:01.03 000 101
+    Wall time is 0:00:01.199950.
+Start model.agent 0x0000 00:00:01.03 000 102
+    Wall time is 0:00:01.200071.
+PoolPropagation model.agent.pool 0x0000 00:00:01.03 000 103
+    Wall time is 0:00:01.200547.
+BottomUp model.agent.lhs 0x0000 00:00:01.03 000 104
+    Wall time is 0:00:01.202820.
+Start model.agent.rules 0x0000 00:00:01.04 000 105
+    Wall time is 0:00:01.202920.
+LHSPropagation model.agent.rules.store 0x0000 00:00:01.04 000 106
+    Wall time is 0:00:01.263992.
+RuleSelection model.agent.rules.selector 0x0000 00:00:01.05 000 107
+    Wall time is 0:00:01.265684.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_true   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_true                   0.3823
+            d:rules:dim_match_found_shape_square     0.3577
+            d:rules:val_match_found_shape_circle     0.3565
+            d:rules:dim_match_found_shape_circle     0.3558
+            d:rules:val_match_found_shape_square     0.3554
+            d:rules:val_match_false_match_by_val     0.2777
+            d:rules:val_match_false_match__          0.2774
+            d:rules:val_match_false_match_by_dim     0.2761
+            d:rules:dim_match_false_match            0.2749
+            d:rules:dim_match_found_match_by_val     0.2183
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:01.05 000 108
+    Wall time is 0:00:01.334471.
+RHSPropagation model.agent.rules.store 0x0000 00:00:01.05 000 109
+    Wall time is 0:00:01.341665.
+Stop model.agent.rules 0x0000 00:00:01.06 000 110
+    Wall time is 0:00:01.341766.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:01.06 000 111
+    Wall time is 0:00:01.342832.
+TopDown model.agent.rhs 0x0000 00:00:01.07 000 112
+    Wall time is 0:00:01.343375.
+PolytomousSelection model.agent.action 0x0000 00:00:01.07 000 113
+    Wall time is 0:00:01.343630.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,true)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,true)    0.9993
+            (b,d):(main,eval):(wm,false)   0.0013
+            (b,d):(main,eval):(wm,_)       0.0003
+Stop model.agent 0x0000 00:00:01.07 000 114
+    Wall time is 0:00:01.343775.
+AccumulatorReset model.agent.ctx 0x0000 00:00:01.08 000 115
+    Wall time is 0:00:01.343893.
+Transition model 0x0000 00:00:01.09 000 116
+    Wall time is 0:00:01.343938.
+Transition model 0x0000 00:00:01.09 000 117
+    Wall time is 0:00:01.343973.
+Input model.agent.src 0x0000 00:00:01.09 000 118
+    Wall time is 0:00:01.344121.
+    Presenting the following input state.
+    NumDict '(b,d):(main,?):(?,?)' c=0.0
+        (b,d):(main,match):(gs,by_val)   1.0000
+        (b,d):(main,shape):(gs,circle)   1.0000
+        (b,d):(main,shape):(gs,square)   1.0000
+        (b,d):(main,shape):(wm,circle)   1.0000
+Start model.agent 0x0000 00:00:01.09 000 119
+    Wall time is 0:00:01.344846.
+PoolPropagation model.agent.pool 0x0000 00:00:01.10 000 120
+    Wall time is 0:00:01.345252.
+BottomUp model.agent.lhs 0x0000 00:00:01.10 000 121
+    Wall time is 0:00:01.347546.
+Start model.agent.rules 0x0000 00:00:01.11 000 122
+    Wall time is 0:00:01.347609.
+LHSPropagation model.agent.rules.store 0x0000 00:00:01.11 000 123
+    Wall time is 0:00:01.406229.
+RuleSelection model.agent.rules.selector 0x0000 00:00:01.22 000 124
+    Wall time is 0:00:01.407654.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_circle   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_found_shape_circle     0.5338
+            d:rules:val_match_false_shape_circle     0.4330
+            d:rules:val_match_false_shape_square     0.4323
+            d:rules:val_match_true                   0.3809
+            d:rules:val_match_found_shape_square     0.3568
+            d:rules:dim_match_found_shape_circle     0.3553
+            d:rules:val_match_false_match_by_dim     0.2766
+            d:rules:dim_match_false_match            0.2764
+            d:rules:val_match_false_match__          0.2763
+            d:rules:val_match_false_match_by_val     0.2754
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:01.22 000 125
+    Wall time is 0:00:01.472195.
+RHSPropagation model.agent.rules.store 0x0000 00:00:01.22 000 126
+    Wall time is 0:00:01.479096.
+Stop model.agent.rules 0x0000 00:00:01.23 000 127
+    Wall time is 0:00:01.479226.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:01.24 000 128
+    Wall time is 0:00:01.480432.
+TopDown model.agent.rhs 0x0000 00:00:01.24 000 129
+    Wall time is 0:00:01.480932.
+PolytomousSelection model.agent.action 0x0000 00:00:01.24 000 130
+    Wall time is 0:00:01.481218.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,_)       0.9997
+            (b,d):(main,eval):(wm,true)    0.0001
+            (b,d):(main,eval):(wm,false) - 0.0012
+Stop model.agent 0x0000 00:00:01.25 000 131
+    Wall time is 0:00:01.481361.
+Start model.agent 0x0000 00:00:01.28 000 132
+    Wall time is 0:00:01.481465.
+PoolPropagation model.agent.pool 0x0000 00:00:01.28 000 133
+    Wall time is 0:00:01.481932.
+BottomUp model.agent.lhs 0x0000 00:00:01.29 000 134
+    Wall time is 0:00:01.484156.
+Start model.agent.rules 0x0000 00:00:01.29 000 135
+    Wall time is 0:00:01.484213.
+LHSPropagation model.agent.rules.store 0x0000 00:00:01.30 000 136
+    Wall time is 0:00:01.534129.
+RuleSelection model.agent.rules.selector 0x0000 00:00:01.59 000 137
+    Wall time is 0:00:01.535521.
+    Agent selected an action rule.
+    Here is the selection vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_false_shape_square   1.0000
+    Here is the corresponding activation vector:
+        NumDict 'd:rules:?' c=0.0
+            d:rules:val_match_false_shape_square     0.4348
+            d:rules:val_match_true                   0.3818
+            d:rules:dim_match_found_shape_circle     0.3570
+            d:rules:val_match_found_shape_circle     0.3565
+            d:rules:val_match_found_shape_square     0.3553
+            d:rules:val_match_false_match_by_dim     0.2760
+            d:rules:val_match_false_match_by_val     0.2754
+            d:rules:dim_match_false_match            0.2750
+            d:rules:val_match_false_match__          0.2742
+            d:rules:val_match_false_color__          0.2189
+            Omitted 55 additional entries.
+RuleSignaling model.agent.rules 0x0000 00:00:01.59 000 138
+    Wall time is 0:00:01.590907.
+RHSPropagation model.agent.rules.store 0x0000 00:00:01.59 000 139
+    Wall time is 0:00:01.597130.
+Stop model.agent.rules 0x0000 00:00:01.60 000 140
+    Wall time is 0:00:01.597266.
+AccumulatorUpdate model.agent.ctx 0x0000 00:00:01.60 000 141
+    Wall time is 0:00:01.598465.
+TopDown model.agent.rhs 0x0000 00:00:01.61 000 142
+    Wall time is 0:00:01.598977.
+PolytomousSelection model.agent.action 0x0000 00:00:01.61 000 143
+    Wall time is 0:00:01.599224.
+    Agent selected an action.
+    Here is the selection vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,false)   1.0000
+    Here is the corresponding activation vector:
+        NumDict '(b,d):(main,eval):(wm,?)' c=0.0
+            (b,d):(main,eval):(wm,false)   1.0012
+            (b,d):(main,eval):(wm,true)    0.0012
+            (b,d):(main,eval):(wm,_)     - 0.0006
+Stop model.agent 0x0000 00:00:01.62 000 144
+    Wall time is 0:00:01.599360.
+AccumulatorReset model.agent.ctx 0x0000 00:00:01.66 000 145
+    Wall time is 0:00:01.599460.
+Transition model 0x0000 00:00:01.66 000 146
+    Wall time is 0:00:01.599496.
+Stop model 0x0000 00:00:01.66 000 147
+    Wall time is 0:00:01.599528.
