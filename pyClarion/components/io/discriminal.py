@@ -51,7 +51,6 @@ class Discriminal[D: Nodes, P: DiscriminalParams](Parametric[P]):
 class DiscriminalSelection[D: Discriminal[Nodes, DiscriminalParams]](Action[D]):
     __slots__ = ()
     def __init__(self, source: D) -> None:
-        super().__init__(source)
         input = source.output.new({}).sum(source.input[0])
         sd = source.output.new({}, c=source.params[0][~source.p.sd])
         sample = input.normalvariate(sd)
@@ -60,6 +59,7 @@ class DiscriminalSelection[D: Discriminal[Nodes, DiscriminalParams]](Action[D]):
         pos = sample.isbetween(lb=thu)
         neg = sample.isbetween(ub=thl)
         choices = pos.sub(neg)
+        super().__init__(source)
         self.updates.extend([
             ForwardUpdate(source.output, choices),
             ForwardUpdate(source.sample, sample)])

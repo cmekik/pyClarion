@@ -132,19 +132,19 @@ type AnyChunkStore = ChunkStore[Chunks]
 
 class BottomUp[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
-        super().__init__(source)
         output = (source.buw[0]
             .mul(source.input_bu[0], by=source.weights_by_value)
             .max(by=source.weights_by_dim)
             .sum(by=source.dims_by_chunk, c=0.0))
+        super().__init__(source)
         self.updates.append(ForwardUpdate(source.output_bu, output))
 
 
 class TopDown[S: AnyChunkStore](Action[S]):
     def __init__(self, source: S) -> None:
-        super().__init__(source)
         output = (source.tdw[0]
             .mul(source.input_td[0], 
                  by=source.weights_by_chunk)
             .sum(by=source.weights_by_value))
+        super().__init__(source)
         self.updates.append(ForwardUpdate(source.output_td, output))

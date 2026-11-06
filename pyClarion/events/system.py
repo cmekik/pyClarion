@@ -47,22 +47,31 @@ class Action[P: Process]:
     __slots__ = ("source", "fluent", "updates", "duration", "priority")
     __match_args__ = ("source",)
 
-    source: P
-    fluent: Fluent
-    updates: list[Update]
-    duration: timedelta
-    priority: int
+    source: Final[P]
+    fluent: Final[Fluent]
+    updates: Final[list[Update]]
+    duration: Final[timedelta]
+    priority: Final[int]
 
-    def __init__(self, source: P) -> None:
+    def __init__(self, 
+        source: P, 
+        fluent: Fluent | None = None, 
+        duration: timedelta | None = None, 
+        priority: int = 0
+    ) -> None:
         if self.preconditions and source.status not in self.preconditions:
             raise ValueError(f"Process '{source.name}' does not satify "
                 f"preconditions for action of type {type(self).__name__}")
-        latency = random.expovariate(1 / source.system.latency)
+        if fluent is None:
+            fluent = source.status
+        if duration is None:
+            latency = random.expovariate(1 / source.system.latency)
+            duration = timedelta(seconds=latency)
         self.source = source
-        self.fluent = source.status
+        self.fluent = fluent
+        self.duration = duration
+        self.priority = priority
         self.updates = []
-        self.duration = timedelta(seconds=latency)
-        self.priority = 0
 
     def describe(self) -> str:
         return ""
@@ -72,18 +81,14 @@ class Action[P: Process]:
 class Start[P: Process](Action[P]):
     __slots__ = ()
     def __init__(self, source: P, fluent: Fluent | None = None) -> None:
-        super().__init__(source)
-        if fluent is not None:
-            self.fluent = fluent
+        super().__init__(source, fluent=fluent)
 
 
 @final
 class Stop[P: Process](Action[P]):
     __slots__ = ()
     def __init__(self, source: P, fluent: Fluent | None = None) -> None:
-        super().__init__(source)
-        if fluent is not None:
-            self.fluent = fluent
+        super().__init__(source, fluent=fluent)
 
 @final
 class Transition[P: Process](Action[P]):
@@ -91,8 +96,7 @@ class Transition[P: Process](Action[P]):
     __match_args__ = ("source", "fluent")
     preconditions = ()
     def __init__(self, source: P, fluent: Fluent) -> None:
-        super().__init__(source)
-        self.fluent = fluent
+        super().__init__(source, fluent=fluent)
 
 
 @dataclass(slots=True)

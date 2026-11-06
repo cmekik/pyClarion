@@ -39,12 +39,12 @@ class Accumulator[D: Nodes](Process[Root]):
 
 class AccumulatorUpdate[P: Accumulator](Action[P]):
     def __init__(self, source: P) -> None:
-        super().__init__(source)
         output = source.output[0].sum(source.input[0])
-        self.updates = [ForwardUpdate(source.output, output)]
+        super().__init__(source)
+        self.updates.append(ForwardUpdate(source.output, output))
 
 
 class AccumulatorReset[P: Accumulator](Action[P]):
     def __init__(self, source: P) -> None:
         super().__init__(source)
-        self.updates = [ForwardUpdate(source.output, {})]
+        self.updates.append(ForwardUpdate(source.output, {}))

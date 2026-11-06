@@ -43,6 +43,6 @@ class ParamUpdate[P: Parametric](Action[P]):
     """Updates metaparameters associated with a parametric process."""
     __slots__ = ()
     def __init__(self, source: P, **kwargs: float) -> None:
-        super().__init__(source)
         data = {~source.p[param]: value for param, value in kwargs.items()}
+        super().__init__(source)
         self.updates.append(ForwardUpdate(source.params, data, "write"))

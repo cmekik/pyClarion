@@ -7,7 +7,7 @@ from typing import Final
 from datetime import timedelta
 
 from ..base.parametric import Parametric, ParamUpdate
-from ...events.system import Action, Event
+from ...events.system import Action, Event, Fluent
 from ...events.sites import State, Site 
 from ...events.updates import ForwardUpdate
 from ...knowledge.base import Term
@@ -95,7 +95,6 @@ class RetrievalParams(PolytomousParams):
 class Retrieval[C: Polytomous[Nodes, RetrievalParams]](PolytomousSelection[C]):
     __slots__ = ()
     def __init__(self, source: C) -> None:
-        super(PolytomousSelection, self).__init__(source)
         input = source.output.new({}).sum(source.input[0])
         sd = source.output.new({}, c=source.params[0][~source.p.sd])
         sample = input.normalvariate(sd)
@@ -103,7 +102,8 @@ class Retrieval[C: Polytomous[Nodes, RetrievalParams]](PolytomousSelection[C]):
         offset = source.params[0][~source.p.offset]
         scale = source.params[0][~source.p.scale]     
         seconds = offset + scale * math.exp(-sample.valmax())
+        duration = timedelta(seconds=seconds)
+        super(PolytomousSelection, self).__init__(source, duration=duration)
         self.updates.extend([
             ForwardUpdate(source.output, {v: 1.0 for v in choices.values()}),
             ForwardUpdate(source.sample, sample)])
-        self.duration = timedelta(seconds=seconds)
